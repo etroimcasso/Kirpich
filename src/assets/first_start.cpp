@@ -58,8 +58,11 @@ std::optional<std::filesystem::path> promptForRom() {
     // The dialog is a platform window, so the video subsystem has to be up. Kirpich has no
     // window of its own yet at this point in startup — the dialog is parentless, which
     // every supported platform allows.
-    const bool videoWasUp = SDL_WasInit(SDL_INIT_VIDEO) != 0;
-    if (!videoWasUp && !SDL_InitSubSystem(SDL_INIT_VIDEO)) {
+    // SDL refcounts subsystem initialization, so asking for video here is safe whether or not
+    // it is already up. It is deliberately NOT torn down afterwards: the panel's completion
+    // handler is still unwinding when the callback returns, and quitting the subsystem out
+    // from under it hangs the process on macOS. Video is the engine's from here on anyway.
+    if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
         spdlog::error("Could not start SDL video, so no file dialog can be shown: {}",
                       SDL_GetError());
         return std::nullopt;
@@ -80,10 +83,6 @@ std::optional<std::filesystem::path> promptForRom() {
     while (!outcome.finished.load(std::memory_order_acquire)) {
         SDL_PumpEvents();
         SDL_Delay(10);
-    }
-
-    if (!videoWasUp) {
-        SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 
     const std::lock_guard guard{outcome.lock};

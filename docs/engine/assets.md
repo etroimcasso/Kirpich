@@ -144,21 +144,26 @@ distinguishes the three outcomes internally — chosen, cancelled, failed — be
 a failure and a cancellation through the same callback, and telling a player whose dialog
 broke that they declined to pick a file would be worse than saying nothing.
 
-> **The picker cannot open in the current build.** The engine compiles SDL with its dialog
-> subsystem disabled (`SDL_DIALOG OFF ... FORCE`), so SDL links a dummy backend and the call
-> fails with *"SDL not built with dialog support"*. The flow handles it correctly — it logs
-> the reason and exits rather than hanging or crashing — but first-start ROM selection cannot
-> complete until the engine allows a consumer to opt the subsystem in. Populate assets with
-> the setup script or by hand meanwhile.
+The picker requires SDL's dialog subsystem, which the engine leaves off by default. Kirpich
+opts in from its own `CMakeLists.txt` before `add_subdirectory(engine)`:
+
+```cmake
+set(SDL_DIALOG ON CACHE BOOL "" FORCE)
+```
+
+Without that line SDL links a dummy backend and the call fails with *"SDL not built with
+dialog support"* — so if the picker ever stops appearing, check this option first.
 
 Three things about it constrain how it can be used:
 
 - **Main thread only.** SDL requires it, and the callback may arrive on a different thread
   than the one that opened the dialog.
-- **It initializes SDL video if that is not already up**, because a dialog is a platform
-  window, and it shuts the subsystem down again if it was the one that started it. Kirpich
-  has no window of its own this early, so the dialog is parentless — allowed everywhere
-  Kirpich runs.
+- **It initializes SDL video and leaves it up.** A dialog is a platform window, so video has
+  to be running; SDL refcounts the request, so asking for it here is safe either way. It is
+  deliberately not torn down afterwards — the panel's completion handler is still unwinding
+  when the callback returns, and quitting the subsystem underneath it hangs the process on
+  macOS. Video belongs to the engine from here on regardless. Kirpich has no window of its
+  own this early, so the dialog is parentless, which every platform Kirpich runs on allows.
 - **It pumps events while it waits.** This is required rather than polite: the portal-based
   dialogs on Linux run over DBus and never complete without it.
 

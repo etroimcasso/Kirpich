@@ -75,6 +75,13 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/engine/CMakeLists.txt")
     message(FATAL_ERROR
         "engine/ submodule not initialized. Run: git submodule update --init --recursive")
 endif()
+
+# Kirpich asks for SDL's dialog subsystem, which the engine leaves off by default. The
+# first-start flow opens a native file picker so the player can point at their own ROM
+# (src/assets/first_start.cpp); without this the call reaches a dummy backend and fails.
+# Set before add_subdirectory so the engine's non-FORCE default does not win.
+set(SDL_DIALOG ON CACHE BOOL "" FORCE)
+
 add_subdirectory(engine)
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
