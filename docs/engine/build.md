@@ -30,7 +30,7 @@ To run the game you also need its graphics, which do not come with the source â€
 
 ```sh
 scripts/setup-dev-assets.sh
-./build/src/kirpich
+./build/kirpich
 ```
 
 ## Targets

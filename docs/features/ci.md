@@ -172,6 +172,13 @@ regressions accumulate is worse than no CI.
   `C:\actions-runner\_work\Kirpich\Kirpich\build\...` blows past the 260-character path limit,
   so Windows builds at a short root path instead.
 
+After every run, each Unix job leaves a staged copy of the **entire build directory** at
+`/tmp/kirpich-build` — run the game as `/tmp/kirpich-build/kirpich`. The workspace itself lives
+under the runner's service account, and `/tmp` is where anyone on the machine can launch the fresh
+build by hand. It is the whole directory, never just the binary, so everything the build placed
+beside the executable comes with it. Windows needs no copy:
+`C:\kirpich-ci-build\Release\kirpich.exe` is already at an accessible fixed path.
+
 Because the build sits inside the workspace on Unix, those jobs' checkout steps set `clean: false`:
 the checkout action's default `git clean -ffdx` would delete the persisted `build/` on every run and
 silently turn every build cold. Windows builds outside the workspace and keeps the default.

@@ -71,6 +71,12 @@ jobs:
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
+      # The whole build directory, never just the binary — a bare binary breaks the moment
+      # it needs a single file the build placed beside it. The rm clears the previous
+      # staged copy, never the build itself.
+      - name: Stage build for manual testing
+        run: rm -rf /tmp/kirpich-build && cp -R "$GITHUB_WORKSPACE/build" /tmp/kirpich-build
+
       - name: Test
         run: |
           set -o pipefail   # the default shell is `bash -e`, NOT -o pipefail: without this, tee's
@@ -128,6 +134,12 @@ jobs:
 
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
+
+      # The whole build directory, never just the binary — a bare binary breaks the moment
+      # it needs a single file the build placed beside it. The rm clears the previous
+      # staged copy, never the build itself.
+      - name: Stage build for manual testing
+        run: rm -rf /tmp/kirpich-build && cp -R "$GITHUB_WORKSPACE/build" /tmp/kirpich-build
 
       - name: Test
         run: |
@@ -253,6 +265,12 @@ jobs:
 
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
+
+      # The whole build directory, never just the binary — a bare binary breaks the moment
+      # it needs a single file the build placed beside it. The rm clears the previous
+      # staged copy, never the build itself.
+      - name: Stage build for manual testing
+        run: rm -rf /tmp/kirpich-build && cp -R "$GITHUB_WORKSPACE/build" /tmp/kirpich-build
 
       - name: Test
         run: |

@@ -9,6 +9,7 @@
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_init.h>
+#include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_timer.h>
 
 #include <spdlog/spdlog.h>
@@ -73,10 +74,19 @@ std::optional<std::filesystem::path> promptForRom() {
         {"All files", "*"},
     };
 
-    DialogOutcome outcome;
-    SDL_ShowOpenFileDialog(onFileChosen, &outcome, /*window=*/nullptr, filters,
-                           static_cast<int>(std::size(filters)), /*default_location=*/nullptr,
-                           /*allow_many=*/false);
+    // The dialog says what it is FOR, not just "Open". The plain SDL_ShowOpenFileDialog
+    // carries no title, so the properties form of the same dialog is used; a platform that
+    // cannot display a title shows its stock chrome, which is the same dialog minus the
+    // words.
+    DialogOutcome          outcome;
+    const SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER,
+                           const_cast<SDL_DialogFileFilter*>(static_cast<const SDL_DialogFileFilter*>(filters)));
+    SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER,
+                          static_cast<Sint64>(std::size(filters)));
+    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING,
+                          "Locate your Game Boy Tetris ROM");
+    SDL_ShowFileDialogWithProperties(SDL_FILEDIALOG_OPENFILE, onFileChosen, &outcome, props);
 
     // Block until the callback fires. Pumping events is required, not merely polite: the
     // portal-based dialogs on Linux run over DBus and never complete without it.
@@ -84,6 +94,7 @@ std::optional<std::filesystem::path> promptForRom() {
         SDL_PumpEvents();
         SDL_Delay(10);
     }
+    SDL_DestroyProperties(props);
 
     const std::lock_guard guard{outcome.lock};
     switch (outcome.end) {
