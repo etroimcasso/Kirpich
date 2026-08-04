@@ -1,0 +1,320 @@
+name: CI
+
+# Triggers fire on ci/** only — not main, not pull_request. Source reaches main only via
+# squash-merge from a ci/<branch> that already ran green; re-running on the post-squash main
+# would rebuild identical source for no new signal.
+#
+# Self-hosted-runner safety: there is deliberately NO pull_request-family trigger. This repo is
+# public and the runners are personal machines — anyone can open a fork PR, and a pull_request
+# trigger would schedule that fork's code onto them. With push-only triggers a run can be started
+# only by someone who can push here. Do not add pull_request / pull_request_target / workflow_run,
+# or a push trigger on main, without re-adjudicating that.
+on:
+  push:
+    branches:
+      - 'ci/**'
+
+# Each runner has one workspace and one fixed build directory per platform, so two runs on the same
+# branch would fight over both. Superseding the older run keeps that impossible.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# The engine (Retro++) is a PRIVATE repo consumed as a submodule, and a job's GITHUB_TOKEN is scoped
+# to this repo alone — so checkout runs WITHOUT submodules and a following step initializes the
+# engine with the ENGINE_PAT secret. Recursive, because the engine builds SDL3 and SameBoy from its
+# own submodules.
+
+jobs:
+
+  # ── Linux x64 (beefserve) ────────────────────────────────────────────────────
+  build-linux:
+    name: Linux (beefserve, x64)
+    runs-on: [self-hosted, Linux, X64, beefserve]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # The credential is supplied per-invocation with -c (git passes it down to the clone it
+          # spawns) rather than written to the runner's git config, so it does not persist between
+          # runs. A leftover clone from an earlier run can lack the revision this branch records
+          # ("Unable to find current revision"); discarding it and retrying costs a full fetch only
+          # on the run that hits it.
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      - name: Configure
+        run: |
+          cmake -S "$GITHUB_WORKSPACE" -B /tmp/kirpich-ci-build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build /tmp/kirpich-ci-build --parallel
+
+      - name: Test
+        run: |
+          set -o pipefail   # the default shell is `bash -e`, NOT -o pipefail: without this, tee's
+                            # exit code masks a ctest failure and the gate reports green
+          export SDL_VIDEODRIVER=offscreen   # headless: SDL video init must still succeed
+          mkdir -p "$GITHUB_WORKSPACE/ci-output"
+          ctest --test-dir /tmp/kirpich-ci-build --output-on-failure \
+            2>&1 | tee "$GITHUB_WORKSPACE/ci-output/linux-test-results.txt"
+
+      - name: ccache stats
+        run: ccache --show-stats
+        continue-on-error: true
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-results
+          path: ci-output/
+
+  # ── macOS ARM64 (ericmacmini) ────────────────────────────────────────────────
+  # First of the three ARM64 jobs sharing the Apple Silicon host: native, no VM overhead.
+  build-macos:
+    name: macOS (ericmacmini, ARM64)
+    runs-on: [self-hosted, macOS, ARM64, ericmacmini]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # See the Linux job for why the credential is per-invocation and why the retry exists.
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      - name: Configure
+        run: |
+          cmake -S "$GITHUB_WORKSPACE" -B /tmp/kirpich-ci-build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build /tmp/kirpich-ci-build --parallel
+
+      - name: Test
+        run: |
+          set -o pipefail   # see the Linux job
+          mkdir -p "$GITHUB_WORKSPACE/ci-output"
+          ctest --test-dir /tmp/kirpich-ci-build --output-on-failure \
+            2>&1 | tee "$GITHUB_WORKSPACE/ci-output/macos-test-results.txt"
+
+      - name: ccache stats
+        run: ccache --show-stats
+        continue-on-error: true
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-results
+          path: ci-output/
+
+  # ── Windows x64 (WINDOWS-BVDA56O) ────────────────────────────────────────────
+  build-windows-msvc:
+    name: Windows clang-cl (WINDOWS-BVDA56O, x64)
+    runs-on: [self-hosted, X64, Windows, Windows_X64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        shell: powershell
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd $env:GITHUB_WORKSPACE
+          # See the Linux job for why the credential is per-invocation and why the retry exists.
+          git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+          if ($LASTEXITCODE -ne 0) {
+            git submodule deinit -f -- engine
+            git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      # ClangCL, not MSVC: SameBoy's Windows shims use #include_next, which MSVC rejects (C1021).
+      - name: Configure
+        shell: powershell
+        run: |
+          cmake -S $env:GITHUB_WORKSPACE -B C:\kirpich-ci-build `
+            -G "Visual Studio 17 2022" -A x64 -T ClangCL
+          if ($LASTEXITCODE -ne 0) {
+            # A cache written by a different generator or toolset cannot be reused, and CMake will
+            # not overwrite it. Each FetchContent sub-build keeps its own cache too, so the whole
+            # directory goes rather than the parts that look guilty.
+            Remove-Item C:\kirpich-ci-build -Recurse -Force -ErrorAction SilentlyContinue
+            cmake -S $env:GITHUB_WORKSPACE -B C:\kirpich-ci-build `
+              -G "Visual Studio 17 2022" -A x64 -T ClangCL
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build
+        shell: powershell
+        run: cmake --build C:\kirpich-ci-build --config Release --parallel
+
+      - name: Test
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\ci-output | Out-Null
+          # A held handle on a fixed results name has locked this step before; write a run-unique
+          # file (and best-effort clear deletable stale ones) so a stale handle cannot block it.
+          Get-ChildItem C:\ci-output\windows-test-results*.txt -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+          $results = "C:\ci-output\windows-test-results-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+          cmd /c "ctest --test-dir C:\kirpich-ci-build -C Release --output-on-failure 2>&1" |
+            Tee-Object -FilePath $results
+          # PowerShell has no `set -o pipefail` equivalent — Tee-Object does not update
+          # $LASTEXITCODE, so the cmd /c exit code is captured after the pipeline and re-raised.
+          # Without this, ctest failures would silently report green.
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-results
+          path: C:\ci-output\windows-test-results-${{ github.run_id }}-${{ github.run_attempt }}.txt
+
+  # ── Linux ARM64 (Mac Mini VM) ────────────────────────────────────────────────
+  # Second ARM64 job. `needs: build-macos` serializes the Apple Silicon host, which cannot hold
+  # three concurrent C++ builds. `if: always()` so an upstream failure never leaves this untested.
+  build-linux-arm64:
+    name: Linux (Mac Mini VM, ARM64)
+    runs-on: [self-hosted, Linux, ARM64, linmac-arm64]
+    needs: build-macos
+    if: ${{ always() }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # See the Linux x64 job for why the credential is per-invocation and why the retry exists.
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      - name: Configure
+        run: |
+          cmake -S "$GITHUB_WORKSPACE" -B /tmp/kirpich-ci-build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build /tmp/kirpich-ci-build --parallel
+
+      - name: Test
+        run: |
+          set -o pipefail   # see the Linux x64 job
+          export SDL_VIDEODRIVER=offscreen
+          mkdir -p "$GITHUB_WORKSPACE/ci-output"
+          ctest --test-dir /tmp/kirpich-ci-build --output-on-failure \
+            2>&1 | tee "$GITHUB_WORKSPACE/ci-output/linux-arm64-test-results.txt"
+
+      - name: ccache stats
+        run: ccache --show-stats
+        continue-on-error: true
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-test-results
+          path: ci-output/
+
+  # ── Windows ARM64 (Mac Mini VM) ──────────────────────────────────────────────
+  # LAST in the ARM64 chain, deliberately: it is the slowest of the three, and putting it earlier
+  # would park the shorter jobs behind it. Keep it at the end if this chain is ever reshuffled.
+  build-windows-arm64:
+    name: Windows clang-cl (Mac Mini VM, ARM64)
+    runs-on: [self-hosted, ARM64, Windows, WINMACARM64]
+    needs: build-linux-arm64
+    if: ${{ always() }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        shell: powershell
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd $env:GITHUB_WORKSPACE
+          # See the Linux x64 job for why the credential is per-invocation and why the retry exists.
+          git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+          if ($LASTEXITCODE -ne 0) {
+            git submodule deinit -f -- engine
+            git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Configure
+        shell: powershell
+        run: |
+          cmake -S $env:GITHUB_WORKSPACE -B C:\kirpich-ci-build `
+            -G "Visual Studio 17 2022" -A ARM64 -T ClangCL
+          if ($LASTEXITCODE -ne 0) {
+            # See the Windows x64 job.
+            Remove-Item C:\kirpich-ci-build -Recurse -Force -ErrorAction SilentlyContinue
+            cmake -S $env:GITHUB_WORKSPACE -B C:\kirpich-ci-build `
+              -G "Visual Studio 17 2022" -A ARM64 -T ClangCL
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build
+        shell: powershell
+        run: cmake --build C:\kirpich-ci-build --config Release --parallel
+
+      - name: Test
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\ci-output | Out-Null
+          # Run-unique results name — see the Windows x64 job.
+          Get-ChildItem C:\ci-output\windows-arm64-test-results*.txt -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+          $results = "C:\ci-output\windows-arm64-test-results-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+          cmd /c "ctest --test-dir C:\kirpich-ci-build -C Release --output-on-failure 2>&1" |
+            Tee-Object -FilePath $results
+          # PowerShell pipefail equivalent — see the Windows x64 Test step.
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-test-results
+          path: C:\ci-output\windows-arm64-test-results-${{ github.run_id }}-${{ github.run_attempt }}.txt
