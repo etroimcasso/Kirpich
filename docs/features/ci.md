@@ -27,11 +27,35 @@ Self-hosted is the right call here for two reasons:
 
 | Target | `runs-on` labels | Compiler | Generator |
 |---|---|---|---|
-| Linux x64 | `[self-hosted, Linux, X64]` | GCC ≥ 13 | Ninja |
-| macOS ARM64 | `[self-hosted, macOS, ARM64]` | Apple Clang | Ninja |
-| Linux ARM64 | `[self-hosted, Linux, ARM64]` | GCC ≥ 13 | Ninja |
-| Windows x64 | `[self-hosted, X64, Windows]` | ClangCL (VS 2022) | Visual Studio 17 2022, x64 |
-| Windows ARM64 | `[self-hosted, Windows, ARM64]` | ClangCL (VS 2022 + ARM64 tools) | Visual Studio 17 2022, ARM64 |
+| Linux x64 | `[self-hosted, Linux, X64, beefserve]` | GCC ≥ 13 | Ninja |
+| macOS ARM64 | `[self-hosted, macOS, ARM64, ericmacmini]` | Apple Clang | Ninja |
+| Linux ARM64 | `[self-hosted, Linux, ARM64, linmac-arm64]` | GCC ≥ 13 | Ninja |
+| Windows x64 | `[self-hosted, X64, Windows, Windows_X64]` | ClangCL (VS 2022) | Visual Studio 17 2022, x64 |
+| Windows ARM64 | `[self-hosted, ARM64, Windows, WINMACARM64]` | ClangCL (VS 2022 + ARM64 tools) | Visual Studio 17 2022, ARM64 |
+
+Each job is pinned by its machine's **name-label** (the last entry), not just the generic
+platform/architecture set. Nothing else is registered here today, so the generic labels would be
+unambiguous — but a runner added later could silently start matching, and a job that lands on the
+wrong machine is a confusing failure. Pinning costs one label and removes the class.
+
+### The engine submodule needs a credential
+
+`engine/` is a private repository, and a job's `GITHUB_TOKEN` is scoped to this repository alone, so
+the default checkout cannot descend into it. Checkout runs **without** submodules; a following step
+initializes just the engine, supplying a `ENGINE_PAT` repository secret per-invocation:
+
+```sh
+git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+    submodule update --init --recursive -- engine
+```
+
+The credential is passed with `-c` rather than written to the runner's git config, so it does not
+persist on the machine between runs. Recursion is required — the engine builds SDL3 and SameBoy from
+its own submodules.
+
+A leftover clone from an earlier run can lack the revision a branch records, surfacing as "Unable to
+find current revision." The step retries once after `git submodule deinit -f -- engine`, which costs
+a full fetch only on the run that hits it.
 
 ### The ARM64 jobs run in sequence
 
@@ -51,6 +75,12 @@ build-windows-arm64:
 
 macOS runs first (native, no VM overhead). When it finishes — pass *or* fail — the Linux ARM64 job
 runs, then the Windows ARM64 job.
+
+**All three ARM64 jobs are serial, and Windows ARM64 is last because it is the slowest.** Putting
+the longest job anywhere but the end would park the two shorter ones behind it, so their results —
+and their artifacts — would arrive later than they need to. Ordering shortest-to-longest gets every
+result out as early as that job can produce it. This ordering is deliberate: a future change that
+reshuffles the chain should keep Windows ARM64 at the end.
 
 Two properties are non-negotiable:
 
@@ -72,19 +102,59 @@ ctest --test-dir "$BUILD_DIR" --output-on-failure 2>&1 \
   | tee "$GITHUB_WORKSPACE/ci-output/<target>-test-results.txt"
 ```
 
-The default POSIX shell sets `pipefail`, so the step's exit code reflects `ctest`, not `tee` — a
-test failure correctly fails the step. The Windows `cmd /c` + `Tee-Object` chain forwards the inner
-exit code the same way.
+**Each Unix test step sets `pipefail` explicitly.** The default shell for a `run:` step on Linux and
+macOS is `bash -e {0}`, which does *not* enable it — only an explicit `shell: bash` gets
+`-eo pipefail`. Without `set -o pipefail` in the step body, `tee`'s exit code is the pipeline's, and
+a failing `ctest` reports green. That is precisely the false-green this gate exists to prevent, so
+the line is written out rather than relied upon:
 
-### Trigger
+```yaml
+run: |
+  set -o pipefail
+  ctest --test-dir ... --output-on-failure 2>&1 | tee ci-output/<target>-test-results.txt
+```
+
+Windows has no equivalent: `Tee-Object` does not update `$LASTEXITCODE`. The exit code is captured
+from a `cmd /c` invocation after the pipeline and re-raised:
+
+```powershell
+cmd /c "ctest --test-dir ... -C Release --output-on-failure 2>&1" | Tee-Object -FilePath $results
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+```
+
+### Trigger — push to `ci/**` only, and nothing from the pull-request family
 
 ```yaml
 on:
   push:
-    branches: ['ci/**']
-  pull_request:
-    branches: [main]
+    branches:
+      - 'ci/**'
 ```
+
+**This repository is public and the runners are personal machines. That combination makes a
+pull-request trigger a way for anyone to run their code on someone's hardware.** Anybody can open a
+pull request from a fork; a `pull_request` trigger would schedule that fork's code onto the fleet.
+With push-only triggers, a fork pull request schedules nothing, because only someone who can push to
+this repository can start a run.
+
+**Do not add `pull_request`, `pull_request_target`, `workflow_run`, or a `push` trigger on `main`
+without re-adjudicating this.** `workflow_dispatch` is acceptable if a manual run is ever wanted —
+it requires write access, so the same property holds.
+
+Excluding `main` costs nothing besides: source reaches `main` only by squash-merge from a `ci/**`
+branch that already ran green, so a post-squash run would rebuild identical source for no new
+signal.
+
+### One run at a time per branch
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+Each runner has one workspace and one fixed build directory per platform, so two runs on the same
+branch would fight over both. Superseding the older run makes that impossible.
 
 ### The test gate is real from the first commit
 
@@ -155,6 +225,56 @@ stable across runs.
 debug build. A separate Linux job with sanitizers is worth adding once there is meaningful
 implementation code to exercise.
 
+### The ROM lives on the runner, never in the repository or the workspace
+
+Work that reads the original ROM — extraction, and later the frame-accuracy comparisons — needs a
+ROM in CI. It is never committed, never uploaded, and never placed in the Actions work directory;
+`.gitignore` bans ROM extensions tree-wide as a backstop. Each runner holds its own copy outside
+the workspace, put there by hand during provisioning.
+
+The location is a fixed convention, not a configured one — one path per platform family, identical
+across every runner in that family:
+
+| Platform | Path |
+|---|---|
+| Linux, macOS | `$HOME/ci-assets/kirpich/tetris.gb` |
+| Windows | `C:\ci-assets\kirpich\tetris.gb` |
+
+No environment variable. A convention that is the same on every machine is one less thing to
+provision, one less thing to verify, and one less way for a runner to be subtly misconfigured while
+appearing healthy. Provisioning is: make the directory, copy the ROM in.
+
+Write `$HOME` rather than a literal `~` in workflow steps — a tilde inside a quoted string is not
+expanded by the shell, and quoting is otherwise the right habit for paths.
+
+**Provisioned on all five runners, 2026-08-04.**
+
+**A missing ROM is a provisioning failure, not a skip.** A job that cannot find it fails loudly and
+names the path it looked for. Silently skipping would report green while verifying nothing, which
+is the failure mode the whole test gate exists to prevent.
+
+Nothing derived from the ROM leaves the runner: extraction output stays in the workspace and is
+excluded from uploaded artifacts, and the packaging check refuses any artifact carrying it.
+
+### CI proves extraction works; it must not leave the assets in place
+
+Extraction jobs verify that the decode is **correct on that platform** — right dimensions, right
+pixels, byte-identical across platforms — and write their output to a scratch directory that is
+discarded. **They never populate `assets/gfx/default/` on the runner.**
+
+This is not tidiness. The canonical asset directory being empty is the precondition for the
+first-start flow: a populated one means the presence check passes, the picker never opens, and the
+one thing that has to be checked by a human on each platform can no longer be checked at all. A CI
+job that populates it silently disables the manual verification it was supposed to support.
+
+So the split is: **CI owns the decode, a person owns the dialog.** SDL's picker is a genuinely
+different implementation per platform — Cocoa on macOS, the XDG portal over DBus on Linux, the
+Windows shell dialog — and none of them can be exercised by an unattended job. Each platform's
+picker gets verified by hand, on that machine, with the asset directory empty.
+
+The same rule applies to any future job that runs the game: leave the runner in a state where
+launching the binary still reaches the picker.
+
 ## Implementation details
 
 - `.github/workflows/ci.yml` — five jobs (`build-linux`, `build-macos`, `build-windows-msvc`,
@@ -166,6 +286,16 @@ implementation code to exercise.
 
 ## Open questions
 
+- **Which environments can show a file dialog at all.** The picker needs a desktop session — on
+  Linux it talks to the XDG portal over DBus, which a headless machine does not have. The three
+  ARM64 targets share one Apple Silicon host as VMs; whether those VMs have desktop sessions
+  decides whether their pickers can be verified by hand or are simply out of reach. If they are
+  headless, ARM64 gets its decode verified and its dialog unverified, and that gap is stated rather
+  than papered over.
+- **Which targets actually need the ROM.** Provisioning is per machine, and the Apple Silicon host
+  needs it reachable from three environments. Worth settling whether extraction is verified on every
+  target or a representative subset first: the decode is Python stdlib byte manipulation plus
+  `zlib`, so cross-platform variance is low and the per-target cost may exceed what it catches.
 - **Sanitizer job.** A `Debug` build with address and undefined-behavior sanitizers on Linux x64,
   added once game systems land.
 - **Dependency download caching.** Compiler caching already covers the build step; if fetching
