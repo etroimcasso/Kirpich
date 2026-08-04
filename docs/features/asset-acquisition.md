@@ -1,7 +1,8 @@
 # Asset Acquisition
 
-**Date:** 2026-05-14; revised 2026-05-15 (single asset path, no pack system)
-**Status:** In design
+**Date:** 2026-05-14; revised 2026-05-15 (single asset path, no pack system); revised
+2026-08-03 (first-start ROM selection replaces the manual tool step)
+**Status:** Presence check and first-start flow implemented; extraction is scheduled work
 
 How the game gets the graphics and ROM byte spans it needs, without any copyrighted content
 entering this repository or a shipped build.
@@ -35,8 +36,12 @@ exercise.
   from the sibling disassembly checkout into `assets/gfx/default/`, and the required ROM byte
   spans into the engine input path. A developer runs it once after cloning. This content is
   ROM-derived and is never shipped.
-- **User runtime.** The extraction tool (`tools/rom_extractor/`) ships with the game, runs against
-  the user's legitimately owned ROM, and writes the same files to the same paths.
+- **User runtime — first-start ROM selection, in-app.** On a launch that finds the asset paths
+  empty, the game itself asks for the ROM: a native file-selection dialog, extraction inside the
+  application, the identical layout written to the identical paths, and then the game proceeds.
+  There is no manual tool step in the player's experience. The extraction code may additionally
+  exist as a standalone command-line program for power users — decided at implementation time —
+  but the first-start flow is the canonical path.
 
 The engine reads those paths in both cases — there is no development/production branch in the load
 path, so a developer's daily run exercises exactly the code a user will.
@@ -44,18 +49,44 @@ path, so a developer's daily run exercises exactly the code a user will.
 ### Loading through engine surfaces
 
 Tile graphics load through the engine's asset-root and image-loading surfaces; ROM byte spans load
-from their fixed input path. A thin port-side wrapper is added only if the engine surface turns out
-not to cover the need directly. No registry, no manifest, no fallback chain.
+from their fixed input path. No registry, no manifest, no fallback chain.
 
-### Missing-asset error
+**No port-side loading wrapper** — settled 2026-08-03 against the engine as it stands. The engine
+already models this exact case: its load-from-path policy exists for content that may never be
+baked into a binary, image atlases default to it, and the asset root is a runtime base resolved
+once at startup and overridable — the project tree during development, the extracted-asset
+directory for an installed game. The port sets that root and addresses assets by logical path;
+there is nothing left for a wrapper to do. The port-side asset module exists only for the presence
+check, which is a different job.
 
-When the game starts and either path lacks required content, it reports a clear error pointing at:
+### First-start sequencing — port-side only, no engine modification
 
-1. **Primary** — the extraction tool: *"Run the extractor against your Tetris ROM to populate the
-   asset paths."*
-2. **Fallback** — manual placement, per the documented layout.
+When the game starts and required content is absent, it does not stop with an error telling the
+player to go and run something. It asks for the ROM and gets on with it — the same first-start
+model players already know from Ship of Harkinian and the Zelda 64 recompilation.
 
-No silent failure, no placeholder content, no bundled fallback assets.
+An engine-side bootstrap surface was considered and **rejected**: the engine is a library the
+port's `main()` drives, and asset loading happens only when the port asks for it, so nothing about
+this needs engine involvement, a restart, or any pre-asset engine state. The sequence is plain
+port-side control flow:
+
+1. `main()` checks the asset paths for content (`kirpich::assets::checkRequired`).
+2. Anything missing → run the flow: show the platform's file-selection dialog, extract from the
+   ROM the player chooses, write the layout (`kirpich::assets::ensureAssetsPresent`).
+3. Proceed into normal engine construction and asset loading — the same code path every later
+   launch takes.
+
+The dialog is SDL's (`SDL_ShowOpenFileDialog`), which gives each platform its own native picker.
+The port calls it directly; the engine neither provides nor needs a surface for it.
+
+**Never a silent failure, never placeholder content, never a bundled fallback asset, and never a
+bare error message pointing at a tool the player has to go and find.** Text shown during the flow
+names what is missing and states plainly that the ROM is only read — never copied, moved, or
+altered.
+
+Until the extractor is implemented, the flow runs to the extraction step and reports honestly that
+it cannot proceed, rather than reporting success and then failing to load. Manual placement per the
+documented layout is the interim route.
 
 ### The distributable ships empty asset directories
 
@@ -65,9 +96,11 @@ fails if any byte of development-populated content appears in the artifact.
 
 ### Extraction tool — design pinned, implementation later
 
-**Pinned design:**
+Full design in `../../tools/rom_extractor/README.md` — offsets, tile formats, output format,
+provenance. **Pinned design:**
 
-- Takes a ROM path on the command line.
+- Invoked by the first-start flow with the ROM path the player chose. A standalone command-line
+  entry point is optional and secondary.
 - Verifies the SHA1 against the expected value (`74591cc9501af93873f9a5d3eb12da12c0723bbc`) and
   fails fast on a mismatch.
 - Extracts every referenced tile-graphics asset at the offsets the disassembly identifies, writing
@@ -84,9 +117,18 @@ identified when the audio work lands.
 
 **Files:**
 
+- `src/assets/presence.{h,cpp}` — the required-asset manifest and the presence check. Not a
+  loader: no decode, no renderer, no window, so it runs before anything is constructed.
+- `src/assets/first_start.{h,cpp}` — the first-start flow: the file dialog, the extractor seam,
+  and the sequencing around them.
 - `scripts/setup-dev-assets.sh` — POSIX shell; run once after cloning.
-- `scripts/setup-dev-assets.ps1` — Windows equivalent.
-- `tools/rom_extractor/` — extraction tool source and README.
+- `scripts/setup-dev-assets.ps1` — Windows equivalent; the same source→destination table.
+- `scripts/check-distributable-clean.sh` — fails if anything but `.gitkeep` is in the asset
+  directories; the packaging gate.
+- `tools/rom_extractor/` — extraction tool design and (later) source.
+- `tests/fixtures/tiny_probe.png` — an 8×8 2-bit greyscale PNG authored for this repository and
+  derived from nothing, so the load path is tested on every platform with no copyrighted byte and
+  no skipped test.
 - `assets/gfx/default/.gitkeep` — directory placeholder for tile graphics.
 
 **Constants:**

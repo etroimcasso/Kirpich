@@ -4,11 +4,22 @@
 # retropp:: surface transitively.
 add_library(kirpich-lib STATIC
     engine.cpp
+    assets/presence.cpp
+    assets/first_start.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
 )
+
+# Development builds resolve the asset root to the project tree, so a developer who has run
+# scripts/setup-dev-assets exercises the shipped load path against the real files without
+# copying anything next to the binary. A distributable turns this off and the engine's
+# default applies instead — the executable's own directory, where extracted assets land.
+option(KIRPICH_DEV_ASSET_ROOT "Resolve the asset root to the project tree (development builds)" ON)
+if(KIRPICH_DEV_ASSET_ROOT)
+    target_compile_definitions(kirpich-lib PUBLIC KIRPICH_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+endif()
 target_link_libraries(kirpich-lib PUBLIC
     retropp::engine
     spdlog::spdlog_header_only
