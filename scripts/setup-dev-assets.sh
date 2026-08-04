@@ -27,7 +27,7 @@ fi
 
 mkdir -p "$destination"
 
-# source -> destination (destination names match the logical paths in src/assets/presence.h)
+# source -> destination (destination names match the paths checkRequired() names in src/assets/presence.cpp)
 for name in \
     configandgameplay.png \
     font.png \

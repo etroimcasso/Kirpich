@@ -27,7 +27,7 @@ the disassembly checkout is not where this script expects it.
 
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
 
-# source -> destination (destination names match the logical paths in src/assets/presence.h)
+# source -> destination (destination names match the paths checkRequired() names in src/assets/presence.cpp)
 $names = @(
     'configandgameplay.png',
     'font.png',

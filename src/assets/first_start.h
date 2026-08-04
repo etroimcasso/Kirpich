@@ -40,8 +40,8 @@ struct ExtractionResult {
     std::string message;
 };
 
-// Extract every required graphic from `romPath` into assets/gfx/default/, at the logical
-// paths in kRequired.
+// Extract every required graphic from `romPath` into assets/gfx/default/, at the paths the
+// presence check requires (spelled out in src/assets/presence.cpp).
 //
 // NOT YET IMPLEMENTED — the extractor's design is pinned in tools/rom_extractor/README.md
 // and its implementation is scheduled work. Until it lands this reports failure with an

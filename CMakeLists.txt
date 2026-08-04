@@ -17,6 +17,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
+# ── Executables land at the build root ────────────────────────────────────────
+# Targets are defined in subdirectories (src/), and without this CMake mirrors that
+# layout into the build tree — the game would land at build/src/kirpich. A normal build
+# puts its executables at the top: build/kirpich.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 # ── Platform detection ────────────────────────────────────────────────────────
 if(APPLE)
     set(KIRPICH_PLATFORM "macos")

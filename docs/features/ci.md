@@ -163,13 +163,30 @@ branch would fight over both. Superseding the older run makes that impossible.
 before CI lands, so the baseline exists from the start. A workflow that reports green while
 regressions accumulate is worse than no CI.
 
-### Build outside the checkout
+### The build lives in the workspace's normal `build/` folder — Windows excepted
 
-- Linux and macOS: `/tmp/kirpich-ci-build`
-- Windows: `C:\kirpich-ci-build`
+- Linux and macOS: `$GITHUB_WORKSPACE/build` — the same `cmake -S . -B build` a developer runs
+  locally. It persists in the runner's own work folder between runs (and across reboots, which
+  `/tmp` does not survive), so builds stay warm.
+- Windows: `C:\kirpich-ci-build` — the one exception. A FetchContent `_deps` tree nested under
+  `C:\actions-runner\_work\Kirpich\Kirpich\build\...` blows past the 260-character path limit,
+  so Windows builds at a short root path instead.
 
-Required because the checkout path contains a space, which breaks a number of Windows build tools.
-Building outside the tree removes the risk on every platform.
+After every run, each Unix job leaves a staged copy of the **entire build directory** at
+`/tmp/kirpich-build` — run the game as `/tmp/kirpich-build/kirpich`. The workspace itself lives
+under the runner's service account, and `/tmp` is where anyone on the machine can launch the fresh
+build by hand. It is the whole directory, never just the binary, so everything the build placed
+beside the executable comes with it. Windows needs no copy:
+`C:\kirpich-ci-build\Release\kirpich.exe` is already at an accessible fixed path.
+
+Because the build sits inside the workspace on Unix, those jobs' checkout steps set `clean: false`:
+the checkout action's default `git clean -ffdx` would delete the persisted `build/` on every run and
+silently turn every build cold. Windows builds outside the workspace and keeps the default.
+
+Build trees are never cleaned at the end of a run. When a run needs a clean state — a generator
+change, a corrupted cache — the erase happens as the first step of the run that needs it, scoped as
+narrowly as possible; the full-directory wipe inside the Windows configure-retry is recovery, not
+routine.
 
 ### Engine submodule requirements
 

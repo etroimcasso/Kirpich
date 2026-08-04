@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -23,8 +24,8 @@ fs::path probeFixture() {
 }
 
 // Points the engine's asset root at a scratch directory for the duration of a test and
-// restores whatever was there before. The presence check reads assetRoot() through
-// assetPath(), so this is what makes it testable without touching a real install.
+// restores whatever was there before. The presence check resolves against assetRoot(), so
+// this is what makes it testable without touching a real install.
 class ScopedAssetRoot {
 public:
     explicit ScopedAssetRoot(const fs::path& root) : previous_{retropp::assetRoot()} {
@@ -55,6 +56,9 @@ public:
     [[nodiscard]] const fs::path& path() const { return path_; }
 
     // Place the probe PNG at a logical asset path beneath this root, creating parents.
+    // Callers write the path as a literal at the call site — the same no-path-constants
+    // rule the shipped code follows, so the strings in this file stay greppable against
+    // the ones in presence.cpp.
     void place(std::string_view logical) const {
         const fs::path destination = path_ / logical;
         fs::create_directories(destination.parent_path());
@@ -68,23 +72,16 @@ private:
     fs::path path_;
 };
 
-std::vector<std::string> allRequiredPaths() {
-    std::vector<std::string> paths;
-    for (const retropp::LiteralPath& logical : kirpich::assets::kRequired) {
-        paths.emplace_back(logical.view());
-    }
-    return paths;
-}
-
 }  // namespace
 
 // ── The presence check ───────────────────────────────────────────────────────────────
 
 TEST(AssetPresence, ReportsNothingMissingWhenEveryRequiredAssetIsPresent) {
     const TempRoot root{"all-present"};
-    for (const std::string& logical : allRequiredPaths()) {
-        root.place(logical);
-    }
+    root.place("assets/gfx/default/configandgameplay.png");
+    root.place("assets/gfx/default/font.png");
+    root.place("assets/gfx/default/copyrightandtitlescreen.png");
+    root.place("assets/gfx/default/multiplayerandburan.png");
     const ScopedAssetRoot scoped{root.path()};
 
     const kirpich::assets::PresenceResult result = kirpich::assets::checkRequired();
@@ -94,34 +91,36 @@ TEST(AssetPresence, ReportsNothingMissingWhenEveryRequiredAssetIsPresent) {
 }
 
 TEST(AssetPresence, NamesExactlyTheOneAssetThatIsAbsent) {
-    const std::vector<std::string> required = allRequiredPaths();
-    ASSERT_GE(required.size(), 2U);
-
-    // Everything present except the font, which is the odd one out in the real data too
-    // (1bpp in the ROM where the others are 2bpp) and so the one most worth pinning.
-    const std::string absent = std::string{kirpich::assets::kFont.view()};
-    const TempRoot     root{"one-absent"};
-    for (const std::string& logical : required) {
-        if (logical != absent) {
-            root.place(logical);
-        }
-    }
+    // Everything present except the font — the odd one out in the real data too (1bpp in
+    // the ROM where the others are 2bpp) and so the one most worth pinning.
+    const TempRoot root{"one-absent"};
+    root.place("assets/gfx/default/configandgameplay.png");
+    root.place("assets/gfx/default/copyrightandtitlescreen.png");
+    root.place("assets/gfx/default/multiplayerandburan.png");
     const ScopedAssetRoot scoped{root.path()};
 
     const kirpich::assets::PresenceResult result = kirpich::assets::checkRequired();
 
     EXPECT_FALSE(result.complete());
-    EXPECT_EQ(result.missing, std::vector<std::string>{absent});
+    EXPECT_EQ(result.missing, std::vector<std::string>{"assets/gfx/default/font.png"});
 }
 
-TEST(AssetPresence, NamesEveryAssetWhenTheRootIsEmpty) {
+TEST(AssetPresence, NamesEveryAssetInOrderWhenTheRootIsEmpty) {
     const TempRoot        root{"all-absent"};
     const ScopedAssetRoot scoped{root.path()};
 
     const kirpich::assets::PresenceResult result = kirpich::assets::checkRequired();
 
     EXPECT_FALSE(result.complete());
-    EXPECT_EQ(result.missing, allRequiredPaths());
+    // The full required set, in reporting order. This assertion is the required set's home
+    // in the test suite: adding a graphic in presence.cpp turns it red until the new path
+    // is added here too, which is exactly the drift alarm it exists to be.
+    EXPECT_EQ(result.missing, (std::vector<std::string>{
+                                  "assets/gfx/default/configandgameplay.png",
+                                  "assets/gfx/default/font.png",
+                                  "assets/gfx/default/copyrightandtitlescreen.png",
+                                  "assets/gfx/default/multiplayerandburan.png",
+                              }));
 }
 
 TEST(AssetPresence, MissingMessageListsThePathsAndExplainsTheRomFlow) {
@@ -132,12 +131,13 @@ TEST(AssetPresence, MissingMessageListsThePathsAndExplainsTheRomFlow) {
     const std::string                     message = kirpich::assets::missingAssetsMessage(result);
 
     // Every missing path is named, so the player can see exactly what is absent.
-    for (const std::string& logical : allRequiredPaths()) {
-        EXPECT_NE(message.find(logical), std::string::npos) << "message omits " << logical;
-    }
+    EXPECT_NE(message.find("assets/gfx/default/configandgameplay.png"), std::string::npos);
+    EXPECT_NE(message.find("assets/gfx/default/font.png"), std::string::npos);
+    EXPECT_NE(message.find("assets/gfx/default/copyrightandtitlescreen.png"), std::string::npos);
+    EXPECT_NE(message.find("assets/gfx/default/multiplayerandburan.png"), std::string::npos);
 
     // And it explains that Kirpich is about to ask for the ROM, rather than sending the
-    // player away to run a tool themselves.
+    // player away to run a tool.
     EXPECT_NE(message.find("locate your ROM"), std::string::npos);
     EXPECT_NE(message.find("not copied, moved, or altered"), std::string::npos);
 }
