@@ -7,29 +7,47 @@
 
 #include <SDL3/SDL_dialog.h>
 #include <SDL3/SDL_error.h>
+#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_timer.h>
 
+#include <spdlog/spdlog.h>
+
 namespace kirpich::assets {
 namespace {
+
+// Which of the three ways the dialog can end actually happened. SDL reports an error and a
+// cancellation through the same callback, distinguished only by whether `filelist` is null,
+// and conflating them tells a player who hit a broken dialog that they declined to pick a
+// file.
+enum class DialogEnd { Chosen, Cancelled, Failed };
 
 // What the dialog callback hands back to the waiting main thread. SDL may invoke the
 // callback on another thread, so the path is written under the mutex and `finished` is the
 // release/acquire handshake the wait loop spins on.
 struct DialogOutcome {
-    std::mutex             lock;
-    std::string            path;
-    std::atomic<bool>      finished{false};
+    std::mutex            lock;
+    std::string           path;
+    DialogEnd             end = DialogEnd::Cancelled;
+    std::string           error;
+    std::atomic<bool>     finished{false};
 };
 
 void onFileChosen(void* userdata, const char* const* filelist, int /*filter*/) {
     auto* outcome = static_cast<DialogOutcome*>(userdata);
-
-    // filelist == nullptr is an error; a pointer to nullptr means the player cancelled.
-    // Both leave `path` empty, which the caller reads as "no ROM chosen".
-    if (filelist != nullptr && filelist[0] != nullptr) {
+    {
         const std::lock_guard guard{outcome->lock};
-        outcome->path = filelist[0];
+        if (filelist == nullptr) {
+            // The dialog itself failed. SDL_GetError is only meaningful here.
+            outcome->end   = DialogEnd::Failed;
+            const char* why = SDL_GetError();
+            outcome->error  = (why != nullptr) ? why : "";
+        } else if (filelist[0] == nullptr) {
+            outcome->end = DialogEnd::Cancelled;
+        } else {
+            outcome->end  = DialogEnd::Chosen;
+            outcome->path = filelist[0];
+        }
     }
     outcome->finished.store(true, std::memory_order_release);
 }
@@ -42,6 +60,8 @@ std::optional<std::filesystem::path> promptForRom() {
     // every supported platform allows.
     const bool videoWasUp = SDL_WasInit(SDL_INIT_VIDEO) != 0;
     if (!videoWasUp && !SDL_InitSubSystem(SDL_INIT_VIDEO)) {
+        spdlog::error("Could not start SDL video, so no file dialog can be shown: {}",
+                      SDL_GetError());
         return std::nullopt;
     }
 
@@ -67,10 +87,17 @@ std::optional<std::filesystem::path> promptForRom() {
     }
 
     const std::lock_guard guard{outcome.lock};
-    if (outcome.path.empty()) {
-        return std::nullopt;
+    switch (outcome.end) {
+        case DialogEnd::Chosen:
+            return std::filesystem::path{outcome.path};
+        case DialogEnd::Cancelled:
+            return std::nullopt;
+        case DialogEnd::Failed:
+            spdlog::error("The file dialog could not be opened: {}",
+                          outcome.error.empty() ? "no reason given" : outcome.error);
+            return std::nullopt;
     }
-    return std::filesystem::path{outcome.path};
+    return std::nullopt;
 }
 
 ExtractionResult extractFromRom(const std::filesystem::path& romPath) {

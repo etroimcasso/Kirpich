@@ -139,7 +139,17 @@ with no change here.
 ### The dialog
 
 `promptForRom()` shows the platform's native file picker via SDL and blocks until the player
-chooses or cancels, returning `std::nullopt` on cancel or on failure to open a dialog.
+chooses or cancels, returning `std::nullopt` on cancel or on failure to open a dialog. It
+distinguishes the three outcomes internally — chosen, cancelled, failed — because SDL reports
+a failure and a cancellation through the same callback, and telling a player whose dialog
+broke that they declined to pick a file would be worse than saying nothing.
+
+> **The picker cannot open in the current build.** The engine compiles SDL with its dialog
+> subsystem disabled (`SDL_DIALOG OFF ... FORCE`), so SDL links a dummy backend and the call
+> fails with *"SDL not built with dialog support"*. The flow handles it correctly — it logs
+> the reason and exits rather than hanging or crashing — but first-start ROM selection cannot
+> complete until the engine allows a consumer to opt the subsystem in. Populate assets with
+> the setup script or by hand meanwhile.
 
 Three things about it constrain how it can be used:
 
