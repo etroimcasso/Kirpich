@@ -38,6 +38,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The build lives at $GITHUB_WORKSPACE/build and persists between runs.
+          # The checkout default runs `git clean -ffdx`, which would delete it every
+          # run and silently turn the fleet cold. Windows builds outside the
+          # workspace and keeps the default.
+          clean: false
 
       - name: Init engine submodule
         env:
@@ -58,12 +64,12 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -S "$GITHUB_WORKSPACE" -B /tmp/kirpich-ci-build \
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build" \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build /tmp/kirpich-ci-build --parallel
+        run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
       - name: Test
         run: |
@@ -71,7 +77,7 @@ jobs:
                             # exit code masks a ctest failure and the gate reports green
           export SDL_VIDEODRIVER=offscreen   # headless: SDL video init must still succeed
           mkdir -p "$GITHUB_WORKSPACE/ci-output"
-          ctest --test-dir /tmp/kirpich-ci-build --output-on-failure \
+          ctest --test-dir "$GITHUB_WORKSPACE/build" --output-on-failure \
             2>&1 | tee "$GITHUB_WORKSPACE/ci-output/linux-test-results.txt"
 
       - name: ccache stats
@@ -94,6 +100,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The build lives at $GITHUB_WORKSPACE/build and persists between runs.
+          # The checkout default runs `git clean -ffdx`, which would delete it every
+          # run and silently turn the fleet cold. Windows builds outside the
+          # workspace and keeps the default.
+          clean: false
 
       - name: Init engine submodule
         env:
@@ -110,18 +122,18 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -S "$GITHUB_WORKSPACE" -B /tmp/kirpich-ci-build \
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build" \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build /tmp/kirpich-ci-build --parallel
+        run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
       - name: Test
         run: |
           set -o pipefail   # see the Linux job
           mkdir -p "$GITHUB_WORKSPACE/ci-output"
-          ctest --test-dir /tmp/kirpich-ci-build --output-on-failure \
+          ctest --test-dir "$GITHUB_WORKSPACE/build" --output-on-failure \
             2>&1 | tee "$GITHUB_WORKSPACE/ci-output/macos-test-results.txt"
 
       - name: ccache stats
@@ -213,6 +225,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The build lives at $GITHUB_WORKSPACE/build and persists between runs.
+          # The checkout default runs `git clean -ffdx`, which would delete it every
+          # run and silently turn the fleet cold. Windows builds outside the
+          # workspace and keeps the default.
+          clean: false
 
       - name: Init engine submodule
         env:
@@ -229,19 +247,19 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -S "$GITHUB_WORKSPACE" -B /tmp/kirpich-ci-build \
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build" \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build /tmp/kirpich-ci-build --parallel
+        run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
       - name: Test
         run: |
           set -o pipefail   # see the Linux x64 job
           export SDL_VIDEODRIVER=offscreen
           mkdir -p "$GITHUB_WORKSPACE/ci-output"
-          ctest --test-dir /tmp/kirpich-ci-build --output-on-failure \
+          ctest --test-dir "$GITHUB_WORKSPACE/build" --output-on-failure \
             2>&1 | tee "$GITHUB_WORKSPACE/ci-output/linux-arm64-test-results.txt"
 
       - name: ccache stats
