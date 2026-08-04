@@ -23,31 +23,29 @@ the load path — a developer's daily run exercises exactly the code a player's 
 The directory is committed as an empty placeholder (`.gitkeep`) and its contents are
 gitignored.
 
-## The manifest
+## Asset paths are literals at their use sites — there is no path constant anywhere
 
-`src/assets/presence.h` names every graphic the game requires, as a logical path relative
-to the project root:
+This is the engine's rule, and it covers **every** asset family the engine ingests —
+atlases, map PNGs, palette images, audio, VM routine `.asm` files — not only graphics. The
+engine's build scan reads path literals (and `AssetPolicy::…` tokens) textually out of the
+source at each ingest call to decide what to bake into the binary versus copy beside it. A
+path stored in a named binding — a `constexpr` constant, a `LiteralPath` variable, a
+`string_view`, a table — is invisible to that scan. So a path is written out as a string
+literal at every point of use, and nowhere else. The engine guide is the authority:
+`engine/docs/guide/assets-and-embedding.md`.
 
-```cpp
-inline constexpr retropp::LiteralPath kConfigAndGameplay{"assets/gfx/default/configandgameplay.png"};
-inline constexpr retropp::LiteralPath kFont{"assets/gfx/default/font.png"};
-inline constexpr retropp::LiteralPath kCopyrightAndTitleScreen{"assets/gfx/default/copyrightandtitlescreen.png"};
-inline constexpr retropp::LiteralPath kMultiplayerAndBuran{"assets/gfx/default/multiplayerandburan.png"};
+Concretely, in this codebase:
 
-inline constexpr retropp::LiteralPath kRequired[]{
-    kConfigAndGameplay, kFont, kCopyrightAndTitleScreen, kMultiplayerAndBuran,
-};
-```
+- Every future load site spells its own path inline: `loadAtlas("assets/gfx/default/font.png", …)`.
+- The presence check (`src/assets/presence.cpp`) writes each required path as a literal at
+  its own check call. There is no manifest array to import.
+- A path known only at runtime — the player's ROM from the file picker — never goes near a
+  path door. It is read directly and handed to the family's bytes door.
 
-`retropp::LiteralPath` only constructs from a string literal — a `const char*`,
-`std::string`, or computed path will not compile. That is deliberate on the engine's side:
-these paths are readable by a build-time scan, which a runtime-assembled string would be
-invisible to. The practical consequence for you is that **an asset path is written out in
-full at its declaration**, never concatenated.
-
-**To add a required graphic:** declare it alongside the others and add it to `kRequired`.
-Everything downstream — the presence check, the missing-asset message, the tests that sweep
-the manifest — reads that array, so nothing else needs editing.
+**To add a required graphic:** add a `checkOne(result, "assets/gfx/default/<name>.png")`
+line in `checkRequired()`, then add the same literal to the expected-order assertion in
+`tests/test_asset_presence.cpp` — that test is the drift alarm between the check and the
+suite, and it stays red until both agree.
 
 ## The presence check
 
@@ -65,18 +63,20 @@ std::string    missingAssetsMessage(const PresenceResult& result);
 }
 ```
 
-`checkRequired()` tests each manifest entry for existence against the current asset root and
-returns the logical paths of whatever is absent, in manifest order. It **does not open,
-decode, or validate** anything — a zero-byte file counts as present. It touches no renderer
-and needs no window, which is what lets it run before anything is constructed.
+`checkRequired()` tests each required path for existence against the current asset root and
+returns whatever is absent, in reporting order. It **does not open, decode, or validate**
+anything — a zero-byte file counts as present. It touches no renderer and needs no window,
+which is what lets it run before anything is constructed. Its resolution is a plain join
+against `retropp::assetRoot()` — the engine's public runtime base, which is the prescribed
+route for a name that is not sitting at an ingest door.
 
 `missingAssetsMessage()` renders the player-facing text: what is missing, and that Kirpich
 is about to ask for the ROM. It never tells the player to go and run a tool.
 
 ## The asset root
 
-Logical paths resolve against the engine's asset root, `retropp::assetRoot()`, joined by
-`retropp::assetPath(logical)`. Kirpich sets the root once, in `main()`:
+Logical paths resolve against the engine's asset root, `retropp::assetRoot()`. Kirpich sets
+the root once, in `main()`:
 
 ```cpp
 #ifdef KIRPICH_PROJECT_ROOT
@@ -90,10 +90,10 @@ wrote into the source tree. With the option off, the definition is absent, `setA
 never called, and the engine's own default applies: the executable's directory, which is
 where the extractor writes on a player's machine.
 
-Two rules worth holding to. Call `setAssetRoot` from `main()` and nowhere else — not from
-library code, and never at namespace scope, where the ordering against the engine's own
-startup is not defined. And read assets through `assetPath()` rather than building a base
-path by hand; that join is the one place the root is applied.
+Call `setAssetRoot` from `main()` and nowhere else — not from library code, and never at
+namespace scope, where the ordering against the engine's own startup is not defined. The
+engine's loaders apply the root themselves; the only port code that joins against
+`assetRoot()` by hand is the presence check, whose names are not at an ingest door.
 
 ## The first-start flow
 

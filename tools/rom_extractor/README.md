@@ -53,7 +53,7 @@ path**; treating it as 2bpp silently produces garbage at twice the height.
 ## What it writes
 
 Greyscale PNG, bit depth 2 for the 2bpp assets and 1 for the font, tiles laid out 16 per
-row, into `assets/gfx/default/` at the logical paths listed in `src/assets/presence.h`.
+row, into `assets/gfx/default/` at the paths `checkRequired()` names in `src/assets/presence.cpp`.
 
 The engine loads PNG, so PNG is what both population routes produce — no intermediate
 `.2bpp` format and no conversion step at load time.

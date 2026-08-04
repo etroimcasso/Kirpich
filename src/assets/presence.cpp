@@ -1,19 +1,33 @@
 #include "assets/presence.h"
 
 #include <filesystem>
+#include <string_view>
 
 #include <retropp/asset_registry.h>
 
 namespace kirpich::assets {
+namespace {
+
+// Records `logical` as missing when nothing exists for it under the asset root. Each call
+// below writes its path as a literal at the call site — the path text never lives in a
+// constant, so it stays visible to any textual scan and cannot be referenced from anywhere
+// else. Resolution is a plain join against retropp::assetRoot(), the engine's public
+// runtime base — the engine's prescribed route for names its literal-only path doors
+// cannot take.
+void checkOne(PresenceResult& result, std::string_view logical) {
+    if (!std::filesystem::exists(retropp::assetRoot() / logical)) {
+        result.missing.emplace_back(logical);
+    }
+}
+
+}  // namespace
 
 PresenceResult checkRequired() {
     PresenceResult result;
-    for (const retropp::LiteralPath& logical : kRequired) {
-        // assetPath performs the assetRoot join, so no base path is ever built by hand.
-        if (!std::filesystem::exists(retropp::assetPath(logical))) {
-            result.missing.emplace_back(logical.view());
-        }
-    }
+    checkOne(result, "assets/gfx/default/configandgameplay.png");
+    checkOne(result, "assets/gfx/default/font.png");
+    checkOne(result, "assets/gfx/default/copyrightandtitlescreen.png");
+    checkOne(result, "assets/gfx/default/multiplayerandburan.png");
     return result;
 }
 
