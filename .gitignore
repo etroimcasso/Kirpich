@@ -1,0 +1,103 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+Icon
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Editor / IDE
+*.swp
+*.swo
+*.swn
+.idea/
+.vscode/
+*.sublime-workspace
+
+# Claude Code personal overrides
+.claude/settings.local.json
+
+# CMake / Ninja build trees
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+Testing/
+_deps/
+
+# Compiled artifacts
+*.o
+*.obj
+*.exe
+*.dll
+*.dylib
+*.so
+*.a
+*.lib
+*.pdb
+*.ilk
+*.exp
+
+# Coverage
+*.gcov
+*.gcda
+*.gcno
+
+# Python (asm parser tools at tools/asm_parser/)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Logging
+*.log
+logs/
+
+# Asset pack contents — keep directory shape via .gitkeep, exclude payloads
+assets/gfx/default/*
+!assets/gfx/default/.gitkeep
+assets/audio/default/*
+!assets/audio/default/.gitkeep
+
+# ROM safety net — never commit a ROM under any circumstance
+*.gb
+*.gbc
+*.gba
+*.sgb
+*.gbs
+baserom.*
+
+# clangd index cache
+.cache/
+
+# Private working docs — local only, never pushed to any remote.
+docs-internal/
+/CLAUDE.md
