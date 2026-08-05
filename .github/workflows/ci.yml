@@ -97,6 +97,28 @@ jobs:
           name: linux-test-results
           path: ci-output/
 
+  # ── Parser unit tests (beefserve, Linux x64) ─────────────────────────────────
+  # The port-time asm parsers are pure Python (standard library only) and are not part of the C++
+  # build, so they get their own job rather than riding a build. It needs no engine submodule and no
+  # compiler. The end-to-end cases skip when the disassembly checkout is absent — it is never on a
+  # runner (unlicensed) — leaving the helper and synthetic-fixture cases, which guard the parsers'
+  # own scanning and structural-assert logic. Shares the beefserve runner with the Linux x64 build;
+  # the runner serializes them, so there is no workspace contention.
+  parser-tests:
+    name: Parser unit tests (beefserve, Linux x64)
+    runs-on: [self-hosted, Linux, X64, beefserve]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Shares the workspace with the Linux x64 build on this runner; keep its persistent
+          # build/ intact (see the build-linux Checkout step).
+          clean: false
+
+      - name: Run parser unit tests
+        run: python3 -m unittest discover -s tools/asm_parser -p 'test_parse_*.py' -v
+
   # ── macOS ARM64 (ericmacmini) ────────────────────────────────────────────────
   # First of the three ARM64 jobs sharing the Apple Silicon host: native, no VM overhead.
   build-macos:
