@@ -6,6 +6,7 @@ add_library(kirpich-lib STATIC
     engine.cpp
     assets/presence.cpp
     assets/first_start.cpp
+    data/charmap.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
