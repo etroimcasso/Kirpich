@@ -29,7 +29,7 @@ Constant tables and graphics data derived from the ROM.
 | Feature | Status | Doc |
 |---|---|---|
 | Core enums (piece, game type, music type, game state, serial) | ✅ | [`features/core-enums.md`](features/core-enums.md) |
-| Character map | ⬜ | `features/charmap.md` |
+| Character map | ✅ | [`features/charmap.md`](features/charmap.md) |
 | Piece rotation matrices | ⬜ | `features/piece-matrices.md` |
 | Gravity / frames-per-drop table | ⬜ | `features/gravity-table.md` |
 | Scoring tables | ⬜ | `features/scoring-tables.md` |

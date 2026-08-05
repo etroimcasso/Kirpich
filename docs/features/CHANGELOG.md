@@ -8,6 +8,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-05
+
+- **Character map** ⬜ → ✅. The 47-entry `charmap.asm` sequence→tile table ported as a
+  `CharmapEntry` table with exact-sequence lookup (`getCharmapTile`) and an RGBDS greedy-longest-match
+  text encoder (`encodeCharmapText`) — the `.”` ligature encodes to a single tile, and the digits map
+  to their own tile indices as a guarantee the score renderer can rely on. The table and its test
+  fixture are generated from the disassembly by `tools/asm_parser/parse_charmap.py` (non-ASCII bytes
+  emitted as `\xHH` escapes so it compiles identically everywhere), and the shared parser helpers
+  moved to `tools/asm_parser/common.py` with the core-enums parser's output byte-for-byte unchanged.
+  Test baseline 17 → 24. See [`charmap.md`](charmap.md), [`../contracts/charmap.md`](../contracts/charmap.md),
+  [`../engine/charmap.md`](../engine/charmap.md).
+
 ## 2026-08-04
 
 - **Core enums** ⬜ → ✅. The seven core type surfaces (`GameState`, `GameType`, `MusicType`,
