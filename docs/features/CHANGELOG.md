@@ -10,6 +10,12 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-04
 
+- **Core enums** ⬜ → ✅. The seven core type surfaces (`GameState`, `GameType`, `MusicType`,
+  `SerialRole`, `SerialClockMode`, `SerialState`, `Piece`) ported as header-only types in
+  `include/kirpich/`; the serial constants and the value fixture are generated from the disassembly
+  by `tools/asm_parser/parse_core_enums.py`, the rest hand-written and drift-checked against it.
+  Test baseline 9 → 17. See [`core-enums.md`](core-enums.md), [`../contracts/core-enums.md`](../contracts/core-enums.md),
+  [`../engine/core-enums.md`](../engine/core-enums.md).
 - **Build system** ⬜ → ✅. Feature document written; the CMake project, dependency configuration,
   and target graph build clean and pass the test suite on all five targets. See
   [`build-system.md`](build-system.md).

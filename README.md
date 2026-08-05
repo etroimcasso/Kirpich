@@ -9,8 +9,9 @@ layer.
 
 *Kirpich* (кирпич) is Russian for "brick".
 
-**Status: early infrastructure.** The build system, test harness, and engine integration are in
-place; game systems are not yet ported. The current binary prints the engine version and exits.
+**Status: early.** The build system, test harness, and engine integration are in place, and the
+data layer has begun — the core value types are ported. Game systems are not yet written, and the
+current binary prints the engine version and exits.
 
 ## How it works
 
