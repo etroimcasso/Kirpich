@@ -24,6 +24,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [assets.md](assets.md) | How the game gets its graphics: the required-asset manifest, the presence check, the first-start ROM selection flow, the asset root, and the packaging gate that keeps ROM-derived bytes out of a distributable. |
 | [build.md](build.md) | Targets and how they fit together, the engine submodule, build options, and how to build, run, and test. |
 | [core-enums.md](core-enums.md) | The fundamental value types — game state, game type, music type, the serial types, and the piece byte — where they live, which are generated from the disassembly, and how to regenerate and change them. |
+| [charmap.md](charmap.md) | The character map — how text becomes tile indices: the entry type, the exact-sequence lookup and greedy-longest-match encoder, where the table lives, and how to regenerate it. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
