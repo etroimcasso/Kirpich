@@ -8,6 +8,15 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-04
+
+- **Build system** ⬜ → ✅. Feature document written; the CMake project, dependency configuration,
+  and target graph build clean and pass the test suite on all five targets. See
+  [`build-system.md`](build-system.md).
+- **Distributable build** documented; stays ⬜. The shipping gate (the empty-asset clean check) and
+  the development/ship asset-root switch are in place; the packaging target and the lean link
+  configuration are designed and not yet built. See [`distributable-build.md`](distributable-build.md).
+
 ## 2026-08-03
 
 - **Retro++ engine adoption** (new) ⬜ → ✅. Engine consumed as a submodule at `d4a6091` via

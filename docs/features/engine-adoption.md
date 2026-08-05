@@ -13,7 +13,7 @@ renderer, audio chain, persistence, and a ROM-less SM83 virtual-machine host.
 ## Design decisions
 
 - **Consumer checkout, not a fork.** The submodule tracks the engine's own repository, pinned at
-  `d4a6091`. Engine development happens in the engine's home repository; gaps this port finds are
+  `5e63115`. Engine development happens in the engine's home repository; gaps this port finds are
   filed upstream as engine work rather than worked around here.
 - **The port declares no SDL3.** SDL3 and SameBoy arrive as the engine's own nested submodules. A
   second provider of the `SDL3::SDL3` target is a configure-time error, which enforces the boundary
@@ -35,13 +35,14 @@ renderer, audio chain, persistence, and a ROM-less SM83 virtual-machine host.
 
 ## Implementation details
 
-- `.gitmodules` and the `engine/` gitlink at `d4a6091`; nested submodules initialized recursively.
+- `.gitmodules` and the `engine/` gitlink at `5e63115`; nested submodules initialized recursively.
 - `CMakeLists.txt`: `add_subdirectory(engine)` behind a missing-submodule guard, ahead of the
   dependency configuration.
 - `cmake/Dependencies.cmake`: the port's own SDL3 fetch removed; spdlog and GoogleTest remain.
 - `src/CMakeLists.txt`: `kirpich-lib` links `retropp::engine` publicly, plus spdlog.
 - `src/platform/` deleted.
-- `src/main.cpp`: a probe that logs the port and engine versions and exits 0.
+- `src/main.cpp`: logs the port and engine versions, runs the first-start asset flow, then
+  constructs `kirpich::Engine`.
 - Verified on macOS: clean build with no port-source warnings, smoke suite green, binary runs and
   exits 0.
 

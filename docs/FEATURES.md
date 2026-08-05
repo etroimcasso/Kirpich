@@ -12,7 +12,7 @@ chronologically; this file holds current state.
 | Feature | Status | Doc |
 |---|---|---|
 | Repository scaffolding and ignore rules | ✅ | — |
-| Build system | ⬜ | `features/build-system.md` |
+| Build system | ✅ | [`features/build-system.md`](features/build-system.md) |
 | Test harness | ✅ | — |
 | Retro++ engine adoption | ✅ | [`features/engine-adoption.md`](features/engine-adoption.md) |
 | Logging | ✅ | — (spdlog used directly; no wrapper) |
@@ -20,7 +20,7 @@ chronologically; this file holds current state.
 | Asset acquisition | ⬜ | [`features/asset-acquisition.md`](features/asset-acquisition.md) |
 | ROM extraction tool | ⬜ | (covered by `asset-acquisition.md`) |
 | Continuous integration | ⬜ | [`features/ci.md`](features/ci.md) |
-| Distributable build | ⬜ | `features/distributable-build.md` |
+| Distributable build | ⬜ | [`features/distributable-build.md`](features/distributable-build.md) |
 
 ## Data
 

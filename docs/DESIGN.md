@@ -143,7 +143,7 @@ file.
 | Decision | Value |
 |---|---|
 | Approach | Modern C++ reimplementation consuming the Retro++ engine. Read the disassembly for intent, mechanics, and data; write idiomatic C++ against the `retropp::` surface. Not mechanical translation. |
-| Platform layer | The Retro++ engine, consumed as a git submodule via `add_subdirectory(engine)` + `retropp::engine`. SDL3 with the SDL_GPU backend is engine-internal; the port declares no SDL3 of its own (a second provider of `SDL3::SDL3` is a configure-time error) and contains no direct SDL calls. |
+| Platform layer | The Retro++ engine, consumed as a git submodule via `add_subdirectory(engine)` + `retropp::engine`. SDL3 with the SDL_GPU backend is engine-internal; the port declares no SDL3 of its own (a second provider of `SDL3::SDL3` is a configure-time error). Direct SDL calls are permitted where the engine has no opinion; the first-start ROM picker (`SDL_ShowOpenFileDialog` in `src/assets/first_start.cpp`) is the only one today. |
 | C++ standard | C++20 |
 | Build | CMake 3.28+ with Ninja |
 | Tests | GoogleTest |
@@ -237,7 +237,7 @@ Non-negotiable. Every implementation decision respects these without exception.
 
 ## 12. Engine adoption (2026-08-03)
 
-The port's platform boundary is the Retro++ engine, consumed as a submodule pinned at `d4a6091`.
+The port's platform boundary is the Retro++ engine, consumed as a submodule pinned at `5e63115`.
 This superseded a direct-SDL3 platform facade, a port-local SameBoy integration, and a hand-built
 presentation pipeline — all of which duplicated, less well, what the engine already ships and
 tests.
