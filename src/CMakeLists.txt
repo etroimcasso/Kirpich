@@ -7,6 +7,7 @@ add_library(kirpich-lib STATIC
     assets/presence.cpp
     assets/first_start.cpp
     data/charmap.cpp
+    data/gravity.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
