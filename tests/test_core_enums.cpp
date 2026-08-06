@@ -78,7 +78,7 @@ TEST(CoreEnums, PieceDecodesKindAndRotation) {
     for (int k = 0; k <= 6; ++k) {
         for (int r = 0; r <= 3; ++r) {
             const Piece p{static_cast<std::uint8_t>(k * 4 + r)};
-            EXPECT_EQ(p.kind(), k);
+            EXPECT_EQ(raw(p.kind()), k);
             EXPECT_EQ(p.rotation(), r);
         }
     }
@@ -89,7 +89,7 @@ TEST(CoreEnums, PieceRoundTrips) {
         for (int r = 0; r <= 3; ++r) {
             const Piece p = Piece::of(static_cast<std::uint8_t>(k), static_cast<std::uint8_t>(r));
             EXPECT_EQ(p.raw, k * 4 + r);
-            EXPECT_EQ(p.kind(), k);
+            EXPECT_EQ(raw(p.kind()), k);
             EXPECT_EQ(p.rotation(), r);
         }
     }

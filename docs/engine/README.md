@@ -25,6 +25,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [build.md](build.md) | Targets and how they fit together, the engine submodule, build options, and how to build, run, and test. |
 | [core-enums.md](core-enums.md) | The fundamental value types — game state, game type, music type, the serial types, and the piece byte — where they live, which are generated from the disassembly, and how to regenerate and change them. |
 | [charmap.md](charmap.md) | The character map — how text becomes tile indices: the entry type, the exact-sequence lookup and greedy-longest-match encoder, where the table lives, and how to regenerate it. |
+| [sprite-grids.md](sprite-grids.md) | The sprite layout grids — five shared (y, x) offset frames the renderer walks to place a composite sprite's tiles, the `PieceKind` enum, where they live, and how to regenerate them. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.

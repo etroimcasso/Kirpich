@@ -37,9 +37,9 @@ the original tracks two-player mode with a separate flag; game type stays `TYPE_
 
 **`Piece` is a byte, not two fields.** The original packs a piece's kind and rotation into one byte
 and pulls them apart by masking. The port mirrors that exactly with a one-byte struct and accessors,
-so it stays byte-identical to what the piece and randomization routines expect. The kind is exposed
-as a raw index (0–6) for now: which index is which tetromino is fixed by the rotation matrices, and a
-named kind enum is introduced with them rather than guessed here.
+so it stays byte-identical to what the piece and randomization routines expect. `kind()` returns a
+`PieceKind` — the named tetromino shapes; which index is which is fixed by the sprite layout grids
+(see [`sprite-grids.md`](sprite-grids.md)).
 
 **Two vestigial slots are documented, not ported as states.** Both the game-state and serial dispatch
 tables have a trailing entry that points at a stray address or a bare return and that the running
