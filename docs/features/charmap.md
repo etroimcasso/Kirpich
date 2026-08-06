@@ -11,7 +11,8 @@ way the original assembler did.
 
 | Piece | Where | Shape |
 |---|---|---|
-| `CharmapEntry` | `include/kirpich/charmap.h` | `{ std::string_view sequence; std::uint8_t tile; }` |
+| `CharTile` | `include/kirpich/char_tile.h` | `enum class : uint8_t`, 47 named glyphs |
+| `CharmapEntry` | `include/kirpich/charmap.h` | `{ std::string_view sequence; CharTile tile; }` |
 | The table + lookups | `src/data/charmap.h`, `src/data/charmap.cpp` | 47 rows + three accessors |
 
 Three accessors cover the two consumer shapes:
@@ -45,6 +46,13 @@ original assembler does (it errors on an unmapped character).
 a decimal digit is its own tile index. The score renderer depends on this, so the port asserts it
 explicitly and records it in the contract.
 
+**The tile is a named glyph, not a bare byte.** The charmap is the original's naming table for the
+text glyph space — `"a"` names the glyph at `$0A` — so the port mints those names as the `CharTile`
+enum, generated from the same source, byte values preserved. Every consumer reads
+`CharTile::LETTER_A` instead of `0x0A`; the raw index is one `static_cast` away where the renderer
+eventually needs it. Glyphs the tile sheet holds but the charmap never names gain enumerators as
+the surfaces that use them are ported.
+
 **The gaps are documented, not modelled.** The tile indices the map skips (`$28` and many others)
 are glyphs the tile sheet holds that the text system never names — including a *second* digit glyph
 set at `$30`–`$39` the licence screen uses for the copyright year as raw bytes. None of these get a
@@ -52,8 +60,9 @@ placeholder entry; they are simply not part of this table.
 
 ## Keeping it honest
 
-The 47 rows and the test fixture are both read straight out of `charmap.asm` by
-`tools/asm_parser/parse_charmap.py`, and the tests sweep the full table against that fixture — so a
-change upstream, or a typo, surfaces as a failing test rather than a silent divergence. The
-generated table is written with non-ASCII characters as byte escapes so it encodes identically on
-every platform. See [`../engine/charmap.md`](../engine/charmap.md) for how to regenerate and use it.
+The 47 rows, the `CharTile` enum, and the test fixture are all read straight out of `charmap.asm`
+by `tools/asm_parser/parse_charmap.py`, and the tests sweep the full table against that fixture —
+which deliberately keeps raw bytes, so a wrong enumerator value surfaces as a failing test rather
+than hiding behind the type. The generated table is written with non-ASCII characters as byte
+escapes so it encodes identically on every platform. See
+[`../engine/charmap.md`](../engine/charmap.md) for how to regenerate and use it.

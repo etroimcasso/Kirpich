@@ -50,6 +50,19 @@ Tile indices `$28`, `$2A`–`$2E`, `$30`–`$32`, `$34`–`$5F`, `$61`–`$9A` a
 They are glyphs the tile sheet holds that the text system never names — so they get no C++
 representation here (no sentinel, no "unknown" entry). The gaps are real and intentional.
 
+### `CharTile` — the glyph enum
+
+The charmap is the ROM's naming table for the text glyph space: every sequence it maps names the
+glyph at its tile index. The port mints those names as `enum class CharTile : uint8_t`
+(`include/kirpich/char_tile.h`), generated from the same 47 lines, byte values preserved. Digits
+and letters derive mechanically (`DIGIT_0`–`DIGIT_9`, `LETTER_A`–`LETTER_Z`); the eleven symbol
+sequences carry descriptive names (`PERIOD`, `HYPHEN`, `MULTIPLICATION_SIGN`, `HEART`,
+`MIDLINE_ELLIPSIS`, `SPACE`, `COPYRIGHT`, `ELLIPSIS`, `RIGHT_DOUBLE_QUOTE`, `COMMA`, and the
+ligature `PERIOD_RIGHT_DOUBLE_QUOTE`). `CharmapEntry::tile`, the exact lookup, and the encoder all
+carry `CharTile`, so a glyph is named at every call site. The unnamed gaps above get no
+enumerators from this source; glyphs the tile sheet holds but the charmap never names gain
+enumerators as the surfaces that use them are ported.
+
 The clearest illustration is the copyright line `db "   ©", $30, $31, $32, $31, " ", $34, $35, $36,
 $37, $38, $39, "     "` (`tetris.asm:6996`): the `"©"` goes through the charmap (to `$33`), but the
 year digits `1989` are written as **raw** tile bytes `$31 $39 $38 $39` — a *second*, different digit
@@ -86,6 +99,9 @@ shape the in-code single-character literals want.
 fixture (`tests/fixtures/charmap_expected.h`), the digit- and letter-identity assertions, exact
 lookup across the whole corpus plus misses, the longest-match ligature cases, two known upstream
 strings (`"pause"` at `tetris.asm:4575`, `" 0 × 40   "` at `tetris.asm:6491`), the all-or-nothing
-rejection of unmapped input, and the empty-input case. The parser's own structural checks
-(`tools/asm_parser/test_parse_charmap.py`) guard the transcription against upstream changes — count,
-uniqueness, the digit/letter/ligature anchors, and ASCII-purity of the emitted table.
+rejection of unmapped input, the empty-input case, and named boundary pins on the `CharTile`
+values. The fixture deliberately stores **raw tile bytes** — the sweep casts each `CharTile` back
+to its byte, so a wrong enumerator value cannot hide behind the type. The parser's own structural
+checks (`tools/asm_parser/test_parse_charmap.py`) guard the transcription against upstream
+changes — count, uniqueness, the digit/letter/ligature anchors, name coverage for every sequence,
+and ASCII-purity of the emitted files.

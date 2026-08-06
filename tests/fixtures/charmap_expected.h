@@ -3,8 +3,9 @@
 // Transcribed from the kaspermeerts/tetris disassembly (upstream @ b95c668).
 // Regenerate with `--all` after any upstream repin; edits here are overwritten.
 // Independent fixture for the full-corpus charmap sweep. Mirrors the 47 rows the engine
-// table holds, in its own struct, so a defect in include/kirpich/charmap.h cannot mask the sweep.
-// tests/test_charmap.cpp asserts the engine table equals these rows field-for-field.
+// table holds, in its own struct with RAW byte tiles - independent of both include/kirpich/charmap.h
+// and include/kirpich/tile.h, so a defect in either cannot mask the sweep. tests/test_charmap.cpp
+// asserts the engine table (and therefore each Tile enumerator's value) equals these bytes.
 
 #include <array>
 #include <cstdint>
@@ -14,57 +15,57 @@ namespace kirpich::fixtures {
 
 struct CharmapRow {
     std::string_view sequence;  // UTF-8 bytes exactly as upstream; 1..4 bytes, 1..2 code points
-    std::uint8_t     tile;      // VRAM tile index this sequence encodes to
+    std::uint8_t     tile;      // VRAM tile index this sequence encodes to, as a raw byte
 };
 
 inline constexpr std::array<CharmapRow, 47> kCharmapExpected{{
-    { .sequence = "0", .tile = 0x00 },  // "0"
-    { .sequence = "1", .tile = 0x01 },  // "1"
-    { .sequence = "2", .tile = 0x02 },  // "2"
-    { .sequence = "3", .tile = 0x03 },  // "3"
-    { .sequence = "4", .tile = 0x04 },  // "4"
-    { .sequence = "5", .tile = 0x05 },  // "5"
-    { .sequence = "6", .tile = 0x06 },  // "6"
-    { .sequence = "7", .tile = 0x07 },  // "7"
-    { .sequence = "8", .tile = 0x08 },  // "8"
-    { .sequence = "9", .tile = 0x09 },  // "9"
-    { .sequence = "a", .tile = 0x0A },  // "a"
-    { .sequence = "b", .tile = 0x0B },  // "b"
-    { .sequence = "c", .tile = 0x0C },  // "c"
-    { .sequence = "d", .tile = 0x0D },  // "d"
-    { .sequence = "e", .tile = 0x0E },  // "e"
-    { .sequence = "f", .tile = 0x0F },  // "f"
-    { .sequence = "g", .tile = 0x10 },  // "g"
-    { .sequence = "h", .tile = 0x11 },  // "h"
-    { .sequence = "i", .tile = 0x12 },  // "i"
-    { .sequence = "j", .tile = 0x13 },  // "j"
-    { .sequence = "k", .tile = 0x14 },  // "k"
-    { .sequence = "l", .tile = 0x15 },  // "l"
-    { .sequence = "m", .tile = 0x16 },  // "m"
-    { .sequence = "n", .tile = 0x17 },  // "n"
-    { .sequence = "o", .tile = 0x18 },  // "o"
-    { .sequence = "p", .tile = 0x19 },  // "p"
-    { .sequence = "q", .tile = 0x1A },  // "q"
-    { .sequence = "r", .tile = 0x1B },  // "r"
-    { .sequence = "s", .tile = 0x1C },  // "s"
-    { .sequence = "t", .tile = 0x1D },  // "t"
-    { .sequence = "u", .tile = 0x1E },  // "u"
-    { .sequence = "v", .tile = 0x1F },  // "v"
-    { .sequence = "w", .tile = 0x20 },  // "w"
-    { .sequence = "x", .tile = 0x21 },  // "x"
-    { .sequence = "y", .tile = 0x22 },  // "y"
-    { .sequence = "z", .tile = 0x23 },  // "z"
-    { .sequence = ".", .tile = 0x24 },  // "."
-    { .sequence = "-", .tile = 0x25 },  // "-"
-    { .sequence = "\xC3\x97", .tile = 0x26 },  // "<U+00D7>"
-    { .sequence = "\xE2\x99\xA5", .tile = 0x27 },  // "<U+2665>"
-    { .sequence = "\xE2\x8B\xAF", .tile = 0x29 },  // "<U+22EF>"
-    { .sequence = " ", .tile = 0x2F },  // " "
-    { .sequence = "\xC2\xA9", .tile = 0x33 },  // "<U+00A9>"
-    { .sequence = "\xE2\x80\xA6", .tile = 0x60 },  // "<U+2026>"
-    { .sequence = "\xE2\x80\x9D", .tile = 0x9B },  // "<U+201D>"
-    { .sequence = ",", .tile = 0x9C },  // ","
-    { .sequence = ".\xE2\x80\x9D", .tile = 0x9D },  // ".<U+201D>"
+    { .sequence = "0", .tile = 0x00 },  // "0" -> $00
+    { .sequence = "1", .tile = 0x01 },  // "1" -> $01
+    { .sequence = "2", .tile = 0x02 },  // "2" -> $02
+    { .sequence = "3", .tile = 0x03 },  // "3" -> $03
+    { .sequence = "4", .tile = 0x04 },  // "4" -> $04
+    { .sequence = "5", .tile = 0x05 },  // "5" -> $05
+    { .sequence = "6", .tile = 0x06 },  // "6" -> $06
+    { .sequence = "7", .tile = 0x07 },  // "7" -> $07
+    { .sequence = "8", .tile = 0x08 },  // "8" -> $08
+    { .sequence = "9", .tile = 0x09 },  // "9" -> $09
+    { .sequence = "a", .tile = 0x0A },  // "a" -> $0A
+    { .sequence = "b", .tile = 0x0B },  // "b" -> $0B
+    { .sequence = "c", .tile = 0x0C },  // "c" -> $0C
+    { .sequence = "d", .tile = 0x0D },  // "d" -> $0D
+    { .sequence = "e", .tile = 0x0E },  // "e" -> $0E
+    { .sequence = "f", .tile = 0x0F },  // "f" -> $0F
+    { .sequence = "g", .tile = 0x10 },  // "g" -> $10
+    { .sequence = "h", .tile = 0x11 },  // "h" -> $11
+    { .sequence = "i", .tile = 0x12 },  // "i" -> $12
+    { .sequence = "j", .tile = 0x13 },  // "j" -> $13
+    { .sequence = "k", .tile = 0x14 },  // "k" -> $14
+    { .sequence = "l", .tile = 0x15 },  // "l" -> $15
+    { .sequence = "m", .tile = 0x16 },  // "m" -> $16
+    { .sequence = "n", .tile = 0x17 },  // "n" -> $17
+    { .sequence = "o", .tile = 0x18 },  // "o" -> $18
+    { .sequence = "p", .tile = 0x19 },  // "p" -> $19
+    { .sequence = "q", .tile = 0x1A },  // "q" -> $1A
+    { .sequence = "r", .tile = 0x1B },  // "r" -> $1B
+    { .sequence = "s", .tile = 0x1C },  // "s" -> $1C
+    { .sequence = "t", .tile = 0x1D },  // "t" -> $1D
+    { .sequence = "u", .tile = 0x1E },  // "u" -> $1E
+    { .sequence = "v", .tile = 0x1F },  // "v" -> $1F
+    { .sequence = "w", .tile = 0x20 },  // "w" -> $20
+    { .sequence = "x", .tile = 0x21 },  // "x" -> $21
+    { .sequence = "y", .tile = 0x22 },  // "y" -> $22
+    { .sequence = "z", .tile = 0x23 },  // "z" -> $23
+    { .sequence = ".", .tile = 0x24 },  // "." -> $24
+    { .sequence = "-", .tile = 0x25 },  // "-" -> $25
+    { .sequence = "\xC3\x97", .tile = 0x26 },  // "<U+00D7>" -> $26
+    { .sequence = "\xE2\x99\xA5", .tile = 0x27 },  // "<U+2665>" -> $27
+    { .sequence = "\xE2\x8B\xAF", .tile = 0x29 },  // "<U+22EF>" -> $29
+    { .sequence = " ", .tile = 0x2F },  // " " -> $2F
+    { .sequence = "\xC2\xA9", .tile = 0x33 },  // "<U+00A9>" -> $33
+    { .sequence = "\xE2\x80\xA6", .tile = 0x60 },  // "<U+2026>" -> $60
+    { .sequence = "\xE2\x80\x9D", .tile = 0x9B },  // "<U+201D>" -> $9B
+    { .sequence = ",", .tile = 0x9C },  // "," -> $9C
+    { .sequence = ".\xE2\x80\x9D", .tile = 0x9D },  // ".<U+201D>" -> $9D
 }};
 
 }  // namespace kirpich::fixtures

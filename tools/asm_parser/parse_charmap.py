@@ -43,6 +43,23 @@ LETTER_BASE = 0x0A
 LIGATURE_SEQUENCE = ".”"
 LIGATURE_TILE = 0x9D
 
+# Enumerator names for the CharTile enum (include/kirpich/char_tile.h). Digits and letters derive
+# mechanically; every other sequence must appear here — an unnamed sequence is a hard error,
+# so a new upstream entry cannot silently emit a nameless enum.
+SYMBOL_NAMES = {
+    ".": "PERIOD",
+    "-": "HYPHEN",
+    "×": "MULTIPLICATION_SIGN",
+    "♥": "HEART",
+    "⋯": "MIDLINE_ELLIPSIS",
+    " ": "SPACE",
+    "©": "COPYRIGHT",
+    "…": "ELLIPSIS",
+    "”": "RIGHT_DOUBLE_QUOTE",
+    ",": "COMMA",
+    ".”": "PERIOD_RIGHT_DOUBLE_QUOTE",
+}
+
 _HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
 
 # One space between `charmap` and the quote, `, ` before the value; optional trailing `; comment`.
@@ -124,6 +141,11 @@ def _assert_contract(rows: list[tuple[str, int]], path: Path) -> None:
             f"expected ${LIGATURE_TILE:02X}"
         )
 
+    # Every sequence must have a Tile enumerator name — digits and letters derive mechanically,
+    # everything else must be in SYMBOL_NAMES. Raises with the offending sequence.
+    for seq, _ in rows:
+        tile_name(seq, path)
+
 
 def _first_duplicate(items):
     seen = set()
@@ -139,6 +161,20 @@ def _fmt(value) -> str:
 
 
 # --- Emit ---------------------------------------------------------------------------------------
+
+def tile_name(seq: str, path: Path) -> str:
+    """The CharTile enumerator name for a charmap sequence. Hard error on an unnamed sequence."""
+    if len(seq) == 1 and "0" <= seq <= "9":
+        return f"DIGIT_{seq}"
+    if len(seq) == 1 and "a" <= seq <= "z":
+        return f"LETTER_{seq.upper()}"
+    name = SYMBOL_NAMES.get(seq)
+    if name is None:
+        raise ParseError(
+            f"{path}: sequence {seq!r} has no CharTile enumerator name - add it to SYMBOL_NAMES"
+        )
+    return name
+
 
 def cpp_byte_string(seq: str) -> str:
     """Render `seq` as one or more concatenated C++ string literals containing only ASCII bytes.
@@ -178,28 +214,65 @@ def readable_comment(seq: str) -> str:
     return "".join(parts)
 
 
-def _emit_rows(rows: list[tuple[str, int]], indent: str) -> str:
-    return "\n".join(
-        f'{indent}{{ .sequence = {cpp_byte_string(seq)}, .tile = 0x{tile:02X} }},'
-        f'  // "{readable_comment(seq)}"'
-        for seq, tile in rows
-    )
+def _emit_rows(rows: list[tuple[str, int]], indent: str, path: Path, typed: bool) -> str:
+    """Designated-initializer rows. typed=True names the tile as a Tile enumerator (engine table);
+    typed=False keeps the raw byte (test fixture — independent of tile.h by design)."""
+    lines = []
+    for seq, tile in rows:
+        value = f"CharTile::{tile_name(seq, path)}" if typed else f"0x{tile:02X}"
+        lines.append(
+            f'{indent}{{ .sequence = {cpp_byte_string(seq)}, .tile = {value} }},'
+            f'  // "{readable_comment(seq)}" -> $'f'{tile:02X}'
+        )
+    return "\n".join(lines)
 
 
-def emit_inc(rows: list[tuple[str, int]], source_commit: str) -> str:
+def emit_inc(rows: list[tuple[str, int]], source_commit: str,
+             path: Path = Path("charmap.asm")) -> str:
     return f"""{common.banner("parse_charmap.py", source_commit)}\
 // Included inside the `constexpr std::array<CharmapEntry, {ENTRY_COUNT}> kCharmap` initializer in
 // src/data/charmap.cpp. Source order (charmap.asm line order); the encoder is order-independent.
-{_emit_rows(rows, "    ")}
+// Tiles are named: the charmap is the ROM's symbol table for the text glyph space, so each row's
+// tile is the CharTile enumerator (include/kirpich/char_tile.h) minted from this same source.
+{_emit_rows(rows, "    ", path, typed=True)}
 """
 
 
-def emit_fixture(rows: list[tuple[str, int]], source_commit: str) -> str:
+def emit_enum(rows: list[tuple[str, int]], source_commit: str,
+              path: Path = Path("charmap.asm")) -> str:
+    width = max(len(tile_name(seq, path)) for seq, _ in rows)
+    body = "\n".join(
+        f'    {tile_name(seq, path):<{width}} = 0x{tile:02X},  // "{readable_comment(seq)}"'
+        for seq, tile in rows
+    )
+    return f"""#pragma once
+{common.banner("parse_charmap.py", source_commit)}\
+// CharTile - a text glyph's VRAM tile index, named. The character map (charmap.asm) is the ROM's
+// naming table for the text glyph space: every sequence it maps names the glyph at its tile index,
+// and those names are minted here as enumerators, byte values preserved. The tile sheet holds
+// further glyphs the charmap never names (used directly by tilemaps and code); enumerators for
+// those are added as the surfaces that use them land, so this enum grows with the port.
+
+#include <cstdint>
+
+namespace kirpich {{
+
+enum class CharTile : std::uint8_t {{
+{body}
+}};
+
+}}  // namespace kirpich
+"""
+
+
+def emit_fixture(rows: list[tuple[str, int]], source_commit: str,
+                 path: Path = Path("charmap.asm")) -> str:
     return f"""#pragma once
 {common.banner("parse_charmap.py", source_commit)}\
 // Independent fixture for the full-corpus charmap sweep. Mirrors the {ENTRY_COUNT} rows the engine
-// table holds, in its own struct, so a defect in include/kirpich/charmap.h cannot mask the sweep.
-// tests/test_charmap.cpp asserts the engine table equals these rows field-for-field.
+// table holds, in its own struct with RAW byte tiles - independent of both include/kirpich/charmap.h
+// and include/kirpich/tile.h, so a defect in either cannot mask the sweep. tests/test_charmap.cpp
+// asserts the engine table (and therefore each Tile enumerator's value) equals these bytes.
 
 #include <array>
 #include <cstdint>
@@ -209,11 +282,11 @@ namespace kirpich::fixtures {{
 
 struct CharmapRow {{
     std::string_view sequence;  // UTF-8 bytes exactly as upstream; 1..4 bytes, 1..2 code points
-    std::uint8_t     tile;      // VRAM tile index this sequence encodes to
+    std::uint8_t     tile;      // VRAM tile index this sequence encodes to, as a raw byte
 }};
 
 inline constexpr std::array<CharmapRow, {ENTRY_COUNT}> kCharmapExpected{{{{
-{_emit_rows(rows, "    ")}
+{_emit_rows(rows, "    ", path, typed=False)}
 }}}};
 
 }}  // namespace kirpich::fixtures
@@ -239,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="Emit every artifact (the only shipped mode).")
     parser.add_argument("--inc-out", type=Path)
     parser.add_argument("--fixture-out", type=Path)
+    parser.add_argument("--enum-out", type=Path)
     args = parser.parse_args(argv)
 
     source_root: Path = args.source_root
@@ -256,8 +330,9 @@ def main(argv: list[str] | None = None) -> int:
     commit = common.source_commit_of(source_root)
 
     outputs = {
-        args.inc_out: emit_inc(rows, commit),
-        args.fixture_out: emit_fixture(rows, commit),
+        args.inc_out: emit_inc(rows, commit, charmap_path),
+        args.fixture_out: emit_fixture(rows, commit, charmap_path),
+        args.enum_out: emit_enum(rows, commit, charmap_path),
     }
     wrote = 0
     for out_path, content in outputs.items():

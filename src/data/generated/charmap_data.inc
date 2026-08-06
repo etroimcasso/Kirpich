@@ -3,50 +3,52 @@
 // Regenerate with `--all` after any upstream repin; edits here are overwritten.
 // Included inside the `constexpr std::array<CharmapEntry, 47> kCharmap` initializer in
 // src/data/charmap.cpp. Source order (charmap.asm line order); the encoder is order-independent.
-    { .sequence = "0", .tile = 0x00 },  // "0"
-    { .sequence = "1", .tile = 0x01 },  // "1"
-    { .sequence = "2", .tile = 0x02 },  // "2"
-    { .sequence = "3", .tile = 0x03 },  // "3"
-    { .sequence = "4", .tile = 0x04 },  // "4"
-    { .sequence = "5", .tile = 0x05 },  // "5"
-    { .sequence = "6", .tile = 0x06 },  // "6"
-    { .sequence = "7", .tile = 0x07 },  // "7"
-    { .sequence = "8", .tile = 0x08 },  // "8"
-    { .sequence = "9", .tile = 0x09 },  // "9"
-    { .sequence = "a", .tile = 0x0A },  // "a"
-    { .sequence = "b", .tile = 0x0B },  // "b"
-    { .sequence = "c", .tile = 0x0C },  // "c"
-    { .sequence = "d", .tile = 0x0D },  // "d"
-    { .sequence = "e", .tile = 0x0E },  // "e"
-    { .sequence = "f", .tile = 0x0F },  // "f"
-    { .sequence = "g", .tile = 0x10 },  // "g"
-    { .sequence = "h", .tile = 0x11 },  // "h"
-    { .sequence = "i", .tile = 0x12 },  // "i"
-    { .sequence = "j", .tile = 0x13 },  // "j"
-    { .sequence = "k", .tile = 0x14 },  // "k"
-    { .sequence = "l", .tile = 0x15 },  // "l"
-    { .sequence = "m", .tile = 0x16 },  // "m"
-    { .sequence = "n", .tile = 0x17 },  // "n"
-    { .sequence = "o", .tile = 0x18 },  // "o"
-    { .sequence = "p", .tile = 0x19 },  // "p"
-    { .sequence = "q", .tile = 0x1A },  // "q"
-    { .sequence = "r", .tile = 0x1B },  // "r"
-    { .sequence = "s", .tile = 0x1C },  // "s"
-    { .sequence = "t", .tile = 0x1D },  // "t"
-    { .sequence = "u", .tile = 0x1E },  // "u"
-    { .sequence = "v", .tile = 0x1F },  // "v"
-    { .sequence = "w", .tile = 0x20 },  // "w"
-    { .sequence = "x", .tile = 0x21 },  // "x"
-    { .sequence = "y", .tile = 0x22 },  // "y"
-    { .sequence = "z", .tile = 0x23 },  // "z"
-    { .sequence = ".", .tile = 0x24 },  // "."
-    { .sequence = "-", .tile = 0x25 },  // "-"
-    { .sequence = "\xC3\x97", .tile = 0x26 },  // "<U+00D7>"
-    { .sequence = "\xE2\x99\xA5", .tile = 0x27 },  // "<U+2665>"
-    { .sequence = "\xE2\x8B\xAF", .tile = 0x29 },  // "<U+22EF>"
-    { .sequence = " ", .tile = 0x2F },  // " "
-    { .sequence = "\xC2\xA9", .tile = 0x33 },  // "<U+00A9>"
-    { .sequence = "\xE2\x80\xA6", .tile = 0x60 },  // "<U+2026>"
-    { .sequence = "\xE2\x80\x9D", .tile = 0x9B },  // "<U+201D>"
-    { .sequence = ",", .tile = 0x9C },  // ","
-    { .sequence = ".\xE2\x80\x9D", .tile = 0x9D },  // ".<U+201D>"
+// Tiles are named: the charmap is the ROM's symbol table for the text glyph space, so each row's
+// tile is the CharTile enumerator (include/kirpich/char_tile.h) minted from this same source.
+    { .sequence = "0", .tile = CharTile::DIGIT_0 },  // "0" -> $00
+    { .sequence = "1", .tile = CharTile::DIGIT_1 },  // "1" -> $01
+    { .sequence = "2", .tile = CharTile::DIGIT_2 },  // "2" -> $02
+    { .sequence = "3", .tile = CharTile::DIGIT_3 },  // "3" -> $03
+    { .sequence = "4", .tile = CharTile::DIGIT_4 },  // "4" -> $04
+    { .sequence = "5", .tile = CharTile::DIGIT_5 },  // "5" -> $05
+    { .sequence = "6", .tile = CharTile::DIGIT_6 },  // "6" -> $06
+    { .sequence = "7", .tile = CharTile::DIGIT_7 },  // "7" -> $07
+    { .sequence = "8", .tile = CharTile::DIGIT_8 },  // "8" -> $08
+    { .sequence = "9", .tile = CharTile::DIGIT_9 },  // "9" -> $09
+    { .sequence = "a", .tile = CharTile::LETTER_A },  // "a" -> $0A
+    { .sequence = "b", .tile = CharTile::LETTER_B },  // "b" -> $0B
+    { .sequence = "c", .tile = CharTile::LETTER_C },  // "c" -> $0C
+    { .sequence = "d", .tile = CharTile::LETTER_D },  // "d" -> $0D
+    { .sequence = "e", .tile = CharTile::LETTER_E },  // "e" -> $0E
+    { .sequence = "f", .tile = CharTile::LETTER_F },  // "f" -> $0F
+    { .sequence = "g", .tile = CharTile::LETTER_G },  // "g" -> $10
+    { .sequence = "h", .tile = CharTile::LETTER_H },  // "h" -> $11
+    { .sequence = "i", .tile = CharTile::LETTER_I },  // "i" -> $12
+    { .sequence = "j", .tile = CharTile::LETTER_J },  // "j" -> $13
+    { .sequence = "k", .tile = CharTile::LETTER_K },  // "k" -> $14
+    { .sequence = "l", .tile = CharTile::LETTER_L },  // "l" -> $15
+    { .sequence = "m", .tile = CharTile::LETTER_M },  // "m" -> $16
+    { .sequence = "n", .tile = CharTile::LETTER_N },  // "n" -> $17
+    { .sequence = "o", .tile = CharTile::LETTER_O },  // "o" -> $18
+    { .sequence = "p", .tile = CharTile::LETTER_P },  // "p" -> $19
+    { .sequence = "q", .tile = CharTile::LETTER_Q },  // "q" -> $1A
+    { .sequence = "r", .tile = CharTile::LETTER_R },  // "r" -> $1B
+    { .sequence = "s", .tile = CharTile::LETTER_S },  // "s" -> $1C
+    { .sequence = "t", .tile = CharTile::LETTER_T },  // "t" -> $1D
+    { .sequence = "u", .tile = CharTile::LETTER_U },  // "u" -> $1E
+    { .sequence = "v", .tile = CharTile::LETTER_V },  // "v" -> $1F
+    { .sequence = "w", .tile = CharTile::LETTER_W },  // "w" -> $20
+    { .sequence = "x", .tile = CharTile::LETTER_X },  // "x" -> $21
+    { .sequence = "y", .tile = CharTile::LETTER_Y },  // "y" -> $22
+    { .sequence = "z", .tile = CharTile::LETTER_Z },  // "z" -> $23
+    { .sequence = ".", .tile = CharTile::PERIOD },  // "." -> $24
+    { .sequence = "-", .tile = CharTile::HYPHEN },  // "-" -> $25
+    { .sequence = "\xC3\x97", .tile = CharTile::MULTIPLICATION_SIGN },  // "<U+00D7>" -> $26
+    { .sequence = "\xE2\x99\xA5", .tile = CharTile::HEART },  // "<U+2665>" -> $27
+    { .sequence = "\xE2\x8B\xAF", .tile = CharTile::MIDLINE_ELLIPSIS },  // "<U+22EF>" -> $29
+    { .sequence = " ", .tile = CharTile::SPACE },  // " " -> $2F
+    { .sequence = "\xC2\xA9", .tile = CharTile::COPYRIGHT },  // "<U+00A9>" -> $33
+    { .sequence = "\xE2\x80\xA6", .tile = CharTile::ELLIPSIS },  // "<U+2026>" -> $60
+    { .sequence = "\xE2\x80\x9D", .tile = CharTile::RIGHT_DOUBLE_QUOTE },  // "<U+201D>" -> $9B
+    { .sequence = ",", .tile = CharTile::COMMA },  // "," -> $9C
+    { .sequence = ".\xE2\x80\x9D", .tile = CharTile::PERIOD_RIGHT_DOUBLE_QUOTE },  // ".<U+201D>" -> $9D
