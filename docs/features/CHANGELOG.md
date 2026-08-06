@@ -10,6 +10,16 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-05
 
+- **Sprite layout grids (+ PieceKind)** ⬜ → ✅. The five shared (y, x) offset grids the sprite
+  renderer walks (`kSpriteGrid4x4` / `1x8` / `7x2` / `8x4Notched` / `3x3`, 150 bytes) ported as
+  header-only `constexpr std::array<SpriteGridOffset, N>` in `src/data/sprite_grids.h`, generated
+  with their test fixture from the disassembly by `tools/asm_parser/parse_sprite_grids.py`. The same
+  work resolved the deferred `PieceKind` enum (`L, J, I, O, S, Z, T`) in `include/kirpich/piece_kind.h`
+  and retyped `Piece::kind()` to return it. The checklist's "piece rotation matrices" name was a
+  misnomer — these are shared sprite geometry, not per-piece rotation data. Test baseline 24 → 30. See
+  [`sprite-grids.md`](sprite-grids.md), [`../contracts/sprite-grids.md`](../contracts/sprite-grids.md),
+  [`../engine/sprite-grids.md`](../engine/sprite-grids.md).
+
 - **Character map** ⬜ → ✅. The 47-entry `charmap.asm` sequence→tile table ported as a
   `CharmapEntry` table with exact-sequence lookup (`getCharmapTile`) and an RGBDS greedy-longest-match
   text encoder (`encodeCharmapText`) — the `.”` ligature encodes to a single tile, and the digits map
