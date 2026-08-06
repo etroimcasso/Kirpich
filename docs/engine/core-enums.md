@@ -24,14 +24,14 @@ All are in `namespace kirpich`. Include them as `<kirpich/game_state.h>` and so 
 
 ```cpp
 kirpich::Piece p{0x0A};   // raw = kind*4 + rotation
-p.kind();                 // 0x0A >> 2 == 2   (0..6, one per tetromino)
+p.kind();                 // PieceKind::I  (0x0A >> 2 == 2)
 p.rotation();             // 0x0A & 3  == 2   (0..3)
 kirpich::Piece::of(2, 2); // build from kind + rotation
 ```
 
 `sizeof(Piece) == 1` is asserted at the definition. Valid `raw` runs `0..27` (7 kinds × 4 rotations);
-there is no "empty" value. `kind()` returns a raw index rather than a named tetromino — that mapping
-arrives with the rotation matrices.
+there is no "empty" value. `kind()` returns a `PieceKind` — the seven tetromino shapes (`L, J, I, O, S,
+Z, T`); see [sprite-grids.md](sprite-grids.md).
 
 ## Regenerating the generated headers
 

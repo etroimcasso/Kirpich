@@ -7,18 +7,19 @@
 // "no piece" sentinel in this byte.
 //
 // This is the piece-logic representation (what the RNG and piece routines manipulate), distinct
-// from the tile indices the renderer later uses. The mapping from kind to a specific tetromino
-// (I/O/T/S/Z/J/L) is fixed by the rotation matrices and is introduced with them, so kind() returns
-// the raw index rather than a named enum here.
+// from the tile indices the renderer later uses. The kind decodes to one of the seven tetromino
+// shapes (see PieceKind), fixed by the order the game assigns sprites to kinds.
 
 #include <cstdint>
+
+#include <kirpich/piece_kind.h>
 
 namespace kirpich {
 
 struct Piece {
     uint8_t raw;  // kind * 4 + rotation, valid 0..27
 
-    [[nodiscard]] constexpr uint8_t kind() const { return static_cast<uint8_t>(raw >> 2); }
+    [[nodiscard]] constexpr PieceKind kind() const { return static_cast<PieceKind>(raw >> 2); }
     [[nodiscard]] constexpr uint8_t rotation() const { return static_cast<uint8_t>(raw & 0x03); }
 
     // Build an identity byte from a kind (0..6) and rotation (0..3).

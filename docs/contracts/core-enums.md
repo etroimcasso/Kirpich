@@ -80,7 +80,7 @@ the cursor across tiles `$1C`–`$1F` (bounds at `tetris.asm:3202-3232`); `Switc
 
 ## `Piece` — `include/kirpich/piece.h`
 
-`struct Piece { uint8_t raw; }` with `kind() = raw >> 2` and `rotation() = raw & 0x03`;
+`struct Piece { uint8_t raw; }` with `kind() = PieceKind(raw >> 2)` and `rotation() = raw & 0x03`;
 `static_assert(sizeof(Piece) == 1)`. The game packs a piece's kind and orientation into one byte and
 separates them by masking (`and a, ~%11` isolates the kind — "the lower two bits are used for
 orientation", `tetris.asm:5088`). `PickRandomPiece` rerolls until the kind byte is below `7 * 4`
@@ -88,9 +88,9 @@ orientation", `tetris.asm:5088`). `PickRandomPiece` rerolls until the kind byte 
 `0..27`. **No sentinel** — there is no "no piece" value in this byte.
 
 This is the piece-logic byte (what the RNG and piece routines manipulate), distinct from the tile
-indices the renderer later uses. The mapping from `kind` to a specific tetromino (I/O/T/S/Z/J/L) is
-fixed by the piece rotation matrices and is introduced alongside them, so `kind()` returns the raw
-index rather than a named enum for now.
+indices the renderer later uses. `kind()` returns `PieceKind` (`include/kirpich/piece_kind.h`) — the
+seven tetromino shapes in the game's assignment order (`L, J, I, O, S, Z, T`). That ordering and its
+source anchors are recorded in [`sprite-grids.md`](sprite-grids.md) § `PieceKind`.
 
 ---
 
