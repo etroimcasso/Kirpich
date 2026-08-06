@@ -17,14 +17,17 @@
 // Matching is therefore byte-wise on the stored sequence. The table is a plain data surface; the
 // lookup and text-encoding behaviour live in src/data/charmap.h.
 
-#include <cstdint>
 #include <string_view>
+
+#include <kirpich/char_tile.h>
 
 namespace kirpich {
 
 struct CharmapEntry {
     std::string_view sequence;  // UTF-8 bytes exactly as upstream; 1..4 bytes, 1..2 code points
-    std::uint8_t     tile;      // VRAM tile index this sequence encodes to
+    CharTile         tile;      // the glyph this sequence encodes to (CharTile carries the VRAM index)
+
+    friend constexpr bool operator==(const CharmapEntry&, const CharmapEntry&) = default;
 };
 
 }  // namespace kirpich

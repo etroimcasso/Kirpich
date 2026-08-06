@@ -149,6 +149,62 @@ class EdgeCasesMustRaise(unittest.TestCase):
             pc.parse_charmap(_render(rows), Path("charmap.asm"))
 
 
+class TileNames(unittest.TestCase):
+    P = Path("charmap.asm")
+
+    def test_digit_and_letter_names_derive(self):
+        self.assertEqual(pc.tile_name("0", self.P), "DIGIT_0")
+        self.assertEqual(pc.tile_name("9", self.P), "DIGIT_9")
+        self.assertEqual(pc.tile_name("a", self.P), "LETTER_A")
+        self.assertEqual(pc.tile_name("z", self.P), "LETTER_Z")
+
+    def test_symbol_names_from_table(self):
+        self.assertEqual(pc.tile_name(" ", self.P), "SPACE")
+        self.assertEqual(pc.tile_name("×", self.P), "MULTIPLICATION_SIGN")
+        self.assertEqual(pc.tile_name(".”", self.P), "PERIOD_RIGHT_DOUBLE_QUOTE")
+
+    def test_unnamed_sequence_raises(self):
+        with self.assertRaises(SystemExit):
+            pc.tile_name("!", self.P)
+
+    def test_corpus_with_unnamed_sequence_raises_at_contract(self):
+        rows = _valid_corpus()
+        rows[37] = ("!", 0x25)  # replaces "-": count/uniqueness hold, but "!" has no name
+        with self.assertRaises(SystemExit):
+            pc.parse_charmap(_render(rows), Path("charmap.asm"))
+
+    def test_names_unique_across_corpus(self):
+        names = [pc.tile_name(seq, self.P) for seq, _ in _valid_corpus()]
+        self.assertEqual(len(names), len(set(names)))
+
+
+class EmitShapes(unittest.TestCase):
+    def setUp(self):
+        self.rows = pc.parse_charmap(_render(_valid_corpus()), Path("charmap.asm"))
+
+    def test_inc_rows_are_tile_typed(self):
+        inc = pc.emit_inc(self.rows, "abc1234")
+        self.assertIn(".tile = CharTile::DIGIT_0 }", inc)
+        self.assertIn(".tile = CharTile::PERIOD_RIGHT_DOUBLE_QUOTE }", inc)
+        self.assertNotIn(".tile = 0x", inc)  # no raw bytes in the engine table
+
+    def test_fixture_rows_stay_raw(self):
+        fixture = pc.emit_fixture(self.rows, "abc1234")
+        self.assertIn(".tile = 0x00 }", fixture)
+        self.assertIn(".tile = 0x9D }", fixture)
+        self.assertNotIn("CharTile::", fixture)  # fixture is independent of char_tile.h by design
+
+    def test_enum_header_shape(self):
+        enum = pc.emit_enum(self.rows, "abc1234")
+        self.assertIn("#pragma once", enum)
+        self.assertIn("enum class CharTile : std::uint8_t {", enum)
+        self.assertIn("= 0x00,", enum)
+        self.assertIn("DIGIT_0", enum)
+        self.assertIn("LETTER_Z", enum)
+        self.assertIn("PERIOD_RIGHT_DOUBLE_QUOTE = 0x9D,", enum)
+        self.assertIn("namespace kirpich {", enum)
+
+
 class AsciiPurity(unittest.TestCase):
     def test_emitted_inc_is_ascii(self):
         rows = pc.parse_charmap(_render(_valid_corpus()), Path("charmap.asm"))
@@ -157,6 +213,10 @@ class AsciiPurity(unittest.TestCase):
     def test_emitted_fixture_is_ascii(self):
         rows = pc.parse_charmap(_render(_valid_corpus()), Path("charmap.asm"))
         self.assertTrue(pc.emit_fixture(rows, "abc1234").isascii())
+
+    def test_emitted_enum_is_ascii(self):
+        rows = pc.parse_charmap(_render(_valid_corpus()), Path("charmap.asm"))
+        self.assertTrue(pc.emit_enum(rows, "abc1234").isascii())
 
     def test_assert_ascii_raises_on_nonascii(self):
         with self.assertRaises(SystemExit):

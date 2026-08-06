@@ -10,12 +10,12 @@
 //                      charmap entry makes the whole call fail (rgbasm hard-errors the same way),
 //                      so the result is either a complete encoding or nothing.
 
-#include <cstdint>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
 
+#include <kirpich/char_tile.h>
 #include <kirpich/charmap.h>
 
 namespace kirpich {
@@ -23,11 +23,11 @@ namespace kirpich {
 // The full charmap table in source order (charmap.asm line order).
 [[nodiscard]] std::span<const CharmapEntry> getCharmap();
 
-// The tile index for one exact character sequence, or nullopt if the sequence is not mapped.
-[[nodiscard]] std::optional<std::uint8_t> getCharmapTile(std::string_view sequence);
+// The glyph for one exact character sequence, or nullopt if the sequence is not mapped.
+[[nodiscard]] std::optional<CharTile> getCharmapTile(std::string_view sequence);
 
-// Encode UTF-8 text to tile indices via greedy longest match. Returns nullopt if any position has
-// no matching sequence (no partial output). Empty input encodes to an empty vector (success).
-[[nodiscard]] std::optional<std::vector<std::uint8_t>> encodeCharmapText(std::string_view utf8);
+// Encode UTF-8 text to glyphs via greedy longest match. Returns nullopt if any position has no
+// matching sequence (no partial output). Empty input encodes to an empty vector (success).
+[[nodiscard]] std::optional<std::vector<CharTile>> encodeCharmapText(std::string_view utf8);
 
 }  // namespace kirpich

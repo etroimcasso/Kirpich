@@ -18,7 +18,7 @@ std::span<const CharmapEntry> getCharmap() {
     return kCharmap;
 }
 
-std::optional<std::uint8_t> getCharmapTile(std::string_view sequence) {
+std::optional<CharTile> getCharmapTile(std::string_view sequence) {
     for (const CharmapEntry& entry : kCharmap) {
         if (entry.sequence == sequence) {
             return entry.tile;
@@ -27,8 +27,8 @@ std::optional<std::uint8_t> getCharmapTile(std::string_view sequence) {
     return std::nullopt;
 }
 
-std::optional<std::vector<std::uint8_t>> encodeCharmapText(std::string_view utf8) {
-    std::vector<std::uint8_t> tiles;
+std::optional<std::vector<CharTile>> encodeCharmapText(std::string_view utf8) {
+    std::vector<CharTile> tiles;
     std::size_t pos = 0;
     while (pos < utf8.size()) {
         // Greedy longest match: at this position, the longest charmap sequence that is a prefix
