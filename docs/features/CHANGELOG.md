@@ -10,6 +10,15 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-05
 
+- **Character map** stays ✅ — the tile is now a named glyph. `CharTile`
+  (`enum class : uint8_t`, 47 named glyphs) is generated from the same
+  `charmap.asm` source; `CharmapEntry`, the exact lookup, and the encoder all
+  carry it, so consumers read `CharTile::LETTER_A` instead of `0x0A`. The test
+  fixture keeps raw bytes so the sweep pins every enumerator's value. Test
+  baseline 30 → 31. See [`charmap.md`](charmap.md),
+  [`../contracts/charmap.md`](../contracts/charmap.md),
+  [`../engine/charmap.md`](../engine/charmap.md).
+
 - **Sprite layout grids (+ PieceKind)** ⬜ → ✅. The five shared (y, x) offset grids the sprite
   renderer walks (`kSpriteGrid4x4` / `1x8` / `7x2` / `8x4Notched` / `3x3`, 150 bytes) ported as
   header-only `constexpr std::array<SpriteGridOffset, N>` in `src/data/sprite_grids.h`, generated
