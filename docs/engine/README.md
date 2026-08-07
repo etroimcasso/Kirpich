@@ -30,6 +30,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [scoring.md](scoring.md) | What points are worth — the line-clear award table and its level multiplier, the soft-drop quirk, the rocket bonus-ending tiers, the level-up rule, where the tables live, and how to regenerate them. |
 | [playing-field.md](playing-field.md) | The board's fixed extent (18 × 10) and the wipe schedule that redraws it a row per frame — the geometry constants, the counter→row mapping, where they live, and how to regenerate them. |
 | [tile-graphics.md](tile-graphics.md) | The graphics themselves — the extraction table naming which ROM bytes are which asset, the in-app extractor that turns a player's ROM into the PNGs the engine loads, the PNG serialization, and how to regenerate the table. |
+| [tilemaps.md](tilemaps.md) | The static screens the game draws — the 22 background tilemap grids (full screens, banners, field overlays, window messages, tower columns, and the congratulations strip), how text rows decode through the character map, where they live, and how to regenerate them. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
