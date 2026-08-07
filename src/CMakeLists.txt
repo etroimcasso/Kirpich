@@ -6,6 +6,8 @@ add_library(kirpich-lib STATIC
     engine.cpp
     assets/presence.cpp
     assets/first_start.cpp
+    assets/extract.cpp
+    assets/png_writer.cpp
     data/charmap.cpp
     data/gravity.cpp
     data/scoring.cpp

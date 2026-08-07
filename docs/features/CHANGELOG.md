@@ -8,6 +8,36 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-07
+
+- **Tile graphics** ⬜ → ✅. The four graphics blocks — the 1bpp font and three 2bpp screens —
+  ported as the extraction table `kTileGraphics` (`src/data/tile_graphics.h`) plus the in-app
+  extractor (`src/assets/extract.{h,cpp}`) that decodes a player's ROM into the four greyscale
+  PNGs under `assets/gfx/default/`, with the port's own PNG serialization
+  (`src/assets/png_writer.{h,cpp}`). The identity gate refuses anything but the expected ROM
+  (exact size + SHA1) before writing a byte; every run rewrites all four files; the fixture pins
+  dimensions and content hashes, never pixels. The table generator requires the disassembly's
+  dumper facts, the ROM, and the committed reference PNGs to agree pixel-for-pixel before it
+  emits. Test baseline 46 → 54; parser suite 169 → 214. See
+  [`tile-graphics.md`](tile-graphics.md), [`../contracts/tile-graphics.md`](../contracts/tile-graphics.md),
+  [`../engine/tile-graphics.md`](../engine/tile-graphics.md).
+
+- **ROM extraction tool** ⬜ → ✅ and **Asset acquisition** ⬜ → ✅. Delivered by the tile-graphics
+  work above: the first-start flow now runs end to end — presence check, native ROM prompt, real
+  extraction, normal startup — so a player's first launch needs nothing but their own ROM. The
+  audio byte spans (sound driver + song data, consumed by the virtual machine) are extracted by
+  the same module once the audio backend fixes their output path; they ride the audio features.
+  See [`asset-acquisition.md`](asset-acquisition.md).
+
+- **Playing-field wipe patterns** ⬜ → ✅. The 18 × 10 field geometry and the wipe schedule that
+  redraws the field one row per frame, ported as four header-only constants and the counter→row
+  closed form `playingFieldRowForWipeCounter` (`src/data/playing_field.h`) — the schedule is a
+  mapping, not stored patterns, and the original's addresses stay off the port surface. Constants
+  and the raw address-triple fixture are generated from the disassembly by
+  `tools/asm_parser/parse_playing_field.py`. Test baseline 42 → 46; parser suite 140 → 169. See
+  [`playing-field.md`](playing-field.md), [`../contracts/playing-field.md`](../contracts/playing-field.md),
+  [`../engine/playing-field.md`](../engine/playing-field.md).
+
 ## 2026-08-06
 
 - **Scoring tables** ⬜ → ✅. The line-clear award table (`kLineClearScores`, 40/100/300/1200 with

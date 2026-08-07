@@ -39,8 +39,8 @@ Concretely, in this codebase:
 - Every future load site spells its own path inline: `loadAtlas("assets/gfx/default/font.png", …)`.
 - The presence check (`src/assets/presence.cpp`) writes each required path as a literal at
   its own check call. There is no manifest array to import.
-- A path known only at runtime — the player's ROM from the file picker — never goes near a
-  path door. It is read directly and handed to the family's bytes door.
+- A path known only at runtime — the player's ROM from the file picker — never appears at an
+  engine load call. The extractor opens and reads that file itself.
 
 **To add a required graphic:** add a `checkOne(result, "assets/gfx/default/<name>.png")`
 line in `checkRequired()`, then add the same literal to the expected-order assertion in
@@ -68,7 +68,7 @@ returns whatever is absent, in reporting order. It **does not open, decode, or v
 anything — a zero-byte file counts as present. It touches no renderer and needs no window,
 which is what lets it run before anything is constructed. Its resolution is a plain join
 against `retropp::assetRoot()` — the engine's public runtime base, which is the prescribed
-route for a name that is not sitting at an ingest door.
+route for a name that is not sitting at an engine load call.
 
 `missingAssetsMessage()` renders the player-facing text: what is missing, and that Kirpich
 is about to ask for the ROM. It never tells the player to go and run a tool.
@@ -93,7 +93,8 @@ where the extractor writes on a player's machine.
 Call `setAssetRoot` from `main()` and nowhere else — not from library code, and never at
 namespace scope, where the ordering against the engine's own startup is not defined. The
 engine's loaders apply the root themselves; the only port code that joins against
-`assetRoot()` by hand is the presence check, whose names are not at an ingest door.
+`assetRoot()` by hand is the presence check and the extractor, whose names are not at an engine
+load call.
 
 ## The first-start flow
 
@@ -104,17 +105,13 @@ namespace kirpich::assets {
 
 std::optional<std::filesystem::path> promptForRom();
 
-struct ExtractionResult {
-    bool        succeeded = false;
-    std::string message;        // player-facing, whether it worked or not
-};
-
-ExtractionResult extractFromRom(const std::filesystem::path& romPath);
-
 bool ensureAssetsPresent(const std::function<void(const std::string&)>& report);
 
 }
 ```
+
+The extraction call the sequence makes — `extractFromRom` and its `ExtractionResult` — lives in
+`src/assets/extract.h` and has its own page, [tile-graphics.md](tile-graphics.md).
 
 `ensureAssetsPresent` is the whole sequence, and `main()` calls it before constructing
 anything:
@@ -169,15 +166,15 @@ Three things about it constrain how it can be used:
 
 ### Extraction
 
-`extractFromRom` is **not implemented yet.** It writes nothing and returns `succeeded =
-false` with a message saying so. That is a deliberate choice over a stub that reports
-success: a player must never see a confirmation followed by a failure to load.
+`extractFromRom` (`src/assets/extract.h`) identifies the ROM — exact size and SHA1, refusing
+anything else before a byte is written — decodes the four graphics blocks in memory, and writes
+the four PNGs at the manifest's paths. Every run rewrites all four files. Its messages are
+player-facing in both directions: what was written and where, or why the file was refused and
+that nothing was written.
 
-The design it will be built to — ROM identification by SHA1, the four tile-data offsets, the
-1bpp-versus-2bpp decode, PNG output — is pinned in
-[`../../tools/rom_extractor/README.md`](../../tools/rom_extractor/README.md). Until it
-lands, place the files by hand at the manifest's paths, or run the setup script if you have
-the disassembly checked out beside this repository.
+The extraction table, the decode, the PNG serialization, and how to regenerate the table are on
+[tile-graphics.md](tile-graphics.md); the behavioral specification both population routes share
+is [`../contracts/tile-graphics.md`](../contracts/tile-graphics.md).
 
 ## Loading
 

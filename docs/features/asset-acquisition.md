@@ -1,8 +1,10 @@
 # Asset Acquisition
 
 **Date:** 2026-05-14; revised 2026-05-15 (single asset path, no pack system); revised
-2026-08-03 (first-start ROM selection replaces the manual tool step)
-**Status:** Presence check and first-start flow implemented; extraction is scheduled work
+2026-08-03 (first-start ROM selection replaces the manual tool step); revised 2026-08-07
+(graphics extraction implemented)
+**Status:** Presence check, first-start flow, and graphics extraction implemented; the audio
+byte spans are settled alongside the audio backend
 
 How the game gets the graphics and ROM byte spans it needs, without any copyrighted content
 entering this repository or a shipped build.
@@ -39,9 +41,9 @@ exercise.
 - **User runtime — first-start ROM selection, in-app.** On a launch that finds the asset paths
   empty, the game itself asks for the ROM: a native file-selection dialog, extraction inside the
   application, the identical layout written to the identical paths, and then the game proceeds.
-  There is no manual tool step in the player's experience. The extraction code may additionally
-  exist as a standalone command-line program for power users — decided at implementation time —
-  but the first-start flow is the canonical path.
+  There is no manual tool step in the player's experience, and no standalone command-line
+  extractor either — the first-start flow covers players, the setup script covers developers,
+  and the single canonical asset path leaves a third tool with no consumer.
 
 The engine reads those paths in both cases — there is no development/production branch in the load
 path, so a developer's daily run exercises exactly the code a user will.
@@ -84,9 +86,10 @@ bare error message pointing at a tool the player has to go and find.** Text show
 names what is missing and states plainly that the ROM is only read — never copied, moved, or
 altered.
 
-Until the extractor is implemented, the flow runs to the extraction step and reports honestly that
-it cannot proceed, rather than reporting success and then failing to load. Manual placement per the
-documented layout is the interim route.
+Extraction refuses anything that is not the expected ROM — exact size and SHA1, checked before a
+byte is written — and decodes everything in memory before the first file lands, so no failure
+leaves a half-populated install. On refusal the message names the expected ROM and states that
+nothing was written.
 
 ### The distributable ships empty asset directories
 
@@ -94,24 +97,23 @@ The distributable build target empties `assets/gfx/default/` and the byte-span i
 before packaging, retaining the `.gitkeep` placeholders so the structure ships. A packaging check
 fails if any byte of development-populated content appears in the artifact.
 
-### Extraction tool — design pinned, implementation later
+### Extraction — implemented for graphics
 
-Full design in `../../tools/rom_extractor/README.md` — offsets, tile formats, output format,
-provenance. **Pinned design:**
+The extractor is part of the game — `src/assets/extract.{h,cpp}`, called by the first-start flow
+with the ROM path the player chose. There is no standalone entry point.
 
-- Invoked by the first-start flow with the ROM path the player chose. A standalone command-line
-  entry point is optional and secondary.
-- Verifies the SHA1 against the expected value (`74591cc9501af93873f9a5d3eb12da12c0723bbc`) and
-  fails fast on a mismatch.
-- Extracts every referenced tile-graphics asset at the offsets the disassembly identifies, writing
-  to `assets/gfx/default/`.
-- Extracts the byte ranges the virtual machine needs — the randomization routine, the sound driver,
-  and the song and effect data — writing to the engine input path. Exact ranges are fixed when the
-  audio backend is built.
-- Python 3 standard library only, matching the rest of the development tooling.
+- Verifies the size (exactly 32,768 bytes) and the SHA1
+  (`74591cc9501af93873f9a5d3eb12da12c0723bbc`) and refuses anything else before writing a byte.
+- Decodes the four tile-graphics blocks at the offsets the extraction table records and writes
+  the four PNGs to `assets/gfx/default/` — every run rewrites all four.
+- The byte ranges the virtual machine needs — the sound driver and the song and effect data —
+  are extracted by this same module once the audio backend fixes their output path and container.
 
-The offset table is derived from the disassembly's binary-include declarations plus the byte ranges
-identified when the audio work lands.
+The extraction table (`kTileGraphics`, `src/data/tile_graphics.h`) is generated from the
+disassembly and the ROM; the offsets, the decode, and the file contract are pinned in
+[`../contracts/tile-graphics.md`](../contracts/tile-graphics.md), with the working details in
+[`../engine/tile-graphics.md`](../engine/tile-graphics.md) and the design record in
+`../../tools/rom_extractor/README.md`.
 
 ## Implementation details
 
@@ -119,13 +121,16 @@ identified when the audio work lands.
 
 - `src/assets/presence.{h,cpp}` — the required-asset manifest and the presence check. Not a
   loader: no decode, no renderer, no window, so it runs before anything is constructed.
-- `src/assets/first_start.{h,cpp}` — the first-start flow: the file dialog, the extractor seam,
-  and the sequencing around them.
+- `src/assets/first_start.{h,cpp}` — the first-start flow: the file dialog and the sequencing
+  around the extraction call.
+- `src/assets/extract.{h,cpp}` — the extractor: the ROM identity gate, the tile decode, and the
+  writes into `assets/gfx/default/`.
+- `src/assets/png_writer.{h,cpp}` — the greyscale PNG serialization the extractor saves with.
 - `scripts/setup-dev-assets.sh` — POSIX shell; run once after cloning.
 - `scripts/setup-dev-assets.ps1` — Windows equivalent; the same source→destination table.
 - `scripts/check-distributable-clean.sh` — fails if anything but `.gitkeep` is in the asset
   directories; the packaging gate.
-- `tools/rom_extractor/` — extraction tool design and (later) source.
+- `tools/rom_extractor/` — the extractor's design record (the source lives in `src/assets/`).
 - `tests/fixtures/tiny_probe.png` — an 8×8 2-bit greyscale PNG authored for this repository and
   derived from nothing, so the load path is tested on every platform with no copyrighted byte and
   no skipped test.
@@ -140,7 +145,9 @@ identified when the audio work lands.
 ## Open questions
 
 - **Byte-span path location and format.** Settled alongside the audio backend work.
-- **Incremental extraction.** The first implementation re-extracts everything on every run.
-  Skipping files that already match their expected hash is a later refinement.
 - **Pack model.** Explicitly not planned. If a real case for swappable packs ever appears, it is a
   separate design decision with its own amendment to `../DESIGN.md`.
+
+Settled: extraction rewrites all four files on every run. The flow only reaches extraction when
+something is missing, so there is nothing worth skipping, and an unconditional rewrite is the
+simplest behavior that is honest about what is on disk afterwards.

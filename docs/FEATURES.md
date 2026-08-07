@@ -17,8 +17,8 @@ chronologically; this file holds current state.
 | Retro++ engine adoption | ✅ | [`features/engine-adoption.md`](features/engine-adoption.md) |
 | Logging | ✅ | — (spdlog used directly; no wrapper) |
 | Platform abstraction facade | ❌ | — (superseded by engine adoption 2026-08-03) |
-| Asset acquisition | ⬜ | [`features/asset-acquisition.md`](features/asset-acquisition.md) |
-| ROM extraction tool | ⬜ | (covered by `asset-acquisition.md`) |
+| Asset acquisition | ✅ | [`features/asset-acquisition.md`](features/asset-acquisition.md) — audio byte spans ride the audio backend |
+| ROM extraction tool | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) — graphics; audio byte spans ride the audio backend |
 | Continuous integration | ⬜ | [`features/ci.md`](features/ci.md) |
 | Distributable build | ⬜ | [`features/distributable-build.md`](features/distributable-build.md) |
 
@@ -33,8 +33,8 @@ Constant tables and graphics data derived from the ROM.
 | Sprite layout grids (+ PieceKind) | ✅ | [`features/sprite-grids.md`](features/sprite-grids.md) |
 | Gravity / frames-per-drop table | ✅ | [`features/gravity.md`](features/gravity.md) |
 | Scoring tables | ✅ | [`features/scoring.md`](features/scoring.md) |
-| Playing-field wipe patterns | ⬜ | `features/wipes.md` |
-| Tile graphics | ⬜ | `features/tile-graphics.md` |
+| Playing-field wipe patterns | ✅ | [`features/playing-field.md`](features/playing-field.md) |
+| Tile graphics | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) |
 | Tilemaps | ⬜ | `features/tilemaps.md` |
 | Sprite rotation tables | ⬜ | `features/sprite-oam-rotations.md` |
 | Sprite tile data and sprite lists | ⬜ | `features/sprite-tiles.md` |

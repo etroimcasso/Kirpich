@@ -16,7 +16,7 @@
 //
 //   1. checkRequired() (presence.h) — are the graphics there?
 //   2. If not, promptForRom() — the player points at their own ROM.
-//   3. extractFromRom() — writes every required file into assets/gfx/default/.
+//   3. extractFromRom() (extract.h) — writes every required file into assets/gfx/default/.
 //   4. Proceed into normal engine construction and asset loading — the same code path
 //      every subsequent launch takes.
 //
@@ -32,21 +32,6 @@ namespace kirpich::assets {
 // already up (the dialog is a platform window) and pumps events while it waits, which is
 // what lets the portal-based dialogs on Linux complete.
 [[nodiscard]] std::optional<std::filesystem::path> promptForRom();
-
-// What an extraction attempt did. `message` is player-facing and explains the outcome
-// whether it succeeded or not.
-struct ExtractionResult {
-    bool        succeeded = false;
-    std::string message;
-};
-
-// Extract every required graphic from `romPath` into assets/gfx/default/, at the paths the
-// presence check requires (spelled out in src/assets/presence.cpp).
-//
-// NOT YET IMPLEMENTED — the extractor's design is pinned in tools/rom_extractor/README.md
-// and its implementation is scheduled work. Until it lands this reports failure with an
-// explanation and writes nothing; the flow around it is complete and calls it here.
-[[nodiscard]] ExtractionResult extractFromRom(const std::filesystem::path& romPath);
 
 // Run the whole sequence: check, and if anything is missing, prompt and extract. Returns
 // true when the graphics are present afterwards and startup may continue.
