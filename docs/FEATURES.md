@@ -35,7 +35,7 @@ Constant tables and graphics data derived from the ROM.
 | Scoring tables | ✅ | [`features/scoring.md`](features/scoring.md) |
 | Playing-field wipe patterns | ✅ | [`features/playing-field.md`](features/playing-field.md) |
 | Tile graphics | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) |
-| Tilemaps | ⬜ | `features/tilemaps.md` |
+| Tilemaps | ✅ | [`features/tilemaps.md`](features/tilemaps.md) |
 | Sprite rotation tables | ⬜ | `features/sprite-oam-rotations.md` |
 | Sprite tile data and sprite lists | ⬜ | `features/sprite-tiles.md` |
 | Garbage-fill tables | ⬜ | `features/garbage-init.md` |

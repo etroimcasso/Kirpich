@@ -10,6 +10,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-07
 
+- **Tilemaps** ⬜ → ✅. The 22 background-tilemap screens — the nine full screens, the three
+  banner strips, the two playing-field overlays, the three window messages, the four tower columns,
+  and the congratulations strip (~4.1 KB of tiles) — ported as composed row-major grids of raw
+  `uint8_t` tile indices in the header-only `src/data/tilemaps.h`, alongside four dimension
+  constants read from the loaders. Text rows decode through the character map by the same greedy
+  longest-match the assembler uses, so the `.”` ligature stays one tile; the field overlays' `$FF`
+  copy-terminator is dropped from the composed grid and kept in the byte fixture; the tower columns
+  store top to bottom. Grids and the flat-byte fixture are generated from the disassembly by
+  `tools/asm_parser/parse_tilemaps.py`, which matches each screen by its label shape, resolves mixed
+  string/byte rows, and cross-checks the loader widths, the sentinel, and a 4110-byte corpus total.
+  Test baseline 54 → 61; parser suite 214 → 269. See
+  [`tilemaps.md`](tilemaps.md), [`../contracts/tilemaps.md`](../contracts/tilemaps.md),
+  [`../engine/tilemaps.md`](../engine/tilemaps.md).
+
 - **Tile graphics** ⬜ → ✅. The four graphics blocks — the 1bpp font and three 2bpp screens —
   ported as the extraction table `kTileGraphics` (`src/data/tile_graphics.h`) plus the in-app
   extractor (`src/assets/extract.{h,cpp}`) that decodes a player's ROM into the four greyscale
