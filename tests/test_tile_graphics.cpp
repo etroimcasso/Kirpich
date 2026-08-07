@@ -199,7 +199,7 @@ TEST(TileGraphics, ExtractorEndToEnd) {
     // these strings stay greppable against the ones in presence.cpp. The fixture row is looked
     // up by file name; test 1 pins that these four rows are the whole fixture.
     const auto expectExtracted = [&root](std::string_view logical, std::string_view fileName) {
-        const auto* row = std::find_if(
+        const auto row = std::find_if(
             kExpectedTileGraphics.begin(), kExpectedTileGraphics.end(),
             [&](const auto& candidate) { return fileName == candidate.fileName; });
         ASSERT_NE(row, kExpectedTileGraphics.end()) << fileName;
