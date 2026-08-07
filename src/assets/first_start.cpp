@@ -3,6 +3,7 @@
 #include <atomic>
 #include <mutex>
 
+#include "assets/extract.h"
 #include "assets/presence.h"
 
 #include <SDL3/SDL_dialog.h>
@@ -108,21 +109,6 @@ std::optional<std::filesystem::path> promptForRom() {
             return std::nullopt;
     }
     return std::nullopt;
-}
-
-ExtractionResult extractFromRom(const std::filesystem::path& romPath) {
-    // The flow around this call is complete; the extractor itself is scheduled work. It
-    // reports honestly rather than pretending to have written anything, so a player never
-    // sees a success message followed by a failure to load.
-    return {
-        .succeeded = false,
-        .message   = "Kirpich cannot extract graphics yet — the extractor is still being built.\n"
-                     "\n"
-                     "The ROM you chose (" + romPath.string() + ") was not read, and no files were\n"
-                     "written. Until the extractor lands, the graphics have to be placed by hand at\n"
-                     "the paths listed above, relative to the asset root; the layout is documented in\n"
-                     "docs/features/asset-acquisition.md.",
-    };
 }
 
 bool ensureAssetsPresent(const std::function<void(const std::string&)>& report) {

@@ -29,17 +29,15 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [gravity.md](gravity.md) | How fast pieces fall — the per-level drop-interval table, the lookup and its heart-mode shift, the level bounds, where the table lives, and how to regenerate it. |
 | [scoring.md](scoring.md) | What points are worth — the line-clear award table and its level multiplier, the soft-drop quirk, the rocket bonus-ending tiers, the level-up rule, where the tables live, and how to regenerate them. |
 | [playing-field.md](playing-field.md) | The board's fixed extent (18 × 10) and the wipe schedule that redraws it a row per frame — the geometry constants, the counter→row mapping, where they live, and how to regenerate them. |
+| [tile-graphics.md](tile-graphics.md) | The graphics themselves — the extraction table naming which ROM bytes are which asset, the in-app extractor that turns a player's ROM into the PNGs the engine loads, the PNG serialization, and how to regenerate the table. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
 
 ## Status
 
-Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline,
-and the first of the data-layer types; the state, systems, and rendering layers are not
-written yet. Pages appear as their surfaces do, so an area missing from the index above is
-an area that does not exist yet rather than one that is undocumented.
-
-One consequence worth stating plainly: the extractor that reads graphics out of a ROM is
-designed but not implemented, so a fresh clone cannot yet produce a running game from a ROM
-alone. [assets.md](assets.md) covers what to do in the meantime.
+Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline —
+including the extractor that produces the graphics from a player's ROM — and the first of
+the data-layer types; the state, systems, and rendering layers are not written yet. Pages
+appear as their surfaces do, so an area missing from the index above is an area that does
+not exist yet rather than one that is undocumented.
