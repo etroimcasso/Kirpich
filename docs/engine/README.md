@@ -28,6 +28,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [sprite-grids.md](sprite-grids.md) | The sprite layout grids — five shared (y, x) offset frames the renderer walks to place a composite sprite's tiles, the `PieceKind` enum, where they live, and how to regenerate them. |
 | [gravity.md](gravity.md) | How fast pieces fall — the per-level drop-interval table, the lookup and its heart-mode shift, the level bounds, where the table lives, and how to regenerate it. |
 | [scoring.md](scoring.md) | What points are worth — the line-clear award table and its level multiplier, the soft-drop quirk, the rocket bonus-ending tiers, the level-up rule, where the tables live, and how to regenerate them. |
+| [playing-field.md](playing-field.md) | The board's fixed extent (18 × 10) and the wipe schedule that redraws it a row per frame — the geometry constants, the counter→row mapping, where they live, and how to regenerate them. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
