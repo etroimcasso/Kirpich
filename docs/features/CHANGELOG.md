@@ -8,6 +8,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-06
+
+- **Gravity / frames-per-drop table** ⬜ → ✅. The 21-entry per-level drop-interval table
+  (`kFramesPerDrop`, levels 0–20) and the lookup that reads it (`framesPerDrop(level, heartMode)`)
+  ported to `src/data/gravity.{h,cpp}` — the first data unit with a gameplay-math consumer rather
+  than a rendering one. The lookup mirrors the original exactly: heart mode shifts the index up ten
+  levels and caps at 20, the normal path applies no cap, and out-of-range levels assert rather than
+  invent a result. Rows and the raw-byte fixture are generated from the disassembly by
+  `tools/asm_parser/parse_gravity.py`. Test baseline 31 → 35; parser suite 80 → 104. See
+  [`gravity.md`](gravity.md), [`../contracts/gravity.md`](../contracts/gravity.md),
+  [`../engine/gravity.md`](../engine/gravity.md).
+
 ## 2026-08-05
 
 - **Character map** stays ✅ — the tile is now a named glyph. `CharTile`

@@ -31,7 +31,7 @@ Constant tables and graphics data derived from the ROM.
 | Core enums (piece, game type, music type, game state, serial) | ✅ | [`features/core-enums.md`](features/core-enums.md) |
 | Character map | ✅ | [`features/charmap.md`](features/charmap.md) |
 | Sprite layout grids (+ PieceKind) | ✅ | [`features/sprite-grids.md`](features/sprite-grids.md) |
-| Gravity / frames-per-drop table | ⬜ | `features/gravity-table.md` |
+| Gravity / frames-per-drop table | ✅ | [`features/gravity.md`](features/gravity.md) |
 | Scoring tables | ⬜ | `features/scoring-tables.md` |
 | Playing-field wipe patterns | ⬜ | `features/wipes.md` |
 | Tile graphics | ⬜ | `features/tile-graphics.md` |
