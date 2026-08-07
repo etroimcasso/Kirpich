@@ -32,7 +32,7 @@ Constant tables and graphics data derived from the ROM.
 | Character map | ✅ | [`features/charmap.md`](features/charmap.md) |
 | Sprite layout grids (+ PieceKind) | ✅ | [`features/sprite-grids.md`](features/sprite-grids.md) |
 | Gravity / frames-per-drop table | ✅ | [`features/gravity.md`](features/gravity.md) |
-| Scoring tables | ⬜ | `features/scoring-tables.md` |
+| Scoring tables | ✅ | [`features/scoring.md`](features/scoring.md) |
 | Playing-field wipe patterns | ⬜ | `features/wipes.md` |
 | Tile graphics | ⬜ | `features/tile-graphics.md` |
 | Tilemaps | ⬜ | `features/tilemaps.md` |
@@ -69,7 +69,7 @@ Game logic.
 | Game-state dispatcher | ⬜ | `features/dispatcher.md` |
 | Piece system | ⬜ | `features/piece-system.md` |
 | Line-clear logic | ⬜ | `features/line-clear.md` |
-| Scoring | ⬜ | `features/scoring.md` |
+| Scoring | ⬜ | `features/scoring-system.md` |
 | Chiptune audio backend | ⬜ | [`features/audio-engine.md`](features/audio-engine.md) |
 | Anti-channel-stealing option | ⬜ | [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md) |
 | Title / config / menu screens | ⬜ | `features/menu-screens.md` |

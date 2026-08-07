@@ -10,6 +10,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-06
 
+- **Scoring tables** ⬜ → ✅. The line-clear award table (`kLineClearScores`, 40/100/300/1200 with
+  the minted `LineClearKind`), the bonus-ending tiers (`kBonusEndings`, rockets at 100k/150k/200k),
+  the transcribed constants (`kLevelCap` 20, `kTypeBLineGoal` 25, `kSoftDropPointsPerRow` 1,
+  `kScoreSaturation` 999 999), and the four pure functions — `lineClearAward`, `softDropAward`
+  (the original's minus-one quirk kept), `rocketSpriteForScore`, `shouldLevelUp` (the 1000-line
+  cutoff kept) — ported to `src/data/scoring.{h,cpp}`. Every score decodes from the ROM's BCD wire
+  format to plain decimal; tables and the raw-byte fixture are generated from the disassembly by
+  `tools/asm_parser/parse_scoring.py`, which cross-checks the base scores across their three
+  independent sites. Test baseline 35 → 42; parser suite 104 → 140. See
+  [`scoring.md`](scoring.md), [`../contracts/scoring.md`](../contracts/scoring.md),
+  [`../engine/scoring.md`](../engine/scoring.md). (The Systems-layer scoring flow doc, when it
+  comes, is `scoring-system.md`.)
+
 - **Gravity / frames-per-drop table** ⬜ → ✅. The 21-entry per-level drop-interval table
   (`kFramesPerDrop`, levels 0–20) and the lookup that reads it (`framesPerDrop(level, heartMode)`)
   ported to `src/data/gravity.{h,cpp}` — the first data unit with a gameplay-math consumer rather
