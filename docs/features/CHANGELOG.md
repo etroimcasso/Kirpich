@@ -10,6 +10,22 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-07
 
+- **Sprite rotation tables** ⬜ → ✅. Every multi-tile sprite the game draws — the 28 piece
+  rotations, the game-type and music-off labels, the ten score digits, the Mario/Luigi
+  victory-and-defeat characters, the Buran shuttle and rockets with smoke and exhaust, and the
+  ending-dance musicians — ported as one composed record per identity in the header-only
+  `src/data/sprites.h`: a 94-value `SpriteId` enum (`include/kirpich/sprite_id.h`), the `kSprites`
+  table of `{ id, offset_y, offset_x, parts }`, and the `getSprite` accessor, with parts held in a
+  new `BoundedVec<SpritePart, 28>` (`src/data/bounded_vec.h`). The parser resolves each identity
+  through its record, tile list, and grid and walks the `$FF`/`$FE`/`$FD` escape encoding to compose
+  the parts; the four aliased identities carry a full copy of the layout they repeat. The **sprite
+  layout grids** surface (`SpriteGridOffset`, the five `kSpriteGrid*` arrays, and their unit) is
+  folded in — the grids are now internal parser input and raw fixture pairs, and `PieceKind` moves to
+  the sprite unit; the grids' feature and contract records are retained/absorbed. The **scoring**
+  bonus-ending rocket bytes are retyped from raw `uint8_t` to `SpriteId`. Test baseline 61 → 63;
+  parser suite 269 → 300. See [`sprite-oam-rotations.md`](sprite-oam-rotations.md),
+  [`../contracts/sprites.md`](../contracts/sprites.md), [`../engine/sprites.md`](../engine/sprites.md).
+
 - **Tilemaps** ⬜ → ✅. The 22 background-tilemap screens — the nine full screens, the three
   banner strips, the two playing-field overlays, the three window messages, the four tower columns,
   and the congratulations strip (~4.1 KB of tiles) — ported as composed row-major grids of raw

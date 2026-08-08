@@ -14,6 +14,8 @@
 
 #include <gtest/gtest.h>
 
+#include <kirpich/sprite_id.h>
+
 #include "data/scoring.h"
 #include "fixtures/scoring_expected.h"
 
@@ -29,6 +31,7 @@ using kirpich::kTypeBLineGoal;
 using kirpich::LineClearKind;
 using kirpich::lineClearAward;
 using kirpich::rocketSpriteForScore;
+using kirpich::SpriteId;
 using kirpich::shouldLevelUp;
 using kirpich::softDropAward;
 using kirpich::fixtures::kExpectedBonusThresholdBcd;
@@ -73,7 +76,8 @@ TEST(Scoring, BonusEndingSweepAgainstFixture) {
         EXPECT_EQ(kBonusEndings[tier].min_score,
                   bcdDecode(kExpectedBonusThresholdBcd[tier], 2) * 10000u)
             << "threshold at tier " << tier;
-        EXPECT_EQ(kBonusEndings[tier].rocket_sprite, kExpectedRocketSprites[tier])
+        EXPECT_EQ(static_cast<std::uint8_t>(kBonusEndings[tier].rocket_sprite),
+                  kExpectedRocketSprites[tier])
             << "sprite at tier " << tier;
     }
     for (std::size_t tier = 1; tier < kBonusEndings.size(); ++tier) {
@@ -117,16 +121,22 @@ TEST(Scoring, LineClearAwardFullDomain) {
 }
 
 // 5. Rocket selection at every tier edge: one below and the first score of each tier, plus the
-//    floor and the saturated ceiling.
+//    floor and the saturated ceiling. The typed SpriteId result is compared back to the raw
+//    fixture byte via static_cast, so the expectation still flows from the ROM spelling.
 TEST(Scoring, RocketSpriteFullBoundarySet) {
-    EXPECT_EQ(rocketSpriteForScore(0), std::nullopt);
-    EXPECT_EQ(rocketSpriteForScore(99999), std::nullopt);
-    EXPECT_EQ(rocketSpriteForScore(100000), kExpectedRocketSprites[2]);
-    EXPECT_EQ(rocketSpriteForScore(149999), kExpectedRocketSprites[2]);
-    EXPECT_EQ(rocketSpriteForScore(150000), kExpectedRocketSprites[1]);
-    EXPECT_EQ(rocketSpriteForScore(199999), kExpectedRocketSprites[1]);
-    EXPECT_EQ(rocketSpriteForScore(200000), kExpectedRocketSprites[0]);
-    EXPECT_EQ(rocketSpriteForScore(kScoreSaturation), kExpectedRocketSprites[0]);
+    const auto rawRocket = [](std::uint32_t score) -> std::optional<std::uint8_t> {
+        const std::optional<SpriteId> sprite = rocketSpriteForScore(score);
+        return sprite ? std::optional<std::uint8_t>(static_cast<std::uint8_t>(*sprite))
+                      : std::nullopt;
+    };
+    EXPECT_EQ(rawRocket(0), std::nullopt);
+    EXPECT_EQ(rawRocket(99999), std::nullopt);
+    EXPECT_EQ(rawRocket(100000), kExpectedRocketSprites[2]);
+    EXPECT_EQ(rawRocket(149999), kExpectedRocketSprites[2]);
+    EXPECT_EQ(rawRocket(150000), kExpectedRocketSprites[1]);
+    EXPECT_EQ(rawRocket(199999), kExpectedRocketSprites[1]);
+    EXPECT_EQ(rawRocket(200000), kExpectedRocketSprites[0]);
+    EXPECT_EQ(rawRocket(kScoreSaturation), kExpectedRocketSprites[0]);
 }
 
 // 6. The level-up rule across its entire input domain - every line count the four-digit counter

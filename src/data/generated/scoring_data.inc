@@ -15,9 +15,9 @@ inline constexpr std::array<LineClearScoreEntry, 4> kLineClearScores{{
 
 // Bonus-ending tiers in the ROM's check order - descending threshold, first match wins.
 inline constexpr std::array<BonusEndingEntry, 3> kBonusEndings{{
-    { .min_score = 200000, .rocket_sprite = 0x58 },
-    { .min_score = 150000, .rocket_sprite = 0x59 },
-    { .min_score = 100000, .rocket_sprite = 0x5A },
+    { .min_score = 200000, .rocket_sprite = SpriteId::ROCKET_L },
+    { .min_score = 150000, .rocket_sprite = SpriteId::ROCKET_M },
+    { .min_score = 100000, .rocket_sprite = SpriteId::ROCKET_S },
 }};
 
 // Levelling up stops at this level; the gravity table ends here for the same reason.

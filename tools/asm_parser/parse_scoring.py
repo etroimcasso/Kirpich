@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import common
+import parse_sprites
 
 # --- Expected structure (the source contract this parser asserts) -------------------------------
 
@@ -445,6 +446,14 @@ def parse_scoring(text: str, path: Path) -> ScoringData:
 
     thresholds, sprites = _parse_bonus_ladder(lines, path)
 
+    # Scoring linkage: each rocket byte must name a ROCKET_* SpriteId (the shared name table is the
+    # single source of the enumerator strings; no rocket name is hand-typed in this parser).
+    for sprite in sprites:
+        if sprite >= len(parse_sprites.SPRITE_NAMES) \
+                or not parse_sprites.SPRITE_NAMES[sprite].startswith("ROCKET_"):
+            raise ParseError(
+                f"{path}: bonus rocket sprite ${sprite:02X} is not a ROCKET_* SpriteId")
+
     return ScoringData(
         score_bcd=tuple(award),
         threshold_bcd=tuple(thresholds),
@@ -469,7 +478,8 @@ def emit_inc(data: ScoringData, source_commit: str) -> str:
         for name, bcd in zip(KIND_ENUMERATORS, data.score_bcd)
     )
     bonus_rows = "\n".join(
-        f"    {{ .min_score = {_bcd_int(bcd, 2) * 10000}, .rocket_sprite = 0x{sprite:02X} }},"
+        f"    {{ .min_score = {_bcd_int(bcd, 2) * 10000}, "
+        f".rocket_sprite = SpriteId::{parse_sprites.SPRITE_NAMES[sprite]} }},"
         for bcd, sprite in zip(data.threshold_bcd, data.rocket_sprites)
     )
     saturation = _bcd_int(data.saturation_byte, 2) * 10101  # $99 in all three bytes: 999999

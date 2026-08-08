@@ -30,13 +30,13 @@ Constant tables and graphics data derived from the ROM.
 |---|---|---|
 | Core enums (piece, game type, music type, game state, serial) | ✅ | [`features/core-enums.md`](features/core-enums.md) |
 | Character map | ✅ | [`features/charmap.md`](features/charmap.md) |
-| Sprite layout grids (+ PieceKind) | ✅ | [`features/sprite-grids.md`](features/sprite-grids.md) |
+| Sprite layout grids (+ PieceKind) | ✅ | [`features/sprite-grids.md`](features/sprite-grids.md) — grid surface folded into the composed sprites; PieceKind moved there |
 | Gravity / frames-per-drop table | ✅ | [`features/gravity.md`](features/gravity.md) |
 | Scoring tables | ✅ | [`features/scoring.md`](features/scoring.md) |
 | Playing-field wipe patterns | ✅ | [`features/playing-field.md`](features/playing-field.md) |
 | Tile graphics | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) |
 | Tilemaps | ✅ | [`features/tilemaps.md`](features/tilemaps.md) |
-| Sprite rotation tables | ⬜ | `features/sprite-oam-rotations.md` |
+| Sprite rotation tables | ✅ | [`features/sprite-oam-rotations.md`](features/sprite-oam-rotations.md) |
 | Sprite tile data and sprite lists | ⬜ | `features/sprite-tiles.md` |
 | Garbage-fill tables | ⬜ | `features/garbage-init.md` |
 | Music data | ⬜ | `features/music-data.md` |

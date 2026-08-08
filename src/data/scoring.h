@@ -24,6 +24,7 @@
 #include <optional>
 
 #include "kirpich/line_clear_kind.h"
+#include "kirpich/sprite_id.h"
 
 namespace kirpich {
 
@@ -40,7 +41,7 @@ static_assert(sizeof(LineClearScoreEntry) == 4, "kind pads to the 16-bit points 
 // One bonus-ending tier: the score it takes and the rocket sprite it shows.
 struct BonusEndingEntry {
     std::uint32_t min_score;      // decoded decimal threshold, inclusive
-    std::uint8_t  rocket_sprite;  // sprite master-list index; raw byte until sprites are typed
+    SpriteId      rocket_sprite;  // the rocket sprite this tier shows
 
     friend constexpr bool operator==(const BonusEndingEntry&, const BonusEndingEntry&) = default;
 };
@@ -83,7 +84,7 @@ static_assert([] {
 
 // The rocket sprite the Type-A game-over screen shows for this score, or nullopt below the
 // lowest tier. `score` must not exceed kScoreSaturation.
-[[nodiscard]] std::optional<std::uint8_t> rocketSpriteForScore(std::uint32_t score);
+[[nodiscard]] std::optional<SpriteId> rocketSpriteForScore(std::uint32_t score);
 
 // Whether a Type-A game at this line count and level levels up now: true when
 // floor(lines / 10) has passed the level, the level is below kLevelCap, and the line counter has
