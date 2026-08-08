@@ -38,8 +38,8 @@ kirpich::softDropAward(1);    // -> 0   (one point per row, minus one)
 kirpich::softDropAward(10);   // -> 9
 
 kirpich::rocketSpriteForScore(99999);    // -> nullopt (no bonus ending)
-kirpich::rocketSpriteForScore(100000);   // -> 0x5A    (the smallest rocket)
-kirpich::rocketSpriteForScore(200000);   // -> 0x58    (the biggest)
+kirpich::rocketSpriteForScore(100000);   // -> SpriteId::ROCKET_S (the smallest rocket)
+kirpich::rocketSpriteForScore(200000);   // -> SpriteId::ROCKET_L (the biggest)
 
 kirpich::shouldLevelUp(90, 8);    // -> true   (floor(90 / 10) = 9 > 8)
 kirpich::shouldLevelUp(90, 9);    // -> false  (9 > 9 fails; nothing happens until line 100)
@@ -56,9 +56,9 @@ kirpich::kBonusEndings[0].min_score;   // -> 200000
 - **`softDropAward(rows)`** keeps the original's off-by-one: N rows score N − 1, and zero rows
   score zero (the original skips the award entirely for a zero counter).
 - **`rocketSpriteForScore(score)`** walks `kBonusEndings` highest-first and returns the first
-  tier's sprite byte, or `nullopt` below 100 000. The bytes (`0x58`/`0x59`/`0x5A`) index the
-  sprite master list, which is not typed yet — they are plain `uint8_t` until it is. `score` must
-  not exceed `kScoreSaturation`.
+  tier's rocket as a `SpriteId` (`ROCKET_L` / `ROCKET_M` / `ROCKET_S`; see
+  [sprites.md](sprites.md)), or `nullopt` below 100 000. `score` must not exceed
+  `kScoreSaturation`.
 - **`shouldLevelUp(lines, level)`** is the Type-A rule: true when `floor(lines / 10)` exceeds the
   level, the level is below `kLevelCap`, and `lines` is below 1000. It is a pure predicate — the
   caller owns incrementing the level and re-seeding gravity (see

@@ -112,8 +112,9 @@ ladder (`:4948-4956`): sprite base `$58`, `inc b` per missed tier.
 
 Below 100 000 there is no bonus ending (`.noBonusEnding`, `:4957`). First match wins; the port's
 `rocketSpriteForScore()` walks the same order over full decoded scores, which picks the same tier
-as the top-byte walk per the ×10 000 equivalence above. The sprite bytes stay raw `uint8_t` until
-the sprite identity space is typed (see `src/data/scoring.h`).
+as the top-byte walk per the ×10 000 equivalence above, and returns the tier's rocket as a
+`SpriteId` (`ROCKET_L`/`ROCKET_M`/`ROCKET_S`; see [`sprites.md`](sprites.md)). The `$58`/`$59`/`$5A`
+bytes above are the ROM's wire values, preserved in the test fixture.
 
 ## Level progression (Type A)
 

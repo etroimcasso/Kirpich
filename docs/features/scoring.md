@@ -20,7 +20,7 @@ functions the gameplay flow will call, ahead of the state that owns a running sc
 | `kLinesPerLevel` | `src/data/scoring.h` | `uint8_t` = 10, derived |
 | `lineClearAward(kind, level)` | `src/data/scoring.{h,cpp}` | `uint32_t` |
 | `softDropAward(rows)` | `src/data/scoring.{h,cpp}` | `uint32_t` |
-| `rocketSpriteForScore(score)` | `src/data/scoring.{h,cpp}` | `optional<uint8_t>` |
+| `rocketSpriteForScore(score)` | `src/data/scoring.{h,cpp}` | `optional<SpriteId>` |
 | `shouldLevelUp(lines, level)` | `src/data/scoring.{h,cpp}` | `bool` |
 
 The exact values and their sources are pinned in [`../contracts/scoring.md`](../contracts/scoring.md).
@@ -40,9 +40,11 @@ Single/Double/Triple/Tetris order, and the per-kind clear counters sit at a 5-by
 same order. Same pattern as `PieceKind`. There is no "none" value — every award is one of the
 four.
 
-**The rocket sprite bytes stay raw.** `$58`/`$59`/`$5A` index the sprite master list, a space
-that is not typed yet. Typing three bytes now would mint a throwaway surface; they are promoted
-when the sprite identity space ports.
+**The rocket sprite is a typed `SpriteId`.** The three bonus tiers select `ROCKET_L` / `ROCKET_M` /
+`ROCKET_S` from the composed-sprite identity space, so `BonusEndingEntry.rocket_sprite` and
+`rocketSpriteForScore` carry a `SpriteId`; the raw `$58`/`$59`/`$5A` bytes live only in the test
+fixture. The scoring parser imports the sprite name table, so the enumerator names have a single
+source.
 
 **The functions are verbatim math, with the quirks kept.** A soft drop awards one point per row
 *minus one* — both original paths pre-decrement, and upstream's own comment asks
