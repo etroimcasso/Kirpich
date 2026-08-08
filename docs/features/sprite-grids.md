@@ -1,5 +1,13 @@
 # Sprite layout grids
 
+> **Status:** The public grid surface described here (`SpriteGridOffset` and the five `kSpriteGrid*`
+> arrays) has been superseded by the composed-sprite unit — see
+> [`sprite-oam-rotations.md`](sprite-oam-rotations.md) and
+> [`../engine/sprites.md`](../engine/sprites.md). The grids are now internal composition input to the
+> sprite parser and appear only as raw pairs in the sprite test fixture; there is no standalone grid
+> type, array, or accessor. `PieceKind` is unaffected and moved with the sprite unit. This page is
+> kept as the design record for the geometry.
+
 The geometry layer of the composite-sprite system: five shared grids of (y, x) pixel offsets that the
 sprite renderer walks to place a multi-tile sprite's cells. The same five frames serve every kind of
 composite sprite in the game — the piece sprites, Mario and Luigi, the dancers, the Buran shuttle, the

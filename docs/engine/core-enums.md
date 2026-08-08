@@ -31,7 +31,7 @@ kirpich::Piece::of(2, 2); // build from kind + rotation
 
 `sizeof(Piece) == 1` is asserted at the definition. Valid `raw` runs `0..27` (7 kinds × 4 rotations);
 there is no "empty" value. `kind()` returns a `PieceKind` — the seven tetromino shapes (`L, J, I, O, S,
-Z, T`); see [sprite-grids.md](sprite-grids.md).
+Z, T`); see [sprites.md](sprites.md).
 
 ## Regenerating the generated headers
 

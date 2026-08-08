@@ -23,7 +23,7 @@ std::uint32_t softDropAward(std::uint8_t rows) {
     return rows == 0 ? 0 : std::uint32_t{rows} - 1;
 }
 
-std::optional<std::uint8_t> rocketSpriteForScore(std::uint32_t score) {
+std::optional<SpriteId> rocketSpriteForScore(std::uint32_t score) {
     // The score accumulates through a saturating add, so nothing above the cap can exist.
     assert(score <= kScoreSaturation && "score is out of range");
 

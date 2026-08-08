@@ -6,7 +6,7 @@
 // the kind. That kind byte is used directly as the sprite index into the game's sprite list, whose
 // first 28 entries are grouped four-to-a-shape in this exact order (L, J, I, O, S, Z, T). There is
 // no "no piece" value - every valid piece byte decodes to one of these seven. The derivation and
-// its source anchors are recorded in docs/contracts/sprite-grids.md.
+// its source anchors are recorded in docs/contracts/sprites.md.
 
 #include <cstdint>
 

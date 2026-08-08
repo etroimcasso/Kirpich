@@ -384,6 +384,12 @@ class BonusLadderMustRaise(unittest.TestCase):
         with self.assertRaises(SystemExit):
             ps.parse_scoring(_corpus(bonus=broken), P)
 
+    def test_rocket_sprite_not_a_spriteid_raises(self):
+        """The rocket base must resolve to ROCKET_* SpriteIds; a base past the id space trips it."""
+        broken = BONUS.replace("ld b, $58", "ld b, $70")  # $70..$72 are outside the SpriteId table
+        with self.assertRaises(SystemExit):
+            ps.parse_scoring(_corpus(bonus=broken), P)
+
 
 class ConstantSitesMustRaise(unittest.TestCase):
     def test_level_cap_without_ret_z_raises(self):
@@ -417,8 +423,8 @@ class EmitShape(unittest.TestCase):
         inc = ps.emit_inc(self.data, "abc1234")
         self.assertIn("{ .kind = LineClearKind::SINGLE, .points =   40 },", inc)
         self.assertIn("{ .kind = LineClearKind::TETRIS, .points = 1200 },", inc)
-        self.assertIn("{ .min_score = 200000, .rocket_sprite = 0x58 },", inc)
-        self.assertIn("{ .min_score = 100000, .rocket_sprite = 0x5A },", inc)
+        self.assertIn("{ .min_score = 200000, .rocket_sprite = SpriteId::ROCKET_L },", inc)
+        self.assertIn("{ .min_score = 100000, .rocket_sprite = SpriteId::ROCKET_S },", inc)
         self.assertIn("kLevelCap = 20;", inc)
         self.assertIn("kTypeBLineGoal = 25;", inc)
         self.assertIn("kSoftDropPointsPerRow = 1;", inc)
@@ -426,15 +432,14 @@ class EmitShape(unittest.TestCase):
         self.assertNotIn("namespace kirpich {", inc)  # included mid-header; opens nothing
         self.assertTrue(inc.isascii())
 
-    def test_inc_decodes_bcd_to_decimal(self):
-        """The typed surface is decimal: no BCD wire value may leak into the .inc. The only hex
-        the .inc carries is the raw rocket sprite bytes (deliberately untyped for now)."""
+    def test_inc_is_fully_decimal_and_typed(self):
+        """The typed surface is decimal and enum-typed: no BCD wire value and no raw sprite byte
+        leaks into the .inc. The rockets are SpriteId enumerators, so no hex remains at all."""
         inc = ps.emit_inc(self.data, "abc1234")
         self.assertNotIn("0x0040", inc)
         self.assertNotIn("0x1200", inc)
-        for line in inc.splitlines():
-            if "0x" in line:
-                self.assertIn(".rocket_sprite = 0x", line)
+        self.assertIn(".rocket_sprite = SpriteId::ROCKET_L", inc)
+        self.assertNotIn("0x", inc)
 
     def test_fixture_is_raw_bytes_with_no_port_type(self):
         fixture = ps.emit_fixture(self.data, "abc1234")
