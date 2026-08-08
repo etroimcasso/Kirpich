@@ -8,6 +8,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-08
+
+- **Sprite scene lists** ⬜ → ✅. The sprite objects each scripted scene places on screen — the
+  two-player victory and defeat characters, the ending dance troupe, the Buran and rocket launches,
+  the config/difficulty/height menu markers, and the active- and preview-piece templates — ported as
+  13 object tables (35 objects) in the header-only `src/data/scene_sprites.h`. One `SceneSprite`
+  type (`{ hidden, y, x, sprite, behindBg, xflip }`) serves both record shapes; the eleven scene
+  lists return `std::span<const SceneSprite>` and the two piece templates return a reference. Each
+  object's sprite is a `SpriteId` from the sprites unit; the three attribute bits that vary across
+  the corpus unpack to named bools and the invariant bits are checked at generation. The raw OAM
+  face/push tables and the coordinate tables stay with the miscellaneous object data. Renamed from
+  the placeholder "Sprite tile data and sprite lists" registry row (the tile data itself is the
+  sprites unit). Full-corpus sweep in `tests/test_scene_sprites.cpp`.
+
 ## 2026-08-07
 
 - **Sprite rotation tables** ⬜ → ✅. Every multi-tile sprite the game draws — the 28 piece

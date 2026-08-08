@@ -37,7 +37,7 @@ Constant tables and graphics data derived from the ROM.
 | Tile graphics | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) |
 | Tilemaps | ✅ | [`features/tilemaps.md`](features/tilemaps.md) |
 | Sprite rotation tables | ✅ | [`features/sprite-oam-rotations.md`](features/sprite-oam-rotations.md) |
-| Sprite tile data and sprite lists | ⬜ | `features/sprite-tiles.md` |
+| Sprite scene lists | ✅ | [`features/sprite-scenes.md`](features/sprite-scenes.md) |
 | Garbage-fill tables | ⬜ | `features/garbage-init.md` |
 | Music data | ⬜ | `features/music-data.md` |
 | Sound-effect data | ⬜ | `features/sfx-data.md` |
