@@ -10,6 +10,17 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-08
 
+- **Music data** ⬜ → ✅. The identifiers and address map for the game's 17 songs — the `MusicId`
+  enum (the wire byte the game selects a song by, plus the `NONE`/`STOP` sentinels) and the constants
+  locating the song/channel/section graph, the per-song stereo table, and the note-length tables —
+  ported as the header-only `src/data/music.h`. The song sequences themselves are copyrightable
+  musical content and are never committed: each section is pinned by `{address, length, SHA-1}` and
+  the test recomputes the hash from the player's ROM. `StereoData` and the note-length region are
+  mechanical config and are pinned as raw bytes. The parser reconstructs the whole graph and requires
+  it to tile `[0x6F3F, 0x7FC6)` exactly; `kStereoDataAddr` is the one hand-entered address, guarded by
+  a ROM read. Hosting the driver to actually play the music is the audio work and builds on this map.
+  Full-corpus sweep in `tests/test_music.cpp`; grammar and driver behavior in `contracts/music.md`.
+
 - **Garbage-fill tables** ⬜ → ✅. The garbage a Type B game starts buried under — the fixed 4 × 10
   table the attract-mode demo stamps, and the constants the procedural fill and its three start paths
   consume (rows per Type B height, multiplayer round-start rows, the eight-tile block range, and the
