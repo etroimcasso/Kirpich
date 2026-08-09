@@ -10,6 +10,16 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-08
 
+- **Garbage-fill tables** ⬜ → ✅. The garbage a Type B game starts buried under — the fixed 4 × 10
+  table the attract-mode demo stamps, and the constants the procedural fill and its three start paths
+  consume (rows per Type B height, multiplayer round-start rows, the eight-tile block range, and the
+  empty tile) — ported as the header-only `src/data/garbage.h`. Cells stay raw `uint8_t` tile indices
+  (the tilemaps precedent), swept in full against a flat 40-byte fixture; the empty tile is shown to
+  equal the character map's space glyph. The procedural fill itself, the demo stamp, and the
+  multiplayer garbage attack are gameplay/serial logic and port later — their write addresses and the
+  fill's mechanism are recorded in `contracts/garbage-init.md`. Full-corpus sweep in
+  `tests/test_garbage.cpp`.
+
 - **Sprite scene lists** ⬜ → ✅. The sprite objects each scripted scene places on screen — the
   two-player victory and defeat characters, the ending dance troupe, the Buran and rocket launches,
   the config/difficulty/height menu markers, and the active- and preview-piece templates — ported as
