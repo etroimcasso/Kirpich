@@ -39,7 +39,7 @@ Constant tables and graphics data derived from the ROM.
 | Sprite rotation tables | ✅ | [`features/sprite-oam-rotations.md`](features/sprite-oam-rotations.md) |
 | Sprite scene lists | ✅ | [`features/sprite-scenes.md`](features/sprite-scenes.md) |
 | Garbage-fill tables | ✅ | [`features/garbage-init.md`](features/garbage-init.md) |
-| Music data | ⬜ | `features/music-data.md` |
+| Music data | ✅ | [`features/music-data.md`](features/music-data.md) |
 | Sound-effect data | ⬜ | `features/sfx-data.md` |
 | Demo data | ⬜ | `features/demo-data.md` |
 | Miscellaneous constants | ⬜ | `features/misc-constants.md` |
