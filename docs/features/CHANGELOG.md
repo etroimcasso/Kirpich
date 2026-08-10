@@ -8,6 +8,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-09
+
+- **Sound-effect data** ⬜ → ✅. The three effect-ID spaces the game triggers sound effects by — the
+  `SquareSfxId` (8), `NoiseSfxId` (4), and `WaveSfxId` (2) enums, each the wire byte the game writes to
+  an audio-state variable, plus `NONE` — and the constants locating the four SFX pointer tables, ported
+  as the header-only `src/data/sfx.h`. Every effect and driver data blob (register images, envelope and
+  frequency ramps, the note-frequency table, vibrato offsets, the noise-note table, the five wave
+  timbre patterns, and the pause-tune notes) is mechanical configuration and is pinned as raw bytes in
+  the fixture, checked against the player's ROM cell for cell. Every blob's address — including the ones
+  embedded between driver code — is computed by walking instruction lengths from the audio section
+  origin, with the disassembly's address-encoding labels as checkpoints, so nothing is assembled.
+  Hosting the driver to actually play the effects is the audio work and builds on this data.
+  Full-corpus sweep in `tests/test_sfx.cpp`; the tables, dispatch, and quirks in `contracts/sfx.md`.
+
 ## 2026-08-08
 
 - **Music data** ⬜ → ✅. The identifiers and address map for the game's 17 songs — the `MusicId`

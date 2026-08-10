@@ -34,6 +34,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [tilemaps.md](tilemaps.md) | The static screens the game draws — the 22 background tilemap grids (full screens, banners, field overlays, window messages, tower columns, and the congratulations strip), how text rows decode through the character map, where they live, and how to regenerate them. |
 | [garbage-init.md](garbage-init.md) | The garbage a Type B game starts under — the fixed demo garbage table and the constants the procedural fill and its start paths use, where they live, and how to regenerate them. |
 | [music.md](music.md) | The music data — the `MusicId` identifiers and the addresses that locate the song/channel/section graph, the stereo table, and the note-length tables in the sound driver's ROM image, where they live, and how to regenerate them. |
+| [sfx.md](sfx.md) | The sound-effect data — the three effect-ID spaces the game triggers effects by and the register images, ramps, and driver tables the effect routines read, where they live, and how to regenerate them. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
