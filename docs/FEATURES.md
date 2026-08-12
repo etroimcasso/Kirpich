@@ -41,7 +41,7 @@ Constant tables and graphics data derived from the ROM.
 | Garbage-fill tables | ✅ | [`features/garbage-init.md`](features/garbage-init.md) |
 | Music data | ✅ | [`features/music-data.md`](features/music-data.md) |
 | Sound-effect data | ✅ | [`features/sfx-data.md`](features/sfx-data.md) |
-| Demo data | ⬜ | `features/demo-data.md` |
+| Demo data | ✅ | [`features/demo-data.md`](features/demo-data.md) |
 | Miscellaneous constants | ⬜ | `features/misc-constants.md` |
 
 ## State

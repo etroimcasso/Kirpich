@@ -8,6 +8,21 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-12
+
+- **Demo data** ⬜ → ✅. The two attract-mode demo recordings and the shared piece list — the Type A
+  (128) and Type B (80) `DemoInputRecord` timelines, each step a `retropp::ActionSet` of held game
+  actions plus a frame count, and the 48-entry `Piece` sequence both demos replay — ported as the
+  header-only `src/data/demo.h`. The recordings capture Game Boy joypad state; the port resolves each
+  button bit to the game action the gameplay input handler binds it to (A → rotate clockwise, LEFT/RIGHT
+  → shift, DOWN → soft drop), carried in the game's own `Action` vocabulary (`include/kirpich/action.h`,
+  minted here). So the records hold engine action sets the demo-replay system feeds into the input path,
+  not hardware bytes — and no port-side button type is invented. The demo blobs are algorithmic data and
+  commit into the binary. `tests/test_demo.cpp` sweeps both timelines by bridging each raw fixture byte
+  to its action set (a wrong button-to-action mapping fails), sweeps the piece list's spawn-orientation
+  domain, and pins the corners and consumed index ranges; the encoding, the mapping with source anchors,
+  and the copy-overrun quirk are in `contracts/demo.md`.
+
 ## 2026-08-09
 
 - **Sound-effect data** ⬜ → ✅. The three effect-ID spaces the game triggers sound effects by — the
