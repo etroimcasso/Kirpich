@@ -90,8 +90,9 @@ The build defaults to a lean Release configuration.
 
 ## License
 
-Licensing is being finalized; until a license is chosen, all rights are reserved. The Retro++
-engine carries its own license, and the upstream disassembly is published without one.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE), matching
+the Retro++ engine's open-source license (the engine itself is dual-licensed AGPL-3.0 /
+commercial). The upstream disassembly is published without a license.
 
 Tetris is a trademark of Tetris Holding, LLC. This project is unaffiliated with and unendorsed by
 the trademark holder, ships no copyrighted content, and requires the user's own ROM.

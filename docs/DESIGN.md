@@ -155,7 +155,7 @@ file.
 | Hardware-register variables | **None in port code.** `rLCDC`, `rSCX`, `rSCY`, `rIE`, `rIF`, `rNR10`–`rNR52` and friends do not exist as variables anywhere under `src/`. Their effects are expressed at engine and renderer level. Registers and addresses appear only inside the engine's VM boundary — in a routine's byte-span registration, never at a call site. |
 | Audio | Chiptune only. The engine's audio system hosts the ROM's sound driver on its internal VM and produces PCM into the engine mixer. No audio-file replacement backend. |
 | Asset posture | Single canonical path. `assets/gfx/default/` for tile graphics; the byte spans the VM needs load from their own fixed path. No swappable packs, no manifest, no discovery or fallback chain. |
-| License posture | Being finalized; all rights reserved in the interim. No license file is committed yet. |
+| License posture | AGPL-3.0 (`LICENSE` at the repo root; amended 2026-08-12 from the earlier all-rights-reserved interim posture), matching the Retro++ engine's open-source license — the whole distributed build is one AGPL combined work. The engine itself is dual-licensed (AGPL-3.0 / commercial, per its `LICENSING.md`); the upstream disassembly is published without a license. |
 | Repository posture | Standalone repository. The disassembly is a sibling checkout outside the tree; this is not a fork of it. |
 
 ## 9. Asset posture
