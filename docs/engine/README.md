@@ -37,6 +37,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [sfx.md](sfx.md) | The sound-effect data — the three effect-ID spaces the game triggers effects by and the register images, ramps, and driver tables the effect routines read, where they live, and how to regenerate them. |
 | [demo.md](demo.md) | The attract-mode demo recordings — the two input timelines of held game actions and the shared piece list both demos replay, the action vocabulary they resolve to, where they live, and how to regenerate them. |
 | [misc.md](misc.md) | The loose tables and constants — the directly-drawn sprite-object tables, the menu cursor coordinate tables, the win-screen strings and the pause label, and the demo/completed-row constants, where they live, and how to regenerate them. |
+| [engine-state.md](engine-state.md) | The game's mutable global state — the score and its line-clear bookkeeping, the sprite staging buffer, and the piece ring, as one `EngineState` struct, plus the layout fixture that pins its widths, and how to use and regenerate it. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
@@ -44,7 +45,7 @@ surface is small enough that a flat list is easier to scan.
 ## Status
 
 Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline —
-including the extractor that produces the graphics from a player's ROM — and the first of
-the data-layer types; the state, systems, and rendering layers are not written yet. Pages
-appear as their surfaces do, so an area missing from the index above is an area that does
-not exist yet rather than one that is undocumented.
+including the extractor that produces the graphics from a player's ROM — the full data
+layer, and the first of the state types; the systems and rendering layers are not written
+yet. Pages appear as their surfaces do, so an area missing from the index above is an area
+that does not exist yet rather than one that is undocumented.

@@ -10,6 +10,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-12
 
+- **Global game state** ⬜ → ✅. The original's `$C000` work-RAM globals ported as one hand-written
+  `EngineState` struct (`src/state/engine_state.h`): the 40-entry `OamEntry` sprite staging buffer (the
+  DMG object-attribute byte unpacked into named flags), the decimal `score` and its `LineClearStats`
+  tallies, the four-entry `lineClears` bounded vector of field-row indices, the soft-drop points, the
+  scoreboard/preview flags, and the 256-entry `Piece` ring — plus `reset()` to the boot state. The score
+  is decimal (the packed-decimal shadow and the soft-drop scratch copy are not stored), the line-clears
+  are row indices rather than addresses, and three flags the disassembly never labels take role names
+  anchored to their use sites in `contracts/engine-state.md`. A new whole-file RAM-layout parser
+  (`parse_wram.py`) emits the `{name, address, size}` fixture the width tests pin against;
+  `tests/test_engine_state.cpp` proves the layout tiles each RAM section and checks the struct widths,
+  `reset()`, and the value types. Also added `engine/engine-state.md` and this feature doc, and added the
+  playing-field shadow-state row to the state registry.
+
 - **Miscellaneous data** ⬜ → ✅. The loose tables and constants collected into one header
   (`src/data/misc.h`): four raw sprite-object tables (25 `OamObject`s — the two-player face pairs and
   the PUSH-START prompt, drawn directly rather than through the composed sprites), six cursor

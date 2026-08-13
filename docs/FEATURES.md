@@ -50,7 +50,8 @@ Mutable game state, mirroring the original's RAM layout as ordinary C++ structs.
 
 | Feature | Status | Doc |
 |---|---|---|
-| Global game state | ⬜ | `features/engine-state.md` |
+| Global game state | ✅ | [`features/engine-state.md`](features/engine-state.md) |
+| Playing-field shadow state | ⬜ | `features/playing-field-state.md` |
 | Game-state-machine state | ⬜ | `features/game-state-machine-state.md` |
 | Audio state | ⬜ | `features/audio-state.md` |
 | Sprite renderer state | ⬜ | `features/sprite-renderer-state.md` |
