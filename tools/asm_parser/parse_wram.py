@@ -1,16 +1,37 @@
 #!/usr/bin/env python3
-"""Parser for Kirpich's WRAM layout contract - the whole of tetris/wram.asm.
+"""Parser for Kirpich's WRAM layout contract - the whole of tetris/wram.asm - plus a raw-operand
+census over tetris/tetris.asm.
 
 wram.asm declares no data values; it is a pure address map. Every label names a WRAM address and
-every `ds`/`db`/`dw` reserves space at the running address. This parser walks the file, deriving
-each label's address + size from the section origin and the reservations that precede it (never from
-a build artifact - the addresses-from-source rule), and emits ONE fixture: the {name, address, size}
-layout table for every label plus the anonymous gaps between them.
+every `ds`/`db`/`dw` reserves space at the running address. Pass 1 walks the file, deriving each
+label's address + size from the section origin and the reservations that precede it (never from a
+build artifact - the addresses-from-source rule).
 
-Scope is the whole file / all sections. The $C000 gameplay rows back the engine-state struct; the
-top-scores and Audio-RAM rows are here for the state types that consume them. There is no enum or
-.inc emission - state structs carry no ROM table values, so the layout table (widths + a
-section-tiling proof) is the whole contract.
+Pass 2 scans tetris.asm for every STATIC WRAM operand - the game-side accesses that name a byte in
+$C000-$DFFF, whether by a raw literal or by a label. WRAM's absolute-load forms differ from HRAM's
+`ldh`: they are the long-form `ld [$XXXX], a` / `ld a, [$XXXX]` and their symbolic twins
+`ld [wLabel], a` / `ld a, [wLabel + N]`, plus 16-bit immediate loads of a WRAM address
+(`ld hl/de/bc/sp, $XXXX` or `ld hl, wLabel + N`). Labels resolve through Pass 1's symbol table.
+`HIGH(wLabel)` / `LOW(wLabel)` into an 8-bit register is address-byte arithmetic (a computed pointer
+setup, e.g. the OAM-DMA source page), not a byte access - recognized and skipped, never counted.
+`ld sp, $CFFF` (the stack init) is counted: sp is a recognized pointer-load register so the stack
+top resolves to a census address the boundary test owns as a mechanism.
+
+The census exists to machine-guard the whole state-layer ownership map: a downstream test resolves
+every census address to exactly one owner (an engine-state field, an audio cue/slot byte, a sprite
+or board window, the top-score region, or a mechanism address), so a byte reached only through a raw
+$Cxxx / $Dxxx operand - the windows wram.asm leaves as anonymous gaps - is still a provable owner of
+some state unit. audio.asm is NOT censused: the sound driver runs as extracted bytes on the port's
+own machine, so its accesses are private by construction, and every driver-private claim is proven
+by ABSENCE from this game-side census.
+
+Two emitted tables, one fixture (`wram_expected.h`):
+  * the layout table: {name, address, size, kind} per label / alias / anonymous region, tiling each
+    section exactly;
+  * the census table: {address, refCount} for every static WRAM operand access, sorted ascending.
+Later state surfaces reuse this fixture. There is no enum or .inc emission - state structs carry no
+ROM table values, so the layout table (widths + a section-tiling proof) and the census are the whole
+contract.
 
 Structural model - how many reservations a label owns:
 
@@ -54,6 +75,14 @@ _DS_RE = re.compile(r'^ds\s+(.+)$')
 _ABS_SUB_RE = re.compile(r'^\$([0-9A-Fa-f]+)\s*-\s*\$([0-9A-Fa-f]+)$')
 _TOKEN_RE = re.compile(r'\$[0-9A-Fa-f]+|\d+|[+\-*()]|\s+')
 
+# Pass-2 census operand forms in tetris.asm (the WRAM analog of parse_hram's ldh / pointer forms).
+_ABS_STORE_RE = re.compile(r'^ld\s+\[([^\]]*)\]\s*,\s*a$')          # ld [$C0CE], a  /  ld [wLabel], a
+_ABS_LOAD_RE = re.compile(r'^ld\s+a\s*,\s*\[([^\]]*)\]$')           # ld a, [$C0CE]  /  ld a, [wLabel]
+_REG16_LOAD_RE = re.compile(r'^ld\s+(hl|de|bc|sp)\s*,\s*(.+?)\s*$')  # ld hl/de/bc/sp, <operand>
+_HIGHLOW_R8_RE = re.compile(r'^ld\s+[abcdehl]\s*,\s*(?:HIGH|LOW)\s*\(', re.IGNORECASE)
+_WLABEL_RE = re.compile(r'\bw[A-Z][A-Za-z0-9_]*\b')                 # a WRAM data label (RGBDS w-prefix)
+_ANY_HEX_RE = re.compile(r'\$[0-9A-Fa-f]+')
+
 
 class ParseError(common.ParseError):
     """A structural assertion failed. Carries a source citation; halts the emit run."""
@@ -82,6 +111,12 @@ class Section:
     end: int           # one past the last byte (origin + tiled span)
     first: int         # index of this section's first region in the flat region list
     count: int         # number of regions in this section
+
+
+@dataclass
+class CensusEntry:
+    address: int
+    ref_count: int
 
 
 # --- Expression evaluation (ds operands: $hex / decimal / + - * / parens) ------------------------
@@ -304,13 +339,98 @@ def _validate(regions: list[Region], sections: list[Section], path: Path) -> Non
                 f"{path}: section {section.name!r} tiles to ${cursor:04X} but ends at ${section.end:04X}")
 
 
+# --- Pass 2: raw-operand census -----------------------------------------------------------------
+
+def symbol_table(regions: list[Region]) -> dict[str, int]:
+    """label name -> address, for every Field and Alias (aliases resolve too: wSinglesCount)."""
+    return {r.name: r.address for r in regions if r.name and r.kind in (Kind.FIELD, Kind.ALIAS)}
+
+
+def _resolve_operand(operand: str, symbols: dict[str, int], path: Path, lineno: int) -> int | None:
+    """Resolve one WRAM operand (bracketed or a bare 16-bit immediate) to a $C000-$DFFF address.
+
+    Returns the address when the operand names a WRAM byte, or None when it does not - a `HIGH()`
+    / `LOW()` address-byte wrapper (a computed pointer setup, not a byte access) or an expression
+    that lands outside WRAM0. Every `w`-label is substituted with its Pass-1 address before the
+    arithmetic is evaluated; a label with no layout entry, or an operand the evaluator cannot parse,
+    is a hard error - a new addressing form can never slip through as a silent skip.
+    """
+    operand = operand.strip()
+    upper = operand.upper()
+    if "HIGH(" in upper or "LOW(" in upper:
+        return None  # `ld a, HIGH(wOAMBuffer)` - the DMA source page, not a byte access
+
+    def _sub(m: re.Match[str]) -> str:
+        label = m.group(0)
+        if label not in symbols:
+            raise ParseError(f"{path}:{lineno}: operand {operand!r} names undefined WRAM label {label!r}")
+        return f"${symbols[label]:X}"
+
+    substituted = _WLABEL_RE.sub(_sub, operand)
+    try:
+        value = _eval_expr(substituted, path, lineno)
+    except ParseError:
+        raise ParseError(f"{path}:{lineno}: unresolved WRAM operand {operand!r}")
+    return value if WRAM0_BASE <= value < WRAM0_END else None
+
+
+def _mentions_wram(line: str) -> bool:
+    """True if the line names a WRAM-range hex literal or a `w`-label - the census pre-filter."""
+    if _WLABEL_RE.search(line):
+        return True
+    return any(WRAM0_BASE <= int(tok[1:], 16) < WRAM0_END for tok in _ANY_HEX_RE.findall(line))
+
+
+def census(text: str, symbols: dict[str, int], path: Path) -> list[CensusEntry]:
+    """Scan tetris.asm; return every static WRAM operand access as {address, refCount} rows.
+
+    Only lines that name a WRAM literal or a `w`-label are examined. Each such line must be one of
+    the recognized forms - an absolute load/store, a 16-bit immediate load, or a HIGH/LOW address
+    wrapper - or it is a hard error (never a silent skip). Dynamic flows (`ld a, [hl]` after a
+    computed pointer, `add`-built addresses) name no static operand and are out of census scope by
+    construction.
+    """
+    counts: dict[int, int] = {}
+
+    def record(addr: int) -> None:
+        if WRAM0_BASE <= addr < WRAM0_END:
+            counts[addr] = counts.get(addr, 0) + 1
+
+    for lineno, raw in enumerate(text.splitlines(), start=1):
+        line = raw.split(";", 1)[0].strip()
+        if not line or not _mentions_wram(line):
+            continue
+
+        mem = _ABS_STORE_RE.match(line) or _ABS_LOAD_RE.match(line)
+        if mem:
+            addr = _resolve_operand(mem.group(1), symbols, path, lineno)
+            if addr is not None:
+                record(addr)
+            continue
+
+        reg16 = _REG16_LOAD_RE.match(line)
+        if reg16:
+            addr = _resolve_operand(reg16.group(2), symbols, path, lineno)
+            if addr is not None:
+                record(addr)
+            continue
+
+        if _HIGHLOW_R8_RE.match(line):
+            continue  # `ld a, HIGH(wLabel)` / `ld h, LOW(wLabel)` - address arithmetic, not a byte
+
+        raise ParseError(f"{path}:{lineno}: unrecognized WRAM-referencing operand form: {line!r}")
+
+    return [CensusEntry(addr, counts[addr]) for addr in sorted(counts)]
+
+
 # --- Emit: wram_expected.h ----------------------------------------------------------------------
 
 def _kind_token(kind: Kind) -> str:
     return f"WramKind::{kind.value}"
 
 
-def emit_fixture(regions: list[Region], sections: list[Section], source_commit: str) -> str:
+def emit_fixture(regions: list[Region], sections: list[Section],
+                 census_rows: list[CensusEntry], source_commit: str) -> str:
     label_rows = "\n".join(
         f'    {{ .name = "{r.name}", .address = 0x{r.address:04X}, .size = {r.size}, '
         f'.kind = {_kind_token(r.kind)} }},'
@@ -320,21 +440,31 @@ def emit_fixture(regions: list[Region], sections: list[Section], source_commit: 
         f'    {{ .name = "{s.name}", .origin = 0x{s.origin:04X}, .end = 0x{s.end:04X}, '
         f'.first = {s.first}, .count = {s.count} }},'
         for s in sections)
+    census_out = "\n".join(
+        f'    {{ .address = 0x{c.address:04X}, .refCount = {c.ref_count} }},'
+        for c in census_rows)
     field_count = sum(1 for r in regions if r.kind is Kind.FIELD)
     alias_count = sum(1 for r in regions if r.kind is Kind.ALIAS)
     gap_count = sum(1 for r in regions if r.kind is Kind.GAP)
     return f"""#pragma once
 {common.banner("parse_wram.py", source_commit)}\
-// The WRAM layout contract: every label in tetris/wram.asm and every anonymous gap between labels,
-// each as {{name, address, size}} with a kind tag. Addresses derive from the section origins and the
+// The WRAM layout contract and the raw-operand census, both derived from the upstream disassembly.
+//
+// kWramLabels: every label in tetris/wram.asm and every anonymous gap between labels, each as
+// {{name, address, size}} with a kind tag. Addresses derive from the section origins and the
 // reservations that precede each label - nothing here is hand-typed. Fields own their reservation;
 // an Alias shares an earlier field's address (wLineClearStats aliases wSinglesCount); a Gap is
-// anonymous padding or an address jump. Regions tile each section with no overlap and no hole.
-//
-// The $C000 gameplay rows are pinned against the EngineState struct widths; the top-scores and
+// anonymous padding or an address jump. Regions tile each section with no overlap and no hole. The
+// $C000 gameplay rows are pinned against the EngineState struct widths; the top-scores and
 // Audio-RAM rows are carried for the state types that reuse this layout.
 //
-// Totals: {field_count} fields, {alias_count} alias, {gap_count} gaps, {len(sections)} sections.
+// kWramCensus: {{address, refCount}} for every STATIC WRAM operand access in tetris/tetris.asm -
+// absolute loads/stores and 16-bit immediate loads, by raw literal or by label. audio.asm is not
+// scanned (the sound driver runs as extracted bytes; its accesses are private by construction). The
+// census makes every WRAM byte a game-side operand reaches - including the sprite / board / staging
+// windows wram.asm leaves as anonymous gaps - a provable owner of some state unit. Sorted by address.
+//
+// Totals: {field_count} fields, {alias_count} alias, {gap_count} gaps, {len(sections)} sections; {len(census_rows)} census addresses.
 
 #include <array>
 #include <cstdint>
@@ -361,12 +491,22 @@ struct WramSection {{
     std::uint16_t    count;     // number of regions in this section
 }};
 
+// One WRAM address a static game-side operand reaches, and how many access sites reach it.
+struct WramCensus {{
+    std::uint16_t address;
+    std::uint16_t refCount;
+}};
+
 inline constexpr std::array<WramLabel, {len(regions)}> kWramLabels{{{{
 {label_rows}
 }}}};
 
 inline constexpr std::array<WramSection, {len(sections)}> kWramSections{{{{
 {section_rows}
+}}}};
+
+inline constexpr std::array<WramCensus, {len(census_rows)}> kWramCensus{{{{
+{census_out}
 }}}};
 
 }}  // namespace kirpich::fixtures
@@ -398,22 +538,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     wram_path: Path = args.source_root / "wram.asm"
-    if not wram_path.is_file():
-        print(f"parse_wram: source file not found: {wram_path}", file=sys.stderr)
-        return 2
+    tetris_path: Path = args.source_root / "tetris.asm"
+    for p in (wram_path, tetris_path):
+        if not p.is_file():
+            print(f"parse_wram: source file not found: {p}", file=sys.stderr)
+            return 2
 
-    text = wram_path.read_bytes().decode("utf-8")
-    regions, sections = parse_wram(text, wram_path)
+    regions, sections = parse_wram(wram_path.read_bytes().decode("utf-8"), wram_path)
+    symbols = symbol_table(regions)
+    census_rows = census(tetris_path.read_bytes().decode("utf-8"), symbols, tetris_path)
     commit = common.source_commit_of(args.source_root)
 
     fields = sum(1 for r in regions if r.kind is Kind.FIELD)
     aliases = sum(1 for r in regions if r.kind is Kind.ALIAS)
     gaps = sum(1 for r in regions if r.kind is Kind.GAP)
+    total_refs = sum(c.ref_count for c in census_rows)
     print(f"parse_wram: {fields} fields + {aliases} alias + {gaps} gaps across {len(sections)} sections; "
-          f"asserts passed.")
+          f"{len(census_rows)} census addresses ({total_refs} access sites); asserts passed.")
 
     if args.fixture_out is not None:
-        content = emit_fixture(regions, sections, commit)
+        content = emit_fixture(regions, sections, census_rows, commit)
         _assert_ascii(content, str(args.fixture_out))
         args.fixture_out.parent.mkdir(parents=True, exist_ok=True)
         args.fixture_out.write_text(content, encoding="ascii")

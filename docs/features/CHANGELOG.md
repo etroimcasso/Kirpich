@@ -10,6 +10,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-13
 
+- **Audio state** ⬜ → ✅. The `$DF70`–`$DFFF` block of work RAM where the original sound driver keeps
+  its state — cue mailboxes, the pause command and music read-back, and the driver's private working
+  memory. Unlike every other state unit this one ships **no C++ struct and no `src/` file**: the port
+  plays audio by running the ROM's own sound driver as embedded code on the engine's virtual sound CPU,
+  so those bytes are the port's state inside that machine's RAM, never mirrored into a second copy. The
+  unit delivers the **boundary contract** (`contracts/audio-state.md`) — every byte of the window
+  adjudicated as a cue lane, a slot, or driver-private, with all game-side access sites anchored — and a
+  **census guard** that proves it: the work-RAM layout parser (`tools/asm_parser/parse_wram.py`) gained a
+  second pass scanning `tetris.asm` for every static WRAM operand into a `{address, refCount}` table, and
+  `tests/test_audio_state.cpp` resolves every censused byte across all of `$C000`–`$DFFF` to exactly one
+  owner. The audio window contains exactly six game-reachable bytes; every driver-private byte is proven
+  private by its absence from the game-side census. The cue lanes carry the existing id sets (`MusicId`,
+  `SquareSfxId`/`NoiseSfxId`/`WaveSfxId`); no new types. Baseline 109 → 113; parser 590 → 607.
+
 - **Game-state-machine state** ⬜ → ✅. The original's `$FF80` high-RAM globals that the main loop lives
   in, ported as one hand-written `GameFlowState` struct (`src/state/game_flow_state.h`): the `gameState`
   dispatch index, the frame/wipe/drop timers, the level and menu selections (`gameType`/`musicType` as
