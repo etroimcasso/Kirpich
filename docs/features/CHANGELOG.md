@@ -8,6 +8,24 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-13
+
+- **Game-state-machine state** ⬜ → ✅. The original's `$FF80` high-RAM globals that the main loop lives
+  in, ported as one hand-written `GameFlowState` struct (`src/state/game_flow_state.h`): the `gameState`
+  dispatch index, the frame/wipe/drop timers, the level and menu selections (`gameType`/`musicType` as
+  the existing enums), the piece-pipeline counters, and `reset()` to the boot state — 27 fields in all.
+  `lines` is a decimal `uint16_t` (packed decimal only on the wire), `paused` is a `bool` and `heartMode`
+  a `uint8_t` (widths traced from how the original writes each), and two bytes are shared disjointly in
+  time with the top-score pointer — `tempPreviewPiece` (`$FFFC`) and `topOutLockCount` (`$FFFB`, the
+  topout piece counter that forces game over), each an independent field here. Four live bytes the
+  disassembly leaves unlabelled become named fields (`pieceLockStage`, `blinkCounter`, `completedRowCount`,
+  `coarseCountdown`). A new whole-file high-RAM parser (`tools/asm_parser/parse_hram.py`) walks
+  `hram.asm` into a `{name, address, size}` layout fixture and scans `tetris.asm` for every raw-operand
+  high-RAM access into a `{address, refCount}` census; `tests/test_game_flow_state.cpp` tiles the layout,
+  pins the field widths, and resolves every censused byte to exactly one owner so no raw-accessed byte is
+  silently unowned. The mapping and the per-byte ownership of the whole map are in
+  `contracts/game-state-machine-state.md`. Baseline 103 → 109; parser 550 → 590.
+
 ## 2026-08-12
 
 - **Global game state** ⬜ → ✅. The original's `$C000` work-RAM globals ported as one hand-written
