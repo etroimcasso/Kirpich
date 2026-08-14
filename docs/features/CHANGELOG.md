@@ -10,6 +10,24 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-13
 
+- **Serial / multiplayer state** ⬜ → ✅. The state two Game Boys share over the link cable — the
+  master/slave role and the serial protocol bytes, the polymorphic in-round status byte (stack height /
+  `$80|rows` garbage attack / round-end code), the received-garbage pipeline, the match win tally, the
+  dead advantage/deuce display path, and the pause save slots — ported as one hand-written
+  `MultiplayerState` struct plus a small `RoundOutcome` enum (`src/state/multiplayer_state.h`): twenty-six
+  bytes scattered through the original's high RAM (`$FFAC`–`$FFF2`), gathered by purpose. Bytes read only
+  as zero / non-zero become `bool`; `role`/`protocolState` reuse the generated `SerialRole`/`SerialState`
+  enums; `roundOutcome` is minted here (`NONE`/`WE_LOST`/`WE_WON`, the inverted `$77`/`$AA` wire codes);
+  `tx`/`rx` stay raw because they also move board and piece-list payload; `transferCompleted` stays
+  `uint8_t` because two upstream bug sites write `$1B`/`$1F` into it. **Second state unit with no parser
+  work:** the high-RAM layout+census fixture already carries the twelve labelled rows, the five gap rows
+  the fourteen unlabelled bytes fall in, and a census entry for each; the shipped `$FF80` ownership guards
+  already assign these bytes here and need no change. Delivers
+  `contracts/serial-multiplayer-state.md` (field map, the full two-player protocol narrative, the wire-code
+  vocabulary, the garbage pipeline, the dead-trio adjudication, and the four preserved quirks) and
+  `test_multiplayer_state.cpp` (HRAM window pins, per-byte field resolution with the `$FFDD`–`$FFE0`
+  negative guard, reset/boot pins, wire-value pins). Baseline 118 → 123; parser unchanged at 607.
+
 - **Sprite renderer state** ⬜ → ✅. The live sprite-object array the original keeps at `$C200` — sixteen
   `$10`-byte slots every menu cursor, gameplay piece, and scripted scene writes and the renderer compiles
   into the OAM staging buffer — ported as one hand-written `SpriteRendererState` of `SpriteSlot`s
