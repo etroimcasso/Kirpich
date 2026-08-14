@@ -8,6 +8,26 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-14
+
+- **Demo state** ⬜ → ✅. The state the attract-mode demo carries between frames — which demo is running,
+  the dead recording flag, the run-length countdown, the cursor into the active input timeline, and the two
+  held-button sets (the demo's own held buttons and the player's real held state parked while the demo
+  drives) — ported as one hand-written `DemoState` struct plus a small `ActiveDemo` enum
+  (`src/state/demo_state.h`): the seven demo-machinery bytes in the original's high RAM (`$FFE4`,
+  `$FFE9`–`$FFEE`). `activeDemo` is `ActiveDemo` (`NONE`/`TYPE_B`/`TYPE_A`, carrying the game type; the
+  numbering is inverted against play order — `TYPE_A` plays first); `recording` stays `uint8_t` because its
+  enable value is `$FF` and consumers split between `== $FF` and any-non-zero; the two pointer halves
+  collapse into one `uint16_t nextRecord` record index; the two held bytes are `retropp::ActionSet`, the
+  same action vocabulary a `DemoInputRecord` carries. State only — the playback loop, the pressed-edge
+  derivation, the RLE decode/encode, the demo alternation, the end-of-demo checks, and the save/restore
+  substitution are the demo systems and are recorded with anchors in the contract. **Third state unit with
+  no parser work:** the high-RAM layout+census fixture already carries the seven labelled rows and a census
+  entry for the two raw-accessed bytes (`$FFE4`, `$FFED`); the shipped `$FF80` ownership guards already
+  assign these bytes here and need no change. Delivers `src/state/demo_state.h`,
+  `tests/test_demo_state.cpp` (5 tests, baseline 123 → 128), the contract
+  (`contracts/demo-state.md`), and the feature + engine docs.
+
 ## 2026-08-13
 
 - **Serial / multiplayer state** ⬜ → ✅. The state two Game Boys share over the link cable — the
