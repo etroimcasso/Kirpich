@@ -39,6 +39,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [misc.md](misc.md) | The loose tables and constants — the directly-drawn sprite-object tables, the menu cursor coordinate tables, the win-screen strings and the pause label, and the demo/completed-row constants, where they live, and how to regenerate them. |
 | [engine-state.md](engine-state.md) | The game's mutable global state — the score and its line-clear bookkeeping, the sprite staging buffer, and the piece ring, as one `EngineState` struct, plus the layout fixture that pins its widths, and how to use and regenerate it. |
 | [game-state-machine-state.md](game-state-machine-state.md) | The state the main loop lives in — the dispatch index, the frame and drop timers, the menu selections, and the piece-pipeline counters, as one `GameFlowState` struct, plus the layout-and-census fixture that pins its widths and proves every raw-accessed byte has an owner. |
+| [sprite-renderer-state.md](sprite-renderer-state.md) | The live sprite-object array — the sixteen sprite descriptors the menus, pieces, and scenes write and the renderer compiles into the object buffer, as one `SpriteRendererState` of `SpriteSlot`s (visibility, position, composed-sprite id, flip/palette flags, dancer animation), and how it is checked against the existing fixtures. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
