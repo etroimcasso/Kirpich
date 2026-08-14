@@ -10,6 +10,23 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-13
 
+- **Sprite renderer state** ⬜ → ✅. The live sprite-object array the original keeps at `$C200` — sixteen
+  `$10`-byte slots every menu cursor, gameplay piece, and scripted scene writes and the renderer compiles
+  into the OAM staging buffer — ported as one hand-written `SpriteRendererState` of `SpriteSlot`s
+  (`src/state/sprite_renderer_state.h`): each slot a `hidden` flag, screen `y`/`x`, the composed-sprite
+  `spriteId` (which for a piece is its rotation state), the three attribute bytes unpacked to
+  `behindBg`/`yflip`/`xflip`/`palette1`, and the ending dancers' `animCounter`/`animReload` pair; the
+  seven never-accessed slot bytes are dropped, and `kActivePieceSlot`/`kPreviewPieceSlot` name slots 0/1.
+  The renderer's own working memory (`$FF86`–`$FF97`, `$FF94`, `$FFB2`–`$FFB5`) is call-transient
+  mechanism, adjudicated in the contract and re-implemented with locals by the later render bridge — not
+  carried as state, the same treatment the audio unit gave the sound driver's RAM. **First state unit
+  with no parser work:** both existing fixtures already carry every row it consumes — the work-RAM census
+  (twelve `$C2xx` rows) and the high-RAM layout+census (the sprite-renderer HRAM window). Delivers
+  `contracts/sprite-renderer-state.md` (slot byte map, HRAM mechanism table, entry-point OAM bases,
+  escape semantics, slot-role inventory) and `test_sprite_renderer_state.cpp` (census-offset sweep with
+  the dropped-offset guard, HRAM window pins, slot-shape and reset pins, `SpriteId` links). Baseline
+  113 → 118; parser unchanged at 607.
+
 - **Audio state** ⬜ → ✅. The `$DF70`–`$DFFF` block of work RAM where the original sound driver keeps
   its state — cue mailboxes, the pause command and music read-back, and the driver's private working
   memory. Unlike every other state unit this one ships **no C++ struct and no `src/` file**: the port

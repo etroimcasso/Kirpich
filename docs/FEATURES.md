@@ -54,7 +54,7 @@ Mutable game state, mirroring the original's RAM layout as ordinary C++ structs.
 | Playing-field shadow state | ⬜ | `features/playing-field-state.md` |
 | Game-state-machine state | ✅ | [`features/game-state-machine-state.md`](features/game-state-machine-state.md) |
 | Audio state | ✅ | [`features/audio-state.md`](features/audio-state.md) |
-| Sprite renderer state | ⬜ | `features/sprite-renderer-state.md` |
+| Sprite renderer state | ✅ | [`features/sprite-renderer-state.md`](features/sprite-renderer-state.md) |
 | Serial / multiplayer state | ⬜ | `features/serial-state.md` |
 | Demo state | ⬜ | `features/demo-state.md` |
 | High-score state | ⬜ | `features/high-score-state.md` |
