@@ -89,9 +89,12 @@ Two behaviors are identical by construction rather than by re-implementation:
   cadence. Reproducing the output requires both CPU and audio-unit cycle accuracy, so the driver
   runs on the engine's virtual SM83 against its emulated audio unit.
 
-Departures from behavior preservation appear only under the named, opt-in options in §7. Those
-affect how pixels and samples reach the display and speakers *after* the game has produced them —
-never what the game produces.
+Departures from behavior preservation appear only under the named options in §7. The opt-in Display
+and Audio options affect how pixels and samples reach the display and speakers *after* the game has
+produced them — never what the game produces. One always-on enhancement sits outside the opt-in set:
+the port persists top scores across launches (§7, Persistence). It changes only what survives a power
+cycle — never what the game produces for a given input sequence and RNG state within a session — and
+the original's own soft-reset top-score survival is preserved in-sim.
 
 ## 6. Quirks preserved
 
@@ -112,8 +115,10 @@ discovery.
 
 ## 7. Options (user opt-in, off by default)
 
-These are user-facing options the port ships. All compose at runtime — none is mutually exclusive
-with any other within its category.
+These are the port's departures from the original beyond the display and speaker boundary. The
+Display and Audio entries are user-facing options, opt-in and off by default, and compose at runtime —
+none is mutually exclusive with any other within its category. The Persistence entry is the one
+exception: it is always-on, not a toggle.
 
 ### Display
 
@@ -134,6 +139,25 @@ Composition order: render 160×144 → integer or free-aspect scale → pixel-ar
 | Option | Description |
 |---|---|
 | Anti-channel-stealing | Off by default, which preserves the original's channel stealing byte-for-byte — exactly how the ROM mixes music and effects across four channels. When enabled, music and effects are hosted as separate driver instances so an effect never costs the music a voice. See [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md). |
+
+### Persistence (always-on, added 2026-08-14)
+
+The original keeps top scores in RAM only: a power cycle clears them, while a soft reset deliberately
+skips the clear so they survive it and nothing else. The port persists top scores across launches,
+always on — there is no toggle. This strictly extends the original's soft-reset survival; the in-sim
+top-score tables behave byte-for-byte as the original's, and the soft-reset survival is itself
+preserved.
+
+| Aspect | Value |
+|---|---|
+| What persists | The two top-score tables only (Type B and Type A). In-session score-entry state does not persist. |
+| Storage | The engine's durable save store — one named, schema-versioned document, written atomically to a per-user directory. No file I/O is written port-side. |
+| Format | The exact top-score table image (1890 bytes), schema version 1. |
+| Save identity | `Kirpich` / `Kirpich` — the per-user directory is `<platform data dir>/Kirpich/Kirpich/`. Locked permanently (a changed identity strands players' existing saves). |
+| Corrupt-save policy | A corrupt or wrong-length save is never treated as absent and never silently overwritten: the game runs with no saved scores and leaves the damaged file in place until a new top score is earned. |
+
+See [`features/high-score-state.md`](features/high-score-state.md) and
+[`contracts/high-score-state.md`](contracts/high-score-state.md).
 
 ## 8. Technical decisions
 

@@ -48,7 +48,7 @@ hand-written shape in `game_flow_state.h`.
 | `typeALevel` | `hTypeALevel` | `$FFC2` | `uint8_t` | chosen Type A starting level |
 | `typeBLevel` | `hTypeBLevel` | `$FFC3` | `uint8_t` | chosen Type B starting level |
 | `typeBStartHeight` | `hTypeBStartHeight` | `$FFC4` | `uint8_t` | chosen Type B starting garbage height |
-| `coarseCountdown` | *(unlabelled)* | `$FFC6` | `uint8_t` | counts `timer1` expiries; demo launch `tetris.asm:570`, blink cycles `2095`/`2252` |
+| `coarseCountdown` | *(unlabelled)* | `$FFC6` | `uint8_t` | counts `timer1` expiries; demo launch `tetris.asm:570`, blink cycles `2095`/`2252`. **Shared byte:** during top-score entry this is the name-entry column, carried as the high-score surface's `nameEntryColumn` (disjoint in time — see [`high-score-state.md`](high-score-state.md)) |
 | `gameState` | `hGameState` | `$FFE1` | `GameState` | the dispatch index; boot value `NORMAL_GAMEPLAY` (below) |
 | `frameCounter` | `hFrameCounter` | `$FFE2` | `uint8_t` | +1 every VBlank |
 | `wipeCounter` | `hWipeCounter` | `$FFE3` | `uint8_t` | playing-field wipe animation step |

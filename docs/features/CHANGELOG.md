@@ -10,6 +10,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-14
 
+- **High-score state** ⬜ → ✅. The top-score surface — the two high-score tables `wTypeBTopScores`
+  (`$D000`, indexed by level/starting-height/rank) and `wTypeATopScores` (`$D654`, level/rank), plus the
+  four high-RAM bytes the score-entry flow uses — ported as one hand-written `HighScoreState` struct with
+  a `TopScoreEntry` cell type (`src/state/high_score_state.h`). Each score is a decimal `uint32_t` (BCD only
+  on the wire); each name is six `CharTile` glyphs; `newTopScore`/`topScoresRedrawRequested` are `bool`,
+  `newScoreRank` keeps the original's inverted rank (3 = 1st), and `nameEntryColumn` is an overlay field on
+  a byte the game-flow state owns as `coarseCountdown` (disjoint in time). Adds the **first port-side
+  durable state**: a wire codec (struct ↔ the 1890-byte table image) and `load`/`save` through the engine's
+  `retropp::SaveStore` (`src/state/high_score_persistence.{h,cpp}`) persist top scores across launches,
+  always on — strictly extending the original's soft-reset-only survival; the in-sim tables are unchanged.
+  Save identity `Kirpich`/`Kirpich`; a corrupt save runs with no scores and is left in place. State + codec
+  only — the insert/name-entry/display mechanisms and the game-loop wiring are later work. +7 tests
+  (128 → 135). See [`../contracts/high-score-state.md`](../contracts/high-score-state.md).
 - **Demo state** ⬜ → ✅. The state the attract-mode demo carries between frames — which demo is running,
   the dead recording flag, the run-length countdown, the cursor into the active input timeline, and the two
   held-button sets (the demo's own held buttons and the player's real held state parked while the demo

@@ -11,6 +11,7 @@ add_library(kirpich-lib STATIC
     data/charmap.cpp
     data/gravity.cpp
     data/scoring.cpp
+    state/high_score_persistence.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
