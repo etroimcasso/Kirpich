@@ -63,7 +63,10 @@ struct GameFlowState {
     uint8_t typeALevel = 0;          // $FFC2: chosen Type A starting level
     uint8_t typeBLevel = 0;          // $FFC3: chosen Type B starting level
     uint8_t typeBStartHeight = 0;    // $FFC4: chosen Type B starting garbage height
-    uint8_t coarseCountdown = 0;     // $FFC6: counts timer1 expiries (demo launch, victory/defeat blink cycles)
+    uint8_t coarseCountdown = 0;     // $FFC6: counts timer1 expiries (demo launch, victory/defeat blink
+                                     // cycles). Shared byte: during top-score entry this is the
+                                     // name-entry column, carried as HighScoreState::nameEntryColumn
+                                     // (src/state/high_score_state.h); the two uses are disjoint in time.
 
     // --- Main-loop state machine ---------------------------------------------------------------
     GameState gameState{};           // $FFE1: the state the main loop dispatches on (boot value NORMAL_GAMEPLAY)
