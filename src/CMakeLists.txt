@@ -12,6 +12,7 @@ add_library(kirpich-lib STATIC
     data/gravity.cpp
     data/scoring.cpp
     state/high_score_persistence.cpp
+    systems/input.cpp
     vm/piece_random.cpp
 )
 target_include_directories(kirpich-lib PUBLIC

@@ -10,6 +10,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-15
 
+- **Input** ⬜ → ✅. Every input flows through one per-frame mechanism — poll the joypad once, pack
+  the buttons into a held set, derive the rising edge (`pressed = held & ~previouslyHeld`). Ported
+  over the engine's action-input system as `InputSystem::sample` (`src/systems/input.{h,cpp}`), which
+  samples held levels and derives the edge itself so a sub-tick tap is dropped exactly as the
+  once-per-frame poll drops it — the engine's never-drop-a-press signal is deliberately unused. One
+  `sample` call serves both live play and the demo playback's substituted held set. The shared
+  key-repeat (DAS) core `keyRepeatFire` (press fires and arms 23; held counts down and fires on 9;
+  stale-zero wraps to a 255-frame delay) is here; the per-site parts (idle re-arm, wall-charge retry,
+  direction priority) stay with the piece and name-entry systems. `defaultActionMap` binds the five
+  piece actions to keyboard + gamepad. No new action enumerators; the consumer sites mint theirs as
+  they land. First systems-layer surface after the randomizer.
+
 - **Randomization** ⬜ → ✅. Every random piece flows through one mechanism — read the free-running
   divider, fold the byte into a piece kind, reject a repeat (up to three tries, the third accepted
   unconditionally). The fold is a port-owned SM83 routine (`src/vm/random.asm`) hosted on the

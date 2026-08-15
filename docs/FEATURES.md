@@ -66,7 +66,7 @@ Game logic.
 | Feature | Status | Doc |
 |---|---|---|
 | Randomization | ✅ | [`features/piece-random.md`](features/piece-random.md) — draw core + `pickRandomPiece`; the solo per-piece draw reuses this core when the piece system lands |
-| Input | ⬜ | `features/input.md` |
+| Input | ✅ | [`features/input-layer.md`](features/input-layer.md) — per-frame joypad snapshot + held/pressed edge, shared key-repeat core, default bindings; the consumer sites read it as they land |
 | Game-state dispatcher | ⬜ | `features/dispatcher.md` |
 | Piece system | ⬜ | `features/piece-system.md` |
 | Line-clear logic | ⬜ | `features/line-clear.md` |
