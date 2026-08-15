@@ -44,6 +44,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [demo-state.md](demo-state.md) | The state the attract-mode demo carries between frames — which demo is running, the recording flag, the run-length countdown, the timeline cursor, and the demo's held buttons plus the player's parked real input, as one `DemoState` struct plus the `ActiveDemo` enum, and how it is checked against the existing layout+census fixture. |
 | [high-score-state.md](high-score-state.md) | The top-score surface — the two high-score tables (Type B by level/height/rank, Type A by level/rank) and the four bytes the score-entry flow uses, as one `HighScoreState` struct with a `TopScoreEntry` cell type, plus the persistence surface that saves the tables to disk and loads them back across launches. |
 | [playing-field-state.md](playing-field-state.md) | The board the game plays on — the 32 × 32 tile grid the original keeps at `$C800` (the authoritative field that collision reads, locking writes, line clears scan, and garbage fills) and the 10-cell multiplayer attack staging row, as one `PlayingFieldState` struct with a `fieldCell` accessor into the visible field, and how it is checked against the existing fixtures. |
+| [piece-random.md](piece-random.md) | How the game draws random pieces — the divider-fed draw core hosted on the virtual machine, the up-to-three-try rejection loop and one-stage pipeline of the native selection, where they live, and what to edit to change the fold or the rejection rule. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
@@ -52,6 +53,7 @@ surface is small enough that a flat list is easier to scan.
 
 Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline —
 including the extractor that produces the graphics from a player's ROM — the full data
-layer, and the full state layer; the systems and rendering layers are not written yet.
-Pages appear as their surfaces do, so an area missing from the index above is an area
-that does not exist yet rather than one that is undocumented.
+layer, the full state layer, and the first of the systems layer (the piece randomizer);
+the rest of the systems layer and the rendering layer are not written yet. Pages appear as
+their surfaces do, so an area missing from the index above is an area that does not exist
+yet rather than one that is undocumented.

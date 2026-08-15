@@ -8,6 +8,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-15
+
+- **Randomization** ⬜ → ✅. Every random piece flows through one mechanism — read the free-running
+  divider, fold the byte into a piece kind, reject a repeat (up to three tries, the third accepted
+  unconditionally). The fold is a port-owned SM83 routine (`src/vm/random.asm`) hosted on the
+  engine's virtual machine: the fold burns cycles that advance the divider *within* a call, so a
+  retry sees a fresh byte — a native bare read would freeze it and skew the distribution. The
+  rejection loop and the one-stage piece pipeline (an accepted candidate enters the pipeline one call
+  before it is played) are native C++ (`src/vm/piece_random.{h,cpp}`, `pickRandomPiece`). The solo
+  per-piece draw (`NextPiece.randomChoice`) reuses this same draw core when the piece system lands;
+  recorded in the contract. The first game-logic surface.
+
 ## 2026-08-14
 
 - **Playing-field state** ⬜ → ✅. The board the game plays on — the 32×32 background-map shadow the
