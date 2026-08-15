@@ -13,9 +13,10 @@ layer.
 full data layer and the full in-memory game state are ported — every graphics, tilemap, sprite,
 timing, scoring, audio, and demo table the game draws on, and every RAM structure it keeps them in.
 Along the way the port also gained durable high scores that survive across launches (the original keeps
-them only until the console is switched off). The game systems that connect these — the main loop,
-rendering, input, scoring logic, and menus — are not written yet, so the current binary prints the
-engine version and exits.
+them only until the console is switched off). The first game-logic pieces have landed too — piece
+randomization, input, and the per-frame state-dispatch framework the rest of the game hangs off — but
+the individual game states (gameplay, menus, the attract-mode demo), rendering, and the wiring that
+drives a frame are not written yet, so the current binary prints the engine version and exits.
 
 ## How it works
 
