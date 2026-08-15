@@ -10,6 +10,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-15
 
+- **Game-state dispatcher** ⬜ → ✅. Every frame of the game is one pass of a dispatcher — sample the
+  joypad, dispatch through a 54-entry table on the current game state to that state's handler, tick
+  the sound driver, check the four-button soft-reset chord, decrement two frame timers.
+  `GameStateDispatcher::tick` (`src/systems/game_state_dispatcher.{h,cpp}`) is that per-frame body
+  (the engine run loop drives it, one call per sim tick; there is no port-side loop). The dispatch
+  index is read once before the handler runs, so a handler that writes a new state transitions the
+  next tick. The chord (Start + Select + A + B held) fires a soft-reset seam and skips the timers,
+  extras don't block, and it re-fires every tick it is held. Handlers are `std::function` slots the
+  systems fill in as they land; every slot ships as a stub that leaves the state untouched, so an
+  unported state sits in place. `GameContext` (`src/systems/game_context.h`) aggregates the seven
+  ported state structs plus the joypad snapshot as the one argument every handler binds against. Adds
+  `Start` / `Select` to the action vocabulary (the chord's first consumer). First systems-layer
+  framework after the input layer; ships zero real handlers by design.
+
 - **Input** ⬜ → ✅. Every input flows through one per-frame mechanism — poll the joypad once, pack
   the buttons into a held set, derive the rising edge (`pressed = held & ~previouslyHeld`). Ported
   over the engine's action-input system as `InputSystem::sample` (`src/systems/input.{h,cpp}`), which

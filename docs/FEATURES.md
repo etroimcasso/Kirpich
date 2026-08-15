@@ -67,7 +67,7 @@ Game logic.
 |---|---|---|
 | Randomization | ✅ | [`features/piece-random.md`](features/piece-random.md) — draw core + `pickRandomPiece`; the solo per-piece draw reuses this core when the piece system lands |
 | Input | ✅ | [`features/input-layer.md`](features/input-layer.md) — per-frame joypad snapshot + held/pressed edge, shared key-repeat core, default bindings; the consumer sites read it as they land |
-| Game-state dispatcher | ⬜ | `features/dispatcher.md` |
+| Game-state dispatcher | ✅ | [`features/dispatcher.md`](features/dispatcher.md) — the dispatch table + frame beats + soft-reset chord + the `GameContext` aggregate; ships stub handlers, the real handlers land with their systems |
 | Piece system | ⬜ | `features/piece-system.md` |
 | Line-clear logic | ⬜ | `features/line-clear.md` |
 | Scoring | ⬜ | `features/scoring-system.md` |

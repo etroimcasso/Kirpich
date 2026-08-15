@@ -13,6 +13,7 @@ add_library(kirpich-lib STATIC
     data/scoring.cpp
     state/high_score_persistence.cpp
     systems/input.cpp
+    systems/game_state_dispatcher.cpp
     vm/piece_random.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
