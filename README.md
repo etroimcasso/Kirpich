@@ -53,11 +53,6 @@ than it needs to, the top two playfield rows are never cleared, a multi-line cle
 top row, the music's stereo panning data is present but non-functional. These are reproduced, not
 fixed. Details in [`docs/DESIGN.md`](docs/DESIGN.md).
 
-## Planned options
-
-All off by default, all composable: integer scaling, free-aspect output, pixel-art upscaling
-shaders, a DMG-style display shader, and an anti-channel-stealing audio mode that lets music keep
-playing underneath sound effects instead of losing a channel to them.
 
 ## Repository layout
 
