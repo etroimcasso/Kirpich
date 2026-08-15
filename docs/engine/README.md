@@ -52,6 +52,6 @@ surface is small enough that a flat list is easier to scan.
 
 Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline —
 including the extractor that produces the graphics from a player's ROM — the full data
-layer, and the first of the state types; the systems and rendering layers are not written
-yet. Pages appear as their surfaces do, so an area missing from the index above is an area
+layer, and the full state layer; the systems and rendering layers are not written yet.
+Pages appear as their surfaces do, so an area missing from the index above is an area
 that does not exist yet rather than one that is undocumented.

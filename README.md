@@ -9,11 +9,11 @@ layer.
 
 *Kirpich* (кирпич) is Russian for "brick".
 
-**Status: early.** The build system, test harness, and engine integration are in place, and the full
-data layer is ported — every graphics, tilemap, sprite, timing, scoring, audio, and demo table the
-game draws on. The in-memory game state is being ported next, one structure at a time; the most recent
-addition also gives the port durable high scores that survive across launches (the original keeps them
-only until the console is switched off). The game systems that connect these — the main loop,
+**Status: early.** The build system, test harness, and engine integration are in place, and both the
+full data layer and the full in-memory game state are ported — every graphics, tilemap, sprite,
+timing, scoring, audio, and demo table the game draws on, and every RAM structure it keeps them in.
+Along the way the port also gained durable high scores that survive across launches (the original keeps
+them only until the console is switched off). The game systems that connect these — the main loop,
 rendering, input, scoring logic, and menus — are not written yet, so the current binary prints the
 engine version and exits.
 
