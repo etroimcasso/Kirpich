@@ -10,6 +10,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-14
 
+- **Playing-field state** ⬜ → ✅. The board the game plays on — the 32×32 background-map shadow the
+  original keeps at `$C800` (the authoritative field that collision reads, piece locking writes, line
+  clears scan, and garbage fills) and the 10-cell `$C400` multiplayer attack staging row — ported as one
+  hand-written `PlayingFieldState` struct (`src/state/playing_field_state.h`). The board carries the whole
+  32×32 grid, not just the visible 18×10 field, because the walls, the floor, the below-floor garbage, and
+  the startup clear all reach the whole page; cells are raw tile indices; a `fieldCell(row, col)` accessor
+  reaches the visible field by its own coordinates. One hand-entered wire scalar (`kAttackRowBrickTile` =
+  `$28`); the video-RAM copy the original mirrors as it writes is render-bridge mechanism, not state. No
+  parser work — the fifth state unit checked entirely against the existing work-RAM census and playing-field
+  wipe fixtures. State only; collision, locking, the line-clear pipeline, the wipe, the fills, the overlay
+  screens, and the multiplayer attack machinery are later work. +6 tests (135 → 141). See
+  [`../contracts/playing-field-state.md`](../contracts/playing-field-state.md).
 - **High-score state** ⬜ → ✅. The top-score surface — the two high-score tables `wTypeBTopScores`
   (`$D000`, indexed by level/starting-height/rank) and `wTypeATopScores` (`$D654`, level/rank), plus the
   four high-RAM bytes the score-entry flow uses — ported as one hand-written `HighScoreState` struct with
