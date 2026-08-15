@@ -50,6 +50,8 @@ retropp::ActionSet heldActions(const retropp::InputState& in) {
         Action::SoftDrop,
         Action::RotateClockwise,
         Action::RotateCounterClockwise,
+        Action::Start,
+        Action::Select,
     };
     retropp::ActionSet held;
     for (const Action a : kActions) {
@@ -65,6 +67,8 @@ retropp::ActionMap defaultActionMap() {
         {Action::SoftDrop, {SDL_SCANCODE_DOWN, retropp::PadButton::DpadDown}},
         {Action::RotateClockwise, {SDL_SCANCODE_X, retropp::PadButton::FaceLabelA}},
         {Action::RotateCounterClockwise, {SDL_SCANCODE_Z, retropp::PadButton::FaceLabelB}},
+        {Action::Start, {SDL_SCANCODE_RETURN, retropp::PadButton::Start}},
+        {Action::Select, {SDL_SCANCODE_RSHIFT, retropp::PadButton::Select}},
     };
 }
 

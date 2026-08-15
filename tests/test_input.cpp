@@ -136,11 +136,11 @@ TEST(Input, ConstantsPins) {
 }
 
 // DefaultMapRows — the default bindings: every (action, source) pair present, and no rows for any
-// action beyond the five piece actions.
+// action beyond the seven bound actions (the five piece actions plus Start / Select).
 TEST(Input, DefaultMapRows) {
     const auto map = kirpich::systems::defaultActionMap();
     const auto rows = map.rows();
-    ASSERT_EQ(rows.size(), 10u);  // five actions, keyboard + gamepad each
+    ASSERT_EQ(rows.size(), 14u);  // seven actions, keyboard + gamepad each
 
     auto hasKey = [&](Action a, SDL_Scancode k) {
         return std::any_of(rows.begin(), rows.end(), [&](const retropp::ActionBinding& r) {
@@ -165,9 +165,13 @@ TEST(Input, DefaultMapRows) {
     EXPECT_TRUE(hasPad(Action::RotateClockwise, retropp::PadButton::FaceLabelA));
     EXPECT_TRUE(hasKey(Action::RotateCounterClockwise, SDL_SCANCODE_Z));
     EXPECT_TRUE(hasPad(Action::RotateCounterClockwise, retropp::PadButton::FaceLabelB));
+    EXPECT_TRUE(hasKey(Action::Start, SDL_SCANCODE_RETURN));
+    EXPECT_TRUE(hasPad(Action::Start, retropp::PadButton::Start));
+    EXPECT_TRUE(hasKey(Action::Select, SDL_SCANCODE_RSHIFT));
+    EXPECT_TRUE(hasPad(Action::Select, retropp::PadButton::Select));
 
     for (const retropp::ActionBinding& r : rows) {
-        EXPECT_LT(r.action, 5u) << "unexpected row for action id " << int(r.action);
+        EXPECT_LT(r.action, 7u) << "unexpected row for action id " << int(r.action);
     }
 }
 
@@ -185,9 +189,11 @@ TEST(Input, HeldActionsAdapter) {
     EXPECT_EQ(kirpich::systems::heldActions(state), actions({Action::MoveLeft, Action::SoftDrop}));
 
     retropp::InputSample sample2;
-    sample2.players[0].held = actions({Action::RotateCounterClockwise});
+    sample2.players[0].held =
+        actions({Action::RotateCounterClockwise, Action::Start, Action::Select});
     std::array<retropp::ActionSet, retropp::kMaxPlayers> pressed2{};
     pressed2[0] = sample2.players[0].held;
     state.sampleTick(sample2, pressed2);
-    EXPECT_EQ(kirpich::systems::heldActions(state), actions({Action::RotateCounterClockwise}));
+    EXPECT_EQ(kirpich::systems::heldActions(state),
+              actions({Action::RotateCounterClockwise, Action::Start, Action::Select}));
 }
