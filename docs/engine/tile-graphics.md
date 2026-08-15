@@ -83,6 +83,16 @@ corresponding committed PNG pixel-for-pixel — so a wrong offset, a wrong forma
 cannot emit a file. Python 3 (standard library only); a development tool, never needed to build or
 test Kirpich.
 
+## Provenance
+
+The disassembly ships `dump_gfx.py`, the script that produced its committed reference PNGs; the
+offsets and formats in the table were verified against it and against the ROM, and the parser's
+cross-check above is what enforces that agreement on every regeneration. **`dump_gfx.py` is not
+vendored and none of its code is copied** — the upstream repository carries no license. What is
+taken from it is facts: four offsets and the Game Boy's bitplane layout, neither of which is
+copyrightable. Upstream's dumper imports PyPNG; this port does not — the PNG serialization is the
+port's own (`src/assets/png_writer.{h,cpp}`).
+
 ## Changing it
 
 The offsets, counts, and formats are facts about the ROM, not tuning knobs. If an upstream repin

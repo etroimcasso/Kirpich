@@ -112,8 +112,7 @@ with the ROM path the player chose. There is no standalone entry point.
 The extraction table (`kTileGraphics`, `src/data/tile_graphics.h`) is generated from the
 disassembly and the ROM; the offsets, the decode, and the file contract are pinned in
 [`../contracts/tile-graphics.md`](../contracts/tile-graphics.md), with the working details in
-[`../engine/tile-graphics.md`](../engine/tile-graphics.md) and the design record in
-`../../tools/rom_extractor/README.md`.
+[`../engine/tile-graphics.md`](../engine/tile-graphics.md).
 
 ## Implementation details
 
@@ -130,7 +129,6 @@ disassembly and the ROM; the offsets, the decode, and the file contract are pinn
 - `scripts/setup-dev-assets.ps1` — Windows equivalent; the same source→destination table.
 - `scripts/check-distributable-clean.sh` — fails if anything but `.gitkeep` is in the asset
   directories; the packaging gate.
-- `tools/rom_extractor/` — the extractor's design record (the source lives in `src/assets/`).
 - `tests/fixtures/tiny_probe.png` — an 8×8 2-bit greyscale PNG authored for this repository and
   derived from nothing, so the load path is tested on every platform with no copyrighted byte and
   no skipped test.
