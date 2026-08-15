@@ -65,7 +65,7 @@ Game logic.
 
 | Feature | Status | Doc |
 |---|---|---|
-| Randomization | ⬜ | `features/rng.md` |
+| Randomization | ✅ | [`features/piece-random.md`](features/piece-random.md) — draw core + `pickRandomPiece`; the solo per-piece draw reuses this core when the piece system lands |
 | Input | ⬜ | `features/input.md` |
 | Game-state dispatcher | ⬜ | `features/dispatcher.md` |
 | Piece system | ⬜ | `features/piece-system.md` |

@@ -12,6 +12,7 @@ add_library(kirpich-lib STATIC
     data/gravity.cpp
     data/scoring.cpp
     state/high_score_persistence.cpp
+    vm/piece_random.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
@@ -31,6 +32,14 @@ target_link_libraries(kirpich-lib PUBLIC
     spdlog::spdlog_header_only
 )
 target_compile_features(kirpich-lib PUBLIC cxx_std_20)
+
+# The piece randomizer's draw core is an SM83 routine registered from src/vm/random.asm
+# (src/vm/piece_random.cpp). This scans the target's sources for that registration, assembles the
+# .asm at build time, and bakes the bytecode into a generated registry so the routine ships in the
+# binary with no runtime .asm file. Called explicitly because kirpich-lib is defined in this
+# subdirectory, which the engine's own auto-scan (retropp_finalize_assets, top-level only) does not
+# reach.
+retropp_autoembed_routines(kirpich-lib)
 
 # Port binary
 add_executable(kirpich main.cpp)
