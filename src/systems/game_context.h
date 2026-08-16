@@ -8,9 +8,11 @@
 // The aggregate owns its members by value: default construction is boot (each struct applies its own
 // boot law), and value semantics make it trivial to snapshot and compare in tests. It holds only
 // state — no engine types beyond the action set JoypadState already carries, no virtual machine, no
-// renderer, no audio. Systems that need those receive them separately when their units land. The
-// hosted sound driver's RAM has no member here by design: it lives on the VM side, not in the game's
-// state image (see docs/contracts/audio-state.md).
+// renderer, no audio driver. Systems that need those receive them separately when their units land.
+// The one audio member, audioCues, is the game's half of the game-to-driver interface (the cue
+// mailbox a handler writes and the audio tick drains); the hosted sound driver's own working RAM has
+// no member here by design — it lives on the VM side, not in the game's state image (see
+// docs/contracts/audio-state.md).
 
 #include "state/demo_state.h"
 #include "state/engine_state.h"
@@ -19,6 +21,7 @@
 #include "state/multiplayer_state.h"
 #include "state/playing_field_state.h"
 #include "state/sprite_renderer_state.h"
+#include "systems/audio_cues.h"
 #include "systems/input.h"
 
 namespace kirpich::systems {
@@ -33,6 +36,7 @@ struct GameContext {
     HighScoreState      highScores;      // top-score tables + entry bytes
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
+    AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)
 
     // Whole-image reset — every member returns to its own boot state. This is the cold-boot reset,
     // not the soft-reset chord: the original's soft reset preserves the top-score tables (its init
