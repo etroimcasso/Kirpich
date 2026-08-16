@@ -15,6 +15,7 @@ add_library(kirpich-lib STATIC
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/piece.cpp
+    systems/line_clear.cpp
     vm/piece_random.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
