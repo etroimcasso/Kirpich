@@ -10,6 +10,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-15
 
+- **Piece system** ⬜ → ✅. The active falling piece is manipulated once per frame by six routines —
+  spawn (`nextPiece`), drop by gravity or soft drop (`dropPiece`), rotate and shift with auto-repeat
+  (`rotateAndShiftPiece`), test against the board (`detectCollision`), and lock into the board
+  (`lockPieceIntoBackground`) — ported as free functions in `src/systems/piece.{h,cpp}`. Collision and
+  locking find the piece's four board cells through `activePieceCells`, which computes them from the
+  active slot and its composed sprite (reproducing the original renderer's 8-bit carry-leak position
+  law and the tile-lookup cell map) instead of rendering and reading back. Adds the `AudioCues` cue
+  mailbox (`src/systems/audio_cues.h`) as a `GameContext` member — the game's half of the game-to-driver
+  interface, which the rotate/shift/game-over cues write and the audio tick will drain. No state handler
+  is installed; the gameplay and line-clear flows compose these when they land. No new action
+  enumerators, no data or state change.
+
 - **Game-state dispatcher** ⬜ → ✅. Every frame of the game is one pass of a dispatcher — sample the
   joypad, dispatch through a 54-entry table on the current game state to that state's handler, tick
   the sound driver, check the four-button soft-reset chord, decrement two frame timers.
