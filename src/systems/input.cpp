@@ -52,6 +52,12 @@ retropp::ActionSet heldActions(const retropp::InputState& in) {
         Action::RotateCounterClockwise,
         Action::Start,
         Action::Select,
+        Action::MenuUp,
+        Action::MenuDown,
+        Action::MenuLeft,
+        Action::MenuRight,
+        Action::Confirm,
+        Action::Back,
     };
     retropp::ActionSet held;
     for (const Action a : kActions) {
@@ -69,6 +75,16 @@ retropp::ActionMap defaultActionMap() {
         {Action::RotateCounterClockwise, {SDL_SCANCODE_Z, retropp::PadButton::FaceLabelB}},
         {Action::Start, {SDL_SCANCODE_RETURN, retropp::PadButton::Start}},
         {Action::Select, {SDL_SCANCODE_RSHIFT, retropp::PadButton::Select}},
+
+        // Menu navigation shares its gameplay counterpart's sources: the directions with the
+        // movement / soft-drop keys and d-pad, Confirm with rotate-clockwise (X / GB A), Back with
+        // rotate-counter-clockwise (Z / GB B). MenuUp takes the up direction, which gameplay leaves free.
+        {Action::MenuUp, {SDL_SCANCODE_UP, retropp::PadButton::DpadUp}},
+        {Action::MenuDown, {SDL_SCANCODE_DOWN, retropp::PadButton::DpadDown}},
+        {Action::MenuLeft, {SDL_SCANCODE_LEFT, retropp::PadButton::DpadLeft}},
+        {Action::MenuRight, {SDL_SCANCODE_RIGHT, retropp::PadButton::DpadRight}},
+        {Action::Confirm, {SDL_SCANCODE_X, retropp::PadButton::FaceLabelA}},
+        {Action::Back, {SDL_SCANCODE_Z, retropp::PadButton::FaceLabelB}},
     };
 }
 

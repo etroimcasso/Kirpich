@@ -10,6 +10,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-16
 
+- **Title / config / menu screens** ⬜ → 🟡. The pre-game selection flow — the config screen, the
+  game-type and music-type selectors, and the Type A / Type B difficulty pickers — is delivered as
+  eight per-state handlers in `src/systems/menu_screens.{h,cpp}`, the first real installs into the
+  dispatch table (which shipped with every slot stubbed). The screens read a new semantic menu
+  vocabulary (`MenuUp`/`MenuDown`/`MenuLeft`/`MenuRight`/`Confirm`/`Back`) bound to the same buttons as
+  the piece controls. Shared helpers place and blink the cursors, load the cursor sprites, and turn a
+  music choice into an audio cue; the top-score refresh each difficulty screen performs is a seam the
+  top-score-entry screen wires later. Reading the source resolved two points the original's structure
+  hides: the difficulty-init and config screens cue the menu-move sound on entry (they enter the
+  cursor-placement helper at its top), and the Type A level picker does not unhide its cursor as it
+  leaves (an asymmetry the Type B pickers do not share) — both preserved. The title and copyright
+  screens complete the flow in a separate unit. No new `GameContext` member, no data change.
+
 - **Scoring** ⬜ → ✅. Three award paths turn play into points, each in its own frame beat — the Type A
   live line-clear award (`addLineClearScore`, folds a finished clear into the score at one wipe step),
   the Type B end-of-round count-up (`updateScoreboard`, draining the per-kind clear counts and the
