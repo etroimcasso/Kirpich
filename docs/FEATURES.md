@@ -70,7 +70,7 @@ Game logic.
 | Game-state dispatcher | ✅ | [`features/dispatcher.md`](features/dispatcher.md) — the dispatch table + frame beats + soft-reset chord + the `GameContext` aggregate; ships stub handlers, the real handlers land with their systems |
 | Piece system | ✅ | [`features/piece-system.md`](features/piece-system.md) — spawn / drop / rotate-shift / collide / lock as free functions, plus the `AudioCues` cue mailbox; the gameplay and line-clear handlers compose these when they land |
 | Line-clear logic | ✅ | [`features/line-clear.md`](features/line-clear.md) — scan / tally, flash cadence, stack compaction, and the row-by-row field wipe as free functions; the gameplay handlers and the frame's vertical-blank tick compose these when they land |
-| Scoring | ⬜ | `features/scoring-system.md` |
+| Scoring | ✅ | [`features/scoring-system.md`](features/scoring-system.md) — the Type A live line-clear award, the Type B results count-up, the Type A level-up (wired into the field wipe), the scoreboard row printer, and the scoring reset as free functions; the gameplay and results handlers compose these when they land |
 | Chiptune audio backend | ⬜ | [`features/audio-engine.md`](features/audio-engine.md) |
 | Anti-channel-stealing option | ⬜ | [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md) |
 | Title / config / menu screens | ⬜ | `features/menu-screens.md` |

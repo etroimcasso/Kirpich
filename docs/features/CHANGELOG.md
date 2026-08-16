@@ -8,6 +8,23 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-16
+
+- **Scoring** ⬜ → ✅. Three award paths turn play into points, each in its own frame beat — the Type A
+  live line-clear award (`addLineClearScore`, folds a finished clear into the score at one wipe step),
+  the Type B end-of-round count-up (`updateScoreboard`, draining the per-kind clear counts and the
+  soft-drop total into the score one unit at a time, with the per-kind step and the soft-drop drain as
+  file-local helpers), and the Type A level-up (`checkForLevelUp`, bumping the level and reloading
+  gravity when the line count passes the next ten) — ported as free functions in
+  `src/systems/scoring.{h,cpp}`, plus the Type B scoreboard row printer (`printLineClearScores`) and the
+  scoring reset (`clearScoreAndStats`). The level-up is wired into the line-clear field wipe at step 16;
+  the live award and the results tally are driven by their handlers when those land. Reading the tally
+  code showed two `EngineState` fields were owed — `scoreboardDisplayedStats` and `softDropPointsTallied`,
+  the results-screen count-up displays that render cannot re-derive from existing state — so the struct
+  gains them and the engine-state contract is corrected (the per-kind score accumulators stay uncarried,
+  derivable from the display counts). No new `GameContext` member, no dispatcher change, no data or action
+  change.
+
 ## 2026-08-15
 
 - **Line-clear logic** ⬜ → ✅. Once a piece locks, a sequence runs over many frames — scan the field

@@ -43,8 +43,11 @@ struct OamEntry {
 };
 
 // The four line-clear tallies, grouped under the name the ROM gives their shared head label. Each is
-// a plain count; the ROM leaves four dead pad bytes after each one (a stride of five), which the
-// port does not carry.
+// a plain count. The ROM stores these on a five-byte stride; of the four bytes after each count, the
+// port carries the first as a separate results-screen display count (see scoreboardDisplayedStats
+// below) and re-derives the other three — a per-kind BCD score accumulator — in the render bridge.
+// This same struct holds both the running tallies and the display counts. See
+// docs/contracts/engine-state.md.
 struct LineClearStats {
     uint8_t singles = 0;
     uint8_t doubles = 0;
@@ -69,8 +72,18 @@ struct EngineState {
     // Running line-clear tallies (ROM wLineClearStats / wSinglesCount..wTetrisCount).
     LineClearStats stats{};
 
+    // The four on-screen clear counts shown during the Type B results count-up (ROM byte +1 of each
+    // stride-five block: $C0AD/$C0B2/$C0B7/$C0BC). Single-byte BCD on the wire, decimal here. State,
+    // not derivable from `stats` (that count drains as this one rises).
+    LineClearStats scoreboardDisplayedStats{};
+
     // Points awarded for the current soft drop (ROM wSoftDropPoints, a 16-bit binary count).
     uint16_t softDropPoints = 0;
+
+    // The count-up display of soft-drop points already drained into the score during the Type B results
+    // tally (ROM wSoftDropPointsBCD, $C0C2, 3-byte BCD; decimal here). It rises as softDropPoints falls
+    // — the two sum to the pre-tally total — and is not derivable from softDropPoints alone.
+    uint16_t softDropPointsTallied = 0;
 
     // Scoreboard redraw/animation state machine index (ROM wScoreboardState). The value set is
     // owned by the scoreboard code; kept as a raw index here.

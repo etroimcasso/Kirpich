@@ -180,12 +180,14 @@ After the row copy: solo (`!isMultiplayer`) — if `gameState == GameState::NORM
 (`$1A`): if `garbageWipeActive` (`$FFD4`), cue `SquareSfxId::GARBAGE_ATTACK` (`$05`), else the same
 `STACK_FALL` noise.
 
-### 7b. Steps 16–18 — score / level redraws (no sim effect in this pipeline)
+### 7b. Steps 16–18 — score / level redraws
 
-- **Step 16** (`:5710-5718`) calls the Type A level-up check (`Call_244B`, `:5825-5876`): a BCD
-  lines-vs-level comparison, the level increment, the gravity reload, the level-up sound, and the level
-  digits. Level-up gating belongs to the scoring work; the step here is a recorded seam with no sim
-  effect yet.
+- **Step 16** (`:5710-5718`) calls the Type A level-up check (`Call_244B`, `:5825-5876`), right after
+  the row copy. This is **wired**: `playingFieldWipeTick` calls `checkForLevelUp(game)` (see
+  [`scoring-system.md`](scoring-system.md)). The check's own gates (Type A, normal gameplay, below the
+  level cap, the lines-vs-level threshold) keep it inert during the non-gameplay wipes that also pass
+  through step 16 — so the step has a sim effect only when a Type A game actually crosses a ten-line
+  boundary. The level digits it prints are render.
 - **Step 17** (`:5720-5731`) prints the score into the paused-screen tilemap and sets the lines-redraw
   mechanism byte (`$FFE0`, an adjudicated mechanism, see
   [`serial-multiplayer-state.md`](serial-multiplayer-state.md)) — render only.
