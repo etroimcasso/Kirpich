@@ -136,11 +136,12 @@ TEST(Input, ConstantsPins) {
 }
 
 // DefaultMapRows — the default bindings: every (action, source) pair present, and no rows for any
-// action beyond the seven bound actions (the five piece actions plus Start / Select).
+// action beyond the thirteen bound actions (the five piece actions, Start / Select, and the six menu
+// actions).
 TEST(Input, DefaultMapRows) {
     const auto map = kirpich::systems::defaultActionMap();
     const auto rows = map.rows();
-    ASSERT_EQ(rows.size(), 14u);  // seven actions, keyboard + gamepad each
+    ASSERT_EQ(rows.size(), 26u);  // thirteen actions, keyboard + gamepad each
 
     auto hasKey = [&](Action a, SDL_Scancode k) {
         return std::any_of(rows.begin(), rows.end(), [&](const retropp::ActionBinding& r) {
@@ -170,8 +171,24 @@ TEST(Input, DefaultMapRows) {
     EXPECT_TRUE(hasKey(Action::Select, SDL_SCANCODE_RSHIFT));
     EXPECT_TRUE(hasPad(Action::Select, retropp::PadButton::Select));
 
+    // Menu navigation: the directions share the movement / soft-drop sources, MenuUp takes the
+    // otherwise-free up direction, Confirm shares rotate-clockwise (GB A), Back shares
+    // rotate-counter-clockwise (GB B).
+    EXPECT_TRUE(hasKey(Action::MenuUp, SDL_SCANCODE_UP));
+    EXPECT_TRUE(hasPad(Action::MenuUp, retropp::PadButton::DpadUp));
+    EXPECT_TRUE(hasKey(Action::MenuDown, SDL_SCANCODE_DOWN));
+    EXPECT_TRUE(hasPad(Action::MenuDown, retropp::PadButton::DpadDown));
+    EXPECT_TRUE(hasKey(Action::MenuLeft, SDL_SCANCODE_LEFT));
+    EXPECT_TRUE(hasPad(Action::MenuLeft, retropp::PadButton::DpadLeft));
+    EXPECT_TRUE(hasKey(Action::MenuRight, SDL_SCANCODE_RIGHT));
+    EXPECT_TRUE(hasPad(Action::MenuRight, retropp::PadButton::DpadRight));
+    EXPECT_TRUE(hasKey(Action::Confirm, SDL_SCANCODE_X));
+    EXPECT_TRUE(hasPad(Action::Confirm, retropp::PadButton::FaceLabelA));
+    EXPECT_TRUE(hasKey(Action::Back, SDL_SCANCODE_Z));
+    EXPECT_TRUE(hasPad(Action::Back, retropp::PadButton::FaceLabelB));
+
     for (const retropp::ActionBinding& r : rows) {
-        EXPECT_LT(r.action, 7u) << "unexpected row for action id " << int(r.action);
+        EXPECT_LT(r.action, 13u) << "unexpected row for action id " << int(r.action);
     }
 }
 
