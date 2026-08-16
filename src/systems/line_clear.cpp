@@ -15,6 +15,7 @@
 #include "data/playing_field.h"   // field extent + wipe-counter domain
 #include "data/sfx.h"             // NoiseSfxId, SquareSfxId
 #include "systems/piece.h"        // nextPiece
+#include "systems/scoring.h"      // checkForLevelUp (wipe step 16)
 
 namespace kirpich::systems {
 
@@ -273,8 +274,10 @@ void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>
             break;
 
         case 16:
-            // The original checks for a Type A level-up here. Level-up gating lands with the scoring
-            // work; this step carries no state effect yet. (tetris.asm:5710-5718)
+            // The original checks for a Type A level-up here, right after the row copy. The gates
+            // (state / type / cap) live inside the check, so it is inert during the non-gameplay wipes
+            // that also pass through step 16 (e.g. the game-over field fill). (tetris.asm:5710-5718)
+            checkForLevelUp(game);
             break;
 
         case 17:

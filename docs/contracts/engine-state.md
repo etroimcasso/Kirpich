@@ -23,10 +23,12 @@ is the hand-written shape in `engine_state.h`.
 | `score` | `wScore` | `$C0A0` | 3 | `uint32_t` | packed-decimal in ROM; decimal integer port-side, 999,999 display ceiling |
 | `lineClears` | `wLineClearsList` | `$C0A3` | 9 | `BoundedVec<uint8_t, 4>` | four row addresses + a zero-word terminator; ported as row indices (below) |
 | `stats.singles` | `wLineClearStats` / `wSinglesCount` | `$C0AC` | 1 | `uint8_t` | head of the stats block (the two labels alias one address) |
-| `stats.doubles` | `wDoublesCount` | `$C0B1` | 1 | `uint8_t` | stride 5 (four dead pad bytes after each count) |
+| `stats.doubles` | `wDoublesCount` | `$C0B1` | 1 | `uint8_t` | stride 5 (byte +1 is a display count, +2..+4 a render-derived accumulator — below) |
 | `stats.triples` | `wTriplesCount` | `$C0B6` | 1 | `uint8_t` | |
 | `stats.tetrises` | `wTetrisCount` | `$C0BB` | 1 | `uint8_t` | |
+| `scoreboardDisplayedStats` | *(byte +1 of each stat block)* | `$C0AD` … `$C0BC` | 1 ×4 | `LineClearStats` | the four on-screen results counts; single-byte BCD in ROM, decimal port-side |
 | `softDropPoints` | `wSoftDropPoints` | `$C0C0` | 2 | `uint16_t` | 16-bit binary count |
+| `softDropPointsTallied` | `wSoftDropPointsBCD` | `$C0C2` | 3 | `uint16_t` | count-up display of drained soft-drop points; 3-byte BCD in ROM, decimal port-side |
 | `scoreboardState` | `wScoreboardState` | `$C0C5` | 1 | `uint8_t` | raw state-machine index |
 | `scoreboardTallyPhase` | *(unlabelled)* | `$C0C6` | 1 | `uint8_t` | folded flag (below) |
 | `blockSoftDropAfterLock` | *(unlabelled)* | `$C0C7` | 1 | `bool` | folded flag (below) |
@@ -65,14 +67,20 @@ the terminator. The address↔index relation is the playing-field geometry: the 
 `index = (address − $C802) / $20`. Dropping the address space is a forced adaptation — the port has no
 `$C8xx` addresses — and the conversion belongs to the line-clear code that fills the list.
 
-## Collapsed and omitted bytes
+## Collapsed and render-derived bytes
 
-- **`wSoftDropPointsBCD` (`$C0C2`, 3 bytes) is not a field.** It is a packed-decimal scratch copy of
-  the soft-drop points used only while tallying and printing; the port converts the decimal
-  `softDropPoints` at print time instead of storing a second representation. This mirrors the score
-  handling: a decimal surface, packed-decimal only on the wire.
-- **The stride-5 stat pads are omitted.** Each of the four counts is followed by four dead bytes in
-  ROM (`ds 4`). No code reads them; `LineClearStats` carries only the four counts.
+- **`wSoftDropPointsBCD` (`$C0C2`, 3 bytes) is the field `softDropPointsTallied`.** It is the count-**up**
+  display of soft-drop points already drained into the score during the Type B results tally: it rises
+  (`AddBCD` +1, `tetris.asm:4861-4864`) as `softDropPoints` falls, and the two sum to the pre-tally
+  total. It is not derivable from `softDropPoints` alone, so it is carried as state (decimal port-side,
+  3-byte BCD only on the wire).
+- **The stride-5 stat pads are not dead.** Each of the four counts is followed by four bytes. Byte +1
+  (`$C0AD`/`$C0B2`/`$C0B7`/`$C0BC`) is the on-screen results count, carried as `scoreboardDisplayedStats`
+  (written `tetris.asm:6119-6122`). Bytes +2..+4 are a per-kind 3-byte BCD score accumulator (written
+  `:6136-6141`, printed `:6143-6149`); the port does **not** store them — they equal
+  `kLineClearScores[kind].points × (typeBLevel + 1) × scoreboardDisplayedStats[kind]`, which the render
+  bridge re-derives. The derivability proof and its unreachable-saturation argument live in
+  [`scoring-system.md`](scoring-system.md).
 
 ## The three folded flags
 
