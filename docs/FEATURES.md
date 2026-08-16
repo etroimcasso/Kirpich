@@ -69,7 +69,7 @@ Game logic.
 | Input | ✅ | [`features/input-layer.md`](features/input-layer.md) — per-frame joypad snapshot + held/pressed edge, shared key-repeat core, default bindings; the consumer sites read it as they land |
 | Game-state dispatcher | ✅ | [`features/dispatcher.md`](features/dispatcher.md) — the dispatch table + frame beats + soft-reset chord + the `GameContext` aggregate; ships stub handlers, the real handlers land with their systems |
 | Piece system | ✅ | [`features/piece-system.md`](features/piece-system.md) — spawn / drop / rotate-shift / collide / lock as free functions, plus the `AudioCues` cue mailbox; the gameplay and line-clear handlers compose these when they land |
-| Line-clear logic | ⬜ | `features/line-clear.md` |
+| Line-clear logic | ✅ | [`features/line-clear.md`](features/line-clear.md) — scan / tally, flash cadence, stack compaction, and the row-by-row field wipe as free functions; the gameplay handlers and the frame's vertical-blank tick compose these when they land |
 | Scoring | ⬜ | `features/scoring-system.md` |
 | Chiptune audio backend | ⬜ | [`features/audio-engine.md`](features/audio-engine.md) |
 | Anti-channel-stealing option | ⬜ | [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md) |

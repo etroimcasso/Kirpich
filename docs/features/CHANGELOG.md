@@ -10,6 +10,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-15
 
+- **Line-clear logic** ⬜ → ✅. Once a piece locks, a sequence runs over many frames — scan the field
+  for completed rows and tally them (`checkForCompletedRows`), flash them (`animateLineClear`), drop the
+  stack into the gaps (`moveBlocksDownAfterLineClear`), and redraw the field one row per frame until the
+  next piece spawns or a Type B round ends (`playingFieldWipeTick`, plus `clearLineClearsList`) — ported
+  as the sim side of that sequence in `src/systems/line_clear.{h,cpp}`. The pipeline spans two frame
+  beats (the scan and compaction run with the gameplay handlers; the flash and wipe run in the
+  vertical-blank tick after the frame timers), which is what makes the 10-frame flash cadence and the
+  one-row-per-frame wipe exact; the port keeps that split and defers the wiring. The eighteen
+  near-identical wipe dispatchers collapse to one range-gated stepper (exact because the counter
+  increments inside each row copy and the originals run in descending order). The flash pixels and the
+  row copies are render and are dropped; only the counters, the audio cues, the piece spawn, and the
+  round-end transitions are carried. No new state, no new `GameContext` member, no data or dispatcher
+  change.
+
 - **Piece system** ⬜ → ✅. The active falling piece is manipulated once per frame by six routines —
   spawn (`nextPiece`), drop by gravity or soft drop (`dropPiece`), rotate and shift with auto-repeat
   (`rotateAndShiftPiece`), test against the board (`detectCollision`), and lock into the board

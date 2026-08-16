@@ -48,6 +48,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [input.md](input.md) | How the game reads input — the per-frame joypad snapshot and its held/pressed edge relation over the engine's action system, the shared key-repeat (DAS) core and its constants, the default keyboard and gamepad bindings, where they live, and what to edit to change the edge rule, the repeat timing, or the bindings. |
 | [dispatcher.md](dispatcher.md) | How the game runs one frame — the state dispatch table, the frame beats (sample, dispatch, audio, soft-reset chord, timers), the game-state aggregate every handler reads and writes, and the seams for the audio tick and soft reset, where they live, and what to edit to add a state's behavior or change a frame beat. |
 | [piece-system.md](piece-system.md) | How the active piece is manipulated each frame — spawn, drop by gravity or soft drop, rotate and shift with auto-repeat, collide, and lock; the shared cell geometry that finds the piece's board cells, the audio cue mailbox the routines write, where they live, and what to edit to change the drop timing, the collision rule, or the next-piece choice. |
+| [line-clear.md](line-clear.md) | What happens once a piece locks — the scan for completed rows and the line/stat/garbage tally, the flash cadence, the stack compaction and its top-row quirk, and the row-by-row field wipe that spawns the next piece; the two frame beats the pipeline spans, where the functions live, and what to edit to change the scan, the tally, the flash timing, or the wipe. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
@@ -57,8 +58,8 @@ surface is small enough that a flat list is easier to scan.
 Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline —
 including the extractor that produces the graphics from a player's ROM — the full data
 layer, the full state layer, and the systems layer so far (the piece randomizer, the input
-layer, the game-state dispatcher framework, and the piece system — the per-state handlers
-themselves are not written yet); the rest of the systems layer and the rendering layer are
-not written yet. Pages appear as
+layer, the game-state dispatcher framework, the piece system, and the line-clear pipeline —
+the per-state handlers themselves are not written yet); the rest of the systems layer and the
+rendering layer are not written yet. Pages appear as
 their surfaces do, so an area missing from the index above is an area that does not exist
 yet rather than one that is undocumented.
