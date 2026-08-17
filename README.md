@@ -9,14 +9,51 @@ layer.
 
 *Kirpich* (кирпич) is Russian for "brick".
 
-**Status: early.** The build system, test harness, and engine integration are in place, and both the
-full data layer and the full in-memory game state are ported — every graphics, tilemap, sprite,
-timing, scoring, audio, and demo table the game draws on, and every RAM structure it keeps them in.
-Along the way the port also gained durable high scores that survive across launches (the original keeps
-them only until the console is switched off). The first game-logic pieces have landed too — piece
-randomization, input, and the per-frame state-dispatch framework the rest of the game hangs off — but
-the individual game states (gameplay, menus, the attract-mode demo), rendering, and the wiring that
-drives a frame are not written yet, so the current binary prints the engine version and exits.
+## Status
+
+The data and state layers are complete, and the game logic is well along: the systems that move pieces,
+clear lines, keep score, and run the pre-game menus are all in place. What remains is the in-round
+gameplay loop that drives them, the attract-mode demo, the audio backend, and the rendering and frame
+wiring that put a picture on screen — until those land, the binary reports its engine version and exits.
+
+**The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
+ROM: the character map and the 22 static background screens, the composed sprites and their on-screen
+object lists, the gravity and scoring tables, the piece list, the recorded demo inputs, the music
+sequences and sound-effect banks, and the tile graphics — together with the first-run tool that extracts
+a player's own cartridge into the images the engine loads.
+
+**The state.** Every structure the running game keeps in memory is a plain C++ type: the work-RAM
+globals, the main-loop bookkeeping, the 32×32 playing field, the sprite-render slots, the link-cable and
+attract-demo blocks, and the high-score tables. A persistence layer carries high scores across launches —
+a capability the original lacks, where the tables survive only until the console is switched off.
+
+**The game logic.** Built on those: the piece randomizer (run on the engine's emulated CPU, since the
+sequence depends on cycle-exact timing), the input layer with its press-edge detection and auto-repeat,
+the per-frame state dispatcher every state runs under, the piece mechanics (spawn, gravity, rotation,
+wall shift, collision, and locking), the line-clear pipeline (detection, flash, compaction, and the
+row-by-row field wipe), scoring (the live award, the end-of-round count-up, and level-up), and the full
+pre-game flow — the copyright and title screens and the game-type, music, and difficulty menus.
+
+The table below is kept honest as components land.
+
+| Component | Status |
+|---|---|
+| Data tables | **complete** — every graphics, tilemap, sprite, timing, scoring, audio, and demo table, ROM-verified in full |
+| ROM asset extractor | **complete** — first-run extraction of a player's own cartridge into the engine's load format |
+| Game state | **complete** — every work-RAM and high-RAM structure the running game keeps |
+| High-score persistence | **complete** — durable top-score tables across launches |
+| Piece randomizer | **complete** — the divider-fold RNG, run on the engine's emulated CPU for cycle-exact fidelity |
+| Input | **complete** — per-frame snapshot, press-edge detection, and auto-repeat |
+| State dispatcher | **complete** — the per-frame jump table and soft-reset chord every game state runs under |
+| Piece system | **complete** — spawn, gravity, rotation, wall shift, collision, and locking |
+| Line clears | **complete** — detection, flash, compaction, and the field wipe |
+| Scoring | **complete** — the live line-clear award, the end-of-round count-up, and level-up |
+| Pre-game screens | **complete** — the copyright and title screens and the game-type, music, and difficulty menus |
+| In-round gameplay states | not started — the piece, line-clear, and scoring systems they drive are in place |
+| Attract-mode demo | not started — the recorded inputs and piece list are ported |
+| Audio backend | not started — runs the original sound driver on the engine's emulated audio unit |
+| Rendering | not started — the bridge from game state to the engine's renderer |
+| Frame loop | not started — the wiring that ties input, logic, audio, and rendering into a frame |
 
 ## How it works
 
