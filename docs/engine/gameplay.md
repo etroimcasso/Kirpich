@@ -29,6 +29,30 @@ and shares only the pause family below.
 ```cpp
 namespace kirpich::systems {
 
+// The four steps the gameplay frame calls where the original handles a demo. Each does nothing during
+// ordinary play, so every default is empty and an empty hook is skipped.
+struct GameplayDemoHooks {
+    std::function<void(GameContext&)> checkForEndOfDemo;
+    std::function<void(GameContext&)> simulateJoypad;
+    std::function<void(GameContext&)> recordDemo;
+    std::function<void(GameContext&)> restoreSavedJoypad;
+};
+
+// Fill `rows` rows of starting garbage, from the fixed demo table when `useDemoTable` is set.
+using InitGarbageHook = std::function<void(GameContext& game, std::uint8_t rows, bool useDemoTable)>;
+
+// Fired by the Start+Select+B+A chord. The frame dispatcher carries the same seam.
+using SoftResetHook = std::function<void()>;
+
+// Everything the handlers need from systems other than this one. `draw` is required; the rest are inert
+// by default.
+struct GameplayWiring {
+    std::function<std::uint8_t()> draw;
+    GameplayDemoHooks             demo{};
+    InitGarbageHook               initGarbage{};
+    SoftResetHook                 softReset{};
+};
+
 // Set a round up: clear the entry state, board, and score; pick the starting level and line count for
 // the game type; load the gravity period; fill the piece pipeline; lay the Type B starting garbage.
 void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
@@ -77,8 +101,12 @@ because the piece pipeline cannot run without a randomizer — `draw` is require
 defaults to inert:
 
 ```cpp
+// registerPieceRandom hosts the draw core on the virtual machine and hands back a callable
+// (see piece-random.md); it converts straight into the wiring's std::function.
+const auto draw = kirpich::vm::registerPieceRandom(vm);
+
 kirpich::systems::GameplayWiring wiring;
-wiring.draw = [&vm] { return kirpich::vm::drawPiece(vm); };
+wiring.draw = draw;
 kirpich::systems::installGameplayHandlers(dispatcher, wiring);
 ```
 
