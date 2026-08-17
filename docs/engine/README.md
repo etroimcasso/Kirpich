@@ -50,7 +50,8 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [piece-system.md](piece-system.md) | How the active piece is manipulated each frame — spawn, drop by gravity or soft drop, rotate and shift with auto-repeat, collide, and lock; the shared cell geometry that finds the piece's board cells, the audio cue mailbox the routines write, where they live, and what to edit to change the drop timing, the collision rule, or the next-piece choice. |
 | [line-clear.md](line-clear.md) | What happens once a piece locks — the scan for completed rows and the line/stat/garbage tally, the flash cadence, the stack compaction and its top-row quirk, and the row-by-row field wipe that spawns the next piece; the two frame beats the pipeline spans, where the functions live, and what to edit to change the scan, the tally, the flash timing, or the wipe. |
 | [scoring-system.md](scoring-system.md) | How play turns into points — the Type A live line-clear award, the Type B end-of-round count-up and its cadence, the Type A level-up (wired into the field wipe), the Type B scoreboard row printer, and the scoring reset; the three frame beats they run in, where they live, and what to edit to change the award gates, the tally state machine, the level-up law, or the reset span. |
-| [menu-screens.md](menu-screens.md) | The pre-game selection flow — the config screen, the game-type and music-type selectors, and the Type A / Type B difficulty pickers; the menu action vocabulary, the shared cursor placement and blink, the top-score refresh seam, where they live, and what to edit to change a screen's input law, the cursor positions, or the bindings. |
+| [menu-screens.md](menu-screens.md) | The whole pre-game flow — the copyright and title screens, the config screen, the game-type and music-type selectors, and the Type A / Type B difficulty pickers; the menu action vocabulary, the shared cursor placement and blink, the attract countdown and top-score refresh seams, where they live, and what to edit to change a screen's input law, the cursor positions, or the bindings. |
+| [gameplay.md](gameplay.md) | The states a round passes through — the shared init for both game types and the attract demo, the twelve-step gameplay frame, the pause (shared with two-player) and its cue mailbox, the game-over chain and its rocket endings, and the Type B results re-arm; the wiring the handlers need, where they live, and what to edit to change a round's starting conditions, the frame's step order, or the pause law. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
@@ -61,8 +62,9 @@ Kirpich is early. What exists today is the build, the engine wiring, the asset p
 including the extractor that produces the graphics from a player's ROM — the full data
 layer, the full state layer, and the systems layer so far (the piece randomizer, the input
 layer, the game-state dispatcher framework, the piece system, the line-clear pipeline, the
-scoring pipeline, and the pre-game selection screens — the gameplay and title/copyright
-handlers are not written yet); the rest of the systems layer and the rendering layer are not
+scoring pipeline, the whole pre-game flow, and the gameplay session — a solo round now runs
+end to end from the title screen through play to the game-over screen). Two-player play, the
+demo, the bonus-ending scenes, top-score entry, audio, and the rendering layer are not
 written yet. Pages appear as
 their surfaces do, so an area missing from the index above is an area that does not exist
 yet rather than one that is undocumented.

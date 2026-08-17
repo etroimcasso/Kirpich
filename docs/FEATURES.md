@@ -74,7 +74,7 @@ Game logic.
 | Chiptune audio backend | ⬜ | [`features/audio-engine.md`](features/audio-engine.md) |
 | Anti-channel-stealing option | ⬜ | [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md) |
 | Title / config / menu screens | ✅ | [`features/menu-screens.md`](features/menu-screens.md), [`features/title-screens.md`](features/title-screens.md) — the whole pre-game flow (copyright, title, config, and the game-type / music-type / difficulty selectors) is delivered as per-state handlers. The demo launch and the two-player serial paths are seams later units fill |
-| Type-A gameplay | ⬜ | `features/type-a-gameplay.md` |
+| Gameplay session | ✅ | [`features/gameplay.md`](features/gameplay.md) — the shared round init (both game types and the attract demo), the twelve-step gameplay frame, the pause (shared with two-player), the game-over chain and its rocket endings, and the Type B results re-arm, as per-state handlers. The garbage fill, the demo input, and the soft reset are seams later units fill |
 | Type-B gameplay | ⬜ | `features/type-b-gameplay.md` |
 | Demo playback | ⬜ | `features/demo-playback.md` |
 | Demo recording (dead-but-present) | ⬜ | `features/demo-recording.md` |
