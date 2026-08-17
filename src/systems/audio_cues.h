@@ -7,6 +7,10 @@
 // bytes the original leaves for its driver (wNewMusicID / wNewSquareSFXID / wNewNoiseSFXID /
 // wNewWaveSFXID); the driver's own working RAM is not modelled here (see docs/contracts/audio-state.md).
 //
+// Pausing works the same way through a fifth field: the pause command. It is a command rather than a
+// cue — it tells the driver to suspend or resume the current song rather than naming something to play —
+// but its lifecycle is identical, so it lives here with the cues.
+//
 // Overwrite is the point, not a hazard. A handler may write a cue during its frame and then overwrite
 // it to NONE before the audio tick reads it — the piece rotation does exactly this, cueing the rotate
 // sound and cancelling it when the rotation turns out to collide. So the mailbox holds the LAST cue
@@ -17,10 +21,21 @@
 // Until the audio tick is built the fields simply accumulate each frame and are read by tests; the
 // tick that drains and clears them lands with the sound system.
 
+#include <cstdint>
+
 #include "data/music.h"
 #include "data/sfx.h"
 
 namespace kirpich::systems {
+
+// Whether the frame asks the driver to suspend or resume the current song. Pausing the game sends
+// PAUSE, unpausing sends UNPAUSE; the driver acts on the command and clears it, so NONE is both the
+// boot value and what the driver leaves behind.
+enum class AudioPauseCommand : std::uint8_t {
+    NONE    = 0,
+    PAUSE   = 1,
+    UNPAUSE = 2,
+};
 
 struct AudioCues {
     MusicId     music  = MusicId::NONE;      // song to start (wNewMusicID)
@@ -28,6 +43,9 @@ struct AudioCues {
     NoiseSfxId  noise  = NoiseSfxId::NONE;   // noise-channel sound effect (wNewNoiseSFXID)
     WaveSfxId   wave   = WaveSfxId::NONE;    // wave-channel sound effect (wNewWaveSFXID)
     bool resetRequested = false;             // re-initialise the driver before reading the cues
+
+    // Suspend or resume the current song (wPauseUnpauseSound).
+    AudioPauseCommand pause = AudioPauseCommand::NONE;
 
     // Return every cue to its boot (no-cue) value — what the audio tick does after draining.
     void reset() { *this = AudioCues{}; }

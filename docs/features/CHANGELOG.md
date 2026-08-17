@@ -10,6 +10,15 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-16
 
+- **Gameplay session** ⬜ → ✅. A solo round now runs end to end. Seven per-state handlers in
+  `src/systems/gameplay.{h,cpp}`: the shared init (which serves Type A, Type B, and the attract demo,
+  forking internally on the game type), the twelve-step gameplay frame that finally composes the piece,
+  line-clear, and scoring systems, the pause family (shared with the two-player round, its multiplayer
+  branches included), the game-over chain with the Type A rocket-ending tiers, and the Type B results
+  re-arm. The unit's scope was widened from its original framing, which had omitted the gameplay frame
+  itself and had described the states as Type A only. Adds `AudioPauseCommand` and a pause mailbox to
+  the audio cues; the garbage fill, the four demo steps, and the soft reset are seams later units fill.
+
 - **Title / config / menu screens** 🟡 → ✅. The title and copyright screens complete the pre-game
   flow — five per-state handlers in `src/systems/title_screens.{h,cpp}`: the copyright chain (a timed,
   skippable display of the original owners' notices, shown verbatim), the title-screen init (resetting
