@@ -10,6 +10,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-16
 
+- **Title / config / menu screens** 🟡 → ✅. The title and copyright screens complete the pre-game
+  flow — five per-state handlers in `src/systems/title_screens.{h,cpp}`: the copyright chain (a timed,
+  skippable display of the original owners' notices, shown verbatim), the title-screen init (resetting
+  leftover round state, painting the title board, and arming the attract countdown), and the title loop
+  (the attract countdown, the one/two-player cursor, and one-player Start into the config screen).
+  Reading the source settled several points: the piece-ring seed drops the original's over-copy (the 48
+  demo entries are copied, the over-read tail is never used); heart mode is stored as a non-zero flag
+  (the original keeps the raw held byte, read only as zero/non-zero); and the line-count clear is a
+  whole-field clear (the port's decimal count cannot represent the original's high-byte-only clear, and
+  the low byte is unobservable). The attract-demo launch is a `StartDemoHook` seam, and the two-player
+  serial paths (the peer-initiated launch and the two-player Start handshake) are left to the
+  serial/multiplayer work. No new `GameContext` member, no data change.
+
 - **Title / config / menu screens** ⬜ → 🟡. The pre-game selection flow — the config screen, the
   game-type and music-type selectors, and the Type A / Type B difficulty pickers — is delivered as
   eight per-state handlers in `src/systems/menu_screens.{h,cpp}`, the first real installs into the

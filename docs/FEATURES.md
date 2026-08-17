@@ -73,7 +73,7 @@ Game logic.
 | Scoring | ✅ | [`features/scoring-system.md`](features/scoring-system.md) — the Type A live line-clear award, the Type B results count-up, the Type A level-up (wired into the field wipe), the scoreboard row printer, and the scoring reset as free functions; the gameplay and results handlers compose these when they land |
 | Chiptune audio backend | ⬜ | [`features/audio-engine.md`](features/audio-engine.md) |
 | Anti-channel-stealing option | ⬜ | [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md) |
-| Title / config / menu screens | 🟡 | [`features/menu-screens.md`](features/menu-screens.md) — the config screen and the game-type / music-type / difficulty selectors are delivered as per-state handlers; the title and copyright screens are pending |
+| Title / config / menu screens | ✅ | [`features/menu-screens.md`](features/menu-screens.md), [`features/title-screens.md`](features/title-screens.md) — the whole pre-game flow (copyright, title, config, and the game-type / music-type / difficulty selectors) is delivered as per-state handlers. The demo launch and the two-player serial paths are seams later units fill |
 | Type-A gameplay | ⬜ | `features/type-a-gameplay.md` |
 | Type-B gameplay | ⬜ | `features/type-b-gameplay.md` |
 | Demo playback | ⬜ | `features/demo-playback.md` |

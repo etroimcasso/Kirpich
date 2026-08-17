@@ -1,19 +1,25 @@
-# Menu screens
+# Pre-game screens
 
-The pre-game selection flow: the config screen, the game-type and music-type selectors, and the
-Type A / Type B difficulty pickers a player moves through before a round starts. The behavioral
-specification — what the original game does, line by line — is in
-[`../contracts/menu-screens.md`](../contracts/menu-screens.md); the design rationale is in
-[`../features/menu-screens.md`](../features/menu-screens.md).
+The whole pre-game flow, from power-on to the start of a round: the copyright screens, the title
+screen, the config screen, the game-type and music-type selectors, and the Type A / Type B difficulty
+pickers. Two units make it up — the **selection screens** (config through the difficulty pickers) and
+the **title and copyright screens** — sharing one dispatcher, one helper set, and this page.
+
+The behavioral specifications — what the original game does, line by line — are in
+[`../contracts/menu-screens.md`](../contracts/menu-screens.md) and
+[`../contracts/title-screens.md`](../contracts/title-screens.md); the design rationale is in
+[`../features/menu-screens.md`](../features/menu-screens.md) and
+[`../features/title-screens.md`](../features/title-screens.md).
 
 ## Where it lives
 
 | File | Holds |
 |---|---|
 | `src/systems/menu_screens.h` / `.cpp` | The `kirpich::systems` selection-screen handlers, their shared helpers, and the installer. |
+| `src/systems/title_screens.h` / `.cpp` | The copyright and title-screen handlers and their installer. |
 | `include/kirpich/action.h` | The six menu actions (`MenuUp`/`MenuDown`/`MenuLeft`/`MenuRight`/`Confirm`/`Back`). |
 | `src/systems/input.cpp` | Their default bindings and their place in the held-action walk. |
-| `tests/test_menu_screens.cpp` | The behavioral tests. |
+| `tests/test_menu_screens.cpp` / `tests/test_title_screens.cpp` | The behavioral tests. |
 
 Each handler takes a `GameContext&` (`src/systems/game_context.h`) and reads or writes through it. They
 own no state: the menu selections, the frame timer, and the game state live on `GameFlowState`; the
@@ -110,9 +116,62 @@ kirpich::systems::initTypeADifficultyScreen(game, [](GameContext& g) { /* refres
   themselves are in `include/kirpich/action.h`.
 - **The song mapping** ($1C–$1F → a music cue) is `switchMusic`.
 
+## Title and copyright screens
+
+The states before the config screen: the copyright chain and the title screen. Same shape — free
+functions on `GameContext`, installed on the dispatcher.
+
+```cpp
+namespace kirpich::systems {
+
+// The seam the title screen fires when its attract countdown expires (the demo system fills it).
+using StartDemoHook = std::function<void(GameContext&)>;
+
+void initCopyrightScreen(GameContext& game);   // $24: seed the piece ring, arm the display timer
+void copyrightHold(GameContext& game);         // $25: hold, then advance
+void copyrightSkippable(GameContext& game);    // $35: any press or the timer advances to the title
+void initTitleScreen(GameContext& game);       // $06: reset state, paint the title board, arm the countdown
+void titleScreen(GameContext& game, const StartDemoHook& startDemo = {});  // $07
+
+void installTitleScreenHandlers(GameStateDispatcher& dispatcher);
+
+}
+```
+
+Install both handler sets on the dispatcher and the flow runs from power-on:
+
+```cpp
+kirpich::systems::installTitleScreenHandlers(dispatcher);
+kirpich::systems::installMenuScreenHandlers(dispatcher);
+// each frame: dispatcher.tick(game, heldActions(inputState));
+```
+
+The copyright screens show in sequence, then the title screen; one-player Start there enters the config
+screen. To wire the attract demo, pass a `StartDemoHook` — but the installer registers `titleScreen`
+with the default no-op hook, so the demo system installs its own handler for the title state when it
+lands.
+
+### Gotchas
+
+- **The copyright screens are timed and skippable.** `initCopyrightScreen` arms a 250-frame timer;
+  `copyrightHold` re-arms it and advances; `copyrightSkippable` advances on any newly-pressed input or
+  the timer reaching zero. The timers count down through the dispatcher's per-frame decrement, the same
+  as the cursor blink.
+- **The piece ring is seeded with the 48 demo entries, and no more.** The original over-copies past the
+  demo list; the port copies the 48 real entries and leaves the rest of the ring untouched. The tail is
+  never read.
+- **Heart mode is a non-zero flag.** Holding Down while pressing Start on the title screen sets
+  `flow.heartMode` to a non-zero value; it is read only as zero / non-zero.
+- **The two-player paths are not wired here.** The title screen's serial poll and its two-player Start
+  are link-cable mechanism, left to the serial/multiplayer work; one-player Start, the cursor, and the
+  attract countdown are complete. The demo launch is the `StartDemoHook` seam.
+- **The 1P/2P cursor is the multiplayer flag.** `titleScreen` toggles `multiplayer.isMultiplayer` with
+  Select, moves it one way with Right (1P→2P) and the other with Left (2P→1P), and places OAM object 0
+  accordingly.
+
 ## Build and test
 
 ```
 cmake --build build --parallel
-ctest --test-dir build -R '^MenuScreens\.'
+ctest --test-dir build -R '^MenuScreens\.|^TitleScreens\.'
 ```

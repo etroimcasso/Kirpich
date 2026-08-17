@@ -18,6 +18,7 @@ add_library(kirpich-lib STATIC
     systems/line_clear.cpp
     systems/scoring.cpp
     systems/menu_screens.cpp
+    systems/title_screens.cpp
     vm/piece_random.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
