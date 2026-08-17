@@ -20,6 +20,7 @@ add_library(kirpich-lib STATIC
     systems/menu_screens.cpp
     systems/title_screens.cpp
     systems/gameplay.cpp
+    systems/sound.cpp
     vm/piece_random.cpp
 )
 target_include_directories(kirpich-lib PUBLIC

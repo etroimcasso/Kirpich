@@ -128,6 +128,33 @@ but that decision is entirely inside `audio.asm` (`CheckPlayingTetrisSweep` / `G
 
 ---
 
+## What hosting adds to this boundary
+
+The six interface bytes above are what *game code* reaches when game and driver share one machine.
+Running the driver as a hosted machine of its own widens that in two ways, both recorded here so
+this document stays the whole picture.
+
+**`hDemoNumber` (`$FFE4`) becomes a written interface byte.** The driver reads it (above), but under
+hosting it does not exist in the driver's machine unless the port puts it there. The port therefore
+writes it into that machine every frame. It is an interface byte outside the audio window entirely —
+the seventh byte crossing the boundary, and the only one that is not in `$DF70`–`$DFFF`.
+
+**Driver-private bytes are addressable in principle.** The port declares the bytes it shares by
+address, so nothing structural prevents it from declaring a private one. It does not: the shared set
+is exactly the six above plus `hDemoNumber`, and the port models none of the driver's working state
+as C++. It performs writes into the driver's machine; it does not mirror what is there. The
+"private" adjudication above therefore remains the port's rule, now by discipline rather than by the
+accident of a single shared address space.
+
+**The census guard is unaffected.** `tests/test_audio_state.cpp` scans `tetris.asm` operands, and the
+driver's own accesses live in `audio.asm` and were never in that scan's scope. Hosting changes who
+runs the driver's code, not which addresses the game's code names.
+
+The hosting surface itself — placement, entry points, the two gestures, and the frame ordering they
+must keep — is [`sound-driver.md`](sound-driver.md).
+
+---
+
 ## The surface
 
 - **Parser-emitted** (`tools/asm_parser/parse_wram.py`, `--all`): `tests/fixtures/wram_expected.h` —

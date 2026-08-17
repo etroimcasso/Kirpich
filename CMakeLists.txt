@@ -96,6 +96,13 @@ include(cmake/Dependencies.cmake)
 # ── Targets ───────────────────────────────────────────────────────────────────
 add_subdirectory(src)
 
+# Listening harness for the hosted sound driver — opens a real audio device, so it is built only
+# when asked for and never in CI.
+option(KIRPICH_BUILD_AUDIO_CHECK "Build the sound-driver listening harness (tools/audio_check)" OFF)
+if(KIRPICH_BUILD_AUDIO_CHECK)
+    add_subdirectory(tools/audio_check)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)

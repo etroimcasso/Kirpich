@@ -18,8 +18,8 @@
 // stands apart: it asks the audio tick to re-initialise the driver before it reads the cues (the
 // top-out path re-inits audio, then cues the game-over sound).
 //
-// Until the audio tick is built the fields simply accumulate each frame and are read by tests; the
-// tick that drains and clears them lands with the sound system.
+// The tick that drains this mailbox is SoundSystem::tick (systems/sound.h); it runs once a frame,
+// hands the driver what the frame asked for, and returns every field here to its boot value.
 
 #include <cstdint>
 
