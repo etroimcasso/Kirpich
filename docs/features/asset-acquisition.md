@@ -93,11 +93,11 @@ nothing was written.
 
 ### The distributable ships empty asset directories
 
-The distributable build target empties `assets/gfx/default/` and the byte-span input directory
-before packaging, retaining the `.gitkeep` placeholders so the structure ships. A packaging check
-fails if any byte of development-populated content appears in the artifact.
+The distributable build target empties `assets/gfx/default/` and `assets/audio/default/` before
+packaging, retaining the `.gitkeep` placeholders so the structure ships.
+`scripts/check-distributable-clean.sh` walks both and fails if either holds anything else.
 
-### Extraction — implemented for graphics
+### Extraction
 
 The extractor is part of the game — `src/assets/extract.{h,cpp}`, called by the first-start flow
 with the ROM path the player chose. There is no standalone entry point.
@@ -105,9 +105,18 @@ with the ROM path the player chose. There is no standalone entry point.
 - Verifies the size (exactly 32,768 bytes) and the SHA1
   (`74591cc9501af93873f9a5d3eb12da12c0723bbc`) and refuses anything else before writing a byte.
 - Decodes the four tile-graphics blocks at the offsets the extraction table records and writes
-  the four PNGs to `assets/gfx/default/` — every run rewrites all four.
-- The byte ranges the virtual machine needs — the sound driver and the song and effect data —
-  are extracted by this same module once the audio backend fixes their output path and container.
+  the four PNGs to `assets/gfx/default/`.
+- Copies the sound driver image — the audio section through the end of the ROM, 7040 bytes —
+  to `assets/audio/default/sound_driver.bin`, unchanged.
+
+Every output is prepared in memory before the first file is written, and every run rewrites
+every file.
+
+The driver is one span rather than a file per song because it reaches its own data by absolute
+address: its music pointer table holds raw addresses into the sequence region, and its effect
+tables hold raw addresses of driver routines. The data cannot be separated from the code that
+reads it, so the whole region travels together and the audio system places it at the base it
+came from.
 
 The extraction table (`kTileGraphics`, `src/data/tile_graphics.h`) is generated from the
 disassembly and the ROM; the offsets, the decode, and the file contract are pinned in
@@ -122,8 +131,8 @@ disassembly and the ROM; the offsets, the decode, and the file contract are pinn
   loader: no decode, no renderer, no window, so it runs before anything is constructed.
 - `src/assets/first_start.{h,cpp}` — the first-start flow: the file dialog and the sequencing
   around the extraction call.
-- `src/assets/extract.{h,cpp}` — the extractor: the ROM identity gate, the tile decode, and the
-  writes into `assets/gfx/default/`.
+- `src/assets/extract.{h,cpp}` — the extractor: the ROM identity gate, the tile decode, the
+  sound driver span, and the writes into both asset directories.
 - `src/assets/png_writer.{h,cpp}` — the greyscale PNG serialization the extractor saves with.
 - `scripts/setup-dev-assets.sh` — POSIX shell; run once after cloning.
 - `scripts/setup-dev-assets.ps1` — Windows equivalent; the same source→destination table.
@@ -132,20 +141,26 @@ disassembly and the ROM; the offsets, the decode, and the file contract are pinn
 - `tests/fixtures/tiny_probe.png` — an 8×8 2-bit greyscale PNG authored for this repository and
   derived from nothing, so the load path is tested on every platform with no copyrighted byte and
   no skipped test.
+- `tests/test_driver_image.cpp` — the sound driver span, the entry points, the extracted file, and
+  the presence requirement. Reads the real ROM and fails loudly when it is absent.
 - `assets/gfx/default/.gitkeep` — directory placeholder for tile graphics.
+- `assets/audio/default/.gitkeep` — directory placeholder for the sound driver image.
 
 **Constants:**
 
 - Tile-graphics path: `assets/gfx/default/`
-- Byte-span input path: fixed when the audio backend is built
+- Sound driver path: `assets/audio/default/sound_driver.bin`
+- Sound driver span: the audio section's base through the end of the ROM, 7040 bytes
 - Expected ROM SHA1: `74591cc9501af93873f9a5d3eb12da12c0723bbc`
 
 ## Open questions
 
-- **Byte-span path location and format.** Settled alongside the audio backend work.
 - **Pack model.** Explicitly not planned. If a real case for swappable packs ever appears, it is a
   separate design decision with its own amendment to `../DESIGN.md`.
 
-Settled: extraction rewrites all four files on every run. The flow only reaches extraction when
+Settled: the sound driver travels as one span at the base it came from, because the driver
+addresses its own data absolutely and cannot be split from it.
+
+Settled: extraction rewrites every file on every run. The flow only reaches extraction when
 something is missing, so there is nothing worth skipping, and an unconditional rewrite is the
 simplest behavior that is honest about what is on disk afterwards.

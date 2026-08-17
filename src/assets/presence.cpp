@@ -12,8 +12,8 @@ namespace {
 // below writes its path as a literal at the call site — the path text never lives in a
 // constant, so it stays visible to any textual scan and cannot be referenced from anywhere
 // else. Resolution is a plain join against retropp::assetRoot(), the engine's public
-// runtime base — the engine's prescribed route for names its literal-only path doors
-// cannot take.
+// runtime base — the engine's prescribed route for a name its literal-only path calls
+// cannot accept.
 void checkOne(PresenceResult& result, std::string_view logical) {
     if (!std::filesystem::exists(retropp::assetRoot() / logical)) {
         result.missing.emplace_back(logical);
@@ -28,12 +28,13 @@ PresenceResult checkRequired() {
     checkOne(result, "assets/gfx/default/font.png");
     checkOne(result, "assets/gfx/default/copyrightandtitlescreen.png");
     checkOne(result, "assets/gfx/default/multiplayerandburan.png");
+    checkOne(result, "assets/audio/default/sound_driver.bin");
     return result;
 }
 
 std::string missingAssetsMessage(const PresenceResult& result) {
     std::string message =
-        "Kirpich needs the game's graphics, and they are not here yet.\n"
+        "Kirpich needs the game's graphics and sound, and they are not here yet.\n"
         "\n"
         "They are derived from the Game Boy Tetris ROM, so Kirpich never distributes them —\n"
         "they come from a copy of the game you already own.\n"

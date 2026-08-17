@@ -1,9 +1,10 @@
 #!/bin/sh
 # Assert that no ROM-derived content is present in the asset directories.
 #
-# Kirpich's graphics come from a copyrighted ROM and may never be distributed. A packaged
-# artifact must therefore carry the asset directories EMPTY, structure only — the .gitkeep
-# placeholder and nothing else. This exits non-zero the moment anything else is in there.
+# Kirpich's graphics and its sound driver image both come from a copyrighted ROM and may never
+# be distributed. A packaged artifact must therefore carry the asset directories EMPTY,
+# structure only — the .gitkeep placeholder and nothing else. This exits non-zero the moment
+# anything else is in there.
 #
 # Run it against a packaging staging tree by passing that tree's root:
 #
@@ -19,7 +20,7 @@ root=${1:-$(CDPATH= cd -- "$script_dir/.." && pwd)}
 
 status=0
 
-for directory in "$root/assets/gfx/default"; do
+for directory in "$root/assets/gfx/default" "$root/assets/audio/default"; do
     if [ ! -d "$directory" ]; then
         echo "error: expected asset directory is absent: $directory" >&2
         echo "       the structure ships even when the content does not." >&2

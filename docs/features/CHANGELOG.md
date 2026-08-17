@@ -8,6 +8,16 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-17
+
+- **Asset acquisition** ✅ → ✅ (scope). First start now extracts the game's sound driver as well as
+  its graphics. The driver image is the audio section through the end of the ROM, copied out
+  unchanged to `assets/audio/default/sound_driver.bin` and required by the startup presence check.
+  It travels as one span rather than a file per song because the driver reaches its own music and
+  effect data by absolute address, so the data cannot be separated from the code that reads it. The
+  packaging check now walks both asset directories, so neither kind of ROM-derived content can reach
+  a distributable.
+
 ## 2026-08-16
 
 - **Gameplay session** ⬜ → ✅. A solo round now runs end to end. Seven per-state handlers in
