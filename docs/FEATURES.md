@@ -17,7 +17,7 @@ chronologically; this file holds current state.
 | Retro++ engine adoption | ✅ | [`features/engine-adoption.md`](features/engine-adoption.md) |
 | Logging | ✅ | — (spdlog used directly; no wrapper) |
 | Platform abstraction facade | ❌ | — (superseded by engine adoption 2026-08-03) |
-| Asset acquisition | ✅ | [`features/asset-acquisition.md`](features/asset-acquisition.md) — audio byte spans ride the audio backend |
+| Asset acquisition | ✅ | [`features/asset-acquisition.md`](features/asset-acquisition.md) — graphics and the sound driver image |
 | ROM extraction tool | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) — graphics; audio byte spans ride the audio backend |
 | Continuous integration | ⬜ | [`features/ci.md`](features/ci.md) |
 | Distributable build | ⬜ | [`features/distributable-build.md`](features/distributable-build.md) |

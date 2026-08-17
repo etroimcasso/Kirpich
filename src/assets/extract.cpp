@@ -16,10 +16,8 @@ namespace {
 
 namespace fs = std::filesystem;
 
-// The one ROM this extractor reads. Anything else — other revisions, other regions, headered or
-// modified dumps — is refused outright: a near-miss ROM would decode to subtly wrong graphics,
-// which is exactly the failure the identity gate exists to prevent.
-constexpr std::size_t kRomSize = 32768;
+// How the one ROM this extractor reads identifies itself. Its size is public (extract.h, where the
+// driver span is defined against it); the hash and the display name are only needed here.
 constexpr std::string_view kRomSha1 = "74591cc9501af93873f9a5d3eb12da12c0723bbc";
 constexpr std::string_view kRomName = "Tetris (World) (Rev 1)";
 
@@ -55,6 +53,18 @@ void decode1bppTile(std::span<const std::uint8_t> tile, std::vector<std::uint8_t
                 static_cast<std::uint8_t>(1 - ((byte >> bit) & 1));
         }
     }
+}
+
+// Create one output directory under the asset root. Returns a player-facing message when it cannot
+// be created, and an empty string when it exists afterwards.
+std::string ensureDirectory(const fs::path& path) {
+    std::error_code error;
+    fs::create_directories(path, error);
+    if (error) {
+        return "The asset directory (" + path.string() + ") could not be created: " +
+               error.message() + "\nNothing was extracted.";
+    }
+    return {};
 }
 
 ExtractionResult refused(std::string why) {
@@ -172,6 +182,10 @@ DecodedGraphic decodeTileGraphic(std::span<const std::uint8_t> rom, const TileGr
     return out;
 }
 
+std::span<const std::uint8_t> soundDriverImage(std::span<const std::uint8_t> rom) {
+    return rom.subspan(kSoundDriverImageBase, kSoundDriverImageSize);
+}
+
 ExtractionResult extractFromRom(const std::filesystem::path& romPath) {
     // Identify before anything is decoded, refuse before anything is written.
     std::ifstream in{romPath, std::ios::binary};
@@ -190,56 +204,60 @@ ExtractionResult extractFromRom(const std::filesystem::path& romPath) {
                        ") is not the expected ROM (its SHA-1 is " + actualSha1 + ").");
     }
 
-    // Decode and encode every block in memory before the first file is written, so a failure
-    // partway cannot leave a half-populated install behind.
+    // Prepare every output in memory before the first file is written, so a failure partway cannot
+    // leave a half-populated install behind. Each path is spelled here, at its use site, matching
+    // the literals in presence.cpp.
     struct PendingFile {
-        std::string_view          fileName;
-        std::vector<std::uint8_t> png;
+        std::string               logical;  // asset-root-relative, as the presence check names it
+        std::vector<std::uint8_t> bytes;
     };
     std::vector<PendingFile> pending;
-    pending.reserve(kTileGraphics.size());
+    pending.reserve(kTileGraphics.size() + 1);
     for (const TileGraphic& graphic : kTileGraphics) {
         const DecodedGraphic decoded = decodeTileGraphic(rom, graphic);
         const int bitDepth = (graphic.format == TileGraphicFormat::OneBpp) ? 1 : 2;
-        pending.push_back({graphic.fileName,
+        pending.push_back({std::string{"assets/gfx/default/"} + std::string{graphic.fileName},
                            writeGreyscalePng(decoded.indices, decoded.width, decoded.height,
                                              bitDepth)});
     }
 
-    // Write into the directory the presence check reads. The directory path is spelled here, at
-    // its use site, matching the literals in presence.cpp.
-    const fs::path directory = retropp::assetRoot() / "assets/gfx/default";
-    std::error_code dirError;
-    fs::create_directories(directory, dirError);
-    if (dirError) {
-        return {.succeeded = false,
-                .message   = "The asset directory (" + directory.string() +
-                             ") could not be created: " + dirError.message() +
-                             "\nNo graphics were extracted."};
+    // The sound driver goes out verbatim: the machine that runs it wants the cartridge's own bytes,
+    // so there is nothing to decode or re-encode.
+    const std::span<const std::uint8_t> driver = soundDriverImage(rom);
+    pending.push_back({"assets/audio/default/sound_driver.bin",
+                       std::vector<std::uint8_t>{driver.begin(), driver.end()}});
+
+    if (std::string error = ensureDirectory(retropp::assetRoot() / "assets/gfx/default");
+        !error.empty()) {
+        return {.succeeded = false, .message = std::move(error)};
+    }
+    if (std::string error = ensureDirectory(retropp::assetRoot() / "assets/audio/default");
+        !error.empty()) {
+        return {.succeeded = false, .message = std::move(error)};
     }
 
     std::string written;
     for (const PendingFile& file : pending) {
-        const fs::path destination = directory / file.fileName;
+        const fs::path destination = retropp::assetRoot() / file.logical;
         std::ofstream outFile{destination, std::ios::binary | std::ios::trunc};
-        outFile.write(reinterpret_cast<const char*>(file.png.data()),
-                      static_cast<std::streamsize>(file.png.size()));
+        outFile.write(reinterpret_cast<const char*>(file.bytes.data()),
+                      static_cast<std::streamsize>(file.bytes.size()));
         if (!outFile) {
             spdlog::error("Extraction failed writing {}", destination.string());
             return {.succeeded = false,
                     .message   = "Extraction failed while writing " + destination.string() +
-                                 " - the graphics are incomplete and Kirpich cannot start. Check "
-                                 "that the directory is writable and try again."};
+                                 " - the extracted files are incomplete and Kirpich cannot start. "
+                                 "Check that the directory is writable and try again."};
         }
         written += "  ";
-        written += file.fileName;
+        written += file.logical;
         written += '\n';
     }
 
     return {
         .succeeded = true,
-        .message   = "Extracted the game's graphics from your ROM into " + directory.string() +
-                     ":\n" + written +
+        .message   = "Extracted what Kirpich needs from your ROM into " +
+                     retropp::assetRoot().string() + ":\n" + written +
                      "Your ROM was only read - it was not copied, moved, or altered.",
     };
 }

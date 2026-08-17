@@ -3,11 +3,12 @@
 #include <string>
 #include <vector>
 
-// The startup presence check for Kirpich's required graphics.
+// The startup presence check for the files Kirpich requires: the game's graphics and the
+// sound driver's image.
 //
 // This is NOT a loader. Kirpich loads through the engine's own asset surface; nothing here
-// decodes an image, touches a renderer, or needs a window, so the check runs before
-// anything is constructed.
+// decodes an image, places a driver, touches a renderer, or needs a window, so the check runs
+// before anything is constructed.
 //
 // There is deliberately no path constant in this header — no manifest array, no named
 // kFont. Asset paths are never stored in variables, in any form: the engine's build scan
@@ -16,10 +17,11 @@
 // Every required path is written out as a literal inside checkRequired()
 // (src/assets/presence.cpp), and every future load site spells its own literal in place.
 //
-// Kirpich's graphics are derived from a copyrighted ROM and are never committed or
-// shipped. assets/gfx/default/ is empty in the repository; its contents arrive from the
-// first-start ROM extraction or from scripts/setup-dev-assets during development. Both
-// routes write the same files to the same place, so this one check covers both.
+// Kirpich's graphics and its sound driver image are both derived from a copyrighted ROM and
+// are never committed or shipped. assets/gfx/default/ and assets/audio/default/ are empty in
+// the repository; their contents arrive from the first-start ROM extraction or from
+// scripts/setup-dev-assets during development. Both routes write the same files to the same
+// places, so this one check covers both.
 
 namespace kirpich::assets {
 

@@ -1,8 +1,8 @@
 # Assets
 
-Kirpich ships with no graphics. They are derived from the Game Boy Tetris ROM, so they are
-never committed and never distributed — the player supplies them from a copy of the game
-they own, and the game reads what it needs out of it on first launch.
+Kirpich ships with no graphics and no sound. Both are derived from the Game Boy Tetris ROM,
+so they are never committed and never distributed — the player supplies them from a copy of
+the game they own, and the game reads what it needs out of it on first launch.
 
 This page covers the code that makes that work: the manifest of what is required, the check
 that runs at startup, the flow that acquires the files when they are absent, and the gate
@@ -10,17 +10,21 @@ that keeps them out of a packaged build.
 
 ## The model
 
-There is one canonical location for graphics — `assets/gfx/default/` — and two routes that
-populate it:
+There are two canonical locations, and two routes that populate them:
 
-- **Development.** `scripts/setup-dev-assets.sh` (or `.ps1` on Windows) copies the four
-  PNGs out of the sibling disassembly checkout.
-- **Player.** The first-start flow asks for a ROM and extracts them.
+| Location | Holds |
+|---|---|
+| `assets/gfx/default/` | the four graphics PNGs |
+| `assets/audio/default/` | `sound_driver.bin`, the game's sound driver image |
 
-Both routes write the same files to the same place, so there is no development branch in
+- **Development.** `scripts/setup-dev-assets.sh` (or `.ps1` on Windows) copies what it can
+  out of the sibling disassembly checkout.
+- **Player.** The first-start flow asks for a ROM and extracts everything from it.
+
+Both routes write the same files to the same places, so there is no development branch in
 the load path — a developer's daily run exercises exactly the code a player's install does.
 
-The directory is committed as an empty placeholder (`.gitkeep`) and its contents are
+Each directory is committed as an empty placeholder (`.gitkeep`) and its contents are
 gitignored.
 
 ## Asset paths are literals at their use sites — there is no path constant anywhere
@@ -42,10 +46,12 @@ Concretely, in this codebase:
 - A path known only at runtime — the player's ROM from the file picker — never appears at an
   engine load call. The extractor opens and reads that file itself.
 
-**To add a required graphic:** add a `checkOne(result, "assets/gfx/default/<name>.png")`
-line in `checkRequired()`, then add the same literal to the expected-order assertion in
+**To add a required file:** add a `checkOne(result, "<logical path>")` line in
+`checkRequired()`, then add the same literal to the expected-order assertion in
 `tests/test_asset_presence.cpp` — that test is the drift alarm between the check and the
-suite, and it stays red until both agree.
+suite, and it stays red until both agree. If the file is ROM-derived, also confirm its
+directory is one the distributable guard walks (see
+[Keeping ROM-derived bytes out of a build](#keeping-rom-derived-bytes-out-of-a-build)).
 
 ## The presence check
 
@@ -167,14 +173,41 @@ Three things about it constrain how it can be used:
 ### Extraction
 
 `extractFromRom` (`src/assets/extract.h`) identifies the ROM — exact size and SHA1, refusing
-anything else before a byte is written — decodes the four graphics blocks in memory, and writes
-the four PNGs at the manifest's paths. Every run rewrites all four files. Its messages are
-player-facing in both directions: what was written and where, or why the file was refused and
-that nothing was written.
+anything else before a byte is written — then produces every required file. It prepares all of
+them in memory first, so a failure partway cannot leave a half-populated install, and every run
+rewrites every file. Its messages are player-facing in both directions: what was written and
+where, or why the file was refused and that nothing was written.
 
-The extraction table, the decode, the PNG serialization, and how to regenerate the table are on
-[tile-graphics.md](tile-graphics.md); the behavioral specification both population routes share
-is [`../contracts/tile-graphics.md`](../contracts/tile-graphics.md).
+Two kinds of output come out of one pass:
+
+- **The four graphics.** Each block is decoded and serialized as a greyscale PNG. The extraction
+  table, the decode, the PNG serialization, and how to regenerate the table are on
+  [tile-graphics.md](tile-graphics.md); the behavioral specification both population routes
+  share is [`../contracts/tile-graphics.md`](../contracts/tile-graphics.md).
+- **The sound driver image.** `soundDriverImage()` returns a view of the ROM span the driver
+  occupies, and those bytes are copied out unchanged — the machine that runs the driver wants
+  exactly what the cartridge held, so there is nothing to decode.
+
+```cpp
+namespace kirpich::assets {
+
+inline constexpr std::size_t kSoundDriverImageBase;   // the audio section's base
+inline constexpr std::size_t kSoundDriverImageEnd;    // the end of the ROM
+inline constexpr std::size_t kSoundDriverImageSize;   // 7040 bytes
+inline constexpr std::size_t kSoundDriverTickEntry;   // run once per frame
+inline constexpr std::size_t kSoundDriverInitEntry;   // run once at start
+
+std::span<const std::uint8_t> soundDriverImage(std::span<const std::uint8_t> rom);
+
+}
+```
+
+The image is a single span rather than one file per song, because the driver reaches its own
+data by absolute address: its music pointer table holds raw addresses into the sequence region,
+and its effect tables hold raw addresses of driver routines. Separating the data from the code
+that reads it would only work if every piece were placed back at the address it came from, so
+the span carries all of it. The unused padding between the driver's last data and its two entry
+trampolines is inert — the driver never executes or reads it.
 
 ## Loading
 
@@ -189,8 +222,9 @@ from loading, and it stays that way.
 
 ## Keeping ROM-derived bytes out of a build
 
-`scripts/check-distributable-clean.sh` exits non-zero if `assets/gfx/default/` holds
-anything but `.gitkeep`:
+`scripts/check-distributable-clean.sh` walks every directory that holds ROM-derived content —
+`assets/gfx/default/` and `assets/audio/default/` — and exits non-zero if either holds anything
+but `.gitkeep`. A new ROM-derived directory is added to the loop at the top of the script:
 
 ```
 scripts/check-distributable-clean.sh /path/to/staged/package
@@ -205,12 +239,19 @@ apart, not a problem to fix.
 The real graphics are gitignored and absent from CI, so no test may depend on them. Tests
 use `tests/fixtures/tiny_probe.png` instead — an 8×8 2-bit greyscale PNG authored for this
 repository and derived from nothing, where pixel (x, y) has sample value `(x + y) % 4`. It
-is the same encoding family as the real assets, so it exercises the same decode path.
+is the same encoding family as the real assets, so it exercises the same decode path. The
+presence check is existence-only, so the same probe stands in for any required file
+regardless of its real format — the sound driver image included.
 
 `tests/test_asset_presence.cpp` points the asset root at a scratch directory, populates it
 with whatever subset a case needs, and asserts exactly which paths come back missing. The
 root is restored afterwards; it is process-global state, so a test that sets it must put it
 back.
+
+`tests/test_driver_image.cpp` covers the driver span itself. It reads the real ROM — resolved
+from the CI provisioning path, then the development sibling — and fails loudly when neither is
+present, because a missing ROM is a provisioning failure rather than a reason to skip. It
+extracts into a scratch root, never the real asset tree.
 
 This is why there is no skip-if-absent test anywhere in this area: a skipped test reports
 green while verifying nothing.

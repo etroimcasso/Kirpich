@@ -58,7 +58,8 @@ public:
     // Place the probe PNG at a logical asset path beneath this root, creating parents.
     // Callers write the path as a literal at the call site — the same no-path-constants
     // rule the shipped code follows, so the strings in this file stay greppable against
-    // the ones in presence.cpp.
+    // the ones in presence.cpp. The check is existence-only, so the probe stands in for
+    // any required file regardless of its real format — the sound driver image included.
     void place(std::string_view logical) const {
         const fs::path destination = path_ / logical;
         fs::create_directories(destination.parent_path());
@@ -82,6 +83,7 @@ TEST(AssetPresence, ReportsNothingMissingWhenEveryRequiredAssetIsPresent) {
     root.place("assets/gfx/default/font.png");
     root.place("assets/gfx/default/copyrightandtitlescreen.png");
     root.place("assets/gfx/default/multiplayerandburan.png");
+    root.place("assets/audio/default/sound_driver.bin");
     const ScopedAssetRoot scoped{root.path()};
 
     const kirpich::assets::PresenceResult result = kirpich::assets::checkRequired();
@@ -97,6 +99,7 @@ TEST(AssetPresence, NamesExactlyTheOneAssetThatIsAbsent) {
     root.place("assets/gfx/default/configandgameplay.png");
     root.place("assets/gfx/default/copyrightandtitlescreen.png");
     root.place("assets/gfx/default/multiplayerandburan.png");
+    root.place("assets/audio/default/sound_driver.bin");
     const ScopedAssetRoot scoped{root.path()};
 
     const kirpich::assets::PresenceResult result = kirpich::assets::checkRequired();
@@ -113,13 +116,14 @@ TEST(AssetPresence, NamesEveryAssetInOrderWhenTheRootIsEmpty) {
 
     EXPECT_FALSE(result.complete());
     // The full required set, in reporting order. This assertion is the required set's home
-    // in the test suite: adding a graphic in presence.cpp turns it red until the new path
-    // is added here too, which is exactly the drift alarm it exists to be.
+    // in the test suite: adding a required file in presence.cpp turns it red until the new
+    // path is added here too, which is exactly the drift alarm it exists to be.
     EXPECT_EQ(result.missing, (std::vector<std::string>{
                                   "assets/gfx/default/configandgameplay.png",
                                   "assets/gfx/default/font.png",
                                   "assets/gfx/default/copyrightandtitlescreen.png",
                                   "assets/gfx/default/multiplayerandburan.png",
+                                  "assets/audio/default/sound_driver.bin",
                               }));
 }
 
@@ -135,6 +139,7 @@ TEST(AssetPresence, MissingMessageListsThePathsAndExplainsTheRomFlow) {
     EXPECT_NE(message.find("assets/gfx/default/font.png"), std::string::npos);
     EXPECT_NE(message.find("assets/gfx/default/copyrightandtitlescreen.png"), std::string::npos);
     EXPECT_NE(message.find("assets/gfx/default/multiplayerandburan.png"), std::string::npos);
+    EXPECT_NE(message.find("assets/audio/default/sound_driver.bin"), std::string::npos);
 
     // And it explains that Kirpich is about to ask for the ROM, rather than sending the
     // player away to run a tool.
