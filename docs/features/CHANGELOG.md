@@ -10,6 +10,30 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-17
 
+- **Chiptune audio backend** ⬜ → ✅. The port makes sound. The game's original sound driver is hosted
+  as a resident machine on the engine's audio system — one image placed where the cartridge held it,
+  its per-frame entry run by the engine at the console's clock — and `src/systems/sound.{h,cpp}` hands
+  it each frame's requests, draining the cue mailbox that gameplay has been filling since the piece
+  system landed. Six bytes are shared with the driver: the pause command, the three effect mailboxes,
+  the current-song read-back, and the demo gate. The gate is the one byte outside the driver's own RAM
+  window, and it is republished every frame so a running attract demo cannot start making noise.
+  Initialising the driver is performed as a direct call rather than a request left in memory, which
+  keeps it ahead of the frame's sounds — arriving after them, it would silence the game-over sound on
+  the frame the top-out started it. Sound effects have no separate play lane; all three channels are
+  mailboxes. Anti-channel-stealing remains unbuilt and is an engine capability, so channel stealing
+  happens exactly as it did on hardware.
+
+  The driver's image turned out not to be self-sufficient: it depends on three things the game's
+  startup does and the audio section does not carry — the sound hardware switched on and routed at
+  volume, the stack placed clear of the driver's own memory, and its work RAM cleared. Hosted without
+  them the driver runs, advances its bookkeeping and reports a song playing while producing silence;
+  with the stack left at the top of work RAM its per-pass pushes overwrite its own noise mailbox, so
+  one channel fails while the rest work. `src/vm/audio_boot.asm` performs all three as machine code
+  before calling the driver's own initialisation — the hardware writes have to be executed by the
+  machine, because setting those bytes from outside powers nothing on. Ships with a listening and
+  measuring harness (`tools/audio_check/`, off by default, never in CI) that counts non-silent output,
+  which is what found all three.
+
 - **Asset acquisition** ✅ → ✅ (scope). First start now extracts the game's sound driver as well as
   its graphics. The driver image is the audio section through the end of the ROM, copied out
   unchanged to `assets/audio/default/sound_driver.bin` and required by the startup presence check.
