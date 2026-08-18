@@ -37,22 +37,40 @@ scripts/setup-dev-assets.sh
 
 | Target | What it is |
 |---|---|
-| `kirpich-lib` | Static library holding everything except `main()`. Links `retropp::engine` and `spdlog::spdlog_header_only` publicly, so anything linking it sees both surfaces. |
+| `kirpich-lib` | Static library holding everything except `main()`. Links `retropp::engine` and `spdlog::spdlog_header_only` publicly, so anything linking it sees both surfaces. Consumers must whole-archive it — see [Linking `kirpich-lib`](#linking-kirpich-lib). |
 | `kirpich` | The executable. `main.cpp` plus `kirpich-lib`. |
 | `kirpich-tests` | GoogleTest runner, registered with CTest. |
 
 `main()` is deliberately kept out of the library so the tests can link the whole port
 without pulling in a second entry point.
 
+### Linking `kirpich-lib`
+
+**Both consumers whole-archive it**, and anything new that links it must too:
+
+```cmake
+target_link_libraries(<target> PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,kirpich-lib>")
+```
+
+The library carries the virtual-machine routines that are baked into the binary at build time. They
+are registered by a generated translation unit whose entire content is a static initializer, and
+nothing references it — so under a normal archive link the linker discards that object and every
+baked routine with it. The program then falls back to reading the `.asm` from the asset root, which
+succeeds inside a source tree and throws anywhere else, aborting at startup on the first routine
+registration.
+
+`tests/test_embedded_routines.cpp` is the guard: it points the asset root at an empty directory and
+registers both routines, so it fails if they are ever pruned again. The test binary links the same
+way the executable does for exactly that reason — a suite linked differently could not catch a
+linkage defect in the program.
+
+This is a workaround for engine behaviour and is expected to come out; both call sites say so.
+
 ### `kirpich::Engine`
 
-The port's top-level object, in `src/engine.{h,cpp}`. One instance owns the game's runtime
-state and drives it through the engine's run loop. It is non-copyable and non-movable — a
-unique runtime owner rather than a value, so an accidental copy is a compile error.
-
-It is currently a skeleton: default-constructed, holding nothing and doing nothing.
-`main()` constructs one to prove the wiring. State, systems, and rendering arrive here as
-those layers are written, and this section grows with them.
+A skeleton in `src/engine.{h,cpp}` — non-copyable, non-movable, holding nothing and doing nothing.
+Nothing constructs it: `main()` composes the dispatcher, the systems, and the render bridge
+directly. It is a placeholder for a top-level owner that has not been needed yet.
 
 Test sources are globbed with `CONFIGURE_DEPENDS`, so **adding a `.cpp` under `tests/`
 requires no CMake edit** — it is picked up on the next build. Cases register with CTest
