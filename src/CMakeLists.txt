@@ -20,6 +20,7 @@ add_library(kirpich-lib STATIC
     systems/menu_screens.cpp
     systems/title_screens.cpp
     systems/gameplay.cpp
+    systems/type_b_ending.cpp
     systems/sound.cpp
     vm/piece_random.cpp
     vm/garbage_fill.cpp

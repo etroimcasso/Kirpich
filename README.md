@@ -13,8 +13,9 @@ layer.
 
 The data and state layers are complete, and the game logic is well along: a solo round is written end to
 end — pieces move, lines clear, the score keeps, the pre-game menus run, and the game's own sound driver
-runs on the engine's emulated audio unit and is audible. What remains is two-player play, the
-attract-mode demo, the bonus-ending scenes and top-score entry, and the rendering and frame wiring that
+runs on the engine's emulated audio unit and is audible. A Type B round plays through in full, from the
+garbage it starts under to the scoreboard it ends on. What remains is two-player play, the attract-mode
+demo, the rocket and Buran launch scenes and top-score entry, and the rendering and frame wiring that
 put a picture on screen — until those land, the binary reports its engine version and exits.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
@@ -35,7 +36,9 @@ wall shift, collision, and locking), the line-clear pipeline (detection, flash, 
 row-by-row field wipe), scoring (the live award, the end-of-round count-up, and level-up), the full
 pre-game flow — the copyright and title screens and the game-type, music, and difficulty menus — and the
 round itself: the shared init both game types and the attract demo enter through, the per-frame gameplay
-loop that composes the piece, line-clear, and scoring systems, the pause, and the game-over chain.
+loop that composes the piece, line-clear, and scoring systems, the pause, and the game-over chain. A
+Type B round adds the garbage it starts buried under and the win chain it ends on — the scoreboard, and
+the dance the hardest level earns first.
 
 **The sound.** The game's original sound driver runs as a resident machine on the engine's audio unit —
 the cartridge's own code, at the cartridge's own addresses — and gameplay asks it for music and effects
@@ -58,6 +61,7 @@ The table below is kept honest as components land.
 | Scoring | **complete** — the live line-clear award, the end-of-round count-up, and level-up |
 | Pre-game screens | **complete** — the copyright and title screens and the game-type, music, and difficulty menus |
 | In-round gameplay states | **complete** — the shared round init, the per-frame gameplay loop, the pause, and the game-over chain |
+| Type B round | **complete** — the starting garbage, and the win chain: the scoreboard and the dance the hardest level earns |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
 | Attract-mode demo | not started — the recorded inputs and piece list are ported |
 | Rendering | not started — the bridge from game state to the engine's renderer |
