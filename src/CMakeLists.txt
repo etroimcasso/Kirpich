@@ -21,7 +21,10 @@ add_library(kirpich-lib STATIC
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp
+    systems/screen.cpp
     systems/sound.cpp
+    render/tile_atlas.cpp
+    render/background.cpp
     vm/piece_random.cpp
     vm/garbage_fill.cpp
 )

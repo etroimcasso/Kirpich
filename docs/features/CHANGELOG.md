@@ -8,6 +8,26 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-18
+
+- **Background rendering** ⬜ → 🟡. Kirpich opens a window. Every screen handler had dropped its
+  backdrop load; those are restored, and because the board is the port's model of the background map,
+  they go back into the board exactly as they went into that map on hardware — so the picture is a
+  pure function of state that already shipped. A new one-field `DisplayState` carries which tile art
+  is loaded, which is real machine state (an index names different pictures under the two sets) that
+  the original records nowhere. Backgrounds draw: the screens, the menus, the field with its walls and
+  panel, the blocks as they stack, the game-over text, the Type B scoreboard. Sprites do not, so the
+  falling piece, the preview, the cursors and the dancers are invisible. Three further differences are
+  recorded rather than approximated: the paused screen (a second background map the port does not
+  model), the wipe's row-by-row sweep, and the palette effects.
+- **Tilemap loader** ⬜ → ✅. The backdrop stamp and the tile-art selection, restored at every solo
+  screen. The window form of the original's loader serves only the second background map.
+- **Entry point and platform init** ⬜ → ✅, **Bootstrap and main loop** ⬜ → ✅. The entry point is a
+  real host: it configures the engine, checks the assets, builds the platform and renderer, registers
+  the piece randomizer and the garbage fill on one shared virtual machine, uploads the art, installs
+  every state handler, and runs two run-loop callbacks. The original's own startup routine is
+  substituted, not ported.
+
 ## 2026-08-17
 
 - **Type-B gameplay** ⬜ → ✅. A won Type B round no longer dead-ends. The line-clear terminal already

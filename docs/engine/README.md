@@ -53,6 +53,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [menu-screens.md](menu-screens.md) | The whole pre-game flow — the copyright and title screens, the config screen, the game-type and music-type selectors, and the Type A / Type B difficulty pickers; the menu action vocabulary, the shared cursor placement and blink, the attract countdown and top-score refresh seams, where they live, and what to edit to change a screen's input law, the cursor positions, or the bindings. |
 | [sound-driver.md](sound-driver.md) | How the game makes sound — the game's original sound driver hosted as a resident machine, the registration that describes it (image placement, entry points, the six bytes it shares with the game), the per-frame decision that turns the cue mailbox into requests, the ordering that keeps an initialisation from silencing the sound beside it, where they live, and what to edit to change the placement, the shared bytes, or what a frame asks for. |
 | [gameplay.md](gameplay.md) | The states a round passes through — the shared init for both game types and the attract demo, the twelve-step gameplay frame, the pause (shared with two-player) and its cue mailbox, the game-over chain and its rocket endings, and the Type B results re-arm; the wiring the handlers need, where they live, and what to edit to change a round's starting conditions, the frame's step order, or the pause law. |
+| [rendering.md](rendering.md) | How the game gets a picture — the two calls a screen makes to set its background up (stamping a stored backdrop into the board, choosing the tile art), the bridge that resolves a board cell's tile index to a picture and submits the visible 20 × 18 as one layer, and the host that ties the program together; where they live, and what to edit to change a screen's backdrop, what an index draws, the colours, or what startup does. |
 | [type-b-ending.md](type-b-ending.md) | What a won Type B round shows — the scoreboard that totals the round, and the dance the hardest level earns first; the two field-shaped screens and the wipe they arm, the per-performer animation and the one performer who jumps, the query that holds the dance until its jingle ends, where they live, and what to edit to change the hold timings, the animation speeds, or how many performers a starting height reveals. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
@@ -60,14 +61,18 @@ surface is small enough that a flat list is easier to scan.
 
 ## Status
 
-Kirpich is early. What exists today is the build, the engine wiring, the asset pipeline —
-including the extractor that produces the graphics from a player's ROM — the full data
-layer, the full state layer, and the systems layer so far: the piece randomizer, the input
-layer, the game-state dispatcher framework, the piece system, the line-clear pipeline, the
-scoring pipeline, the whole pre-game flow, the gameplay session, the Type B starting garbage,
-the Type B ending, and the sound, which hosts the game's own driver and is audible. A solo
-round now runs end to end — from the title screen, through play, to the game-over screen on a
-loss or the scoreboard on a Type B win. Two-player play, the demo, the rocket and Buran
-ending scenes, top-score entry, and the rendering layer are not written yet. Pages appear as
-their surfaces do, so an area missing from the index above is an area that does not exist
-yet rather than one that is undocumented.
+Kirpich is early, but it now opens a window. What exists today is the build, the engine
+wiring, the asset pipeline — including the extractor that produces the graphics from a
+player's ROM — the full data layer, the full state layer, and the systems layer so far: the
+piece randomizer, the input layer, the game-state dispatcher framework, the piece system,
+the line-clear pipeline, the scoring pipeline, the whole pre-game flow, the gameplay
+session, the Type B starting garbage, the Type B ending, and the sound, which hosts the
+game's own driver and is audible. A solo round runs end to end — from the title screen,
+through play, to the game-over screen on a loss or the scoreboard on a Type B win.
+
+Backgrounds draw: the screens, the menus, the playing field, and the blocks as they stack.
+Sprites do not, so the falling piece, the next-piece preview, the menu cursors, and the
+ending's dancers are invisible. Two-player play, the demo, the rocket and Buran ending
+scenes, top-score entry, the palette effects, and the display filters are not written yet.
+Pages appear as their surfaces do, so an area missing from the index above is an area that
+does not exist yet rather than one that is undocumented.

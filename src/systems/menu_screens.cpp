@@ -13,11 +13,14 @@
 #include "data/misc.h"
 #include "data/scene_sprites.h"
 #include "data/sfx.h"
+#include "data/tilemaps.h"  // kConfigScreenTilemap, kTypeADifficultyTilemap, kTypeBDifficultyTilemap
 #include "retropp/input.h"  // actionId
+#include "state/display_state.h"
 #include "state/engine_state.h"
 #include "state/sprite_renderer_state.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
+#include "systems/screen.h"  // loadScreenTilemap, loadTileSheet
 
 namespace kirpich::systems {
 
@@ -127,10 +130,12 @@ void clearOamObjects(EngineState& engine) {
 
 void loadConfigScreenBody(GameContext& game) {
     // GameState_08 .loadTiles (tetris.asm:3121-3148), entered directly by the demo-start and two-player
-    // paths as well as by the config-screen state. The tile / tilemap loads and the LCD-on step are
-    // render mechanism (the renderer owns VRAM); the simulation effects are the object-buffer clear,
-    // the two cursor sprites, placing the music-type cursor (slot 0) and the game-type cursor (slot 1),
-    // the music cue, and the transition into game-type selection.
+    // paths as well as by the config-screen state. The LCD-on step is render mechanism; everything else
+    // is the art and backdrop loads, the object-buffer clear, the two cursor sprites, placing the
+    // music-type cursor (slot 0) and the game-type cursor (slot 1), the music cue, and the transition
+    // into game-type selection.
+    loadTileSheet(game.display, TileSheet::GAMEPLAY);        // LoadGameplayTiles (:3123)
+    loadScreenTilemap(game.field, kConfigScreenTilemap);     // (:3124-3125)
     clearOamObjects(game.engine);
     loadSceneSprites(game.spriteRenderer, configScreenSprites());  // Data_26CF: 2 markers + terminator
 
@@ -241,12 +246,14 @@ void selectMusicType(GameContext& game) {
 }
 
 void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refresh) {
-    // GameState_10 (tetris.asm:3317-3342): set up the Type A difficulty screen. The tilemap load and
-    // the LCD-on step are render mechanism, and the top-score-field clear and the draw-to-VRAM are
-    // top-score render seams (no simulation effect here). The simulation effects are clearing the
-    // object buffer, loading the one digit cursor, placing it at the chosen level (which cues the
-    // menu-move sound), and refreshing the Type A top scores. Level selection is entered next — unless
-    // the just-finished game earned a top score, which routes straight to name entry.
+    // GameState_10 (tetris.asm:3317-3342): set up the Type A difficulty screen. The LCD-on step is
+    // render mechanism, and the top-score-field clear and the draw-to-VRAM are top-score render seams
+    // (no simulation effect here). The rest is the backdrop, clearing the object buffer, loading the
+    // one digit cursor, placing it at the chosen level (which cues the menu-move sound), and refreshing
+    // the Type A top scores. Level selection is entered next — unless the just-finished game earned a
+    // top score, which routes straight to name entry. No art load here: the config screen this is
+    // entered from already loaded the gameplay set, and the original does not reload it (:3318-3320).
+    loadScreenTilemap(game.field, kTypeADifficultyTilemap);  // (:3319-3320)
     clearOamObjects(game.engine);  // ClearTopScoreFields is a top-score render seam (no sim effect)
     loadSceneSprites(game.spriteRenderer, typeADifficultySprites());  // Data_26DB: 1 digit cursor
 
@@ -300,6 +307,7 @@ void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // GameState_12 (tetris.asm:3408-3441): the Type B difficulty screen, with two digit cursors — the
     // level (slot 0) and the starting garbage height (slot 1). Same shape as the Type A init, but with
     // no separate top-score-field clear (the Type B refresh does its own) and two cursors seeded.
+    loadScreenTilemap(game.field, kTypeBDifficultyTilemap);  // (:3410-3411)
     clearOamObjects(game.engine);
     loadSceneSprites(game.spriteRenderer, typeBDifficultySprites());  // Data_26E1: 2 digit cursors
 

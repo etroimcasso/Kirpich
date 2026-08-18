@@ -15,7 +15,7 @@
 #include "data/music.h"      // MusicId
 #include "data/playing_field.h"
 #include "data/scoring.h"    // rocketSpriteForScore
-#include "data/tilemaps.h"   // kGameOverTilemap, kTryAgainTilemap
+#include "data/tilemaps.h"   // kGameOverTilemap, kTryAgainTilemap, the two gameplay backdrops
 #include "retropp/input.h"   // actionId
 #include "state/playing_field_state.h"
 #include "state/sprite_renderer_state.h"
@@ -24,6 +24,7 @@
 #include "systems/line_clear.h"    // checkForCompletedRows, moveBlocksDownAfterLineClear, clearLineClearsList
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/piece.h"         // rotateAndShiftPiece, dropPiece, lockPieceIntoBackground, nextPiece
+#include "systems/screen.h"        // loadScreenTilemap
 #include "systems/scoring.h"       // addLineClearScore, clearScoreAndStats
 
 namespace kirpich::systems {
@@ -166,6 +167,17 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     const bool typeB = game.flow.gameType == GameType::TYPE_B;
     game.flow.level = typeB ? game.flow.typeBLevel : game.flow.typeALevel;
     game.flow.lines = typeB ? kTypeBStartingLines : 0;
+
+    // The round's backdrop, chosen by game type in the same fork (tetris.asm:4141/:4148, loaded at
+    // :4154). It lands after the space-fill above, exactly as the original orders them, and its own
+    // columns supply the field's walls and the stats panel; columns 2-11 are spaces, so the field it
+    // lays out is empty. The starting garbage below writes over it, which is why that runs later.
+    //
+    // No art load here: the screen this is entered from loaded the gameplay set already, and the
+    // original does not reload it. The second copy of this backdrop the original writes to its other
+    // background map (:4155-4157) is the paused screen, which the port does not draw — see
+    // docs/contracts/screen.md.
+    loadScreenTilemap(game.field, typeB ? kTypeBGameplayTilemap : kTypeAGameplayTilemap);
 
     game.flow.framesPerDrop = framesPerDrop(game.flow.level, game.flow.heartMode != 0);
     game.flow.dropTimer = game.flow.framesPerDrop;

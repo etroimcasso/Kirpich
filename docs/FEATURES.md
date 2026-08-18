@@ -90,8 +90,9 @@ Game logic.
 
 | Feature | Status | Doc |
 |---|---|---|
+| Background rendering | 🟡 | [`features/background-rendering.md`](features/background-rendering.md) — the board bridged to the engine's tile path and submitted as one layer, with the tile-art regime it resolves against. Backgrounds draw; the paused screen (a second background map the port does not model), the wipe's row-by-row sweep, and the palette effects do not |
 | Sprite renderer | ⬜ | `features/sprite-renderer.md` |
-| Tilemap loader | ⬜ | `features/tilemap-loader.md` |
+| Tilemap loader | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the backdrop stamp (`loadScreenTilemap`) and the tile-art selection, restored at every solo screen. The window form of the original's loader serves only the second background map and lands with whichever unit models it |
 | Sprite-copy routine | ⬜ | `features/dma.md` |
 | Frame tick handler | ⬜ | `features/vblank.md` |
 | Presentation framework | ⬜ | `features/presentation-framework.md` |
@@ -104,8 +105,8 @@ Game logic.
 
 | Feature | Status | Doc |
 |---|---|---|
-| Entry point and platform init | ⬜ | `features/main-entry.md` |
-| Bootstrap and main loop | ⬜ | `features/engine-bootstrap.md` |
+| Entry point and platform init | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the boot host: engine config, asset check, platform and renderer, the shared virtual machine, the art upload, every handler installed |
+| Bootstrap and main loop | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the two run-loop callbacks (advance the divider and run a game frame; compose and submit). The original's own startup routine is substituted, not ported — see `features/boot.md` |
 | Golden-frame test harness | ⬜ | `features/golden-frame-harness.md` |
 | Demo-replay integration test | ⬜ | `features/demo-replay-test.md` |
 | Tick scheduling | 🟫 | — (the engine run loop is the scheduler) |

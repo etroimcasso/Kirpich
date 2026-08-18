@@ -11,12 +11,17 @@ layer.
 
 ## Status
 
-The data and state layers are complete, and the game logic is well along: a solo round is written end to
-end — pieces move, lines clear, the score keeps, the pre-game menus run, and the game's own sound driver
-runs on the engine's emulated audio unit and is audible. A Type B round plays through in full, from the
-garbage it starts under to the scoreboard it ends on. What remains is two-player play, the attract-mode
-demo, the rocket and Buran launch scenes and top-score entry, and the rendering and frame wiring that
-put a picture on screen — until those land, the binary reports its engine version and exits.
+Kirpich opens a window. The data and state layers are complete, the game logic is well along — a solo
+round is written end to end, pieces move, lines clear, the score keeps, the pre-game menus run, and the
+game's own sound driver runs on the engine's emulated audio unit and is audible — and the backgrounds
+now draw: the screens, the menus, the playing field with its walls and panel, and the blocks as they
+stack. A Type B round plays through in full, from the garbage it starts under to the scoreboard it ends
+on.
+
+Sprites are the gap: the falling piece, the next-piece preview, the menu cursors and the ending's
+dancers are not drawn yet, so the game runs and is scored but you cannot yet see the piece you are
+steering. Beyond that, what remains is two-player play, the attract-mode demo, the rocket and Buran
+launch scenes, top-score entry, the palette effects, and the display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
 ROM: the character map and the 22 static background screens, the composed sprites and their on-screen
@@ -64,8 +69,10 @@ The table below is kept honest as components land.
 | Type B round | **complete** — the starting garbage, and the win chain: the scoreboard and the dance the hardest level earns |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
 | Attract-mode demo | not started — the recorded inputs and piece list are ported |
-| Rendering | not started — the bridge from game state to the engine's renderer |
-| Frame loop | not started — the wiring that ties input, logic, audio, and rendering into a frame |
+| Background rendering | **complete** — every screen's backdrop, and the bridge that draws the playing field from game state |
+| Sprite rendering | not started — the falling piece, the preview, the cursors, and the dancers are invisible |
+| Frame loop | **complete** — the entry point is a host: it ticks the game and submits a frame at the original's rate |
+| Display effects | not started — the original's palette fades and flashes, and the scaling and filter options |
 
 ## How it works
 

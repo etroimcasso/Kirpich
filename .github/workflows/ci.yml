@@ -71,6 +71,18 @@ jobs:
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
+      # Uploaded straight after the build, so a red test run still yields a binary to look at.
+      # The executable links SDL3 and SameBoy statically and nothing is laid out beside it, so it
+      # travels alone; `if-no-files-found: error` makes a moved output path a loud failure rather
+      # than an empty artifact. This is CI's own development configuration, NOT a distributable —
+      # it carries the dev asset root, so it looks for assets in this runner's workspace.
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-kirpich
+          path: build/kirpich
+          if-no-files-found: error
+
       # The whole build directory, never just the binary — a bare binary breaks the moment
       # it needs a single file the build placed beside it. The rm clears the previous
       # staged copy, never the build itself.
@@ -157,6 +169,14 @@ jobs:
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
+      # See the Linux x64 job for what this artifact is and is not.
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-kirpich
+          path: build/kirpich
+          if-no-files-found: error
+
       # The whole build directory, never just the binary — a bare binary breaks the moment
       # it needs a single file the build placed beside it. The rm clears the previous
       # staged copy, never the build itself.
@@ -224,6 +244,19 @@ jobs:
         shell: powershell
         run: cmake --build C:\kirpich-ci-build --config Release --parallel
 
+      # See the Linux x64 job for what this artifact is and is not. Two candidate paths because this
+      # is a multi-configuration generator: it appends the configuration to the runtime output
+      # directory the top-level CMakeLists pins. Listing both and erroring on no match means a layout
+      # change is a loud failure rather than an empty artifact.
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-kirpich
+          path: |
+            C:\kirpich-ci-build\Release\kirpich.exe
+            C:\kirpich-ci-build\src\Release\kirpich.exe
+          if-no-files-found: error
+
       - name: Test
         shell: powershell
         run: |
@@ -287,6 +320,14 @@ jobs:
 
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
+
+      # See the Linux x64 job for what this artifact is and is not.
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-kirpich
+          path: build/kirpich
+          if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
       # it needs a single file the build placed beside it. The rm clears the previous
@@ -356,6 +397,16 @@ jobs:
       - name: Build
         shell: powershell
         run: cmake --build C:\kirpich-ci-build --config Release --parallel
+
+      # See the Windows x64 job for the artifact's status and the two candidate paths.
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-kirpich
+          path: |
+            C:\kirpich-ci-build\Release\kirpich.exe
+            C:\kirpich-ci-build\src\Release\kirpich.exe
+          if-no-files-found: error
 
       - name: Test
         shell: powershell
