@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -43,6 +44,7 @@
 
 #include <kirpich/game_state.h>
 
+#include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
 #include "render/tile_atlas.h"
@@ -63,12 +65,26 @@ namespace {
 // The faithful internal resolution, and the one the tile bridge's 20x18 window assumes.
 constexpr retropp::ViewportResolution kViewport = retropp::ViewportResolution::GameBoy;
 
-// Where LoadFromPath assets resolve from. A development build points this at the project tree so the
-// files scripts/setup-dev-assets writes are the ones the engine reads; a distributable leaves the
-// engine's own default, the executable's directory, which is where the extractor writes.
+// Where LoadFromPath assets resolve from. A development build reads the project tree; anything else
+// reads the executable's own directory, which is where the extractor writes and what a player gets.
+// developmentAssetRoot decides which applies — see assets/asset_root.h for why a moved binary must
+// not keep its build tree.
 void configureAssetRoot() {
 #ifdef KIRPICH_PROJECT_ROOT
-    retropp::setAssetRoot(std::filesystem::path{KIRPICH_PROJECT_ROOT});
+    // assetRoot() is the engine's default at this point: an absolute path to the executable's
+    // directory, resolved by EngineConfig::setActive. Both sides are canonicalised so that symlinks
+    // and `..` cannot make an inside path look like an outside one.
+    std::error_code ec;
+    const std::filesystem::path here = std::filesystem::weakly_canonical(retropp::assetRoot(), ec);
+    const std::filesystem::path root =
+        std::filesystem::weakly_canonical(std::filesystem::path{KIRPICH_PROJECT_ROOT}, ec);
+    if (ec) {
+        return;
+    }
+
+    if (const auto devRoot = kirpich::assets::developmentAssetRoot(here, root)) {
+        retropp::setAssetRoot(*devRoot);
+    }
 #endif
 }
 

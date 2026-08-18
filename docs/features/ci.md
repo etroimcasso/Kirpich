@@ -138,11 +138,14 @@ The executable travels alone. SDL3 and SameBoy link statically and the build lay
 it, so unlike the whole-directory `/tmp` staging — which exists precisely because a bare binary
 breaks the moment it needs a neighbouring file — there is no neighbouring file to lose.
 
-**These artifacts are not distributables.** They are built in CI's own development configuration,
-which resolves the asset root to the runner's workspace rather than to the executable's own
-directory. They also carry no assets, because no job populates `assets/gfx/default/` — see
-[CI proves extraction works](#ci-proves-extraction-works-it-must-not-leave-the-assets-in-place).
-Packaging is its own build.
+**These artifacts are not distributables**, but they do run. They are built in CI's own development
+configuration, which bakes the runner's workspace in as a development asset root — and a binary
+adopts that root only while it is still sitting inside it, so a downloaded artifact resolves assets
+against its own directory instead, which is the shipping behaviour (`src/assets/asset_root.h`). They
+carry no assets, because no job populates `assets/gfx/default/` — see
+[CI proves extraction works](#ci-proves-extraction-works-it-must-not-leave-the-assets-in-place) — so
+a downloaded artifact asks for a ROM on first run and extracts beside itself. Packaging is still its
+own build: these are unsigned, carry development build settings, and are not what ships.
 
 ### Trigger — push to `ci/**` only, and nothing from the pull-request family
 
