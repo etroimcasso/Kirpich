@@ -10,6 +10,17 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-17
 
+- **Garbage fill** ✅ → ✅ (scope extended). A Type B round no longer starts on an empty field. The
+  per-cell block-or-gap pick runs on the SM83 VM, where the divider it reads keeps advancing while the
+  pick runs — the same split, and the same reason, as the piece randomizer; everything around it is
+  native: the walk down the field, the rule that leaves every row at least one gap, and the fixed table
+  an attract-mode demo stamps instead. Both routines register on one machine, so the piece draws a
+  round init makes advance the divider its garbage fill then reads, as on the original. Two things the
+  fill's shape reveals: the row count a caller passes chooses where the fill starts rather than how
+  many rows it writes (a multiplayer round start covers ten rows, not six), and the divider does not
+  advance across the native work between cells, so the fill reproduces the mechanism rather than the
+  original's exact byte sequence.
+
 - **Chiptune audio backend** ⬜ → ✅. The port makes sound. The game's original sound driver is hosted
   as a resident machine on the engine's audio system — one image placed where the cartridge held it,
   its per-frame entry run by the engine at the console's clock — and `src/systems/sound.{h,cpp}` hands

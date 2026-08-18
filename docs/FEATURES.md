@@ -38,7 +38,7 @@ Constant tables and graphics data derived from the ROM.
 | Tilemaps | ✅ | [`features/tilemaps.md`](features/tilemaps.md) |
 | Sprite rotation tables | ✅ | [`features/sprite-oam-rotations.md`](features/sprite-oam-rotations.md) |
 | Sprite scene lists | ✅ | [`features/sprite-scenes.md`](features/sprite-scenes.md) |
-| Garbage-fill tables | ✅ | [`features/garbage-init.md`](features/garbage-init.md) |
+| Garbage fill | ✅ | [`features/garbage-init.md`](features/garbage-init.md) — the demo table and the fill's constants, plus the fill itself: the per-cell pick on the VM, the one-gap-per-row rule, the row extents, and the seam the round init calls |
 | Music data | ✅ | [`features/music-data.md`](features/music-data.md) |
 | Sound-effect data | ✅ | [`features/sfx-data.md`](features/sfx-data.md) |
 | Demo data | ✅ | [`features/demo-data.md`](features/demo-data.md) |

@@ -2,9 +2,9 @@
 
 A Type B game starts with the bottom of the field pre-filled with "garbage" — rows of blocks broken
 by gaps that the player digs out to win. This unit ports the data behind that: the fixed table the
-attract-mode demo stamps, and the constants the procedural fill and its three start paths read. It is
-data only — nothing here fills a row or reads the random source; that is gameplay logic and ports
-later.
+attract-mode demo stamps, the constants the procedural fill and its three start paths read, and the
+fill itself — the random block-or-gap pick, the guarantee of a gap in every row, and the walk that
+writes the rows.
 
 ## What it is
 
@@ -60,11 +60,46 @@ write in multiplayer. The fixture holds the raw 40 bytes independent of the comp
 sweep compares the grid against source values rather than against itself. See
 [`../engine/garbage-init.md`](../engine/garbage-init.md) for how to regenerate it.
 
+## The fill
+
+| Surface | Where | Shape |
+|---|---|---|
+| `registerGarbageFold` | `src/vm/garbage_fill.h` | `Routine<uint8_t()> (retropp::Vm&)` |
+| `initGarbage` | `src/vm/garbage_fill.h` | `void (GameContext&, const function<uint8_t()>&, size_t topRow)` |
+| `initDemoGarbage` | `src/vm/garbage_fill.h` | `void (GameContext&)` |
+| `makeInitGarbageHook` | `src/vm/garbage_fill.h` | `InitGarbageHook (function<uint8_t()>)` |
+| `typeBGarbageTopRow` | `src/vm/garbage_fill.h` | `constexpr size_t (uint8_t height)` |
+
+The per-cell pick lives on the SM83 VM (`src/vm/garbage.asm`); everything around it is native. The
+split is the same one the piece randomizer uses, and for the same reason: the divider the pick reads
+keeps advancing while the pick runs, so which of the eight block tiles a cell becomes depends on that
+advancement. A native read would freeze it.
+
+**Decision — the fill takes the pick as a plain callable.** `initGarbage` accepts a
+`std::function<std::uint8_t()>`, not the VM routine handle. A `Routine` converts to one, so production
+wiring is unchanged, and the tests can substitute a stub pick to drive the one-gap-per-row rule and the
+row extents exactly. The divider cannot be written from the VM's public surface, so without this the
+forced-gap path would be unreachable from a test.
+
+**Decision — both routines register on one VM.** The original has a single divider and a round init
+draws pieces and then fills garbage in the same frame, so the draws advance the divider the fill reads.
+Routines registered on one `Vm` share its machine, which keeps that coupling; a second `Vm` would give
+the fill its own divider. Nothing in the types enforces it, so it is stated at the header, in the
+contract, and pinned by a test that shows an extra draw before a fill changes the resulting field.
+
+**Decision — the row count sets where the fill starts, not how many rows it writes.** The fill runs to
+the bottom of the field regardless. For a Type B start the two readings agree; for a multiplayer round
+start they do not, and its count of six covers ten rows. Reproduced as the code has it, recorded in the
+contract.
+
+**Accepted divergence.** The native work between cells burns no VM cycles, so the divider does not
+advance across it as it does on the original. A filled field is therefore not the field the original
+hardware would produce from the same starting divider. Every structural rule holds and nothing depends
+on the exact sequence; reproducing it would additionally require the divider entering the fill to
+match, which depends on the whole preceding frame timeline.
+
 ## Not here yet
 
-The procedural fill — the random block/gap pick, the ensure-one-gap rule, the buffer mirroring, and
-the loop that walks up the field — is timing- and RNG-dependent gameplay logic and ports with that
-code. The demo stamp ports with the demo player. The multiplayer garbage *attack* (sending lines
-between players) is serial-protocol behavior and is separate again. The contract records all of it so
-those systems have a specification to build against; this unit gives them the table and the constants
-to build on.
+The multiplayer garbage *attack* — sending lines between players — is serial-protocol behavior and is
+its own unit. What consumes the multiplayer round-start fill is the multiplayer work; this unit ships
+and tests the fill, and wires only the Type B seam the round init calls.
