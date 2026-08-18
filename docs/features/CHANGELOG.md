@@ -10,6 +10,17 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-17
 
+- **Type-B gameplay** ⬜ → ✅. A won Type B round no longer dead-ends. The line-clear terminal already
+  wrote the state a win transitions to, but neither of the two states it could write had a handler, so
+  the game reached the end of a winning round and stopped. All three ending states now ship: the
+  scoreboard that totals what each kind of line clear was worth at the round's level (skipping the print
+  entirely at level 0, where the stored screen already carries those values), the dance layout the
+  hardest level earns first, and the dance itself — ten performers each on their own animation period,
+  one more revealed than the round's starting garbage height except at height 5, which reveals all ten.
+  The dance holds until its jingle ends, asked through a supplied query whose default ends it rather
+  than holding forever. With this, a Type B round is complete across three units: the shared init and
+  frame, the starting garbage, and this win chain.
+
 - **Garbage fill** ✅ → ✅ (scope extended). A Type B round no longer starts on an empty field. The
   per-cell block-or-gap pick runs on the SM83 VM, where the divider it reads keeps advancing while the
   pick runs — the same split, and the same reason, as the piece randomizer; everything around it is
