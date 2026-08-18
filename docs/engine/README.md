@@ -63,9 +63,9 @@ Kirpich is early. What exists today is the build, the engine wiring, the asset p
 including the extractor that produces the graphics from a player's ROM — the full data
 layer, the full state layer, and the systems layer so far (the piece randomizer, the input
 layer, the game-state dispatcher framework, the piece system, the line-clear pipeline, the
-scoring pipeline, the whole pre-game flow, and the gameplay session — a solo round now runs
-end to end from the title screen through play to the game-over screen). Two-player play, the
-demo, the bonus-ending scenes, top-score entry, audio, and the rendering layer are not
-written yet. Pages appear as
+scoring pipeline, the whole pre-game flow, the gameplay session — a solo round now runs
+end to end from the title screen through play to the game-over screen — and the sound, which
+hosts the game's own driver and is audible. Two-player play, the demo, the bonus-ending
+scenes, top-score entry, and the rendering layer are not written yet. Pages appear as
 their surfaces do, so an area missing from the index above is an area that does not exist
 yet rather than one that is undocumented.
