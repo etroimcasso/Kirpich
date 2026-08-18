@@ -22,6 +22,7 @@ add_library(kirpich-lib STATIC
     systems/gameplay.cpp
     systems/sound.cpp
     vm/piece_random.cpp
+    vm/garbage_fill.cpp
 )
 target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
