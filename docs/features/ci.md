@@ -122,6 +122,28 @@ cmd /c "ctest --test-dir ... -C Release --output-on-failure 2>&1" | Tee-Object -
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ```
 
+### Every build job uploads its binary
+
+Each of the five build jobs uploads the `kirpich` executable as its own artifact —
+`<target>-kirpich`, beside `<target>-test-results` — so a run leaves behind something runnable on
+every platform without anyone having to reach into a runner.
+
+The upload sits immediately after the build step rather than at the end of the job, so a red test
+run still produces a binary to investigate with. It carries `if-no-files-found: error`: the binary's
+location is a build-layout detail (the top-level `CMakeLists.txt` pins the runtime output directory,
+and the two Windows jobs use a multi-configuration generator that appends the configuration to it),
+and a layout change should fail the job rather than quietly upload an empty artifact.
+
+The executable travels alone. SDL3 and SameBoy link statically and the build lays nothing out beside
+it, so unlike the whole-directory `/tmp` staging — which exists precisely because a bare binary
+breaks the moment it needs a neighbouring file — there is no neighbouring file to lose.
+
+**These artifacts are not distributables.** They are built in CI's own development configuration,
+which resolves the asset root to the runner's workspace rather than to the executable's own
+directory. They also carry no assets, because no job populates `assets/gfx/default/` — see
+[CI proves extraction works](#ci-proves-extraction-works-it-must-not-leave-the-assets-in-place).
+Packaging is its own build.
+
 ### Trigger — push to `ci/**` only, and nothing from the pull-request family
 
 ```yaml
