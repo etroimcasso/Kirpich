@@ -8,14 +8,17 @@
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
-#include "data/demo.h"   // kDemoPieceList
-#include "data/music.h"  // MusicId
+#include "data/demo.h"      // kDemoPieceList
+#include "data/music.h"     // MusicId
+#include "data/tilemaps.h"  // kCopyrightScreenTilemap, kTitleScreenTilemap
 #include "retropp/input.h"  // actionId
+#include "state/display_state.h"
 #include "state/playing_field_state.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
-#include "systems/line_clear.h"   // clearLineClearsList
+#include "systems/line_clear.h"    // clearLineClearsList
 #include "systems/menu_screens.h"  // clearOamObjects
+#include "systems/screen.h"        // loadScreenTilemap, loadTileSheet
 #include "systems/scoring.h"       // clearScoreAndStats
 
 namespace kirpich::systems {
@@ -71,8 +74,9 @@ void setTitleCursor(GameContext& game, bool multiplayer) {
 }  // namespace
 
 void initCopyrightScreen(GameContext& game) {
-    // GameState_24 (tetris.asm:479-500). The tile / tilemap loads and the LCD toggle are render mechanism
-    // (:480-483, :494-495).
+    // GameState_24 (tetris.asm:479-500). The LCD toggle is render mechanism (:480, :494-495).
+    loadTileSheet(game.display, TileSheet::COPYRIGHT_TITLE);              // (:481)
+    loadScreenTilemap(game.field, kCopyrightScreenTilemap);               // (:482-483)
     clearOamObjects(game.engine);  // ClearObjects (:484)
 
     // Seed the piece ring from the demo list (:485-493). The original loops until the write pointer crosses
@@ -107,8 +111,9 @@ void copyrightSkippable(GameContext& game) {
 
 void initTitleScreen(GameContext& game) {
     // GameState_06 (tetris.asm:524-580). Reset leftover state from a prior round, paint the title board,
-    // seed the cursor, and arm the attract countdown. The tile / tilemap loads and the LCD toggles are
-    // render mechanism (:525, :537, :556-557, :567-568).
+    // stamp the title screen over it, seed the cursor, and arm the attract countdown. The LCD toggles are
+    // render mechanism (:525, :567-568).
+    loadTileSheet(game.display, TileSheet::COPYRIGHT_TITLE);  // (:537)
 
     // Field and pointer clears (:526-534). Each raw operand resolves to one owner via the HRAM census
     // (docs/contracts/game-state-machine-state.md). $FF9B is a dead byte with no port field, so it is
@@ -135,6 +140,13 @@ void initTitleScreen(GameContext& game) {
     for (std::size_t col = 1; col <= 12; ++col) {
         game.field.board[18][col] = kFieldBorderTile;  // $CA41 — floor row
     }
+
+    // The title screen itself (:556-557), stamped over the board paint above. The original writes the
+    // two to different places — the paint to the board, the screen to the background map — and only
+    // brings the board forward later, one row per frame, as the wipe runs. Here they are one grid, so
+    // the screen covers the paint in the visible region and the paint survives outside it (the floor
+    // row, and the wall columns past the screen's 20). See docs/contracts/screen.md.
+    loadScreenTilemap(game.field, kTitleScreenTilemap);
 
     // The 1P/2P selector cursor (:558-564): clear the object buffer, then seed OAM object 0.
     clearOamObjects(game.engine);

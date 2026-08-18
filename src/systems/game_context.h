@@ -1,6 +1,6 @@
 #pragma once
 
-// The game's whole in-memory image as one aggregate: the seven mutable state structs the port has
+// The game's whole in-memory image as one aggregate: the eight mutable state structs the port has
 // ported so far, plus this tick's joypad snapshot. Every state handler the main loop dispatches to
 // receives a GameContext& and reads or writes through it — it is the single argument that carries
 // the game's state into and out of a frame.
@@ -15,6 +15,7 @@
 // docs/contracts/audio-state.md).
 
 #include "state/demo_state.h"
+#include "state/display_state.h"
 #include "state/engine_state.h"
 #include "state/game_flow_state.h"
 #include "state/high_score_state.h"
@@ -34,6 +35,7 @@ struct GameContext {
     MultiplayerState    multiplayer;     // link-cable HRAM
     DemoState           demo;            // attract-mode demo HRAM
     HighScoreState      highScores;      // top-score tables + entry bytes
+    DisplayState        display;         // which tile art the background draws through
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)
