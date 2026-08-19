@@ -24,8 +24,13 @@ hardware keeps, so the effects that live between them work: the field wipe sweep
 line-clear flash flashes, a Type B round starts under garbage you can see, and pausing shows the paused
 screen. The stats panel counts: score, level, lines, and the starting height a Type B round was set to.
 
-What remains is two-player play, the attract-mode demo, the rocket and Buran launch scenes, top-score
-entry, the palette effects, and the display filters.
+**A round is remembered.** Beat one of the three scores stored for the difficulty you played and you
+take its rank and spell a name for it, six letters on a wheel; the three best show on the difficulty
+screen. Kirpich keeps them between launches, which the cartridge could not — there, only a soft reset
+spared them and switching the console off cleared them for good.
+
+What remains is two-player play, the attract-mode demo, the rocket and Buran launch scenes, the
+palette effects, and the display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
 ROM: the character map and the 22 static background screens, the composed sprites and their on-screen

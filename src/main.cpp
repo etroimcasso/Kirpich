@@ -54,6 +54,7 @@
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
+#include "systems/high_scores.h"
 #include "systems/input.h"
 #include "systems/line_clear.h"
 #include "systems/menu_screens.h"
@@ -165,7 +166,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     kirpich::systems::GameStateDispatcher dispatcher;
     kirpich::systems::installTitleScreenHandlers(dispatcher);
-    kirpich::systems::installMenuScreenHandlers(dispatcher);
+
+    // Each difficulty screen refreshes its own game type's table on the way in and on every move,
+    // which is also where a just-finished round's score is compared against it and inserted.
+    kirpich::systems::installMenuScreenHandlers(dispatcher,
+                                                kirpich::systems::updateTypeATopScores,
+                                                kirpich::systems::updateTypeBTopScores);
+
+    // A submitted name is the point the table is worth keeping, so that is where it is written back.
+    kirpich::systems::installHighScoreHandlers(
+        dispatcher, [&saves](const kirpich::HighScoreState& scores) {
+            kirpich::saveTopScores(scores, saves);
+        });
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -223,6 +235,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         kirpich::systems::playingFieldWipeTick(game, draw);
         kirpich::systems::updateScoreboard(game);
         kirpich::systems::redrawScore(game);
+        kirpich::systems::drawTopScoresToVram(game);
 
         ++simTicks;
     });

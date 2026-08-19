@@ -99,9 +99,12 @@ across frames. The persistent roles at those addresses already live in the game-
 writes. The game-flow contract's "the pointer belongs to the top-score surface" hand-off is discharged
 here: the surface's adjudication of those two bytes is **mechanism** — no high-score field.
 
-## Mechanisms (deferred to later game-flow work, recorded here)
+## Mechanisms
 
-Re-implemented against this struct when the menu / game-over / name-entry systems are built:
+These are implemented in `src/systems/high_scores.{h,cpp}` against the struct above; the sections
+after this one add the detail the implementation pinned down.
+
+Re-implemented against this struct:
 
 - **Slice walk** — `UpdateTypeATopScores` / `UpdateTypeBTopScores` locate the (level[, height]) slice.
 - **Insert** — `UpdateTopScores` (`:3737-3833`): compares `wScore` high-pair-first against the three
@@ -120,6 +123,63 @@ Re-implemented against this struct when the menu / game-over / name-entry system
   `"a"`→…→`"×"` (heart mode swaps in `"♥"`)→`" "`→`"a"` (`:4025-4077`); A advances / submits past
   column 6, B retreats, START submits (`:4004-4017`, clears `hNewTopScore`, routes to state `$11`
   Type A / `$13` Type B by `hGameType`). Key repeat via the game-flow `keyRepeatTimer`.
+
+## Where the three rows are written, and to which grid
+
+The staged rows are **the board**, not a separate buffer: `$C9A4 − $99A4 = $3000`, the same fixed
+offset every other board-to-map carry uses. So the field clear and the print loops write
+`PlayingFieldState::board`, and `DrawTopScoresToVRAM` carries those cells into `DisplayState::map`.
+
+| Cells | Board columns | Map columns |
+|---|---|---|
+| name | 4–9 | 4–9 |
+| gap | 10–11 (filled by the clear, never copied) | untouched — the backdrop shows through |
+| score | 12–17 | 12–17 |
+
+Three rows, from row 13. `ClearTopScoreFields` fills all **fourteen** columns of each row; the flush
+copies only the **twelve** that carry a name or a score, stepping over the gap with two pointer
+advances and no write (`:3910-3913`). A flush that carried all fourteen would stamp the board's
+empty-cell glyph over the screen's own backdrop in those six cells.
+
+Name entry is the exception: it computes a **video** address (`:3954`) and `PrintCharacter`
+(`:4114-4122`) writes it, so the cursor glyph goes to the map alone and the board keeps whatever the
+staged row last held for that cell. Both destinations are tabulated in `docs/contracts/screen.md` §5.
+
+## Deriving the cursor from the rank
+
+`GameState_15` starts at the bottom of the three rows and steps up once per rank (`:3952-3960`), and
+the rank is the inverted counter, so:
+
+- **map row** = `16 − rank` — rank 3 (the best score) is row 13, rank 1 is row 15.
+- **table index** = `3 − rank` — rank 3 is index 0.
+- **cursor cell** = `map[16 − rank][4 + nameEntryColumn]`.
+- **edited glyph** = the entry's `name[nameEntryColumn]`.
+
+The port recomputes all of this each frame rather than storing the pointer, per the `$FFC9`/`$FFCA`
+verdict above. A rank outside 1..3 cannot reach this state — it is entered only behind the
+new-top-score flag, which is only ever set together with a rank — so the port returns without acting
+on one rather than reproducing the original's unbounded pointer walk.
+
+## The letter wheel's domain
+
+`"a"`(`$0A`) … `"z"`(`$23`), `"."`(`$24`), `"-"`(`$25`), `"×"`(`$26`), then `" "`(`$2F`), which wraps
+back to `"a"`. Thirty glyphs. Going up, landing **on** the skip glyph is what jumps to the space
+(`:4032-4036`) — the skip glyph is itself reachable and selectable for one step first. Going down is
+the exact reverse: `"a"` drops to the space and the space drops to the skip glyph (`:4064-4077`).
+
+Heart mode swaps the skip glyph from `"×"` to `"♥"`(`$27`) in both directions (`:4027-4031`,
+`:4059-4063`), which extends the ring to thirty-one and makes the heart typeable. This is the last of
+heart mode's three effects, and the only one inside this surface.
+
+Both directions cue the menu-move sound and neither moves the cursor.
+
+## Persistence is written on submit
+
+The port writes the tables back through the save store when a name is submitted, and at no other
+point. The table is mutated at insert, before a name exists — persisting there would leave a
+half-named entry (`"a"` and five empty cells) on disk with no way to finish it. Quitting during name
+entry therefore loses that one score, which is still strictly better than the original, where a power
+cycle loses every score. Load happens once at startup.
 
 ## Quirks — preserved verbatim, never "fixed"
 

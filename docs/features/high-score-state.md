@@ -69,8 +69,7 @@ The modification guide is in [`../engine/high-score-state.md`](../engine/high-sc
   temp dir):** HRAM window pins, WRAM table pins, struct shape + per-byte field resolution, reset,
   wire-value pins, codec round-trip (BCD edges, wrong-length refusal, Type-B-first image), store
   round-trip (save/load, absent→boot, corrupt→`SaveStoreError`→boot with the file left in place).
-- **Test baseline:** 128 → **135** (C++). Parser suite unchanged at `Ran 607`. Both red→green flips
-  (wire-value pin, codec assertion) demonstrated.
+- **Test baseline:** 128 → **135** (C++). Parser suite unchanged at `Ran 607`.
 - **No parser delta:** the unit consumes existing `wram_expected.h` / `hram_expected.h` rows only.
 
 ## Open questions / future work
