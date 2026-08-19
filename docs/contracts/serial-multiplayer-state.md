@@ -184,8 +184,8 @@ its role; none becomes a field, the same treatment the audio unit gave the sound
 | Main-loop interrupt-enable switch | enable `IEF_SERIAL` in link mode | `406-410` |
 
 Inside the `$FFD9` gap (size 8): `$FFDC` is `garbageRowsToSend` (this unit); `$FFDD`–`$FFDF` are dead,
-un-censused bytes; `$FFE0` is the game-flow mechanism byte (a score-print flag), **not** this unit's — a
-negative guard the test enforces.
+un-censused bytes; `$FFE0` is the game-flow state's `scorePrintFlag`, **not** this unit's — a negative
+guard the test enforces.
 
 ---
 

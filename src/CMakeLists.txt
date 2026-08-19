@@ -22,6 +22,7 @@ add_library(kirpich-lib STATIC
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp
+    systems/readouts.cpp
     systems/screen.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
@@ -35,13 +36,6 @@ target_include_directories(kirpich-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
 )
-
-# How a consumer must link kirpich-lib to get the baked routines — see the note on the executable
-# below. Exported so the test binary links it the same way the shipped binary does; a suite that
-# linked differently could not catch a linkage defect in the thing it is testing.
-#
-# INTERIM, with the executable's wrapper. Remove both when the engine keeps the guarantee itself.
-set(KIRPICH_LIB_WHOLE_ARCHIVE "$<LINK_LIBRARY:WHOLE_ARCHIVE,kirpich-lib>" CACHE INTERNAL "")
 
 # Development builds resolve the asset root to the project tree, so a developer who has run
 # scripts/setup-dev-assets exercises the shipped load path against the real files without
@@ -67,16 +61,10 @@ retropp_autoembed_routines(kirpich-lib)
 
 # Port binary
 #
-# kirpich-lib is whole-archived. The routine bake (retropp_autoembed_routines above) generates a
-# translation unit whose only content is an anonymous-namespace static initializer; nothing
-# references it, so when the archive is linked normally the linker discards that object and every
-# baked routine with it. The binary then falls through to reading the .asm from the asset root,
-# which exists only inside a source tree — so a build run anywhere else aborts on the first
-# registerRoutine call. Whole-archiving keeps the registry object, which is what makes the embed
-# real. Symbol check: `nm build/kirpich | grep retropp_routine_` must not be empty.
-#
-# INTERIM. This is an engine mechanism and the engine should keep its own guarantee; the request is
-# filed. Remove this wrapper when it lands.
+# The routine bake above generates a registry translation unit that nothing references. The engine
+# anchors it with an undefined-symbol link option of its own, so an ordinary link keeps it and the
+# baked routines ship in the binary. Symbol check: `nm build/kirpich | grep retropp_routine_` must
+# not be empty.
 add_executable(kirpich main.cpp)
-target_link_libraries(kirpich PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,kirpich-lib>")
+target_link_libraries(kirpich PRIVATE kirpich-lib)
 target_compile_features(kirpich PRIVATE cxx_std_20)

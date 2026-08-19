@@ -71,6 +71,7 @@ Game logic.
 | Piece system | ✅ | [`features/piece-system.md`](features/piece-system.md) — spawn / drop / rotate-shift / collide / lock as free functions, plus the `AudioCues` cue mailbox; the gameplay and line-clear handlers compose these when they land |
 | Line-clear logic | ✅ | [`features/line-clear.md`](features/line-clear.md) — scan / tally, flash cadence, stack compaction, and the row-by-row field wipe as free functions; the gameplay handlers and the frame's vertical-blank tick compose these when they land |
 | Scoring | ✅ | [`features/scoring-system.md`](features/scoring-system.md) — the Type A live line-clear award, the Type B results count-up, the Type A level-up (wired into the field wipe), the scoreboard row printer, and the scoring reset as free functions; the gameplay and results handlers compose these when they land |
+| Number readouts | ✅ | [`features/readouts.md`](features/readouts.md) — the score, the level, the line count and the Type B start height drawn into the stats panel, and the second background map the paused screen displays |
 | Chiptune audio backend | ✅ | [`features/audio-engine.md`](features/audio-engine.md) — the game's original sound driver hosted as a resident machine, and the per-frame tick that drains the `AudioCues` mailbox into it; the port makes sound |
 | Anti-channel-stealing option | ⬜ | [`features/anti-channel-stealing.md`](features/anti-channel-stealing.md) |
 | Title / config / menu screens | ✅ | [`features/menu-screens.md`](features/menu-screens.md), [`features/title-screens.md`](features/title-screens.md) — the whole pre-game flow (copyright, title, config, and the game-type / music-type / difficulty selectors) is delivered as per-state handlers. The demo launch and the two-player serial paths are seams later units fill |
@@ -90,7 +91,7 @@ Game logic.
 
 | Feature | Status | Doc |
 |---|---|---|
-| Background rendering | 🟡 | [`features/background-rendering.md`](features/background-rendering.md) — the board bridged to the engine's tile path and submitted as one layer, with the tile-art regime it resolves against. Backgrounds draw; the paused screen (a second background map the port does not model), the wipe's row-by-row sweep, and the palette effects do not |
+| Background rendering | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the displayed map bridged to the engine's tile path and submitted as one layer, with the tile-art regime it resolves against. Both background maps are carried, so the field wipe sweeps, the line-clear flash flashes, and pausing shows the paused screen. The palette fades are not drawn |
 | Sprite renderer | ✅ | [`features/sprite-renderer.md`](features/sprite-renderer.md) — the walk that fills the object buffer, restored at the sites the handlers make it from, plus the bridge that submits it as a layer |
 | Tilemap loader | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the backdrop stamp (`loadScreenTilemap`) and the tile-art selection, restored at every solo screen. The window form of the original's loader serves only the second background map and lands with whichever unit models it |
 | Sprite-copy routine | ⬜ | `features/dma.md` |

@@ -9,7 +9,8 @@
 #include <kirpich/game_type.h>
 #include <kirpich/line_clear_kind.h>
 
-#include "data/gravity.h"  // framesPerDrop
+#include "data/gravity.h"     // framesPerDrop
+#include "systems/readouts.h"  // printLevelStep
 #include "data/scoring.h"  // lineClearAward, shouldLevelUp, kLineClearScores, kLevelCap, kScoreSaturation
 
 namespace kirpich::systems {
@@ -101,7 +102,6 @@ void printKindScore(GameContext& game, LineClearKind kind, std::uint8_t displaye
 void printScoreToScreen(GameContext& game) {
     constexpr std::size_t kScoreRow = 17;  // $9A25: ($9A25 - $9800) / 32
     constexpr std::size_t kScoreCol = 5;   // ($9A25 - $9800) % 32
-    constexpr std::size_t kScoreDigits = 6;
 
     printSixDigits(game, kScoreRow, kScoreCol, game.engine.score);
 }
@@ -138,6 +138,7 @@ void scoreboardTallyStep(GameContext& game, LineClearKind kind) {
     const std::uint32_t base = kLineClearScores[static_cast<std::size_t>(kind)].points;
     engine.score = std::min<std::uint32_t>(engine.score + base * (flow.typeBLevel + 1),
                                            kScoreSaturation);
+    flow.scorePrintFlag = 1;  // AddBCD marks the score changed (:187-188, called at :6138)
     engine.scoreboardTallyPhase = 2;
 }
 
@@ -164,6 +165,7 @@ void tallySoftDropPoints(GameContext& game) {
     ++engine.softDropPointsTallied;
     flow.timer1 = 0;
     engine.score = std::min<std::uint32_t>(engine.score + 1, kScoreSaturation);
+    flow.scorePrintFlag = 1;  // AddBCD marks the score changed (:187-188, called at :4864/:4872)
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
 
     // Both prints go to the displayed screen: the drop count on its own line ($99A5, :4866) and the
@@ -200,6 +202,7 @@ void addLineClearScore(GameContext& game) {
             stat = 0;
             engine.score = std::min<std::uint32_t>(engine.score + lineClearAward(kind, flow.level),
                                                    kScoreSaturation);
+            flow.scorePrintFlag = 1;  // AddBCD marks the score changed (:187-188, called at :5032)
             return;
         }
     }
@@ -243,11 +246,11 @@ void checkForLevelUp(GameContext& game) {
         return;
     }
     ++flow.level;                                    // (:5852)
+    printLevelStep(game);                            // (:5853-5870)
     game.audioCues.square = SquareSfxId::LEVEL_UP;   // (:5873-5874)
 
     // Reload the gravity countdown for the new level; the original's LookupGravity writes both the
-    // countdown and its reload value (:5875 / :4258-4259). The level-digit prints (:5853-5870) are
-    // render.
+    // countdown and its reload value (:5875 / :4258-4259).
     const std::uint8_t reload = kirpich::framesPerDrop(flow.level, flow.heartMode != 0);
     flow.framesPerDrop = reload;
     flow.dropTimer = reload;

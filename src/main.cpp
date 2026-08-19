@@ -56,6 +56,7 @@
 #include "systems/input.h"
 #include "systems/line_clear.h"
 #include "systems/menu_screens.h"
+#include "systems/readouts.h"
 #include "systems/scoring.h"
 #include "systems/sound.h"
 #include "systems/title_screens.h"
@@ -191,16 +192,17 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         dispatcher.tick(game, kirpich::systems::heldActions(in));
 
-        // The frame's last beat. The original runs these two in its vertical-blank handler, after the
-        // dispatch and the timers the dispatcher already ran (tetris.asm:214-232), and the line-clear
+        // The frame's last beat. The original runs these in its vertical-blank handler, after the
+        // dispatch and the timers the dispatcher already ran (tetris.asm:214-249), and the line-clear
         // cadences are counted in that order: the flash advances a pass every ten frames from here,
-        // and the field wipe steps one row per frame. Both gate themselves, so they are called every
-        // frame and act only when a clear is in progress. Without this beat a round stops after its
+        // and the field wipe steps one row per frame. Each one gates itself, so they are called every
+        // frame and act only when they have something to do. Without this beat a round stops after its
         // first lock — the piece that landed never clears and the next one never spawns.
         const auto draw = [&drawPiece] { return drawPiece(); };
         kirpich::systems::animateLineClear(game, draw);
         kirpich::systems::playingFieldWipeTick(game, draw);
         kirpich::systems::updateScoreboard(game);
+        kirpich::systems::redrawScore(game);
 
         ++simTicks;
     });

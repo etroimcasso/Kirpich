@@ -8,6 +8,21 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-19
+
+- **Number readouts** ⬜ → ✅. The panel shows its numbers. The score, the level, the line count and
+  the Type B starting height had all been live in the simulation for several units with nothing
+  drawing them; one printer and eight drawing functions fill the cells the stored backdrops leave
+  blank. Wiring them surfaced a defect: the original sets its "the score changed" flag inside the
+  routine that adds to the score, the port has no such routine, and so nothing requested a score draw
+  — the score would never have appeared at all.
+- **Background rendering** 🟡 → ✅. The port now carries the second background map the hardware keeps
+  and displays one at a time, so pausing changes the picture as well as the simulation: the paused
+  screen is the stats panel with no field and a `PAUSE` label, kept current by the readouts, which
+  write both maps as they go.
+
+---
+
 ## 2026-08-18
 
 - **Sprite renderer** ⬜ → ✅. The objects draw. The simulation had been filling sprite descriptors

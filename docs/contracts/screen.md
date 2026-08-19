@@ -9,12 +9,16 @@ Source anchors: `LoadTilemap` (`tetris.asm:6410-6431`), `LoadFontTiles` (`:6378-
 `LoadGameplayTiles` (`:6368-6376`), `LoadCopyrightAndTitleScreenTiles` (`:6394-6398`), and the call
 sites listed in §4.
 
-## 1. Two grids, written separately
+## 1. Two kinds of grid, written separately
 
-The original keeps a 32 × 32 tile grid at `$C800` — the game's own copy of the playing field — and a
-second at `$9800`, which is the background map the hardware displays. `PlayingFieldState`
-(`docs/contracts/playing-field-state.md`) models the first and `DisplayState::map`
-(`docs/contracts/display-state.md`) the second.
+The original keeps a 32 × 32 tile grid at `$C800` — the game's own copy of the playing field — and
+two background maps the hardware can display, at `$9800` and `$9C00`. `PlayingFieldState`
+(`docs/contracts/playing-field-state.md`) models the first; `DisplayState::map` and
+`DisplayState::secondMap` (`docs/contracts/display-state.md`) model the other two, with
+`DisplayState::displayed` naming the one on screen.
+
+The second map is the paused screen and is covered in §8; everything below that says "the map"
+without qualification means the first.
 
 The board is what the game reasons about: the title screen paints walls and a floor into it, piece
 locking writes blocks, line clears scan and compact it, the garbage fill buries it. The map is what
@@ -36,10 +40,9 @@ The visible screen is the map's top-left 18 rows × 20 columns.
 Port surface: `loadScreenTilemap(display, tilemap)` (`src/systems/screen.h`). It writes the map;
 the board is untouched, so a backdrop can neither lay out a playing field nor erase one.
 
-- Writes `board[0..17][0..19]` from the tilemap, cell for cell.
-- Leaves every other board cell alone. Columns 20-31 and rows 18-31 hold the board's own off-screen
-  content — the floor row, the wall columns past the screen, the garbage a link-cable round parks
-  below the floor — and no backdrop reaches them.
+- Writes `map[0..17][0..19]` from the tilemap, cell for cell.
+- Leaves every other map cell alone. Columns 20-31 and rows 18-31 are off-screen and no backdrop
+  reaches them.
 - Overwrites whatever was in the region, the playing field included. The stored screens are authored
   for exactly that: both gameplay backdrops carry the field's walls in their own columns 1 and 12 and
   leave columns 2-11 as `CharTile::SPACE`, so stamping one lays out an empty field.
@@ -117,29 +120,40 @@ separately throughout:
 | the starting garbage | both, one write `$3000` above the other; the second is skipped in a link-cable game | `:4371-4381` |
 | the line-clear flash | the map alone, restoring rows from the board | `:5419-5447` |
 | the end-of-round tally | the map alone | `:4888`-`:4903`, `:4866`, `:6167` |
+| the panel readouts | mostly both maps — see `docs/contracts/readouts.md` §9 | `:242-249`, `:4162-4194` |
 
 The board and the map sit `$3000` apart, which is the offset every one of those double writes and the
-wipe uses to reach one from the other.
+wipe uses to reach one from the other. The two maps sit `$400` apart, and a cell has the same row and
+column in each.
 
-## 6. What the port does not draw
+## 6. Palette effects, which the port does not draw
 
-Two visible differences, neither approximated:
+The original writes `BGP` for the fades and the blank at a screen change. The port renders through a
+fixed identity ramp: index 0 the darkest shade, the top index white, matching the inversion the
+extractor applies (`docs/contracts/tile-graphics.md`).
 
-**The paused screen.** The original keeps a *second* background map at `$9C00` and pauses by
-switching the display to it (`set 3, [hl]` on `rLCDC`, `:4461`; cleared at `:4487`). The round init
-writes the whole gameplay backdrop there as well as to the live map (`:4155-4157`) and stamps the
-pause message into it (`:4158-4161`), so the paused screen shows the same panel with no field and a
-`PAUSE` label. The port models the displayed map and the board but not a
-*second* displayed map, so pausing changes the simulation (input stops, the music cue fires) without
-changing the picture. The same second map serves the link-cable round init (`:1245-1250`) and the
-launch scenes (`:2696-2801`), neither of which is ported.
+The line-clear flash is not one of these — it repaints tiles rather than the palette, and it is
+ported.
 
-**Palette effects.** The original writes `BGP` for the fades and the blank at a screen change. The
-port renders through a fixed identity ramp: index 0 the darkest shade, the top index white, matching
-the inversion the extractor applies (`docs/contracts/tile-graphics.md`). The line-clear flash is not
-one of these — it repaints tiles rather than the palette, and it is ported.
+## 7. The second map
 
-## 7. What the tests pin
+The hardware can display either background map and selects between them with a bit of its control
+register. The game uses the second as its paused screen: the round init writes the gameplay backdrop
+into it alongside the first (`:4155-4157`) and stamps the pause message over it (`:4158-4161`),
+pausing switches the display to it (`:4461`), and unpausing switches back (`:4487`). The result is the
+same stats panel with no playing field and a `PAUSE` label.
+
+The panel readouts keep it current: each writes both maps as it goes, so the paused screen shows the
+score, level and height that were live. The line count is the exception — it reaches the second map
+only through the copy the pause itself performs (`docs/contracts/readouts.md` §6).
+
+The same map serves the link-cable round init (`:1245-1250`) and the launch scenes (`:2696-2801`),
+neither of which is ported.
+
+Port surface: `DisplayState::secondMap`, `DisplayState::displayed`, and
+`DisplayState::displayedMap()`, which is what the render bridge composes.
+
+## 8. What the tests pin
 
 `tests/test_screen.cpp`
 

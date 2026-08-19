@@ -241,6 +241,7 @@ void dropPiece(GameContext& game) {
         if (flow.gameType == GameType::TYPE_A) {
             engine.score = std::min<std::uint32_t>(engine.score + softDropAward(counter),
                                                    kScoreSaturation);
+            flow.scorePrintFlag = 1;  // AddBCD marks the score changed (:187-188, called at :5296)
             engine.scoreRedrawRequested = true;
         } else {
             engine.softDropPoints =

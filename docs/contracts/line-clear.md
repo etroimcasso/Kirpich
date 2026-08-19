@@ -187,11 +187,10 @@ After the row copy: solo (`!isMultiplayer`) — if `gameState == GameState::NORM
   [`scoring-system.md`](scoring-system.md)). The check's own gates (Type A, normal gameplay, below the
   level cap, the lines-vs-level threshold) keep it inert during the non-gameplay wipes that also pass
   through step 16 — so the step has a sim effect only when a Type A game actually crosses a ten-line
-  boundary. The level digits it prints are render.
-- **Step 17** (`:5720-5731`) prints the score into the paused-screen tilemap and sets the lines-redraw
-  mechanism byte (`$FFE0`, an adjudicated mechanism, see
-  [`serial-multiplayer-state.md`](serial-multiplayer-state.md)) — render only.
-- **Step 18** (`:5733-5742`) prints the score into the second paused-screen tilemap — render only.
+  boundary. It also redraws the level digits, which is [`readouts.md`](readouts.md)'s.
+- **Step 17** (`:5720-5731`) draws the score into the second background map and sets the print flag so
+  the next step draws the first one. **Wired**: see [`readouts.md`](readouts.md) §4.
+- **Step 18** (`:5733-5742`) draws the score into the first map. **Wired**, same place.
 
 ### 7c. Step 19 — the terminal (`:5744-5810`)
 
@@ -204,7 +203,8 @@ Replacing the dead increment:
 3. Gates (`:5754-5759`, `:5802-5810`): solo — if `gameState != NORMAL_GAMEPLAY`, return. Multiplayer —
    if `gameState != TWO_PLAYER_GAME`, return; then if `garbageWipeActive`, clear it and return (a
    garbage-driven wipe ends here — no line print, no spawn).
-4. The line count is redrawn (`PrintNumber`, `:5760-5771`) — render.
+4. The line count is redrawn (`PrintNumber`, `:5760-5771`). **Wired**: `printLines(game)`, see
+   [`readouts.md`](readouts.md) §6.
 5. `gameType == GameType::TYPE_A` → spawn the next piece, return (`:5772-5774`).
 6. Type B, `lines != 0` → spawn the next piece, return (`:5775-5777`).
 7. **Type B win** (`:5778-5796`): `timer1 = 0x64`; cue `MusicId::STAGE_CLEAR` (`$02`); if `isMultiplayer`

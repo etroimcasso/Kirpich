@@ -19,12 +19,13 @@ cartridge's.
 
 Both halves of the picture draw: the backgrounds — screens, menus, the playing field with its walls
 and panel, the blocks as they stack — and the objects, which are the piece you are steering, the
-preview, every menu cursor, and the ending's performers. The port keeps the two screen buffers the
+preview, every menu cursor, and the ending's performers. The port keeps the screen buffers the
 hardware keeps, so the effects that live between them work: the field wipe sweeps a row at a time, the
-line-clear flash flashes, and a Type B round starts under garbage you can see.
+line-clear flash flashes, a Type B round starts under garbage you can see, and pausing shows the paused
+screen. The stats panel counts: score, level, lines, and the starting height a Type B round was set to.
 
 What remains is two-player play, the attract-mode demo, the rocket and Buran launch scenes, top-score
-entry, the paused screen, the score and level readouts, the palette effects, and the display filters.
+entry, the palette effects, and the display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
 ROM: the character map and the 22 static background screens, the composed sprites and their on-screen
@@ -72,10 +73,11 @@ The table below is kept honest as components land.
 | Type B round | **complete** — the starting garbage, and the win chain: the scoreboard and the dance the hardest level earns |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
 | Attract-mode demo | not started — the recorded inputs and piece list are ported |
-| Background rendering | **complete** — every screen's backdrop, the two screen buffers the hardware keeps, and the wipe and flash that live between them |
+| Background rendering | **complete** — every screen's backdrop, the screen buffers the hardware keeps, the wipe and flash that live between them, and the paused screen |
 | Sprite rendering | **complete** — the falling piece, the preview, the menu cursors, and the ending's performers |
+| Panel readouts | **complete** — the score, the level, the line count, and the Type B starting height |
 | Frame loop | **complete** — the entry point is a host: it ticks the game and submits a frame at the original's rate |
-| Display effects | not started — the original's palette fades, the paused screen, the score and level readouts, and the scaling and filter options |
+| Display effects | not started — the original's palette fades, and the scaling and filter options |
 
 ## How it works
 

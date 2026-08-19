@@ -163,7 +163,7 @@ state types that reuse this same layout fixture at their own time.
 | `$FFD7`–`$FFD8` | `hOurWins`, `hTheirWins` | serial/multiplayer state |
 | `$FFD9`–`$FFDC` | gap | serial/multiplayer state |
 | `$FFDD`–`$FFDF` | gap | unused |
-| `$FFE0` | gap | engine mechanism — score-print leading-zero flag / VBlank redraw scratch (`tetris.asm:188`/`245`/`6618`) |
+| `$FFE0` | *(unlabelled)* | **game-flow** — `scorePrintFlag` (`tetris.asm:188`/`245`/`6618`; see [`readouts.md`](readouts.md) §3) |
 | `$FFE1`–`$FFE3` | `hGameState`, `hFrameCounter`, `hWipeCounter` | **game-flow** |
 | `$FFE4` | `hDemoNumber` | demo-recording state |
 | `$FFE5` | `hSoftDropCounter` | **game-flow** |
@@ -229,6 +229,6 @@ bytes ↔ `uint16_t lines`; the `Piece`/enum members one byte each); the **censu
 raw-operand address resolves to exactly one owner); the reset-to-boot behavioural test (mutate every
 member, `reset()`, compare against a fresh instance); the typed-member boot pins (`gameState` ==
 `NORMAL_GAMEPLAY`, the `gameType`/`musicType` "unset" boot bytes, the shared-byte split); and the
-unlabelled-fold-in census pins (`$FF98`/`$FF9C`/`$FFA0`/`$FFC6` each raw-accessed and genuinely
-label-less). The parser's own checks (`tools/asm_parser/test_parse_hram.py`) guard the walk and the
+unlabelled-fold-in census pins (`$FF98`/`$FF9C`/`$FFA0`/`$FFC6`/`$FFE0` each raw-accessed and
+genuinely label-less). The parser's own checks (`tools/asm_parser/test_parse_hram.py`) guard the walk and the
 census against upstream changes.

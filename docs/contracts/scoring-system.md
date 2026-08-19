@@ -77,9 +77,10 @@ score = min(score + lineClearAward(kind, level), 999999)
 
 If all four counts are empty, nothing is written.
 
-**No redraw flag.** The original's award becomes visible through the wipe-17/18 print path (`$FFE0`, set
-inside `AddBCD`), not through `$C0CE` (`scoreRedrawRequested`). The port writes no flag here; render
-re-derives. Faithful to the byte — only the soft-drop award and the vertical-blank clear touch `$C0CE`.
+**Which flag the award sets.** The award becomes visible through the wipe-17/18 print path, whose gate
+is `$FFE0` — set inside `AddBCD` (`:187-188`) — and not through `$C0CE` (`scoreRedrawRequested`), which
+only the soft-drop award and the vertical-blank clear touch. The port has no `AddBCD`, so the award
+sets `flow.scorePrintFlag` itself; see [`readouts.md`](readouts.md) §3.
 
 ---
 
@@ -221,7 +222,8 @@ display, and the two scoreboard state bytes. **Not** touched: `blockSoftDropAfte
 | `hWipeCounter` (`$FFE3`) | `flow.wipeCounter` |
 | `hGameType`/`hGameState`/`hHeartMode` | `flow.gameType` / `flow.gameState` / `flow.heartMode` |
 | `$C802`-page rows (score digits) | `field.board` via `fieldCell` (§7) |
-| `$FFE0` print gate, `$C0CE`+`$FF98` redraw, all `Print*` targets | render mechanism — no field |
+| `$FFE0` print gate | `flow.scorePrintFlag` (see [`readouts.md`](readouts.md)) |
+| `$C0CE`+`$FF98` redraw gate, all `Print*` targets | `engine.scoreRedrawRequested` + `flow.pieceLockStage`; the prints are [`readouts.md`](readouts.md)'s |
 | cue mailboxes | `game.audioCues` |
 
 ---
