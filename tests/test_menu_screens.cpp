@@ -81,13 +81,16 @@ TEST(MenuScreens, ConfigInitVectors) {
         GameContext game;
         game.flow.gameType = gt;
         game.flow.musicType = mt;
-        game.engine.oam[5] = OamEntry{.y = 0x11};  // dirty a slot to prove the clear
+        game.engine.oam[5] = OamEntry{.y = 0x11};   // dirty a slot the cursors will overwrite
+        game.engine.oam[39] = OamEntry{.y = 0x11};  // and one past everything they draw
 
         kirpich::systems::loadConfigScreenBody(game);
 
-        // Object buffer cleared.
-        EXPECT_EQ(game.engine.oam[5], OamEntry{});
-        EXPECT_EQ(game.engine.oam[0], OamEntry{});
+        // The object buffer is cleared and the two cursors are then drawn into it (:3140-3143), so
+        // what survives the clear is exactly what they drew. The far end of the buffer, which no
+        // cursor reaches, is the clear's own witness.
+        EXPECT_EQ(game.engine.oam[39], OamEntry{});
+        EXPECT_NE(game.engine.oam[0], OamEntry{}) << "the cursors should have been drawn";
 
         // Music cursor (slot 0): coordinate + sprite from the music type.
         const auto coord = musicTypeSpriteCoordinate(mt);
@@ -443,9 +446,14 @@ TEST(MenuScreens, DifficultyInitVectors) {
         auto probe = [&](GameContext&) { ++refreshes; };
         GameContext game;
         game.flow.typeALevel = 6;
-        game.engine.oam[3] = OamEntry{.y = 0x22};
+        game.engine.oam[39] = OamEntry{.y = 0x22};
         kirpich::systems::initTypeADifficultyScreen(game, probe);
-        EXPECT_EQ(game.engine.oam[3], OamEntry{});  // object buffer cleared
+        // Cleared, then the cursors drawn over the front of it (:3331), so the witness for the clear
+        // is an entry past everything they draw. The second descriptor is hidden rather than absent —
+        // the original renders both and hides one by position — so it occupies entries too.
+        EXPECT_EQ(game.engine.oam[39], OamEntry{});
+        EXPECT_NE(game.engine.oam[0], OamEntry{}) << "the digit cursor should have been drawn";
+        EXPECT_EQ(game.engine.oam[1].y, 0xFF) << "the hidden descriptor draws off-screen";
         EXPECT_EQ(game.spriteRenderer.slots[0].x, kTypeALevelCursorCoordinates[6].x);
         EXPECT_EQ(game.spriteRenderer.slots[0].spriteId,
                   static_cast<SpriteId>(kDigitSpriteBase + 6));

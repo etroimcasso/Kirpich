@@ -9,17 +9,15 @@
 // runs one game frame; renderLoop composes the board and submits it. The engine's run loop owns
 // pacing at the true Game Boy rate, so the port sets no rate of its own.
 //
-// TWO THINGS THIS DOES NOT DO, both deliberate and both visible.
+// The frame draws two layers: the board as a tile layer, and the object buffer as sprites over it.
 //
-// Sprites. The falling piece, the next-piece preview, every menu cursor and the ending's dancers are
-// object-layer art, and the object layer is not bridged yet. Screens draw; the pieces you control do
-// not. A round is playable in the sense that it runs, not in the sense that you can see what you are
-// doing.
+// ONE THING THIS DOES NOT DO, deliberate and visible.
 //
 // The real boot path. The original's startup routine is not ported, so this seeds the machine
 // directly to the first screen the game shows. That is a substitution, not a port, and the state it
 // skips over is named in docs/contracts/screen.md.
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
@@ -43,16 +41,20 @@
 #include <retropp/windowed_host.h>
 
 #include <kirpich/game_state.h>
+#include <kirpich/game_type.h>
+#include <kirpich/music_type.h>
 
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
+#include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
 #include "systems/input.h"
+#include "systems/line_clear.h"
 #include "systems/menu_screens.h"
 #include "systems/sound.h"
 #include "systems/title_screens.h"
@@ -160,9 +162,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
                             [&garbageFold] { return garbageFold(); }),
                     });
 
-    // The original's startup routine (_Start / Init) is not ported. Seeding the first screen directly
-    // is a stated substitution for it: the machine arrives at the copyright screen the way the game
-    // does, but without having run the boot it runs to get there.
+    // The original's startup routine (_Start / Init) is not ported. Seeding the machine directly is a
+    // stated substitution for it: it arrives at the copyright screen the way the game does, but
+    // without having run the boot it runs to get there. Three values are what that boot leaves behind
+    // and the screens that follow read (tetris.asm:371-376) — the first screen, and the two menu
+    // selections whose stored values double as a cursor position and a sprite id.
+    game.flow.gameType = kirpich::GameType::TYPE_A;
+    game.flow.musicType = kirpich::MusicType::MUSIC_A;
     game.flow.gameState = kirpich::GameState::INIT_COPYRIGHT;
 
     // ── Input ────────────────────────────────────────────────────────────────
@@ -170,6 +176,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     platform.actions(actions);
 
     // ── The loop ─────────────────────────────────────────────────────────────
+    // Counted once per simulation tick and handed to the sprite bridge, where it goes into every
+    // object's name. Objects here move a whole tile at a time and must arrive rather than glide, and
+    // a name the renderer has not just seen is what tells it not to ease one frame's object into the
+    // next's. See render/sprites.h.
+    std::uint16_t simTicks = 0;
+
     loop.simTick([&](const retropp::InputState& in) {
         // The divider free-runs with engine time: one tick's worth of cycles per sim tick keeps it
         // ticking between the draws and fills that read it. Without this it freezes and the piece
@@ -177,17 +189,33 @@ int main(int /*argc*/, char* /*argv*/[]) {
         vm.advanceClock(config.timing.cpuCyclesPerTick());
 
         dispatcher.tick(game, kirpich::systems::heldActions(in));
+
+        // The frame's last beat. The original runs these two in its vertical-blank handler, after the
+        // dispatch and the timers the dispatcher already ran (tetris.asm:214-232), and the line-clear
+        // cadences are counted in that order: the flash advances a pass every ten frames from here,
+        // and the field wipe steps one row per frame. Both gate themselves, so they are called every
+        // frame and act only when a clear is in progress. Without this beat a round stops after its
+        // first lock — the piece that landed never clears and the next one never spawns.
+        const auto draw = [&drawPiece] { return drawPiece(); };
+        kirpich::systems::animateLineClear(game, draw);
+        kirpich::systems::playingFieldWipeTick(game, draw);
+
+        ++simTicks;
     });
 
-    // Held across frames so the layer's borrowed span stays valid for the whole submission, and so a
-    // grid that never changes size is not reallocated sixty times a second.
+    // Held across frames so each layer's borrowed span stays valid for the whole submission, and so
+    // containers that never change size are not reallocated sixty times a second.
     std::vector<retropp::TileCell> cells;
+    std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
         kirpich::render::composeBackground(game.field, game.display.sheet, tiles, cells);
+        kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
+                                        tiles, sprites);
 
         retropp::FrameDrawState frame;
         frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
+        frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
         renderer.renderFrame(frame);
     });
 

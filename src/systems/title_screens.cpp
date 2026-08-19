@@ -77,7 +77,7 @@ void initCopyrightScreen(GameContext& game) {
     // GameState_24 (tetris.asm:479-500). The LCD toggle is render mechanism (:480, :494-495).
     loadTileSheet(game.display, TileSheet::COPYRIGHT_TITLE);              // (:481)
     loadScreenTilemap(game.field, kCopyrightScreenTilemap);               // (:482-483)
-    clearOamObjects(game.engine);  // ClearObjects (:484)
+    clearOamObjects(game);  // ClearObjects (:484)
 
     // Seed the piece ring from the demo list (:485-493). The original loops until the write pointer crosses
     // $C400, copying 256 bytes from the 48-entry DemoPieceList and over-reading 208 bytes past it. That
@@ -149,7 +149,7 @@ void initTitleScreen(GameContext& game) {
     loadScreenTilemap(game.field, kTitleScreenTilemap);
 
     // The 1P/2P selector cursor (:558-564): clear the object buffer, then seed OAM object 0.
-    clearOamObjects(game.engine);
+    clearOamObjects(game);
     game.engine.oam[0].y = kTitleCursorY;
     game.engine.oam[0].x = kCursorX1P;
     game.engine.oam[0].tile = kTitleCursorTile;

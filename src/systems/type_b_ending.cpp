@@ -17,7 +17,8 @@
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/menu_screens.h"  // clearOamObjects, loadSceneSprites
-#include "systems/scoring.h"       // printLineClearScores
+#include "systems/scoring.h"          // printLineClearScores
+#include "systems/sprite_renderer.h"  // renderSprites, renderActivePieceSprite, renderPreviewPieceSprite
 
 namespace kirpich::systems {
 
@@ -130,6 +131,8 @@ void typeBVictoryJingle(GameContext& game) {
     game.flow.timer1 = kScoreboardHoldFrames;
     game.spriteRenderer.slots[kActivePieceSlot].hidden = true;
     game.spriteRenderer.slots[kPreviewPieceSlot].hidden = true;
+    renderActivePieceSprite(game);   // (:4653) — take both pieces off the scoreboard
+    renderPreviewPieceSprite(game);  // (:4654)
     game.audioCues.resetRequested = true;
     game.flow.lines = kTypeBEndingLines;
     game.flow.gameState = GameState::INIT_TYPE_B_SCOREBOARD;
@@ -141,7 +144,7 @@ void initBonusEnding(GameContext& game) {
     }
 
     loadPlayingFieldTilemap(game, kDancersTilemap);
-    clearOamObjects(game.engine);
+    clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, dancerSprites());
 
     for (const std::size_t slot : kSecondPaletteSlots) {
@@ -171,10 +174,10 @@ void initBonusEnding(GameContext& game) {
 }
 
 void dancers(GameContext& game, const MusicPlayingQuery& musicPlaying) {
-    // At exactly 20 the original redraws the performers and does nothing else (tetris.asm:4785-4787).
-    // Redrawing is the renderer's work, so the frame is a plain return — but it is a real branch of the
-    // original and is carried as one.
+    // At exactly 20 the original redraws the performers and does nothing else (tetris.asm:4785-4787,
+    // via Label_1E3B) — the one frame that draws the troupe without advancing anyone's animation.
     if (game.flow.timer1 == kDanceRedrawFrame) {
+        renderSprites(game, kDancerSlotCount);
         return;
     }
     if (game.flow.timer1 != 0) {
@@ -193,12 +196,14 @@ void dancers(GameContext& game, const MusicPlayingQuery& musicPlaying) {
         toggleDancerFrame(slot);
     }
 
+    renderSprites(game, kDancerSlotCount);  // (:4816-4817) — the whole troupe, every animated frame
+
     // The dance runs until the jingle ends (tetris.asm:4818-4820).
     if (musicPlaying && musicPlaying()) {
         return;
     }
 
-    clearOamObjects(game.engine);
+    clearOamObjects(game);
     game.flow.gameState = game.flow.typeBStartHeight == kAllDancersHeight
                               ? GameState::INIT_BURAN
                               : GameState::TYPE_B_VICTORY_JINGLE;

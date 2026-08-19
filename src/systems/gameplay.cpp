@@ -14,6 +14,7 @@
 #include "data/gravity.h"    // framesPerDrop
 #include "data/music.h"      // MusicId
 #include "data/playing_field.h"
+#include "data/scene_sprites.h"  // activePieceSprite, previewPieceSprite
 #include "data/scoring.h"    // rocketSpriteForScore
 #include "data/tilemaps.h"   // kGameOverTilemap, kTryAgainTilemap, the two gameplay backdrops
 #include "retropp/input.h"   // actionId
@@ -25,7 +26,8 @@
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/piece.h"         // rotateAndShiftPiece, dropPiece, lockPieceIntoBackground, nextPiece
 #include "systems/screen.h"        // loadScreenTilemap
-#include "systems/scoring.h"       // addLineClearScore, clearScoreAndStats
+#include "systems/scoring.h"          // addLineClearScore, clearScoreAndStats
+#include "systems/sprite_renderer.h"  // renderActivePieceSprite, renderPreviewPieceSprite
 
 namespace kirpich::systems {
 
@@ -106,6 +108,21 @@ void printWindowBlock(PlayingFieldState& field, std::size_t fieldRow, std::size_
     }
 }
 
+// CopyUntilFF (tetris.asm:6267-6276) applied to one descriptor. The round's init seeds both piece
+// slots from their stored templates (:4176-4181), and that is where the two pieces get their screen
+// positions and attributes: the preview's position is the only thing that ever puts it in its box,
+// and the pieces themselves only ever change which sprite they show. Without it a round inherits
+// whatever the previous screen left in the slots.
+void loadSpriteTemplate(SpriteSlot& dst, const SceneSprite& src) {
+    dst.hidden = src.hidden;
+    dst.y = src.y;
+    dst.x = src.x;
+    dst.spriteId = src.sprite;
+    dst.behindBg = src.behindBg;
+    dst.yflip = false;
+    dst.xflip = src.xflip;
+}
+
 // Show or hide both piece sprites at once (the pause and game-over paths write both status bytes).
 void setPieceSpritesHidden(SpriteRendererState& renderer, bool hidden) {
     renderer.slots[kActivePieceSlot].hidden = hidden;
@@ -129,6 +146,7 @@ void handleSelect(GameContext& game) {
     }
     game.engine.hidePreviewPiece = !game.engine.hidePreviewPiece;
     game.spriteRenderer.slots[kPreviewPieceSlot].hidden = game.engine.hidePreviewPiece;
+    renderPreviewPieceSprite(game);  // (:4433) — the toggle is only visible once it is redrawn
 }
 
 }  // namespace
@@ -162,7 +180,7 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     // The fill armed the wipe; this round starts with a clean field, not a wipe (tetris.asm:4137-4138).
     game.flow.wipeCounter = 0;
 
-    clearOamObjects(game.engine);
+    clearOamObjects(game);
 
     const bool typeB = game.flow.gameType == GameType::TYPE_B;
     game.flow.level = typeB ? game.flow.typeBLevel : game.flow.typeALevel;
@@ -182,6 +200,11 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     game.flow.framesPerDrop = framesPerDrop(game.flow.level, game.flow.heartMode != 0);
     game.flow.dropTimer = game.flow.framesPerDrop;
 
+    // Both piece descriptors come from their templates (:4176-4181), before the preview's own
+    // visibility is applied over the top of it.
+    loadSpriteTemplate(game.spriteRenderer.slots[kActivePieceSlot], activePieceSprite());
+    loadSpriteTemplate(game.spriteRenderer.slots[kPreviewPieceSlot], previewPieceSprite());
+
     game.spriteRenderer.slots[kPreviewPieceSlot].hidden = game.engine.hidePreviewPiece;
 
     // Three draws fill the one-stage pipeline: each returns the previous preview, so it takes three to
@@ -189,6 +212,7 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     nextPiece(game, draw);
     nextPiece(game, draw);
     nextPiece(game, draw);
+    renderActivePieceSprite(game);  // (:4206) — the draws leave the preview drawn; this adds the piece
 
     game.flow.completedRowCount = 0;
 
@@ -274,6 +298,10 @@ void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
     if (game.flow.paused) {
         game.audioCues.pause = AudioPauseCommand::PAUSE;
         setPieceSpritesHidden(game.spriteRenderer, kHidden);
+        // Both branches leave through the same pair of redraws (:4482-4483), which is what makes
+        // the status change visible.
+        renderActivePieceSprite(game);
+        renderPreviewPieceSprite(game);
         return;
     }
 
@@ -281,6 +309,8 @@ void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
     game.spriteRenderer.slots[kActivePieceSlot].hidden = false;
     // The preview comes back only if the player has not hidden it (tetris.asm:4490-4494).
     game.spriteRenderer.slots[kPreviewPieceSlot].hidden = game.engine.hidePreviewPiece;
+    renderActivePieceSprite(game);
+    renderPreviewPieceSprite(game);
 }
 
 bool handlePausedMultiplayer(GameContext& game) {
@@ -311,6 +341,8 @@ bool handlePausedMultiplayer(GameContext& game) {
 
 void initGameOver(GameContext& game) {
     setPieceSpritesHidden(game.spriteRenderer, kHidden);
+    renderActivePieceSprite(game);   // (:4581) — the curtain falls over an emptied object layer
+    renderPreviewPieceSprite(game);  // (:4582)
     game.flow.pieceLockStage = 0;
     game.flow.blinkCounter = 0;
     clearLineClearsList(game);

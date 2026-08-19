@@ -91,6 +91,23 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
     atlas.fontPalette    = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontShades));
     atlas.contentPalette = renderer.uploadPalette(std::span<const retropp::Rgba8>(contentShades));
 
+    // The object ramps. Each is its background counterpart with the last entry - the one the decode's
+    // inversion puts the see-through colour at - made see-through.
+    //
+    // The plain ramp is otherwise the background's: every colour keeps its own shade. The variant
+    // differs in one place, the second entry: the colour that is ordinarily the second-darkest is
+    // drawn at the lightest shade instead. That is the ramp the two dancers select, and it is why
+    // they read differently from their neighbours.
+    constexpr std::array<retropp::Rgba8, 2> fontSpriteShades{kShadeDarkest, kShadeTransparent};
+    constexpr std::array<retropp::Rgba8, 4> sprite0Shades{kShadeDarkest, kShadeDark, kShadeLight,
+                                                          kShadeTransparent};
+    constexpr std::array<retropp::Rgba8, 4> sprite1Shades{kShadeDarkest, kShadeLightest, kShadeLight,
+                                                          kShadeTransparent};
+    atlas.fontSpritePalette =
+        renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSpriteShades));
+    atlas.spritePalette0 = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite0Shades));
+    atlas.spritePalette1 = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite1Shades));
+
     return atlas;
 }
 
@@ -108,6 +125,21 @@ ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& a
     }
     return ResolvedTile{
         .atlas = atlas.gameplay, .cell = where.cell, .palette = atlas.contentPalette};
+}
+
+ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
+                               const TileAtlas& atlas) noexcept {
+    const TileLocation where = locateTile(index, sheet);
+    // The font's two colours are the same under either object palette, so its art needs no variant.
+    if (where.source == TileSource::FONT) {
+        return ResolvedTile{
+            .atlas = atlas.font, .cell = where.cell, .palette = atlas.fontSpritePalette};
+    }
+
+    const retropp::PaletteId palette = palette1 ? atlas.spritePalette1 : atlas.spritePalette0;
+    const retropp::AtlasId source =
+        (where.source == TileSource::COPYRIGHT_TITLE) ? atlas.copyrightTitle : atlas.gameplay;
+    return ResolvedTile{.atlas = source, .cell = where.cell, .palette = palette};
 }
 
 }  // namespace kirpich::render

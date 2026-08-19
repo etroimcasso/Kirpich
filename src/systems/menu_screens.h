@@ -110,7 +110,7 @@ void blinkCursor(GameContext& game, std::size_t slot);
 void loadSceneSprites(SpriteRendererState& renderer, std::span<const SceneSprite> sprites);
 
 // ClearObjects — zero the whole 40-entry OAM staging buffer.
-void clearOamObjects(EngineState& engine);
+void clearOamObjects(GameContext& game);
 
 // ── Installer ─────────────────────────────────────────────────────────────────────────────────────
 
