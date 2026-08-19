@@ -21,7 +21,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 
 | Page | Covers |
 |---|---|
-| [assets.md](assets.md) | How the game gets its graphics: the required-asset manifest, the presence check, the first-start ROM selection flow, the asset root, and the packaging gate that keeps ROM-derived bytes out of a distributable. |
+| [assets.md](assets.md) | How the game gets its graphics: the required-asset manifest, the presence check, the first-start ROM selection flow, the asset root and the per-user directory a player's files live in, and the packaging gate that keeps ROM-derived bytes out of a distributable. |
 | [build.md](build.md) | Targets and how they fit together, the engine submodule, build options, and how to build, run, and test. |
 | [core-enums.md](core-enums.md) | The fundamental value types — game state, game type, music type, the serial types, and the piece byte — where they live, which are generated from the disassembly, and how to regenerate and change them. |
 | [charmap.md](charmap.md) | The character map — how text becomes named glyphs: the `CharTile` enum, the entry type, the exact-sequence lookup and greedy-longest-match encoder, where the table lives, and how to regenerate it. |
@@ -63,8 +63,9 @@ surface is small enough that a flat list is easier to scan.
 ## Status
 
 Kirpich is early, but it now opens a window. What exists today is the build, the engine
-wiring, the asset pipeline — including the extractor that produces the graphics from a
-player's ROM — the full data layer, the full state layer, and the systems layer so far: the
+wiring, the asset pipeline — including the extractor that produces the graphics and the sound
+driver's image from a player's ROM, into the per-user data directory their save lives in —
+the full data layer, the full state layer, and the systems layer so far: the
 piece randomizer, the input layer, the game-state dispatcher framework, the piece system,
 the line-clear pipeline, the scoring pipeline, the whole pre-game flow, the gameplay
 session, the Type B starting garbage, the Type B ending, and the sound, which hosts the

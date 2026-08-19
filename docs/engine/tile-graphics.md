@@ -33,10 +33,20 @@ if (!result.succeeded) {
 
 `extractFromRom` reads the file at `romPath`, refuses anything that is not the expected ROM
 (exactly 32,768 bytes, SHA-1 `74591cc9501af93873f9a5d3eb12da12c0723bbc`) **before writing
-anything**, then decodes all four blocks in memory and writes the four PNGs into
-`assets/gfx/default/` under the current asset root — the same paths the presence check requires.
-Every run rewrites all four files. `message` is player-facing either way: on success it lists what
-was written and where; on refusal it names the reason and the expected ROM.
+anything**, then prepares every output in memory before the first file is written, so a failure
+partway cannot leave a half-populated install behind.
+
+It writes **five** files: the four PNGs into `assets/gfx/default/`, and the sound driver's own image
+verbatim into `assets/audio/default/sound_driver.bin` (see [sound-driver.md](sound-driver.md)). All
+five are relative to the current asset root, and they are the same paths the presence check requires.
+Every run rewrites all of them.
+
+The writes go through the engine's per-user file store, which makes the directories on the way and
+puts each file down atomically — a crash or a full disk mid-write leaves the previous file intact
+rather than a truncated one the loader would accept as valid.
+
+`message` is player-facing either way: on success it lists what was written and where; on refusal it
+names the reason and the expected ROM.
 
 The pieces it is built from are public and individually testable:
 

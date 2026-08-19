@@ -21,11 +21,17 @@ There are two canonical locations, and two routes that populate them:
   out of the sibling disassembly checkout.
 - **Player.** The first-start flow asks for a ROM and extracts everything from it.
 
-Both routes write the same files to the same places, so there is no development branch in
-the load path — a developer's daily run exercises exactly the code a player's install does.
+Both routes write the same files under the same logical paths, and both are read by the same
+code — there is no development branch in the load path, so a developer's daily run exercises
+exactly what a player's install does.
 
-Each directory is committed as an empty placeholder (`.gitkeep`) and its contents are
-gitignored.
+What differs is the root those logical paths hang off, and only that: the development route
+writes into the project tree, and a player's extraction goes to their per-user data directory.
+[The asset root](#the-asset-root) is where that is decided.
+
+The two directories under `assets/` in the repository serve the development route. Each is
+committed as an empty placeholder (`.gitkeep`) and its contents are gitignored; a player's install
+never has them, because a player's files are not in the program's directory at all.
 
 ## Asset paths are literals at their use sites — there is no path constant anywhere
 
@@ -256,6 +262,11 @@ With no argument it checks this working tree — which is *expected to fail* for
 who has run the setup script. That is the check demonstrating it can tell the two states
 apart, not a problem to fix.
 
+The directories it walks are the development route's. A player's extraction goes to their own
+data directory and never near a package, so what this guards against is a package staged out of
+a tree that has been populated for development — which is the realistic accident, and the reason
+the check runs against the staged output rather than the source.
+
 ## Testing without copyrighted bytes
 
 The real graphics are gitignored and absent from CI, so no test may depend on them. Tests
@@ -269,6 +280,12 @@ regardless of its real format — the sound driver image included.
 with whatever subset a case needs, and asserts exactly which paths come back missing. The
 root is restored afterwards; it is process-global state, so a test that sets it must put it
 back.
+
+It also checks that every required path is one the file store will accept and resolves *inside*
+the store's own directory. The store refuses a name that could escape it, and allows separators so
+a name can express a tree — which is what these paths need, and what the save store deliberately
+refuses. That property is the extractor's dependency on the store; if it ever tightened, extraction
+would fail on a player's first launch and nothing else here would see it.
 
 `tests/test_driver_image.cpp` covers the driver span itself. It reads the real ROM — resolved
 from the CI provisioning path, then the development sibling — and fails loudly when neither is

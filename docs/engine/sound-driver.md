@@ -20,9 +20,16 @@ driver's RAM window is [`../contracts/audio-state.md`](../contracts/audio-state.
 | `src/vm/audio_boot.asm` | The startup routine — switches the sound hardware on, clears the driver's work RAM, calls the driver's own initialisation |
 | `tests/test_sound.cpp` | The registration pins, the frame-decision sweeps, the startup-routine pins, and the placement check |
 
-The driver's image is not in this repository. It is extracted from the player's cartridge on first
-start to `assets/audio/default/sound_driver.bin` — see [assets.md](assets.md) — and read from there
-at run time.
+The driver's image is not in this repository, and it is never compiled into the binary: those bytes
+are the player's own cartridge content. It is extracted on first start to
+`assets/audio/default/sound_driver.bin` under the asset root — the player's per-user data directory,
+see [assets.md](assets.md) — and read from there at run time, which is what its `LoadFromPath` policy
+means.
+
+The startup routine registered alongside it is the opposite case. `src/vm/audio_boot.asm` is
+port-authored, so it is declared `Embed` and the build bakes it into the binary; there is no file to
+find at run time. The two images in one binding having different policies is the point — each is
+resolved on its own.
 
 ## The three pieces
 
