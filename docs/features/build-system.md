@@ -98,9 +98,10 @@ loop faster or the editor smarter at no cost.
 
 `KIRPICH_DEV_ASSET_ROOT` (on by default) defines `KIRPICH_PROJECT_ROOT` to the source directory, so
 a development build resolves game assets to the project tree and exercises the shipped load path
-against the files the setup script wrote — no copying anything beside the binary. A distributable
-build turns it off. The toggle is a build-system control but its behavior belongs to the asset
-story; see [`asset-acquisition.md`](asset-acquisition.md) and
+against the files the setup script wrote. It applies only to a binary still inside that tree;
+everything else resolves the player's own data directory, which is where a distributable reads and
+writes. A distributable build turns the option off. The toggle is a build-system control but its
+behavior belongs to the asset story; see [`asset-acquisition.md`](asset-acquisition.md) and
 [`distributable-build.md`](distributable-build.md).
 
 ## Implementation details

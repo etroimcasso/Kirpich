@@ -35,6 +35,7 @@
 #include <retropp/run_loop.h>
 #include <retropp/save_store.h>
 #include <retropp/sdl_platform.h>
+#include <retropp/user_files.h>
 #include <retropp/version.h>
 #include <retropp/viewport.h>
 #include <retropp/vm.h>
@@ -69,10 +70,17 @@ namespace {
 // The faithful internal resolution, and the one the tile bridge's 20x18 window assumes.
 constexpr retropp::ViewportResolution kViewport = retropp::ViewportResolution::GameBoy;
 
-// Where LoadFromPath assets resolve from. A development build reads the project tree; anything else
-// reads the executable's own directory, which is where the extractor writes and what a player gets.
-// developmentAssetRoot decides which applies — see assets/asset_root.h for why a moved binary must
-// not keep its build tree.
+// Where LoadFromPath assets resolve from.
+//
+// A player's assets are their own files: extracted from their cartridge, belonging to them and to
+// this machine, and they live in the per-user data directory beside their save — the same place
+// UserFiles and SaveStore resolve. That is where the extractor writes and where the loaders read,
+// and it is the same directory wherever the binary itself happens to sit.
+//
+// A development build reads its project tree instead, so a developer who has run
+// scripts/setup-dev-assets exercises the shipped load path against the files in their checkout.
+// That only applies to a binary still inside that tree: developmentAssetRoot decides, and
+// assets/asset_root.h explains why a binary that has been moved must not keep it.
 void configureAssetRoot() {
 #ifdef KIRPICH_PROJECT_ROOT
     // assetRoot() is the engine's default at this point: an absolute path to the executable's
@@ -82,14 +90,26 @@ void configureAssetRoot() {
     const std::filesystem::path here = std::filesystem::weakly_canonical(retropp::assetRoot(), ec);
     const std::filesystem::path root =
         std::filesystem::weakly_canonical(std::filesystem::path{KIRPICH_PROJECT_ROOT}, ec);
-    if (ec) {
-        return;
-    }
-
-    if (const auto devRoot = kirpich::assets::developmentAssetRoot(here, root)) {
-        retropp::setAssetRoot(*devRoot);
+    if (!ec) {
+        if (const auto devRoot = kirpich::assets::developmentAssetRoot(here, root)) {
+            retropp::setAssetRoot(*devRoot);
+            return;
+        }
     }
 #endif
+
+    // The per-user directory. Resolving it creates it, so it is writable by the time the extractor
+    // needs it. It can still fail — an identity the engine never published, or a platform that
+    // cannot answer — and that is worth saying out loud rather than aborting on: the engine's own
+    // default still resolves, so the run continues with the files beside the program instead.
+    try {
+        retropp::setAssetRoot(retropp::UserFiles{}.root());
+    } catch (const retropp::SaveStoreError& error) {
+        spdlog::error(
+            "Could not resolve the per-user data directory ({}). Falling back to the program's own "
+            "directory, which works but is not where your files belong.",
+            error.what());
+    }
 }
 
 }  // namespace

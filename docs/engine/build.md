@@ -81,7 +81,7 @@ as one opaque binary.
 
 | Option | Default | Effect |
 |---|---|---|
-| `KIRPICH_DEV_ASSET_ROOT` | `ON` | Defines `KIRPICH_PROJECT_ROOT` to the source directory, which `main()` uses to resolve the asset root to the project tree. Turn it **off for a distributable**: the definition disappears and the engine's default applies — the executable's own directory. |
+| `KIRPICH_DEV_ASSET_ROOT` | `ON` | Defines `KIRPICH_PROJECT_ROOT` to the source directory, which `main()` uses to resolve the asset root to the project tree — for a binary still inside that tree. Turn it **off for a distributable**: the definition disappears and every build resolves the per-user data directory, which is where a player's extracted assets live either way. |
 | `BUILD_TESTING` | `ON` | Standard CTest option. Off skips the `tests/` subdirectory entirely. |
 
 `CMAKE_BUILD_TYPE` defaults to `Release` when neither it nor a multi-config generator sets

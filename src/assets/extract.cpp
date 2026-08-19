@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <fstream>
 #include <iterator>
+#include <span>
 
 #include "assets/png_writer.h"
 
 #include <retropp/asset_registry.h>
+#include <retropp/user_files.h>
 
 #include <spdlog/spdlog.h>
 
@@ -55,17 +57,6 @@ void decode1bppTile(std::span<const std::uint8_t> tile, std::vector<std::uint8_t
     }
 }
 
-// Create one output directory under the asset root. Returns a player-facing message when it cannot
-// be created, and an empty string when it exists afterwards.
-std::string ensureDirectory(const fs::path& path) {
-    std::error_code error;
-    fs::create_directories(path, error);
-    if (error) {
-        return "The asset directory (" + path.string() + ") could not be created: " +
-               error.message() + "\nNothing was extracted.";
-    }
-    return {};
-}
 
 ExtractionResult refused(std::string why) {
     return {
@@ -227,22 +218,15 @@ ExtractionResult extractFromRom(const std::filesystem::path& romPath) {
     pending.push_back({"assets/audio/default/sound_driver.bin",
                        std::vector<std::uint8_t>{driver.begin(), driver.end()}});
 
-    if (std::string error = ensureDirectory(retropp::assetRoot() / "assets/gfx/default");
-        !error.empty()) {
-        return {.succeeded = false, .message = std::move(error)};
-    }
-    if (std::string error = ensureDirectory(retropp::assetRoot() / "assets/audio/default");
-        !error.empty()) {
-        return {.succeeded = false, .message = std::move(error)};
-    }
+    // Written through the file store rooted where the assets resolve, which makes the directories on
+    // the way and puts each file down atomically: a crash or a full disk mid-write leaves the previous
+    // file intact rather than a truncated one the loader would accept.
+    retropp::UserFiles store = retropp::UserFiles::atPath(retropp::assetRoot());
 
     std::string written;
     for (const PendingFile& file : pending) {
-        const fs::path destination = retropp::assetRoot() / file.logical;
-        std::ofstream outFile{destination, std::ios::binary | std::ios::trunc};
-        outFile.write(reinterpret_cast<const char*>(file.bytes.data()),
-                      static_cast<std::streamsize>(file.bytes.size()));
-        if (!outFile) {
+        if (!store.write(file.logical, std::as_bytes(std::span{file.bytes}))) {
+            const fs::path destination = store.pathFor(file.logical);
             spdlog::error("Extraction failed writing {}", destination.string());
             return {.succeeded = false,
                     .message   = "Extraction failed while writing " + destination.string() +

@@ -8,6 +8,7 @@
 
 #include <retropp/asset_registry.h>
 #include <retropp/image.h>
+#include <retropp/user_files.h>
 
 #include "assets/presence.h"
 
@@ -125,6 +126,44 @@ TEST(AssetPresence, NamesEveryAssetInOrderWhenTheRootIsEmpty) {
                                   "assets/gfx/default/multiplayerandburan.png",
                                   "assets/audio/default/sound_driver.bin",
                               }));
+}
+
+// Every required path is one the file store will accept, and lands under the store's own directory.
+//
+// The extractor writes through that store, and the store refuses a name that could escape it — an
+// absolute path, a drive letter, a `..` component. Its documented difference from the save store is
+// that it DOES allow separators, so a name can express a tree; these five paths are the port's
+// dependency on that. If the store ever tightened to the save store's rule, extraction would fail at
+// runtime on a player's first launch, where nothing else in this suite would see it.
+TEST(AssetPresence, EveryRequiredPathIsOneTheFileStoreAccepts) {
+    const TempRoot   root{"store-paths"};
+    retropp::UserFiles store = retropp::UserFiles::atPath(root.path());
+
+    const TempRoot        empty{"store-paths-required"};
+    const ScopedAssetRoot scoped{empty.path()};
+    const kirpich::assets::PresenceResult required = kirpich::assets::checkRequired();
+    ASSERT_FALSE(required.missing.empty());
+
+    for (const std::string& logical : required.missing) {
+        fs::path resolved;
+        ASSERT_NO_THROW(resolved = store.pathFor(logical)) << logical;
+
+        // Under the root, not merely prefixed by it: compared per component, so a sibling directory
+        // whose name begins with the root's does not pass. Both normalised paths are held in named
+        // objects — iterators into a temporary would dangle for the whole comparison.
+        const fs::path base     = root.path().lexically_normal();
+        const fs::path resolvedNorm = resolved.lexically_normal();
+
+        auto       b    = base.begin();
+        auto       r    = resolvedNorm.begin();
+        const auto bEnd = base.end();
+        const auto rEnd = resolvedNorm.end();
+        for (; b != bEnd && r != rEnd; ++b, ++r) {
+            EXPECT_EQ(*b, *r) << logical;
+        }
+        EXPECT_EQ(b, bEnd) << logical;
+        EXPECT_NE(r, rEnd) << logical << " resolved to the root itself";
+    }
 }
 
 TEST(AssetPresence, MissingMessageListsThePathsAndExplainsTheRomFlow) {

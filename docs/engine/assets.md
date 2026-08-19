@@ -81,20 +81,42 @@ is about to ask for the ROM. It never tells the player to go and run a tool.
 
 ## The asset root
 
-Logical paths resolve against the engine's asset root, `retropp::assetRoot()`. Kirpich sets
-the root once, in `main()`:
+Logical paths resolve against the engine's asset root, `retropp::assetRoot()`. Kirpich sets the
+root once, in `main()`'s `configureAssetRoot()`, and it resolves to one of two places.
+
+**A player's assets live in the per-user data directory** — `retropp::UserFiles{}.root()`, which
+is the same directory the save file goes in: `~/Library/Application Support/<org>/<app>` on
+macOS, `%APPDATA%\<org>\<app>` on Windows, `$XDG_DATA_HOME/<org>/<app>` on Linux. They are the
+player's own files, extracted from their own cartridge, and they belong with their save rather
+than with the program. It is the same directory wherever the binary itself sits, so a copy in a
+downloads folder and a copy in an applications folder read the same extracted assets, and a
+program installed somewhere read-only can still extract.
+
+**A development build reads its project tree instead**, so a developer who has run
+`scripts/setup-dev-assets` exercises the shipped load path against the files in their checkout.
+`KIRPICH_PROJECT_ROOT` is defined by the build when `KIRPICH_DEV_ASSET_ROOT` is on (the default —
+see [build.md](build.md)).
+
+That tree only applies to a binary **still inside it**:
 
 ```cpp
-#ifdef KIRPICH_PROJECT_ROOT
-    retropp::setAssetRoot(std::filesystem::path{KIRPICH_PROJECT_ROOT});
-#endif
+if (const auto devRoot = kirpich::assets::developmentAssetRoot(here, root)) {
+    retropp::setAssetRoot(*devRoot);
+    return;
+}
 ```
 
-`KIRPICH_PROJECT_ROOT` is defined by the build when `KIRPICH_DEV_ASSET_ROOT` is on (the
-default — see [build.md](build.md)), so a development build reads the files the setup script
-wrote into the source tree. With the option off, the definition is absent, `setAssetRoot` is
-never called, and the engine's own default applies: the executable's directory, which is
-where the extractor writes on a player's machine.
+`developmentAssetRoot` (`src/assets/asset_root.h`) answers the project root when the executable's
+directory is inside it, and nothing otherwise — compared per path component, so a sibling
+directory whose name merely begins with the project's does not count. A binary copied elsewhere
+falls through to the per-user directory like any other. Without that check a development build
+carried its build machine's tree wherever it went, reading assets a player would never see and
+extracting into a directory unrelated to where it was running.
+
+If the per-user directory cannot be resolved — an identity the engine never published, or a
+platform that cannot answer — `configureAssetRoot` logs it and leaves the engine's own default in
+place, which is the executable's directory. The run continues; the files just land somewhere less
+appropriate.
 
 Call `setAssetRoot` from `main()` and nowhere else — not from library code, and never at
 namespace scope, where the ordering against the engine's own startup is not defined. The

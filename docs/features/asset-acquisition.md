@@ -61,6 +61,37 @@ directory for an installed game. The port sets that root and addresses assets by
 there is nothing left for a wrapper to do. The port-side asset module exists only for the presence
 check, which is a different job.
 
+**Extracted assets live in the player's own data directory** — the same one their save file goes in
+(`~/Library/Application Support/<org>/<app>`, `%APPDATA%\<org>\<app>`, `$XDG_DATA_HOME/<org>/<app>`),
+resolved through the engine's file store rather than composed by hand.
+
+They were originally written beside the executable, which is what the engine's default asset root
+resolves to. That was rejected once the consequences were visible:
+
+- **A binary that moves loses its assets.** Two copies of the program in two directories each need
+  their own extraction, and each prompts for the ROM again.
+- **An installed program often cannot write next to itself.** An application bundle is read-only and
+  signed; writing into it is a signature violation where it is possible at all. It rules out ever
+  shipping through a store.
+- **It is not the player's data.** These files are derived from the player's cartridge and belong
+  with their save, not with the program binary. If they uninstall the program, the same rules should
+  apply to both.
+
+The per-user directory answers all three, and it is the same path under a sandbox, where the platform
+redirects it into the application's container without the program knowing.
+
+The extractor writes through that store rather than opening files itself, which gets two properties
+for free: directories are created on the way, and each file lands atomically — a crash or a full disk
+mid-write leaves the previous file intact rather than a truncated one the loader would accept as
+valid.
+
+**Development builds still read the project tree**, so a developer who has run the setup script
+exercises the shipped load path against their checkout. That applies only to a binary still inside
+that tree; a build copied elsewhere resolves the per-user directory like any other. Keeping the dev
+path was a deliberate call — the alternative, having developers extract into their own data directory
+like a player, removes the last difference between what a developer runs and what a player runs, but
+costs the convenience of editing assets in the checkout.
+
 ### First-start sequencing — port-side only, no engine modification
 
 When the game starts and required content is absent, it does not stop with an error telling the
