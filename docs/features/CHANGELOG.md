@@ -10,6 +10,12 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-18
 
+- **Sprite renderer** ⬜ → ✅. The objects draw. The simulation had been filling sprite descriptors
+  since the piece system landed and nothing read them; the routine that compiles them into the object
+  buffer is ported and called back at the sites the handlers had dropped, and a bridge submits the
+  buffer as a second layer. Objects get their own palettes, since their lowest colour is see-through
+  rather than a shade, and each is named for what it is plus the tick it was placed on, so a move
+  arrives rather than glides. A solo round is playable end to end.
 - **Background rendering** ⬜ → 🟡. Kirpich opens a window. Every screen handler had dropped its
   backdrop load; those are restored, and because the board is the port's model of the background map,
   they go back into the board exactly as they went into that map on hardware — so the picture is a

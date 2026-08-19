@@ -81,6 +81,25 @@ inline constexpr std::uint16_t kCarriedCopyrightTiles = kGameplayTileBase - kCon
 // 0-3 and the 1bpp font yields 0-1, and in both cases the decode inverts, so 0 is the darkest shade
 // and the top value is white. A four-entry ramp is therefore right for the content sheets and a
 // two-entry one for the font; each is the identity for its own sheet.
+// Objects need their own palettes, for two reasons that compound.
+//
+// The first is transparency. An object's lowest colour is not a shade at all - it is see-through,
+// which is what lets a sprite be a shape rather than a rectangle. The background has no such colour;
+// its lowest value is a real shade. So a sprite drawn through a background palette would come out on
+// a solid card, and the palettes cannot be shared.
+//
+// The second is which entry that is. The decode inverts (docs/contracts/tile-graphics.md), so a
+// sample's palette index counts down from the darkest shade while the hardware colour it came from
+// counts up - and the see-through colour, being the hardware's lowest, is the port's HIGHEST index.
+// It is the last entry of each ramp, never the first.
+//
+// The game keeps two object palettes and uses both (tetris.asm:296-300): the first is the plain
+// ramp, the second re-maps the two middle colours, and the ending's dancers select it for two of
+// their performers. The font needs neither variant - its expansion writes only the darkest colour
+// and the see-through one (LoadFontTiles, :6383-6387), and both object palettes agree on those two,
+// so one font palette serves whichever is selected.
+inline constexpr retropp::Rgba8 kShadeTransparent{.r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00};
+
 struct TileAtlas {
     retropp::AtlasId font{};
     retropp::AtlasId copyrightTitle{};
@@ -91,6 +110,11 @@ struct TileAtlas {
 
     retropp::PaletteId fontPalette{};     // two entries: black, white
     retropp::PaletteId contentPalette{};  // four entries: the DMG shade ramp, darkest first
+
+    // The object palettes. Same ramps, last entry see-through.
+    retropp::PaletteId fontSpritePalette{};  // font art drawn as an object; serves both object palettes
+    retropp::PaletteId spritePalette0{};     // the plain ramp
+    retropp::PaletteId spritePalette1{};     // the variant the dancers select
 };
 
 // The four DMG shades, darkest first - the order the decode's inversion produces.
@@ -115,5 +139,10 @@ struct ResolvedTile {
 // locateTile, carried through to the uploaded handles.
 [[nodiscard]] ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet,
                                        const TileAtlas& atlas) noexcept;
+
+// The same, for a tile drawn as an object: same sheet and cell, an object palette instead of a
+// background one. `palette1` selects the variant ramp, as the object's own attribute does.
+[[nodiscard]] ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
+                                             const TileAtlas& atlas) noexcept;
 
 }  // namespace kirpich::render

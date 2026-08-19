@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -222,13 +223,20 @@ TEST(TypeBEnding, InitBonusEndingVectors) {
 // GameState_23's per-slot step (tetris.asm:4784-4815, :4831-4841): the two gates, the countdown, the
 // frame toggle, and the cossack's jump.
 TEST(TypeBEnding, DancerAnimationVectors) {
-    // At exactly 20 the original only redraws, so nothing in the port's state moves (:4785-4787).
+    // At exactly 20 the original redraws the performers and does nothing else (:4785-4787): the
+    // object buffer fills, and no performer's animation advances.
     {
         GameContext game = dancing();
         game.flow.timer1 = kDanceRedrawFrame;
         const GameContext before = game;
         kirpich::systems::dancers(game);
-        EXPECT_EQ(game, before);
+
+        EXPECT_NE(game.engine.oam, before.engine.oam) << "the redraw frame should draw";
+
+        GameContext expected = before;
+        expected.engine.oam = game.engine.oam;
+        expected.oamSources = game.oamSources;
+        EXPECT_EQ(game, expected) << "the redraw frame moves nothing else";
     }
 
     // Any other live timer returns too (:4788-4789).
@@ -302,22 +310,26 @@ TEST(TypeBEnding, DancersExitFork) {
     // A song still playing holds the state — the performers animate, nothing else moves (:4818-4820).
     {
         GameContext game = dancing();
-        game.engine.oam[3].tile = 0x55;
         kirpich::systems::dancers(game, [] { return true; });
 
-        // The layout left the state on the dance; a playing song leaves it there.
+        // The layout left the state on the dance; a playing song leaves it there. The performers are
+        // redrawn every animating frame (:4816-4817) — their four parts each fill all forty entries
+        // — so a populated buffer is the witness that the clear which ends the dance did not run.
         EXPECT_EQ(game.flow.gameState, GameState::DANCERS);
-        EXPECT_EQ(game.engine.oam[3].tile, 0x55);
+        const bool anyDrawn =
+            std::any_of(game.engine.oam.begin(), game.engine.oam.end(),
+                        [](const kirpich::OamEntry& e) { return !(e == kirpich::OamEntry{}); });
+        EXPECT_TRUE(anyDrawn) << "the performers should have been drawn, not cleared";
     }
 
     // Silence ends it: the object buffer is cleared and the round leaves (:4821-4828).
     for (std::uint8_t height = 0; height <= 5; ++height) {
         GameContext game = dancing(height);
-        game.engine.oam[3].tile = 0x55;
+        game.engine.oam[39].tile = 0x55;
 
         kirpich::systems::dancers(game, [] { return false; });
 
-        EXPECT_EQ(game.engine.oam[3].tile, 0u) << "height " << int{height};
+        EXPECT_EQ(game.engine.oam[39].tile, 0u) << "height " << int{height};
         const GameState expected =
             height == 5 ? GameState::INIT_BURAN : GameState::TYPE_B_VICTORY_JINGLE;
         EXPECT_EQ(game.flow.gameState, expected) << "height " << int{height};

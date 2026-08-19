@@ -24,6 +24,7 @@
 #include "state/sprite_renderer_state.h"
 #include "systems/audio_cues.h"
 #include "systems/input.h"
+#include "systems/oam_source.h"
 
 namespace kirpich::systems {
 
@@ -39,6 +40,10 @@ struct GameContext {
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)
+
+    // Not machine state: a record of what the renderer drew into each object-buffer entry, so the
+    // render bridge can tell one frame's objects from the last frame's. See systems/oam_source.h.
+    OamSourceTable oamSources;
 
     // Whole-image reset — every member returns to its own boot state. This is the cold-boot reset,
     // not the soft-reset chord: the original's soft reset preserves the top-score tables (its init

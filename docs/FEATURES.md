@@ -91,7 +91,7 @@ Game logic.
 | Feature | Status | Doc |
 |---|---|---|
 | Background rendering | 🟡 | [`features/background-rendering.md`](features/background-rendering.md) — the board bridged to the engine's tile path and submitted as one layer, with the tile-art regime it resolves against. Backgrounds draw; the paused screen (a second background map the port does not model), the wipe's row-by-row sweep, and the palette effects do not |
-| Sprite renderer | ⬜ | `features/sprite-renderer.md` |
+| Sprite renderer | ✅ | [`features/sprite-renderer.md`](features/sprite-renderer.md) — the walk that fills the object buffer, restored at the sites the handlers make it from, plus the bridge that submits it as a layer |
 | Tilemap loader | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the backdrop stamp (`loadScreenTilemap`) and the tile-art selection, restored at every solo screen. The window form of the original's loader serves only the second background map and lands with whichever unit models it |
 | Sprite-copy routine | ⬜ | `features/dma.md` |
 | Frame tick handler | ⬜ | `features/vblank.md` |

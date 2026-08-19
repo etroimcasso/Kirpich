@@ -20,7 +20,8 @@
 #include "state/sprite_renderer_state.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
-#include "systems/screen.h"  // loadScreenTilemap, loadTileSheet
+#include "systems/screen.h"           // loadScreenTilemap, loadTileSheet
+#include "systems/sprite_renderer.h"  // renderCursors
 
 namespace kirpich::systems {
 
@@ -123,9 +124,12 @@ void loadSceneSprites(SpriteRendererState& renderer, std::span<const SceneSprite
     renderer.slots[slot].hidden = true;
 }
 
-void clearOamObjects(EngineState& engine) {
-    // ClearObjects (tetris.asm:3630-3638): zero the whole 40-entry OAM staging buffer.
-    engine.oam.fill(OamEntry{});
+void clearOamObjects(GameContext& game) {
+    // ClearObjects (tetris.asm:3630-3638): zero the whole 40-entry OAM staging buffer. The port also
+    // forgets what drew each entry: an emptied buffer holds no objects, so there is nothing left for
+    // the next screen's objects to be mistaken for.
+    game.engine.oam.fill(OamEntry{});
+    game.oamSources.reset();
 }
 
 void loadConfigScreenBody(GameContext& game) {
@@ -136,7 +140,7 @@ void loadConfigScreenBody(GameContext& game) {
     // into game-type selection.
     loadTileSheet(game.display, TileSheet::GAMEPLAY);        // LoadGameplayTiles (:3123)
     loadScreenTilemap(game.field, kConfigScreenTilemap);     // (:3124-3125)
-    clearOamObjects(game.engine);
+    clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, configScreenSprites());  // Data_26CF: 2 markers + terminator
 
     positionMusicTypeSprite(game, /*playSfx=*/true);
@@ -148,6 +152,7 @@ void loadConfigScreenBody(GameContext& game) {
     gameCursor.spriteId =
         (game.flow.gameType == GameType::TYPE_A) ? SpriteId::A_TYPE : SpriteId::B_TYPE;
 
+    renderCursors(game);  // (:3143)
     switchMusic(game);
     game.flow.gameState = GameState::SELECT_GAME_TYPE;
 }
@@ -182,25 +187,26 @@ void selectGameType(GameContext& game) {
         cursor.hidden = false;
         return;
     }
+    // Every d-pad path — including the two end-stops that change nothing — leaves through the shared
+    // exit that redraws the cursors (:3296). The Start and Confirm transitions above do not: they
+    // leave by the state-change path (:3300-3313), which never reaches the redraw.
     if (pressed(game, Action::MenuRight)) {
-        if (game.flow.gameType == GameType::TYPE_B) {
-            return;  // already Type B — no change
+        if (game.flow.gameType != GameType::TYPE_B) {
+            game.flow.gameType = GameType::TYPE_B;
+            game.audioCues.square = SquareSfxId::TINK;
+            cursor.x = static_cast<std::uint8_t>(GameType::TYPE_B);
+            cursor.spriteId = SpriteId::B_TYPE;
         }
-        game.flow.gameType = GameType::TYPE_B;
-        game.audioCues.square = SquareSfxId::TINK;
-        cursor.x = static_cast<std::uint8_t>(GameType::TYPE_B);
-        cursor.spriteId = SpriteId::B_TYPE;
-        return;
-    }
-    if (pressed(game, Action::MenuLeft)) {
-        if (game.flow.gameType == GameType::TYPE_A) {
-            return;  // already Type A — no change
+    } else if (pressed(game, Action::MenuLeft)) {
+        if (game.flow.gameType != GameType::TYPE_A) {
+            game.flow.gameType = GameType::TYPE_A;
+            game.audioCues.square = SquareSfxId::TINK;
+            cursor.x = static_cast<std::uint8_t>(GameType::TYPE_A);
+            cursor.spriteId = SpriteId::A_TYPE;
         }
-        game.flow.gameType = GameType::TYPE_A;
-        game.audioCues.square = SquareSfxId::TINK;
-        cursor.x = static_cast<std::uint8_t>(GameType::TYPE_A);
-        cursor.spriteId = SpriteId::A_TYPE;
     }
+
+    renderCursors(game);
 }
 
 void selectMusicType(GameContext& game) {
@@ -243,6 +249,11 @@ void selectMusicType(GameContext& game) {
         positionMusicTypeSprite(game, /*playSfx=*/true);
         switchMusic(game);
     }
+
+    // The shared d-pad exit. The original's down-boundary case reaches the game-type screen's copy
+    // of this redraw rather than its own (`jp z, GameState_0E.out`, :3201 — the disassembly notes
+    // the detour); both are the same call, so one exit serves.
+    renderCursors(game);
 }
 
 void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refresh) {
@@ -254,12 +265,13 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // top score, which routes straight to name entry. No art load here: the config screen this is
     // entered from already loaded the gameplay set, and the original does not reload it (:3318-3320).
     loadScreenTilemap(game.field, kTypeADifficultyTilemap);  // (:3319-3320)
-    clearOamObjects(game.engine);  // ClearTopScoreFields is a top-score render seam (no sim effect)
+    clearOamObjects(game);  // ClearTopScoreFields is a top-score render seam (no sim effect)
     loadSceneSprites(game.spriteRenderer, typeADifficultySprites());  // Data_26DB: 1 digit cursor
 
     updateDigitCursor(game, kSlot0, kTypeALevelCursorCoordinates, game.flow.typeALevel,
                       /*playSfx=*/true);
     if (refresh) refresh(game);  // UpdateTypeATopScores; DrawTopScoresToVRAM is a render seam
+    renderCursors(game);         // (:3331) — before the branch, so both exits draw the cursor
 
     game.flow.gameState = GameState::TYPE_A_LEVEL_SELECTION;
     if (game.highScores.newTopScore) {
@@ -301,6 +313,8 @@ void selectTypeALevel(GameContext& game, const TopScoresRefresh& refresh) {
         updateDigitCursor(game, kSlot0, kTypeALevelCursorCoordinates, value, /*playSfx=*/true);
         if (refresh) refresh(game);  // UpdateTypeATopScores
     }
+
+    renderCursors(game);  // .renderCursor (:3386-3388), the exit every d-pad path converges on
 }
 
 void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh) {
@@ -308,7 +322,7 @@ void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // level (slot 0) and the starting garbage height (slot 1). Same shape as the Type A init, but with
     // no separate top-score-field clear (the Type B refresh does its own) and two cursors seeded.
     loadScreenTilemap(game.field, kTypeBDifficultyTilemap);  // (:3410-3411)
-    clearOamObjects(game.engine);
+    clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, typeBDifficultySprites());  // Data_26E1: 2 digit cursors
 
     updateDigitCursor(game, kSlot0, kTypeBLevelCursorCoordinates, game.flow.typeBLevel,
@@ -316,6 +330,7 @@ void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     updateDigitCursor(game, kSlot1, kTypeBStartHeightCursorCoordinates, game.flow.typeBStartHeight,
                       /*playSfx=*/true);
     if (refresh) refresh(game);  // UpdateTypeBTopScores; DrawTopScoresToVRAM is a render seam
+    renderCursors(game);         // (:3425) — before the branch, as on the Type A screen
 
     game.flow.gameState = GameState::TYPE_B_LEVEL_SELECTION;
     if (game.highScores.newTopScore) {
@@ -360,6 +375,8 @@ void selectTypeBLevel(GameContext& game, const TopScoresRefresh& refresh) {
         updateDigitCursor(game, kSlot0, kTypeBLevelCursorCoordinates, value, /*playSfx=*/true);
         if (refresh) refresh(game);  // UpdateTypeBTopScores
     }
+
+    renderCursors(game);  // the shared d-pad exit (:3488)
 }
 
 void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh) {
@@ -393,6 +410,8 @@ void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh) {
         updateDigitCursor(game, kSlot1, kTypeBStartHeightCursorCoordinates, value, /*playSfx=*/true);
         if (refresh) refresh(game);  // UpdateTypeBTopScores
     }
+
+    renderCursors(game);  // the shared d-pad exit (:3551)
 }
 
 void installMenuScreenHandlers(GameStateDispatcher& dispatcher) {

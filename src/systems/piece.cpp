@@ -12,8 +12,9 @@
 #include <kirpich/piece.h>
 #include <kirpich/sprite_id.h>
 
-#include "data/scoring.h"   // softDropAward, kScoreSaturation
-#include "data/sprites.h"   // Sprite, SpritePart, getSprite
+#include "data/scoring.h"             // softDropAward, kScoreSaturation
+#include "data/sprites.h"             // Sprite, SpritePart, getSprite
+#include "systems/sprite_renderer.h"  // spritePartPosition, renderActivePieceSprite
 
 namespace kirpich::systems {
 
@@ -24,34 +25,23 @@ constexpr retropp::ActionId aid(Action a) { return retropp::actionId(a); }
 
 // The board cell one part of the active piece covers. Two original mechanisms compose here:
 //
-//   * The renderer's position law (_RenderSprites, tetris.asm:6774-6823). Each part's on-screen
-//     coordinate is `offset + slotPos` then `+ partOffset`, computed as an SM83 `add` / `adc` pair —
-//     so the carry out of the first add leaks into the second. The piece sprites' render offsets are
-//     negative, so the first add overflows and the carry fires on every part; reproducing it needs
-//     the same 8-bit adds with the carry carried across.
+//   * The renderer's position law (_RenderSprites, tetris.asm:6774-6823), including the carry that
+//     leaks between its two position adds and the off-screen y a hidden piece takes. That law is
+//     the renderer's, and it is used from here rather than restated: the original renders the piece
+//     into the sprite buffer and reads that buffer back, so the position collision sees is by
+//     construction the position the screen shows.
 //   * The tile-lookup cell map (_LookupTile, tetris.asm:6558-6584, reading the board shadow the
 //     collision/lock code reaches by adding $30 to the address high byte, tetris.asm:6044). The OAM
 //     pixel maps to a board cell by removing the hardware sprite offsets and dividing by the 8-pixel
 //     tile size.
 //
-// A hidden piece takes the renderer's hidden branch (tetris.asm:6829-6833): every part's OAM Y
-// becomes $FF (the real X is kept), mapping the piece to row 29 so collision and locking read the
-// piece's real cells even on a hidden piece. All arithmetic is 8-bit wraparound.
+// A hidden piece maps to row 29, so collision and locking read its real cells even while it is
+// invisible. All arithmetic is 8-bit wraparound.
 PieceCell cellForPart(const SpriteSlot& slot, const Sprite& sprite, const SpritePart& part) {
-    const unsigned sx = static_cast<std::uint8_t>(sprite.offset_x) + slot.x;         // "add b"
-    const std::uint8_t oamX = static_cast<std::uint8_t>(
-        static_cast<std::uint8_t>(sx) + part.x + (sx > 0xFF));                        // "adc c"
+    const SpritePosition pos = spritePartPosition(slot, sprite, part);
 
-    std::uint8_t oamY;
-    if (slot.hidden) {
-        oamY = 0xFF;
-    } else {
-        const unsigned sy = static_cast<std::uint8_t>(sprite.offset_y) + slot.y;
-        oamY = static_cast<std::uint8_t>(static_cast<std::uint8_t>(sy) + part.y + (sy > 0xFF));
-    }
-
-    const std::uint8_t row = static_cast<std::uint8_t>(static_cast<std::uint8_t>(oamY - 0x10) >> 3);
-    const std::uint8_t col = static_cast<std::uint8_t>(static_cast<std::uint8_t>(oamX - 0x08) >> 3);
+    const std::uint8_t row = static_cast<std::uint8_t>(static_cast<std::uint8_t>(pos.y - 0x10) >> 3);
+    const std::uint8_t col = static_cast<std::uint8_t>(static_cast<std::uint8_t>(pos.x - 0x08) >> 3);
     return PieceCell{.row = row, .col = col, .tile = part.tile};
 }
 
@@ -59,15 +49,20 @@ PieceCell cellForPart(const SpriteSlot& slot, const Sprite& sprite, const Sprite
 // keyRepeatFire verdict for the chosen direction; `dx` is +8 (right) or -8 (left, as an 8-bit
 // wraparound add). Moves the piece, cues the shift sound, and on a collision reverts, cancels the
 // cue, and parks the repeat timer for an immediate retry next frame.
+// The two directions render and cue in opposite orders (right at :5988-5990, left at :6022-6024 —
+// the disassembly notes the inconsistency itself), but both do so between the move and the collision
+// test, and the two writes touch nothing in common, so one order serves both.
 void applyShift(GameContext& game, SpriteSlot& slot, std::uint8_t oldX, std::uint8_t dx, bool fired) {
     if (!fired) {
         return;
     }
     slot.x = static_cast<std::uint8_t>(slot.x + dx);
     game.audioCues.square = SquareSfxId::SHIFT_PIECE;
+    renderActivePieceSprite(game);
     if (detectCollision(game)) {
         slot.x = oldX;
         game.audioCues.square = SquareSfxId::NONE;
+        renderActivePieceSprite(game);
         game.flow.keyRepeatTimer = kKeyRepeatBlockedRetry;
     }
 }
@@ -133,9 +128,11 @@ void rotateAndShiftPiece(GameContext& game) {
         // Cue the rotate sound before the collision test; on a collision, revert the rotation and
         // cancel the cue in the same frame (tetris.asm:5952-5963).
         game.audioCues.square = SquareSfxId::ROTATE_PIECE;
+        renderActivePieceSprite(game);
         if (detectCollision(game)) {
             game.audioCues.square = SquareSfxId::NONE;
             slot.spriteId = static_cast<SpriteId>(before);
+            renderActivePieceSprite(game);
         }
     }
 
@@ -195,7 +192,9 @@ void dropPiece(GameContext& game) {
         }
         if (!cancel) {
             // trySoftDrop (tetris.asm:5177-5191): three gates, then the 3-frame soft-drop cadence.
+            // All three gates leave through the shared exit that redraws the piece (:5208).
             if (flow.timer2 != 0 || flow.pieceLockStage != 0 || flow.wipeCounter != 0) {
+                renderActivePieceSprite(game);
                 return;
             }
             flow.timer2 = 3;
@@ -209,8 +208,11 @@ void dropPiece(GameContext& game) {
         flow.softDropCounter = 0;
         if (flow.dropTimer != 0) {
             flow.dropTimer--;
+            renderActivePieceSprite(game);  // the same shared exit (:5207-5209)
             return;
         }
+        // These two gates return without redrawing (:5214, :5217) — a stack that is still falling
+        // leaves the piece's entry exactly as the last frame left it.
         if (flow.pieceLockStage == 3 || flow.wipeCounter != 0) {
             return;
         }
@@ -220,11 +222,13 @@ void dropPiece(GameContext& game) {
     // The step (tetris.asm:5220-5236): move down one row and test. No collision ends the frame.
     const std::uint8_t oldY = slot.y;
     slot.y = static_cast<std::uint8_t>(slot.y + 0x08);
+    renderActivePieceSprite(game);
     if (!detectCollision(game)) {
         return;
     }
     // Collision: revert, begin the lock, and latch out soft drop until the next fresh press.
     slot.y = oldY;
+    renderActivePieceSprite(game);
     flow.pieceLockStage = 1;
     engine.blockSoftDropAfterLock = true;
 
@@ -325,6 +329,7 @@ void nextPiece(GameContext& game, const std::function<std::uint8_t()>& draw) {
 
     // Set the visible preview and reload the drop timer (tetris.asm:5158-5163).
     preview.spriteId = static_cast<SpriteId>(newPreview);
+    renderPreviewPieceSprite(game);
     flow.dropTimer = flow.framesPerDrop;
 }
 
