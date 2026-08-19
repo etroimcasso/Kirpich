@@ -44,15 +44,18 @@ ROM cannot be committed even by accident.
 The gate is a script rather than a build step today because there is no packaging target for it to
 sit inside yet. When one lands, the gate runs as part of it, and in CI against the packaged output.
 
-### The asset root flips to the executable's directory
+### The asset root flips to the player's own data directory
 
 A development build resolves the asset root to the project tree so a developer exercises the shipped
-load path against real files without copying anything beside the binary. A distributable build turns
-`KIRPICH_DEV_ASSET_ROOT` **off** at configure time: `KIRPICH_PROJECT_ROOT` is then undefined,
-`main()` never overrides the root, and the engine's default applies — the executable's own
-directory, which is where the runtime extractor writes on a player's machine. This is the single
-switch between the two postures; there is no development branch in the load path itself. Full
-mechanics in [`asset-acquisition.md`](asset-acquisition.md).
+load path against real files in their checkout. A distributable build turns `KIRPICH_DEV_ASSET_ROOT`
+**off** at configure time: `KIRPICH_PROJECT_ROOT` is then undefined, and every build resolves the
+per-user data directory — the same one the save file goes in, and where the runtime extractor writes
+on a player's machine.
+
+The option is the switch between the two postures, but it is not the only thing that decides: the
+project tree applies only to a binary still inside it, so even a development build that has been
+copied elsewhere resolves the per-user directory. There is no development branch in the load path
+itself. Full mechanics in [`asset-acquisition.md`](asset-acquisition.md).
 
 ### Lean binary is the shipping target
 
