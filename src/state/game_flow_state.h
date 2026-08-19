@@ -68,6 +68,19 @@ struct GameFlowState {
                                      // name-entry column, carried as HighScoreState::nameEntryColumn
                                      // (src/state/high_score_state.h); the two uses are disjoint in time.
 
+    // One byte carrying two roles, both of which the readouts depend on ($FFE0).
+    //
+    // Outside a number print it means "the score has changed": every addition to the score sets it
+    // (tetris.asm:187-188), and the score is only drawn when it is set (:6618-6620). Inside a number
+    // print it is the printer's own "a nonzero digit has been drawn" flag, cleared on entry and again
+    // on exit (:6625-6626, :6657-6658).
+    //
+    // The second role clears the first, so a print suppresses the next one. Every site that draws the
+    // score into both maps sets this back to 1 between its two calls to compensate (:244-245,
+    // :5729-5730). It is one field rather than two because separating the roles would remove that
+    // interference and the second map would stop updating. See docs/contracts/readouts.md.
+    uint8_t scorePrintFlag = 0;      // $FFE0
+
     // --- Main-loop state machine ---------------------------------------------------------------
     GameState gameState{};           // $FFE1: the state the main loop dispatches on (boot value NORMAL_GAMEPLAY)
     uint8_t frameCounter = 0;        // $FFE2: incremented every VBlank

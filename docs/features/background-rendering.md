@@ -107,15 +107,11 @@ line-anchored to the loader call it replaces in `docs/contracts/screen.md` §4.
 
 ## Open questions / future work
 
-**The paused screen is not drawn.** The original pauses by switching the display to a *second*
-displayed map that it fills with the same backdrop plus a `PAUSE` label. The port models the board and
-one displayed map, so pausing changes the simulation without changing the picture. Drawing it needs a
-third grid — a decision about state shape, not a render detail. The same second map serves the
-link-cable round init and the launch scenes, neither of which is ported, so whichever unit takes it
-first should settle the shape for all three.
+**The paused screen and the panel readouts are drawn**, by the unit that took the second background
+map — see [`readouts.md`](readouts.md). That unit settled the second map's shape, which the link-cable
+round init and the launch scenes will also need.
 
-**The score, level and top-score readouts are not drawn.** The original prints them from the same
-frame beat the wipe and the tally run in; those print routines are not ported, and one of them writes
-the paused map as well, so it waits on the decision above.
+**The top-score table is not drawn.** It is a screen of its own rather than a panel readout, and lands
+with the high-score recording.
 
 **Palette effects, scaling, and the display filters** are each their own later unit.

@@ -11,8 +11,9 @@
 // can turn a tile index into a picture without knowing which set is loaded (see
 // src/state/display_state.h).
 //
-// The original keeps a second displayed map and pauses by switching to it; that map has no
-// counterpart here, so the paused screen is not drawn - see docs/contracts/screen.md.
+// The hardware keeps two background maps and displays one at a time; pausing switches to the second.
+// Both are on DisplayState, and the overload below stamps a backdrop into whichever one is named -
+// see docs/contracts/screen.md.
 
 #include <array>
 #include <cstdint>
@@ -38,6 +39,10 @@ using ScreenTilemap =
 // columns 2 to 11 as spaces, which is the picture of an empty field; the board behind it is filled by
 // the round init.
 void loadScreenTilemap(DisplayState& display, const ScreenTilemap& tilemap);
+
+// The same stamp into a chosen map. The round init uses it to put the gameplay backdrop in the
+// second map as well as the first (tetris.asm:4155-4157), which is what the paused screen shows.
+void loadScreenTilemap(BackgroundMap& map, const ScreenTilemap& tilemap);
 
 // Load a tile set (LoadCopyrightAndTitleScreenTiles :6394-6398 / LoadGameplayTiles :6368-6376).
 //

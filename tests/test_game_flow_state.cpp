@@ -155,9 +155,9 @@ TEST(GameFlowState, EveryCensusByteHasExactlyOneOwner) {
     };
 
     auto ownerOf = [&](std::uint16_t a) -> const char* {
-        if (inList(a, {0xFF98, 0xFF9C, 0xFFA0, 0xFFC6})) return "game-flow-foldin";
+        if (inList(a, {0xFF98, 0xFF9C, 0xFFA0, 0xFFC6, 0xFFE0})) return "game-flow-foldin";
         if (a == 0xFFFB) return "game-flow-topout";          // topOutLockCount (shares hTopScorePointerHi)
-        if (inList(a, {0xFF9B, 0xFFE0, 0xFFFE})) return "mechanism";  // gap scratch + boot-clear top
+        if (inList(a, {0xFF9B, 0xFFFE})) return "mechanism";  // gap scratch + boot-clear top
         if (inList(a, {0xFFA4, 0xFFAF})) return "dead";
         const HramLabel* row = rowContaining(a);
         if (row && !row->name.empty()) return "labeled";     // some state surface claims that label
@@ -236,7 +236,7 @@ TEST(GameFlowState, TypedMemberBootValues) {
     EXPECT_EQ(s.topOutLockCount, 0);
 }
 
-// (6) Unlabelled-fold-in census pins - the four bytes this unit claims that have no hram.asm label
+// (6) Unlabelled-fold-in census pins - the five bytes this unit claims that have no hram.asm label
 // must still be raw-accessed (refCount > 0), or the fold-in no longer exists after an upstream repin.
 TEST(GameFlowState, UnlabelledFoldInsAreCensused) {
     auto censusRefOf = [&](std::uint16_t a) -> int {
@@ -244,7 +244,7 @@ TEST(GameFlowState, UnlabelledFoldInsAreCensused) {
         return 0;
     };
     // Each fold-in address, and the fact that it is genuinely a Gap (no label) in the layout.
-    for (std::uint16_t a : {0xFF98, 0xFF9C, 0xFFA0, 0xFFC6}) {
+    for (std::uint16_t a : {0xFF98, 0xFF9C, 0xFFA0, 0xFFC6, 0xFFE0}) {
         EXPECT_GT(censusRefOf(a), 0) << "fold-in $" << std::hex << a << " has no raw access";
         const HramLabel* row = rowContaining(a);
         ASSERT_NE(row, nullptr) << std::hex << a;

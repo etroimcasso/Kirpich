@@ -15,6 +15,7 @@
 #include "data/playing_field.h"   // field extent + wipe-counter domain
 #include "data/sfx.h"             // NoiseSfxId, SquareSfxId
 #include "systems/piece.h"        // nextPiece
+#include "systems/readouts.h"     // printScore / printLines (wipe steps 17-19)
 #include "systems/scoring.h"      // checkForLevelUp (wipe step 16)
 
 namespace kirpich::systems {
@@ -75,8 +76,9 @@ void wipeTerminal(GameContext& game, const std::function<std::uint8_t()>& draw) 
         }
     }
 
-    // The line count is redrawn here (render). Type A always spawns the next piece; Type B spawns
-    // while lines remain. (:5760-5777)
+    // Redraw the line count, then spawn: Type A always, Type B while lines remain. (:5760-5777)
+    printLines(game);
+
     if (flow.gameType == GameType::TYPE_A) {
         nextPiece(game, draw);
         return;
@@ -308,9 +310,15 @@ void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>
             break;
 
         case 17:
+            // Redraw the score into the paused screen, then set the print flag so the next step
+            // draws the live map as well. (tetris.asm:5720-5731)
+            printScore(game, game.display.secondMap);
+            flow.scorePrintFlag = 1;
+            break;
+
         case 18:
-            // Score and line-count redraws into the two paused-screen tilemaps — render only, no state
-            // effect. (tetris.asm:5720-5742)
+            // The live map's turn, on the frame after. (tetris.asm:5733-5742)
+            printScore(game, game.display.map);
             break;
 
         case 19:

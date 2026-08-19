@@ -140,6 +140,16 @@ preview handling (`:4445–4447`) — the recorded input cannot pause the game.
 **Select toggles the preview** (`:4423–4438`): flip the hide flag, and hide or show the preview
 sprite object accordingly.
 
+**Select keeps working while the game is paused, and that is preserved.** Nothing between
+`HandleStartSelect` and `handleSelect` tests the pause flag (`:4448–4450`) — the only gates on the
+path are the soft-reset chord and the demo. Pausing selects the other background map (`:4461`) and
+leaves object display alone, so a preview brought back while paused is drawn over the paused screen,
+which has no playing field for it to sit in. The pause hides both pieces on the way in (`:4477–4481`),
+so this is the one object that can reappear there.
+
+Pinned by `SelectStillTogglesThePreviewWhilePaused` in `tests/test_readouts.cpp`. Do not add a pause
+gate to `handleSelect`.
+
 **Start pauses or unpauses.** Solo (`:4454–4494`): flip the pause flag; on pause, send the driver the
 pause command and hide both piece sprites; on unpause, send the unpause command and restore the
 preview only if the player has not hidden it. Two-player (`:4496–4512`): only the master may pause;

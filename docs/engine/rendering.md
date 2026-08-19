@@ -237,17 +237,18 @@ displayed map — so the effects that live between them work: the field wipe swe
 line-clear flash covers and restores, and a Type B round starts under garbage that shows. Which writes
 reach which grid is tabulated in [`../contracts/screen.md`](../contracts/screen.md) §5.
 
-Two differences from the original remain, both deliberate:
+There are two background maps, and the bridge composes whichever `DisplayState::displayed` names.
+Pausing switches to the second — the same stats panel with no playing field and a `PAUSE` label — and
+unpausing switches back. See [`readouts.md`](readouts.md).
 
-- **The paused screen is blank of change.** The original pauses by switching to a *second* displayed
-  map holding the same backdrop plus a `PAUSE` label. The port models one displayed map, so pausing
-  stops input and cues the music but does not change the picture.
+One difference from the original remains, deliberately:
+
 - **No palette effects.** The fades and the blank at a screen change are register writes the port does
   not make; everything renders through the fixed grey ramp. The line-clear flash is not one of these —
   it repaints tiles, and it is ported.
 
-Not drawn yet, for their own reasons: the score and level readouts, and the top-score table. Those are
-print routines the original runs from the same frame beat, and they are not ported.
+Not drawn yet: the top-score table, which is a screen of its own and lands with the high-score
+recording.
 
 Three object behaviours are also not reproduced — background priority, the per-scanline object limit,
 and left-to-right priority — and are recorded in

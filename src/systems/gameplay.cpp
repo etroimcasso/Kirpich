@@ -25,6 +25,7 @@
 #include "systems/line_clear.h"    // checkForCompletedRows, moveBlocksDownAfterLineClear, clearLineClearsList
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/piece.h"         // rotateAndShiftPiece, dropPiece, lockPieceIntoBackground, nextPiece
+#include "systems/readouts.h"      // printLevel, printLinesSeed, printStartHeight, copyLinesToSecondMap
 #include "systems/screen.h"        // loadScreenTilemap
 #include "systems/scoring.h"          // addLineClearScore, clearScoreAndStats
 #include "systems/sprite_renderer.h"  // renderActivePieceSprite, renderPreviewPieceSprite
@@ -107,6 +108,20 @@ void printWindowBlock(PlayingFieldState& field, std::size_t fieldRow, std::size_
         }
     }
 }
+
+// The same block print into a background map rather than the board. The round init stamps the pause
+// message into the second map this way (tetris.asm:4158-4161).
+void printWindowBlockToMap(BackgroundMap& map, std::size_t row, std::size_t col, const auto& block) {
+    for (std::size_t r = 0; r < block.size(); ++r) {
+        for (std::size_t c = 0; c < block[r].size(); ++c) {
+            map[row + r][col + c] = block[r][c];
+        }
+    }
+}
+
+// Where the pause message sits in the second map ($9C63).
+constexpr std::size_t kPauseMessageRow = 3;
+constexpr std::size_t kPauseMessageCol = 3;
 
 // CopyUntilFF (tetris.asm:6267-6276) applied to one descriptor. The round's init seeds both piece
 // slots from their stored templates (:4176-4181), and that is where the two pieces get their screen
@@ -192,10 +207,18 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     // lays out is empty. The starting garbage below writes over it, which is why that runs later.
     //
     // No art load here: the screen this is entered from loaded the gameplay set already, and the
-    // original does not reload it. The second copy of this backdrop the original writes to its other
-    // background map (:4155-4157) is the paused screen, which the port does not draw — see
-    // docs/contracts/screen.md.
-    loadScreenTilemap(game.display, typeB ? kTypeBGameplayTilemap : kTypeAGameplayTilemap);
+    // original does not reload it.
+    const ScreenTilemap& backdrop = typeB ? kTypeBGameplayTilemap : kTypeAGameplayTilemap;
+    loadScreenTilemap(game.display.map, backdrop);
+
+    // The same backdrop goes into the second map, with the pause message stamped over it (:4155-4161).
+    // That map is the paused screen: the same panel, no playing field, and a PAUSE label.
+    loadScreenTilemap(game.display.secondMap, backdrop);
+    printWindowBlockToMap(game.display.secondMap, kPauseMessageRow, kPauseMessageCol,
+                          kPauseMessageTilemap);
+
+    // The level, into the cell its game type uses, in both maps (:4162-4175).
+    printLevel(game);
 
     game.flow.framesPerDrop = framesPerDrop(game.flow.level, game.flow.heartMode != 0);
     game.flow.dropTimer = game.flow.framesPerDrop;
@@ -204,6 +227,9 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     // visibility is applied over the top of it.
     loadSpriteTemplate(game.spriteRenderer.slots[kActivePieceSlot], activePieceSprite());
     loadSpriteTemplate(game.spriteRenderer.slots[kPreviewPieceSlot], previewPieceSprite());
+
+    // The opening line count, into the live map (:4183-4194).
+    printLinesSeed(game);
 
     game.spriteRenderer.slots[kPreviewPieceSlot].hidden = game.engine.hidePreviewPiece;
 
@@ -218,6 +244,8 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
 
     if (typeB) {
         game.flow.dropTimer = kTypeBInitialDropTimer;
+        // The starting height, under the panel's HIGH label, in both maps (:4214-4218).
+        printStartHeight(game);
         if (game.flow.typeBStartHeight != 0 && initGarbage) {
             initGarbage(game, game.flow.typeBStartHeight, game.demo.activeDemo != ActiveDemo::NONE);
         }
@@ -296,7 +324,12 @@ void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
 
     game.flow.paused = !game.flow.paused;
     if (game.flow.paused) {
+        // Show the second map: the panel, no field, and the PAUSE message (tetris.asm:4461).
+        game.display.displayed = DisplayedMap::SECOND;
         game.audioCues.pause = AudioPauseCommand::PAUSE;
+        // The line count reaches the second map only here, which is why the paused screen shows the
+        // count as it stands now rather than as it stood at the last clear (:4464-4476).
+        copyLinesToSecondMap(game);
         setPieceSpritesHidden(game.spriteRenderer, kHidden);
         // Both branches leave through the same pair of redraws (:4482-4483), which is what makes
         // the status change visible.
@@ -305,6 +338,7 @@ void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
         return;
     }
 
+    game.display.displayed = DisplayedMap::FIRST;  // (:4487)
     game.audioCues.pause = AudioPauseCommand::UNPAUSE;
     game.spriteRenderer.slots[kActivePieceSlot].hidden = false;
     // The preview comes back only if the player has not hidden it (tetris.asm:4490-4494).

@@ -2,9 +2,10 @@
 
 // The background bridge: the displayed map, drawn.
 //
-// DisplayState::map is what the hardware shows - a 32x32 grid of tile indices, written by the
-// backdrop loader, by piece locking, by the printers, and a row at a time by the field wipe carrying
-// the board across. This is the function that draws it: read the visible corner, resolve each cell's
+// A background map is a 32x32 grid of tile indices, written by the backdrop loader, by piece locking,
+// by the readouts, and a row at a time by the field wipe carrying the board across. There are two of
+// them and DisplayState::displayedMap() names the one the hardware is showing - the second is the
+// paused screen. This is the function that draws it: read the visible corner, resolve each cell's
 // tile index against the live art regime, and hand the result to the engine as one tile layer.
 //
 // It is deliberately NOT the board. The board is the game's own copy of the playing field and is what

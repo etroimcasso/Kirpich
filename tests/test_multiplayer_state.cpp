@@ -210,14 +210,15 @@ TEST(MultiplayerState, EveryOwnedByteResolvesToOneField) {
     }
 
     // Negative guard: the $FFD9 gap runs to $FFE0, but only $FFD9-$FFDC belong to this unit. $FFDD-$FFDF
-    // are dead un-censused bytes and $FFE0 is the game-flow mechanism byte (score-print flag) - none is
-    // owned here. A future unit that widens this range without updating the map trips this.
+    // are dead un-censused bytes and $FFE0 is the game-flow score-print flag (GameFlowState::
+    // scorePrintFlag) - none is owned here. A future unit that widens this range without updating the
+    // map trips this.
     for (std::uint16_t a : {0xFFDD, 0xFFDE, 0xFFDF, 0xFFE0})
         EXPECT_FALSE(isOwned(a)) << "byte $" << std::hex << a << " must not be owned by the link mode";
     EXPECT_EQ(hramCensusRefOf(0xFFDD), 0);   // truly dead, not merely unclaimed
     EXPECT_EQ(hramCensusRefOf(0xFFDE), 0);
     EXPECT_EQ(hramCensusRefOf(0xFFDF), 0);
-    EXPECT_GT(hramCensusRefOf(0xFFE0), 0);   // censused, but owned by the game-flow mechanism, not here
+    EXPECT_GT(hramCensusRefOf(0xFFE0), 0);   // censused, but owned by the game-flow state, not here
 }
 
 // (4) Reset restores boot state - mutate every member, reset, compare to fresh; pin the boot values that

@@ -54,6 +54,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [sound-driver.md](sound-driver.md) | How the game makes sound — the game's original sound driver hosted as a resident machine, the registration that describes it (image placement, entry points, the six bytes it shares with the game), the per-frame decision that turns the cue mailbox into requests, the ordering that keeps an initialisation from silencing the sound beside it, where they live, and what to edit to change the placement, the shared bytes, or what a frame asks for. |
 | [gameplay.md](gameplay.md) | The states a round passes through — the shared init for both game types and the attract demo, the twelve-step gameplay frame, the pause (shared with two-player) and its cue mailbox, the game-over chain and its rocket endings, and the Type B results re-arm; the wiring the handlers need, where they live, and what to edit to change a round's starting conditions, the frame's step order, or the pause law. |
 | [rendering.md](rendering.md) | How the game gets a picture — the two calls a screen makes to set its background up (stamping a stored backdrop into the board, choosing the tile art), the routine that draws the game's objects into its object buffer, the bridge that resolves both to pictures and submits them as two layers, and the host that ties the program together; where they live, and what to edit to change a screen's backdrop, where an object is drawn, what an index draws, the colours, or what startup does. |
+| [readouts.md](readouts.md) | The numbers on the stats panel — the score, the level, the line count and the Type B starting height, the one printer that draws them all and its leading-zero rule, the flag that decides whether a score draw happens and why every print clears it, the second background map the paused screen shows, where they live, and what to edit to move a readout or change when it is drawn. |
 | [type-b-ending.md](type-b-ending.md) | What a won Type B round shows — the scoreboard that totals the round, and the dance the hardest level earns first; the two field-shaped screens and the wipe they arm, the per-performer animation and the one performer who jumps, the query that holds the dance until its jingle ends, where they live, and what to edit to change the hold timings, the animation speeds, or how many performers a starting height reveals. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
@@ -72,10 +73,11 @@ through play, to the game-over screen on a loss or the scoreboard on a Type B wi
 
 Backgrounds and objects both draw: the screens, the menus, the playing field and the blocks
 as they stack, along with the falling piece, the next-piece preview, the menu cursors and
-the ending's dancers — a solo round is playable. The port keeps both screens the hardware
-keeps, so the field wipe sweeps, the line-clear flash flashes, and a Type B round starts
-under garbage that shows. The paused screen is a second displayed screen and is not drawn;
-two-player play, the demo, the rocket and Buran ending scenes, top-score entry, the score
-and level readouts, the palette effects, and the display filters are not written yet.
+the ending's dancers — a solo round is playable. The port keeps both background maps the
+hardware keeps, so the field wipe sweeps, the line-clear flash flashes, a Type B round
+starts under garbage that shows, and pausing shows the paused screen. The stats panel keeps
+score, level, line count and the Type B starting height. Two-player play, the demo, the
+rocket and Buran ending scenes, top-score entry, the palette effects, and the display
+filters are not written yet.
 Pages appear as their surfaces do, so an area missing from the index above is an area that
 does not exist yet rather than one that is undocumented.
