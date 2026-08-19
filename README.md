@@ -66,7 +66,7 @@ The table below is kept honest as components land.
 | Data tables | **complete** — every graphics, tilemap, sprite, timing, scoring, audio, and demo table, ROM-verified in full |
 | ROM asset extractor | **complete** — first-run extraction of a player's own cartridge into the engine's load format |
 | Game state | **complete** — every work-RAM and high-RAM structure the running game keeps |
-| High-score persistence | **complete** — durable top-score tables across launches |
+| High scores | **complete** — a finished round is ranked against the three stored for its difficulty, named on the letter-wheel entry screen, and kept across launches |
 | Piece randomizer | **complete** — the divider-fold RNG, run on the engine's emulated CPU for cycle-exact fidelity |
 | Input | **complete** — per-frame snapshot, press-edge detection, and auto-repeat |
 | State dispatcher | **complete** — the per-frame jump table and soft-reset chord every game state runs under |
@@ -127,7 +127,7 @@ fixed. Details in [`docs/DESIGN.md`](docs/DESIGN.md).
 | `src/`, `include/kirpich/` | Port source and public headers |
 | `tests/` | GoogleTest suite |
 | `engine/` | [Retro++](https://github.com/etroimcasso/GBCPP-Engine) engine submodule (currently a private repository — see note below) |
-| `assets/gfx/default/` | Canonical asset load target; contents are generated locally and never committed |
+| `assets/gfx/default/`, `assets/audio/default/` | Where a development build reads its extracted assets; contents are generated locally and never committed. A player's own extraction goes to the per-user data directory beside their save, not here |
 | `docs/` | Design context and feature documentation |
 | `tools/` | Development tooling |
 
