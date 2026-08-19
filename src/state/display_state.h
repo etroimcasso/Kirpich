@@ -27,12 +27,13 @@
 //
 // It deliberately does NOT live on GameFlowState or EngineState. Those two are tiled byte for byte
 // by the layout fixtures in tests/fixtures/, which resolve every labelled and unlabelled byte of
-// their windows to exactly one owner; a synthetic field with no address would break that guard. The
-// sheet regime has no address, so it gets its own struct.
+// their windows to exactly one owner; a synthetic field with no address would break that guard.
+// Neither member here has an address, so they get their own struct.
 //
 // The regime is written by the screens that load art (the copyright and title screens load one set;
-// the config, difficulty, and gameplay screens load the other) and read by the render bridge when it
-// resolves a board cell's tile index to a picture. See docs/contracts/display-state.md.
+// the config, difficulty, and gameplay screens load the other), and both members are read by the
+// render bridge when it resolves a map cell's tile index to a picture. See
+// docs/contracts/display-state.md.
 
 #include <array>
 #include <cstddef>
