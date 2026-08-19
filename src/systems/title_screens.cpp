@@ -76,7 +76,7 @@ void setTitleCursor(GameContext& game, bool multiplayer) {
 void initCopyrightScreen(GameContext& game) {
     // GameState_24 (tetris.asm:479-500). The LCD toggle is render mechanism (:480, :494-495).
     loadTileSheet(game.display, TileSheet::COPYRIGHT_TITLE);              // (:481)
-    loadScreenTilemap(game.field, kCopyrightScreenTilemap);               // (:482-483)
+    loadScreenTilemap(game.display, kCopyrightScreenTilemap);               // (:482-483)
     clearOamObjects(game);  // ClearObjects (:484)
 
     // Seed the piece ring from the demo list (:485-493). The original loops until the write pointer crosses
@@ -146,7 +146,7 @@ void initTitleScreen(GameContext& game) {
     // brings the board forward later, one row per frame, as the wipe runs. Here they are one grid, so
     // the screen covers the paint in the visible region and the paint survives outside it (the floor
     // row, and the wall columns past the screen's 20). See docs/contracts/screen.md.
-    loadScreenTilemap(game.field, kTitleScreenTilemap);
+    loadScreenTilemap(game.display, kTitleScreenTilemap);
 
     // The 1P/2P selector cursor (:558-564): clear the object buffer, then seed OAM object 0.
     clearOamObjects(game);

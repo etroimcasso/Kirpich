@@ -1,19 +1,18 @@
 #pragma once
 
-// Screen loading: stamping a static backdrop into the board, and choosing the tile art it draws
-// through. These are the two things every screen in the game does before it does anything else.
+// Screen loading: stamping a static backdrop into the displayed map, and choosing the tile art it
+// draws through. These are the two things every screen in the game does before it does anything else.
 //
-// Both write simulation state, which is why they live here and not in src/render/. The original's
-// LoadTilemap copies a stored screen into the background map, and the board (PlayingFieldState) is
-// the port's model of that map - the same 32x32 grid, the same cells, written by the same screens.
-// Piece locking, line clears and garbage fills already write it; a backdrop load is one more writer,
-// and once it has run the visible background is a pure function of the board. Choosing the art is
-// simulation state for the same reason: nothing downstream can turn a tile index into a picture
-// without knowing which set is loaded (see src/state/display_state.h).
+// Both write simulation state, which is why they live here and not in src/render/. A backdrop goes
+// to the displayed map and not to the board (LoadTilemap writes $9800, tetris.asm:6410-6431): the
+// board is the game's own copy of the playing field, and the screens that fill it - the title
+// screen's space fill, walls and floor (:538-554), a field-shaped screen (:4621-4623) - write it
+// separately. Choosing the art is simulation state for the same reason the map is: nothing downstream
+// can turn a tile index into a picture without knowing which set is loaded (see
+// src/state/display_state.h).
 //
-// The board is the port's whole model of the background. The original keeps a second background map
-// and pauses by switching to it; that map has no counterpart here, so the paused screen is not drawn
-// - see docs/contracts/screen.md.
+// The original keeps a second displayed map and pauses by switching to it; that map has no
+// counterpart here, so the paused screen is not drawn - see docs/contracts/screen.md.
 
 #include <array>
 #include <cstdint>
@@ -29,18 +28,16 @@ namespace kirpich::systems {
 using ScreenTilemap =
     std::array<std::array<std::uint8_t, kTilemapScreenCols>, kTilemapScreenRows>;
 
-// Stamp a full-screen backdrop into the board (LoadTilemap.to9800, tetris.asm:6410-6431).
+// Stamp a full-screen backdrop into the displayed map (LoadTilemap.to9800, tetris.asm:6410-6431).
 //
-// Writes the tilemap's 18 rows of 20 cells into board[0..17][0..19], the board's top-left corner,
-// which is the region the display shows. Every other cell is left alone: the columns past 19 and the
-// rows past 17 hold the board's own off-screen content (the floor row, the garbage the multiplayer
-// mode parks below it) and no backdrop reaches them.
+// Writes the tilemap's 18 rows of 20 cells into map[0..17][0..19], the map's top-left corner, which
+// is the region the display shows. Every other cell is left alone.
 //
-// A backdrop overwrites whatever the board held in that region, including the playing field. That is
-// what the original does too, and the stored screens are authored for it - a gameplay backdrop
-// carries the field's walls in its own columns 1 and 12 and leaves columns 2 to 11 as spaces, so
-// stamping it lays out an empty field rather than erasing one.
-void loadScreenTilemap(PlayingFieldState& field, const ScreenTilemap& tilemap);
+// It does not touch the board, so a backdrop cannot erase a live playing field - and it does not lay
+// one out either. A gameplay backdrop draws the field's walls in its own columns 1 and 12 and leaves
+// columns 2 to 11 as spaces, which is the picture of an empty field; the board behind it is filled by
+// the round init.
+void loadScreenTilemap(DisplayState& display, const ScreenTilemap& tilemap);
 
 // Load a tile set (LoadCopyrightAndTitleScreenTiles :6394-6398 / LoadGameplayTiles :6368-6376).
 //

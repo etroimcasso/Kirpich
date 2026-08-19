@@ -139,7 +139,7 @@ void loadConfigScreenBody(GameContext& game) {
     // music-type cursor (slot 0) and the game-type cursor (slot 1), the music cue, and the transition
     // into game-type selection.
     loadTileSheet(game.display, TileSheet::GAMEPLAY);        // LoadGameplayTiles (:3123)
-    loadScreenTilemap(game.field, kConfigScreenTilemap);     // (:3124-3125)
+    loadScreenTilemap(game.display, kConfigScreenTilemap);     // (:3124-3125)
     clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, configScreenSprites());  // Data_26CF: 2 markers + terminator
 
@@ -264,7 +264,7 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // the Type A top scores. Level selection is entered next — unless the just-finished game earned a
     // top score, which routes straight to name entry. No art load here: the config screen this is
     // entered from already loaded the gameplay set, and the original does not reload it (:3318-3320).
-    loadScreenTilemap(game.field, kTypeADifficultyTilemap);  // (:3319-3320)
+    loadScreenTilemap(game.display, kTypeADifficultyTilemap);  // (:3319-3320)
     clearOamObjects(game);  // ClearTopScoreFields is a top-score render seam (no sim effect)
     loadSceneSprites(game.spriteRenderer, typeADifficultySprites());  // Data_26DB: 1 digit cursor
 
@@ -321,7 +321,7 @@ void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // GameState_12 (tetris.asm:3408-3441): the Type B difficulty screen, with two digit cursors — the
     // level (slot 0) and the starting garbage height (slot 1). Same shape as the Type A init, but with
     // no separate top-score-field clear (the Type B refresh does its own) and two cursors seeded.
-    loadScreenTilemap(game.field, kTypeBDifficultyTilemap);  // (:3410-3411)
+    loadScreenTilemap(game.display, kTypeBDifficultyTilemap);  // (:3410-3411)
     clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, typeBDifficultySprites());  // Data_26E1: 2 digit cursors
 

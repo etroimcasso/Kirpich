@@ -56,6 +56,7 @@
 #include "systems/input.h"
 #include "systems/line_clear.h"
 #include "systems/menu_screens.h"
+#include "systems/scoring.h"
 #include "systems/sound.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -199,6 +200,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         const auto draw = [&drawPiece] { return drawPiece(); };
         kirpich::systems::animateLineClear(game, draw);
         kirpich::systems::playingFieldWipeTick(game, draw);
+        kirpich::systems::updateScoreboard(game);
 
         ++simTicks;
     });
@@ -209,7 +211,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
-        kirpich::render::composeBackground(game.field, game.display.sheet, tiles, cells);
+        kirpich::render::composeBackground(game.display, tiles, cells);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
                                         tiles, sprites);
 

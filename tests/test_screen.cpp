@@ -62,20 +62,32 @@ const std::vector<std::pair<std::string, const ScreenTilemap*>>& fullScreens() {
 // SCRN_VX_B (32) between rows. Full corpus: every one of the nine stored full screens, every cell.
 TEST(Screen, BackdropStampsTheVisibleCorner) {
     for (const auto& [name, tilemap] : fullScreens()) {
+        kirpich::DisplayState display;
+        for (auto& row : display.map) {
+            row.fill(kSentinel);
+        }
         PlayingFieldState field;
         for (auto& row : field.board) {
             row.fill(kSentinel);
         }
 
-        kirpich::systems::loadScreenTilemap(field, *tilemap);
+        kirpich::systems::loadScreenTilemap(display, *tilemap);
 
-        for (std::size_t row = 0; row < kirpich::kBoardRows; ++row) {
-            for (std::size_t col = 0; col < kirpich::kBoardCols; ++col) {
+        for (std::size_t row = 0; row < kirpich::kBackgroundMapRows; ++row) {
+            for (std::size_t col = 0; col < kirpich::kBackgroundMapCols; ++col) {
                 const bool inside =
                     row < kirpich::kTilemapScreenRows && col < kirpich::kTilemapScreenCols;
                 const std::uint8_t expected = inside ? (*tilemap)[row][col] : kSentinel;
-                ASSERT_EQ(field.board[row][col], expected)
+                ASSERT_EQ(display.map[row][col], expected)
                     << name << " cell " << row << "," << col;
+            }
+        }
+
+        // A backdrop reaches the displayed map and never the board: the board is the game's own copy
+        // of the field, filled separately, so a backdrop can neither lay one out nor erase one.
+        for (const auto& row : field.board) {
+            for (const std::uint8_t cell : row) {
+                ASSERT_EQ(cell, kSentinel) << name << " must not touch the board";
             }
         }
     }
@@ -119,7 +131,7 @@ TEST(Screen, RestoredCallSitesLeaveTheRegimeTheROMWouldLeave) {
         game.display.sheet = TileSheet::GAMEPLAY;  // dirty it, to prove the call writes
         kirpich::systems::initCopyrightScreen(game);
         EXPECT_EQ(game.display.sheet, TileSheet::COPYRIGHT_TITLE);
-        EXPECT_EQ(game.field.board[0][0], kirpich::kCopyrightScreenTilemap[0][0]);
+        EXPECT_EQ(game.display.map[0][0], kirpich::kCopyrightScreenTilemap[0][0]);
     }
     // $06 title init: the same loader (:537), then the title backdrop over the board paint (:556-557).
     {
@@ -127,14 +139,14 @@ TEST(Screen, RestoredCallSitesLeaveTheRegimeTheROMWouldLeave) {
         game.display.sheet = TileSheet::GAMEPLAY;
         kirpich::systems::initTitleScreen(game);
         EXPECT_EQ(game.display.sheet, TileSheet::COPYRIGHT_TITLE);
-        EXPECT_EQ(game.field.board[0][0], kirpich::kTitleScreenTilemap[0][0]);
+        EXPECT_EQ(game.display.map[0][0], kirpich::kTitleScreenTilemap[0][0]);
     }
     // $08 config body: LoadGameplayTiles (:3123) and the config backdrop (:3124-3125).
     {
         GameContext game;
         kirpich::systems::loadConfigScreenBody(game);
         EXPECT_EQ(game.display.sheet, TileSheet::GAMEPLAY);
-        EXPECT_EQ(game.field.board[0][0], kirpich::kConfigScreenTilemap[0][0]);
+        EXPECT_EQ(game.display.map[0][0], kirpich::kConfigScreenTilemap[0][0]);
     }
     // $10 / $12 difficulty inits: a backdrop each (:3319-3320, :3410-3411) and NO loader call — the
     // config screen already loaded the gameplay set, and the original does not reload it.
@@ -143,7 +155,7 @@ TEST(Screen, RestoredCallSitesLeaveTheRegimeTheROMWouldLeave) {
         game.display.sheet = TileSheet::GAMEPLAY;
         kirpich::systems::initTypeADifficultyScreen(game, {});
         EXPECT_EQ(game.display.sheet, TileSheet::GAMEPLAY);
-        EXPECT_EQ(game.field.board[0][0], kirpich::kTypeADifficultyTilemap[0][0]);
+        EXPECT_EQ(game.display.map[0][0], kirpich::kTypeADifficultyTilemap[0][0]);
 
         // The absence of a load is the assertion: an unrelated regime survives the call.
         GameContext other;
@@ -156,7 +168,7 @@ TEST(Screen, RestoredCallSitesLeaveTheRegimeTheROMWouldLeave) {
         game.display.sheet = TileSheet::GAMEPLAY;
         kirpich::systems::initTypeBDifficultyScreen(game, {});
         EXPECT_EQ(game.display.sheet, TileSheet::GAMEPLAY);
-        EXPECT_EQ(game.field.board[0][0], kirpich::kTypeBDifficultyTilemap[0][0]);
+        EXPECT_EQ(game.display.map[0][0], kirpich::kTypeBDifficultyTilemap[0][0]);
     }
     // $0A round init: the backdrop forks on game type (:4141 / :4148, loaded :4154), and again no
     // loader call.
@@ -172,11 +184,11 @@ TEST(Screen, RestoredCallSitesLeaveTheRegimeTheROMWouldLeave) {
         // The panel columns, which no later write touches, carry the chosen backdrop.
         for (std::size_t col = kirpich::kTilemapScreenCols - 6; col < kirpich::kTilemapScreenCols;
              ++col) {
-            ASSERT_EQ(game.field.board[0][col], (*tilemap)[0][col]) << "panel col " << col;
+            ASSERT_EQ(game.display.map[0][col], (*tilemap)[0][col]) << "panel col " << col;
         }
         // And the walls it supplies bracket the field.
-        EXPECT_EQ(game.field.board[0][1], (*tilemap)[0][1]);
-        EXPECT_EQ(game.field.board[0][12], (*tilemap)[0][12]);
+        EXPECT_EQ(game.display.map[0][1], (*tilemap)[0][1]);
+        EXPECT_EQ(game.display.map[0][12], (*tilemap)[0][12]);
     }
 }
 

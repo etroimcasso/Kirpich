@@ -67,15 +67,11 @@ void press(GameContext& game, std::initializer_list<Action> as) {
 
 // The expected tile at a board cell after the title init.
 //
-// Two writes land, in this order: the board paint (walls at columns 1 and 12 on every row, floor
-// across columns 1-12 at row 18, empty everywhere else) and then the title screen itself, stamped
-// over the board's visible corner (tetris.asm:538-555 then :556-557). So inside that corner the
-// screen wins and outside it the paint survives — which is the whole of what the collapse of the
-// original's two destinations into one grid means, asserted rather than assumed.
+// The board paint alone: walls at columns 1 and 12 on every row, floor across columns 1-12 at row 18,
+// empty everywhere else (tetris.asm:538-555). The title screen that follows (:556-557) goes to the
+// displayed map, not here, so nothing covers the paint — the two destinations are separate and the
+// board keeps what it was given.
 std::uint8_t expectedBoardCell(std::size_t row, std::size_t col) {
-    if (row < kirpich::kTilemapScreenRows && col < kirpich::kTilemapScreenCols) {
-        return kirpich::kTitleScreenTilemap[row][col];
-    }
     if (col == 1 || col == 12) return kBorderTile;
     if (row == 18 && col >= 1 && col <= 12) return kBorderTile;
     return kSpace;

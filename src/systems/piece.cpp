@@ -269,11 +269,13 @@ void lockPieceIntoBackground(GameContext& game) {
     if (flow.pieceLockStage != 1) {
         return;
     }
-    // Write each covered cell's tile into the board. The original also mirrors the tiles into video
-    // RAM under an HBlank wait; the board is that shadow, so the mirror and the wait are render-bridge
-    // mechanism and are not carried here (tetris.asm:6072-6098).
+    // Write each covered cell's tile into the board and into the displayed map. The original writes
+    // both — the board, then the same tile into video memory under an HBlank wait
+    // (tetris.asm:6072-6098) — because a locked piece has to appear at once rather than waiting for a
+    // wipe to carry it across. The wait itself is hardware timing and is not carried.
     for (const PieceCell& cell : activePieceCells(game)) {
         game.field.board[cell.row][cell.col] = cell.tile;
+        game.display.map[cell.row][cell.col] = cell.tile;
     }
     flow.pieceLockStage = 2;
     game.spriteRenderer.slots[kActivePieceSlot].hidden = true;
