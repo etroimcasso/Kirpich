@@ -1,21 +1,22 @@
 #pragma once
 
-// The background bridge: the board, drawn.
+// The background bridge: the displayed map, drawn.
 //
-// The board (PlayingFieldState) is the port's model of the original's background map, and every
-// screen the game shows is written into it - backdrops by the screen loader, blocks by piece
-// locking, text by the game-over and scoreboard printers. So the picture is a pure function of
-// simulation state, and this is that function: read the board's visible corner, resolve each cell's
-// tile index against the regime, and hand the result to the engine as one tile layer.
+// DisplayState::map is what the hardware shows - a 32x32 grid of tile indices, written by the
+// backdrop loader, by piece locking, by the printers, and a row at a time by the field wipe carrying
+// the board across. This is the function that draws it: read the visible corner, resolve each cell's
+// tile index against the live art regime, and hand the result to the engine as one tile layer.
 //
-// The visible corner is the top-left 20x18 of the 32x32 board, which is exactly the Game Boy's
-// screen. The rest of the board is real and live - the floor row, the wall columns past the screen,
-// the garbage a link-cable round parks below the floor - but it is off-screen, and the original does
-// not scroll, so nothing else is ever shown.
+// It is deliberately NOT the board. The board is the game's own copy of the playing field and is what
+// collision and locking read; the map is what is on screen. The two hold different things whenever an
+// effect lives in the gap between them - during a wipe, during the line-clear flash - which is the
+// whole reason the port carries both.
 //
-// What this does NOT do: sprites (the falling piece, the preview, every cursor and the dancers are
-// not here), and the original's palette register writes (the line-clear flash, the fades, the blank
-// at a screen change). Both are named in docs/contracts/screen.md as visible differences.
+// The visible corner is the top-left 20x18 of the map, which is exactly the Game Boy's screen. The
+// rest is real but off-screen, and the original does not scroll, so nothing else is ever shown.
+//
+// What this does NOT do: sprites (see render/sprites.h), and the original's palette register writes
+// (the fades and the blank at a screen change). Both are named in docs/contracts/screen.md.
 
 #include <cstddef>
 #include <vector>
@@ -41,12 +42,12 @@ static_assert(kVisibleCols <= kBoardCols && kVisibleRows <= kBoardRows,
 inline constexpr const char* kBackgroundLayerKey = "background";
 inline constexpr std::int32_t kBackgroundLayerZ  = 0;
 
-// Resolve the board's visible window into tile cells, row-major, 20 across and 18 down.
+// Resolve the displayed map's visible window into tile cells, row-major, 20 across and 18 down.
 //
 // Writes into `cells` rather than returning a fresh vector so a caller can keep one buffer for the
 // whole run: the frame is rebuilt every time, and a per-frame allocation for a grid that never
 // changes size is waste. `cells` is resized to kVisibleCells if it is not already.
-void composeBackground(const PlayingFieldState& field, TileSheet sheet, const TileAtlas& atlas,
+void composeBackground(const DisplayState& display, const TileAtlas& atlas,
                        std::vector<retropp::TileCell>& cells);
 
 // Wrap composed cells as the frame's background layer.

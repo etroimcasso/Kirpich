@@ -53,13 +53,33 @@ void scoreboardNextState(GameContext& game) {
 // One tally step for a per-kind count (Call_25D9, tetris.asm:6109-6163). The count-up animates each
 // unit over two vertical-blank passes: phase 1 moves the unit and folds its points, phase 2 prints and
 // blips.
+// The tally's print pass writes straight into the displayed screen (tetris.asm:6167 targets $9A25, a
+// map address, not the board). That is what makes the count-up visible: no wipe runs during the
+// tally, so a print into the board would never reach the screen.
+//
+// Six digits, most-significant first, leading zeros left as the stored screen has them - the running
+// score at the bottom of the scoreboard.
+void printScoreToScreen(GameContext& game) {
+    constexpr std::size_t kScoreRow = 17;  // $9A25: ($9A25 - $9800) / 32
+    constexpr std::size_t kScoreCol = 5;   // ($9A25 - $9800) % 32
+    constexpr std::size_t kScoreDigits = 6;
+
+    std::uint32_t value = game.engine.score;
+    for (std::size_t i = 0; i < kScoreDigits; ++i) {
+        const std::size_t col = kScoreCol + kScoreDigits - 1 - i;
+        game.display.map[kScoreRow][col] = static_cast<std::uint8_t>(value % 10);
+        value /= 10;
+    }
+}
+
 void scoreboardTallyStep(GameContext& game, LineClearKind kind) {
     EngineState& engine = game.engine;
     GameFlowState& flow = game.flow;
 
-    // Phase 2 — the print pass (:6110-6112, :6165-6173): the score redraw is render; the sim effect is
+    // Phase 2 — the print pass (:6110-6112, :6165-6173): redraw the score, and the sim effect is
     // the count-tick blip and disarming the phase.
     if (engine.scoreboardTallyPhase == 2) {
+        printScoreToScreen(game);
         game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
         engine.scoreboardTallyPhase = 0;
         return;

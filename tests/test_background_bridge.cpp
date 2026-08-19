@@ -146,16 +146,17 @@ TEST(BackgroundBridge, ComposeReadsTheVisibleWindowAndOnlyThat) {
     using kirpich::render::kVisibleCols;
     using kirpich::render::kVisibleRows;
 
-    PlayingFieldState field;
+    kirpich::DisplayState display;
+    display.sheet = TileSheet::GAMEPLAY;
     // A value per cell that encodes its own position, so a transposed or mis-strided read is visible.
-    for (std::size_t row = 0; row < kirpich::kBoardRows; ++row) {
-        for (std::size_t col = 0; col < kirpich::kBoardCols; ++col) {
-            field.board[row][col] = static_cast<std::uint8_t>(row * 7 + col);
+    for (std::size_t row = 0; row < kirpich::kBackgroundMapRows; ++row) {
+        for (std::size_t col = 0; col < kirpich::kBackgroundMapCols; ++col) {
+            display.map[row][col] = static_cast<std::uint8_t>(row * 7 + col);
         }
     }
 
     std::vector<retropp::TileCell> cells;
-    kirpich::render::composeBackground(field, TileSheet::GAMEPLAY, kAtlas, cells);
+    kirpich::render::composeBackground(display, kAtlas, cells);
 
     ASSERT_EQ(cells.size(), kVisibleCells);
     EXPECT_EQ(kVisibleCols, 20u);
@@ -164,7 +165,7 @@ TEST(BackgroundBridge, ComposeReadsTheVisibleWindowAndOnlyThat) {
     for (std::size_t row = 0; row < kVisibleRows; ++row) {
         for (std::size_t col = 0; col < kVisibleCols; ++col) {
             const ResolvedTile want =
-                kirpich::render::resolveTile(field.board[row][col], TileSheet::GAMEPLAY, kAtlas);
+                kirpich::render::resolveTile(display.map[row][col], TileSheet::GAMEPLAY, kAtlas);
             const retropp::TileCell& got = cells[row * kVisibleCols + col];
             ASSERT_EQ(got.atlas, want.atlas) << "cell " << row << "," << col;
             ASSERT_EQ(got.tile, want.cell) << "cell " << row << "," << col;
@@ -178,11 +179,13 @@ TEST(BackgroundBridge, ComposeReadsTheVisibleWindowAndOnlyThat) {
 
     // The regime is a live input, not a constant folded in at compose time.
     std::vector<retropp::TileCell> other;
-    kirpich::render::composeBackground(field, TileSheet::COPYRIGHT_TITLE, kAtlas, other);
+    display.sheet = TileSheet::COPYRIGHT_TITLE;
+    kirpich::render::composeBackground(display, kAtlas, other);
     EXPECT_FALSE(sameCells(cells, other));
 
     // Re-composing into the same buffer replaces it rather than growing it.
-    kirpich::render::composeBackground(field, TileSheet::GAMEPLAY, kAtlas, other);
+    display.sheet = TileSheet::GAMEPLAY;
+    kirpich::render::composeBackground(display, kAtlas, other);
     EXPECT_EQ(other.size(), kVisibleCells);
     EXPECT_TRUE(sameCells(other, cells));
 }
@@ -191,7 +194,7 @@ TEST(BackgroundBridge, ComposeReadsTheVisibleWindowAndOnlyThat) {
 // One layer, at the origin, the size of the screen, borrowing the composed cells.
 TEST(BackgroundBridge, LayerShape) {
     std::vector<retropp::TileCell> cells;
-    kirpich::render::composeBackground(PlayingFieldState{}, TileSheet::GAMEPLAY, kAtlas, cells);
+    kirpich::render::composeBackground(kirpich::DisplayState{}, kAtlas, cells);
 
     const retropp::DrawLayer layer = kirpich::render::backgroundLayer(cells);
 
@@ -221,7 +224,7 @@ TEST(BackgroundBridge, TheBackgroundIsAFunctionOfSimulationState) {
     kirpich::systems::initTitleScreen(game);  // a shipped handler that paints and stamps
 
     std::vector<retropp::TileCell> before;
-    kirpich::render::composeBackground(game.field, game.display.sheet, kAtlas, before);
+    kirpich::render::composeBackground(game.display, kAtlas, before);
 
     // The stamped screen is what the bridge sees.
     EXPECT_EQ(before[0].tile,
@@ -229,13 +232,15 @@ TEST(BackgroundBridge, TheBackgroundIsAFunctionOfSimulationState) {
                                            kAtlas)
                   .cell);
 
-    // Now write one board cell the way piece locking does, and only that cell moves.
+    // Now write one cell the way piece locking does - which reaches both grids - and only that cell
+    // moves.
     constexpr std::size_t kRow = 5;
     constexpr std::size_t kCol = 4;
     game.field.fieldCell(kRow, kCol) = 0x88;
+    game.display.map[kRow][kCol + kirpich::kPlayingFieldOriginCol] = 0x88;
 
     std::vector<retropp::TileCell> after;
-    kirpich::render::composeBackground(game.field, game.display.sheet, kAtlas, after);
+    kirpich::render::composeBackground(game.display, kAtlas, after);
 
     const std::size_t moved = kRow * kVisibleCols + (kCol + kirpich::kPlayingFieldOriginCol);
     for (std::size_t i = 0; i < after.size(); ++i) {

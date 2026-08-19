@@ -195,7 +195,7 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     // original does not reload it. The second copy of this backdrop the original writes to its other
     // background map (:4155-4157) is the paused screen, which the port does not draw — see
     // docs/contracts/screen.md.
-    loadScreenTilemap(game.field, typeB ? kTypeBGameplayTilemap : kTypeAGameplayTilemap);
+    loadScreenTilemap(game.display, typeB ? kTypeBGameplayTilemap : kTypeAGameplayTilemap);
 
     game.flow.framesPerDrop = framesPerDrop(game.flow.level, game.flow.heartMode != 0);
     game.flow.dropTimer = game.flow.framesPerDrop;

@@ -41,7 +41,14 @@ void initGarbage(systems::GameContext& game, const std::function<std::uint8_t()>
                 cell = kGarbageEmptyTile;
             }
 
+            // Both grids, as the original writes them: once at the map address it is walking, then
+            // again $3000 above it in the board (tetris.asm:4371-4381). Garbage appears the moment it
+            // is generated — there is no wipe to carry it across. The second write is skipped in a
+            // link-cable game, where the row is staged rather than shown.
             game.field.fieldCell(row, col) = cell;
+            if (!game.multiplayer.isMultiplayer) {
+                game.display.map[row][kPlayingFieldOriginCol + col] = cell;
+            }
         }
     }
 }
@@ -51,6 +58,8 @@ void initDemoGarbage(systems::GameContext& game) {
     for (std::size_t row = 0; row < kTypeBDemoGarbageRows; ++row) {
         for (std::size_t col = 0; col < kPlayingFieldCols; ++col) {
             game.field.fieldCell(kDemoGarbageTopRow + row, col) = kTypeBDemoGarbage[row][col];
+            game.display.map[kDemoGarbageTopRow + row][kPlayingFieldOriginCol + col] =
+                kTypeBDemoGarbage[row][col];
         }
     }
 }

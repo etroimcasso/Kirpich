@@ -28,6 +28,11 @@ constexpr std::uint8_t kUnclearedTopRows = 2;
 // The empty-cell tile: a field cell holds a space when nothing occupies it.
 constexpr std::uint8_t kEmptyCell = static_cast<std::uint8_t>(CharTile::SPACE);
 
+// The solid block the flash covers a clearing row with (tetris.asm:5435), and the pass on which it
+// covers with empty space instead, leaving the rows blank when the flash ends (:5434-5437).
+constexpr std::uint8_t kFlashBlockTile = 0x8C;
+constexpr std::uint8_t kFlashFinalPass = 6;
+
 // Build the completed-rows list from the first `count` field-row indices of a scan buffer
 // (count <= 4). The list stores row indices; a shorter list simply has fewer live entries. The value
 // is rebuilt through BoundedVec's constructor rather than mutated in place.
@@ -185,9 +190,23 @@ void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& dr
         return;
     }
 
-    // The flash itself paints video memory (solid blocks, then a blank pass) and is re-derived by the
-    // renderer from the flash phase and the completed-rows list; it changes no game state here.
-    // Advance the flash phase. (:5427-5456)
+    // The flash paints the displayed map and never the board (tetris.asm:5419-5447 derives the map
+    // address by subtracting $30 from the board's high byte). An even phase covers each clearing row
+    // with a solid block; an odd phase puts the row's real contents back, read out of the board — which
+    // is what makes the board the thing that must not change here. The seventh pass covers the rows
+    // with empty space instead, so the flash ends with them blank (:5433-5437).
+    const bool covering = (flow.blinkCounter & 1) == 0;
+    const std::uint8_t cover = (flow.blinkCounter == kFlashFinalPass)
+                                   ? static_cast<std::uint8_t>(CharTile::SPACE)
+                                   : kFlashBlockTile;
+    for (const std::uint8_t fieldRow : game.engine.lineClears) {
+        for (std::size_t col = 0; col < kPlayingFieldCols; ++col) {
+            game.display.map[fieldRow][kPlayingFieldOriginCol + col] =
+                covering ? cover : game.field.fieldCell(fieldRow, col);
+        }
+    }
+
+    // Advance the flash phase. (:5448-5456)
     ++flow.blinkCounter;
     if (flow.blinkCounter == 7) {
         // Seven passes done: reset the phase, hold before the wipe, and start it. (:5458-5468)
@@ -248,10 +267,18 @@ void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>
 
     const std::uint8_t step = flow.wipeCounter;
 
-    // Each step redraws one field row back to the screen, bottom row first
-    // (playingFieldRowForWipeCounter(step)); that copy is a render effect owned by the presentation
-    // pass. The step's own state effect is to advance the counter — except the final step, which sets
-    // the counter itself below.
+    // Each step carries one field row of the board into the displayed map, bottom row first
+    // (WipePlayingFieldRow, tetris.asm:5896-5908; each dispatcher passes the row's map address and the
+    // board address $3000 above it). This is the whole of the wipe: the board already holds the new
+    // contents, and the animation is the map catching up a row a frame.
+    const std::size_t fieldRow = playingFieldRowForWipeCounter(step);
+    for (std::size_t col = 0; col < kPlayingFieldCols; ++col) {
+        game.display.map[fieldRow][kPlayingFieldOriginCol + col] =
+            game.field.fieldCell(fieldRow, col);
+    }
+
+    // The step's own state effect is to advance the counter — except the final step, which sets the
+    // counter itself below.
     if (step != kPlayingFieldWipeCounterLast) {
         ++flow.wipeCounter;
     }

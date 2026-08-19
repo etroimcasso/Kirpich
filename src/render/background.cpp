@@ -4,13 +4,13 @@
 
 namespace kirpich::render {
 
-void composeBackground(const PlayingFieldState& field, TileSheet sheet, const TileAtlas& atlas,
+void composeBackground(const DisplayState& display, const TileAtlas& atlas,
                        std::vector<retropp::TileCell>& cells) {
     cells.resize(kVisibleCells);
 
     for (std::size_t row = 0; row < kVisibleRows; ++row) {
         for (std::size_t col = 0; col < kVisibleCols; ++col) {
-            const ResolvedTile art = resolveTile(field.board[row][col], sheet, atlas);
+            const ResolvedTile art = resolveTile(display.map[row][col], display.sheet, atlas);
             cells[row * kVisibleCols + col] = retropp::TileCell{
                 .atlas   = art.atlas,
                 .tile    = art.cell,
