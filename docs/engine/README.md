@@ -72,10 +72,10 @@ through play, to the game-over screen on a loss or the scoreboard on a Type B wi
 
 Backgrounds and objects both draw: the screens, the menus, the playing field and the blocks
 as they stack, along with the falling piece, the next-piece preview, the menu cursors and
-the ending's dancers — a solo round is playable. The paused screen, the line-clear flash and
-the game-over curtain's sweep are not shown, all three for the same reason: the hardware
-keeps the game's own copy of the screen separate from the displayed one, and each effect
-lives in the difference. Two-player play, the demo, the rocket and Buran ending scenes,
-top-score entry, the palette effects, and the display filters are not written yet.
+the ending's dancers — a solo round is playable. The port keeps both screens the hardware
+keeps, so the field wipe sweeps, the line-clear flash flashes, and a Type B round starts
+under garbage that shows. The paused screen is a second displayed screen and is not drawn;
+two-player play, the demo, the rocket and Buran ending scenes, top-score entry, the score
+and level readouts, the palette effects, and the display filters are not written yet.
 Pages appear as their surfaces do, so an area missing from the index above is an area that
 does not exist yet rather than one that is undocumented.

@@ -206,9 +206,11 @@ register the two virtual-machine routines, upload the art, install every state h
 The frame is two callbacks on the engine's run loop:
 
 - `simTick` advances the machine's divider by one tick's worth of cycles, runs one game frame through
-  the dispatcher, then runs the frame's last beat — the line-clear flash and the field wipe, which the
-  original runs in its vertical-blank handler. Both gate themselves, so they are called every frame and
-  act only while a clear is in progress. Without them a round stops after its first lock.
+  the dispatcher, then runs the frame's last beat — the line-clear flash, the field wipe and the
+  end-of-round tally, which the original runs in its vertical-blank handler in that order
+  (`tetris.asm:214-233`). All three gate themselves, so they are called every frame and act only when
+  there is something to do. Without them a round stops after its first lock and a finished Type B
+  round tallies in silence.
 - `renderLoop` composes both layers and submits them.
 
 The engine's run loop owns pacing at the true Game Boy rate; the port sets no rate of its own. See
@@ -230,23 +232,22 @@ screens read as drawing inputs. Anything else that startup would have establishe
 Backgrounds and objects both draw. A solo round is playable end to end: the piece you are moving, the
 next one waiting, the menu cursors, and the ending's ten performers are all on screen.
 
-Four differences from the original are known and deliberate:
+The port keeps both grids the hardware keeps — the board, which the game reasons about, and the
+displayed map — so the effects that live between them work: the field wipe sweeps a row per frame, the
+line-clear flash covers and restores, and a Type B round starts under garbage that shows. Which writes
+reach which grid is tabulated in [`../contracts/screen.md`](../contracts/screen.md) §5.
 
-- **The paused screen is blank of change.** The original pauses by switching to a second background
-  map holding the same backdrop plus a `PAUSE` label. The port models one map, so pausing stops input
-  and cues the music but does not change the picture.
-- **The field wipe does not sweep.** The wipe's job on hardware is to carry the board into the
-  background map a row per frame. With one grid there is nothing left to reveal, so a fill or clear
-  completes the moment it is written — a game-over curtain appears rather than building up.
-- **The line-clear flash does not flash.** The original alternates the clearing rows in the background
-  map while its own copy of the board keeps the blocks. With one grid there is no copy to alternate
-  against.
+Two differences from the original remain, both deliberate:
+
+- **The paused screen is blank of change.** The original pauses by switching to a *second* displayed
+  map holding the same backdrop plus a `PAUSE` label. The port models one displayed map, so pausing
+  stops input and cues the music but does not change the picture.
 - **No palette effects.** The fades and the blank at a screen change are register writes the port does
-  not make; everything renders through the fixed grey ramp.
+  not make; everything renders through the fixed grey ramp. The line-clear flash is not one of these —
+  it repaints tiles, and it is ported.
 
-The first three are one gap seen from three sides: the hardware keeps the game's copy of the screen
-and the displayed copy separate, and each effect lives in the difference. Recorded in
-[`../contracts/screen.md`](../contracts/screen.md) §5.
+Not drawn yet, for their own reasons: the score and level readouts, and the top-score table. Those are
+print routines the original runs from the same frame beat, and they are not ported.
 
 Three object behaviours are also not reproduced — background priority, the per-scanline object limit,
 and left-to-right priority — and are recorded in

@@ -9,17 +9,19 @@ Source anchors: `LoadTilemap` (`tetris.asm:6410-6431`), `LoadFontTiles` (`:6378-
 `LoadGameplayTiles` (`:6368-6376`), `LoadCopyrightAndTitleScreenTiles` (`:6394-6398`), and the call
 sites listed in §4.
 
-## 1. The background is the board
+## 1. Two grids, written separately
 
-The original keeps a 32 × 32 tile grid at `$C800` and mirrors it into the background map at `$9800`
-as it draws. `PlayingFieldState` (`docs/contracts/playing-field-state.md`) is the port's model of
-that grid, and every writer the port has ported already writes it: the title screen paints walls and
-a floor into it, piece locking writes blocks, line clears scan and compact it, the garbage fill
-buries it, the game-over and scoreboard printers stamp text into it.
+The original keeps a 32 × 32 tile grid at `$C800` — the game's own copy of the playing field — and a
+second at `$9800`, which is the background map the hardware displays. `PlayingFieldState`
+(`docs/contracts/playing-field-state.md`) models the first and `DisplayState::map`
+(`docs/contracts/display-state.md`) the second.
 
-`LoadTilemap` is one more writer. On hardware it writes the background map rather than the board, and
-the wipe carries the board forward into that map a row at a time; in the port there is one grid, so a
-backdrop load writes it directly. The visible screen is the board's top-left 18 rows × 20 columns.
+The board is what the game reasons about: the title screen paints walls and a floor into it, piece
+locking writes blocks, line clears scan and compact it, the garbage fill buries it. The map is what
+reaches the screen. Some writes go to one, some to the other, and some to both — §5 is the full
+table, and the difference between them is where the field wipe and the line-clear flash live.
+
+The visible screen is the map's top-left 18 rows × 20 columns.
 
 ## 2. Stamping a backdrop — `LoadTilemap.to9800` (`:6410-6431`)
 
@@ -31,7 +33,8 @@ backdrop load writes it directly. The visible screen is the board's top-left 18 
 
 `SCRN_X_B` = 20, `SCRN_Y_B` = 18, `SCRN_VX_B` = 32 (`hardware.inc:896-901`).
 
-Port surface: `loadScreenTilemap(field, tilemap)` (`src/systems/screen.h`).
+Port surface: `loadScreenTilemap(display, tilemap)` (`src/systems/screen.h`). It writes the map;
+the board is untouched, so a backdrop can neither lay out a playing field nor erase one.
 
 - Writes `board[0..17][0..19]` from the tilemap, cell for cell.
 - Leaves every other board cell alone. Columns 20-31 and rows 18-31 hold the board's own off-screen
@@ -98,37 +101,50 @@ screens entered from it do not reload it.
 round init replaces the backdrop. That call site belongs to the attract-demo routine, which is not
 ported; it lands with that routine.
 
-## 5. What the port does not draw
+## 5. The two grids
 
-Three visible differences, none of them approximated:
+The hardware keeps the game's own copy of the playing field (`PlayingFieldState`, what collision and
+locking read) and the background map it displays (`DisplayState::map`), and they are written
+separately throughout:
+
+| Write | Destination | Anchor |
+|---|---|---|
+| a full-screen backdrop | the map alone | `:6410-6431` |
+| the title screen's space fill, walls and floor | the board alone | `:538-554` |
+| a field-shaped screen | the board, then arms the wipe | `:4621-4623`, `:6434-6457` |
+| the field wipe | carries the board into the map, a row per frame | `:5896-5908` |
+| piece locking | both | `:6072-6098` |
+| the starting garbage | both, one write `$3000` above the other; the second is skipped in a link-cable game | `:4371-4381` |
+| the line-clear flash | the map alone, restoring rows from the board | `:5419-5447` |
+| the end-of-round tally | the map alone | `:4888`-`:4903`, `:4866`, `:6167` |
+
+The board and the map sit `$3000` apart, which is the offset every one of those double writes and the
+wipe uses to reach one from the other.
+
+## 6. What the port does not draw
+
+Two visible differences, neither approximated:
 
 **The paused screen.** The original keeps a *second* background map at `$9C00` and pauses by
 switching the display to it (`set 3, [hl]` on `rLCDC`, `:4461`; cleared at `:4487`). The round init
 writes the whole gameplay backdrop there as well as to the live map (`:4155-4157`) and stamps the
 pause message into it (`:4158-4161`), so the paused screen shows the same panel with no field and a
-`PAUSE` label. `PlayingFieldState` models one map, so the port has nowhere to put the second, and
-pausing changes the simulation (input stops, the music cue fires) without changing the picture. The
-same second map serves the link-cable round init (`:1245-1250`) and the launch scenes
-(`:2696-2801`), neither of which is ported.
+`PAUSE` label. The port models the displayed map and the board but not a
+*second* displayed map, so pausing changes the simulation (input stops, the music cue fires) without
+changing the picture. The same second map serves the link-cable round init (`:1245-1250`) and the
+launch scenes (`:2696-2801`), neither of which is ported.
 
-**The wipe animation.** `wipeCounter` 2-19 walks a row of the board into the background map per
-frame, which is what makes a field fill or clear sweep rather than appear. The port carries the
-counter and its schedule (`docs/contracts/line-clear.md`) but has one grid, so a fill is complete the
-moment it is written and the sweep is not seen.
+**Palette effects.** The original writes `BGP` for the fades and the blank at a screen change. The
+port renders through a fixed identity ramp: index 0 the darkest shade, the top index white, matching
+the inversion the extractor applies (`docs/contracts/tile-graphics.md`). The line-clear flash is not
+one of these — it repaints tiles rather than the palette, and it is ported.
 
-**Palette effects.** The original writes `BGP` for the line-clear flash, the fades, and the blank at
-a screen change. The port renders through a fixed identity ramp: index 0 the darkest shade, the top
-index white, matching the inversion the extractor applies (`docs/contracts/tile-graphics.md`).
-
-Sprites are absent for a different reason — the object layer is simply not bridged yet — and are not
-a property of this contract.
-
-## 6. What the tests pin
+## 7. What the tests pin
 
 `tests/test_screen.cpp`
 
-1. Every one of the nine full backdrops stamps into `board[0..17][0..19]` cell for cell, with every
-   cell outside that window untouched.
+1. Every one of the nine full backdrops stamps into `map[0..17][0..19]` cell for cell, with every
+   cell outside that window untouched and the board not written at all.
 2. The empty cell is `$2F` and both gameplay backdrops leave the field's ten columns empty.
 3. Each restored call site leaves the regime its paired loader leaves, the three screens with no
    loader call leave the regime alone, and boot is the regime the first screen loads.

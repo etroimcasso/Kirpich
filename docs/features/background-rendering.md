@@ -33,9 +33,10 @@ empty, which is exactly the board the title screen paints by hand. So a backdrop
 write, and once it is one, the picture is a pure function of state that already ships. Nothing on the
 render side has to be kept in step with anything.
 
-The cost is stated in `docs/contracts/screen.md` rather than hidden: collapsing the two destinations
-into one means the row-by-row wipe has nothing left to reveal, so a field fill or clear is complete
-the instant it is written instead of sweeping.
+That reading was later corrected: the two destinations are separate on hardware and the port carries
+both. A backdrop reaches the displayed map alone, the board is filled by the screens that own it, and
+the wipe carries the board into the map a row at a time — which is what the row-by-row animation is.
+`docs/contracts/screen.md` §5 tabulates which writes reach which grid.
 
 ### The tile regime is new state, and it does not go on an existing struct
 
@@ -73,8 +74,9 @@ decoded sample as its own palette index, and the two bit depths do not share an 
 tile yields 0-3 and the 1bpp font yields 0-1. One four-entry ramp would draw every lit font pixel in
 the second-darkest shade. Two uploads ship — a two-entry ramp for the font, a four-entry one for the content sheets —
 each the identity for its own sheet. Both are the fixed DMG grey ramp; the original's palette
-register writes (the line-clear flash, the fades, the blank at a screen change) are a later unit and
-are named as a visible difference.
+register writes (the fades, the blank at a screen change) are a later unit and are named as a visible
+difference. The line-clear flash is not among them — it repaints tiles rather than the palette, and it
+is ported.
 
 ### One virtual machine, shared, and the host is where that is paid
 
@@ -106,12 +108,14 @@ line-anchored to the loader call it replaces in `docs/contracts/screen.md` §4.
 ## Open questions / future work
 
 **The paused screen is not drawn.** The original pauses by switching the display to a *second*
-background map that it fills with the same backdrop plus a `PAUSE` label. `PlayingFieldState` models
-one map, so pausing changes the simulation without changing the picture. Drawing it needs a second
-grid on the port side — a decision about state shape, not a render detail. The same second map serves
-the link-cable round init and the launch scenes, neither of which is ported, so whichever unit takes
-it first should settle the shape for all three.
+displayed map that it fills with the same backdrop plus a `PAUSE` label. The port models the board and
+one displayed map, so pausing changes the simulation without changing the picture. Drawing it needs a
+third grid — a decision about state shape, not a render detail. The same second map serves the
+link-cable round init and the launch scenes, neither of which is ported, so whichever unit takes it
+first should settle the shape for all three.
 
-**The wipe does not sweep**, for the reason in the design section above.
+**The score, level and top-score readouts are not drawn.** The original prints them from the same
+frame beat the wipe and the tally run in; those print routines are not ported, and one of them writes
+the paused map as well, so it waits on the decision above.
 
-**Palette effects, sprites, scaling, and the display filters** are each their own later unit.
+**Palette effects, scaling, and the display filters** are each their own later unit.
