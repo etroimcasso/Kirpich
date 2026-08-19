@@ -121,6 +121,8 @@ separately throughout:
 | the line-clear flash | the map alone, restoring rows from the board | `:5419-5447` |
 | the end-of-round tally | the map alone | `:4888`-`:4903`, `:4866`, `:6167` |
 | the panel readouts | mostly both maps — see `docs/contracts/readouts.md` §9 | `:242-249`, `:4162-4194` |
+| the staged top-score rows | the board, then carried into the map on the redraw flag — the two-cell gap between each name and its score is stepped over, not copied | `:3934-3950`, `:3835-3890`, `:3893-3932` |
+| the name-entry cursor glyph | the map alone, leaving the board's staged cell stale | `:3954-3983`, `:4114-4122` |
 
 The board and the map sit `$3000` apart, which is the offset every one of those double writes and the
 wipe uses to reach one from the other. The two maps sit `$400` apart, and a cell has the same row and

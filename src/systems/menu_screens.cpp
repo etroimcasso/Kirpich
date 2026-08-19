@@ -414,20 +414,21 @@ void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh) {
     renderCursors(game);  // the shared d-pad exit (:3551)
 }
 
-void installMenuScreenHandlers(GameStateDispatcher& dispatcher) {
+void installMenuScreenHandlers(GameStateDispatcher& dispatcher, const TopScoresRefresh& typeA,
+                               const TopScoresRefresh& typeB) {
     dispatcher.setHandler(GameState::INIT_TYPE_SELECTION, initConfigScreen);
     dispatcher.setHandler(GameState::SELECT_GAME_TYPE, selectGameType);
     dispatcher.setHandler(GameState::SELECT_MUSIC_TYPE, selectMusicType);
     dispatcher.setHandler(GameState::INIT_TYPE_A_DIFFICULTY,
-                          [](GameContext& g) { initTypeADifficultyScreen(g); });
+                          [typeA](GameContext& g) { initTypeADifficultyScreen(g, typeA); });
     dispatcher.setHandler(GameState::TYPE_A_LEVEL_SELECTION,
-                          [](GameContext& g) { selectTypeALevel(g); });
+                          [typeA](GameContext& g) { selectTypeALevel(g, typeA); });
     dispatcher.setHandler(GameState::INIT_TYPE_B_DIFFICULTY,
-                          [](GameContext& g) { initTypeBDifficultyScreen(g); });
+                          [typeB](GameContext& g) { initTypeBDifficultyScreen(g, typeB); });
     dispatcher.setHandler(GameState::TYPE_B_LEVEL_SELECTION,
-                          [](GameContext& g) { selectTypeBLevel(g); });
+                          [typeB](GameContext& g) { selectTypeBLevel(g, typeB); });
     dispatcher.setHandler(GameState::TYPE_B_HEIGHT_SELECTION,
-                          [](GameContext& g) { selectTypeBHeight(g); });
+                          [typeB](GameContext& g) { selectTypeBHeight(g, typeB); });
 }
 
 }  // namespace kirpich::systems

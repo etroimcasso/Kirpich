@@ -83,7 +83,7 @@ Game logic.
 | Multiplayer | ⬜ | `features/multiplayer.md` |
 | Heart Mode (easter egg) | ⬜ | `features/heart-mode.md` |
 | Victory / defeat screens | ⬜ | `features/victory-defeat-screens.md` |
-| High-score recording | ⬜ | `features/high-score-recording.md` |
+| High-score recording | ✅ | [`features/high-score-recording.md`](features/high-score-recording.md) — a finished round's score compared against the three stored for its difficulty, inserted if it beat one, staged for the difficulty screen, and named on the letter-wheel entry screen; the tables are written to disk when a name is submitted |
 | Boot path and init quirks | ⬜ | `features/boot.md` |
 | CPU virtualization | 🟫 | [`features/cpu-fidelity.md`](features/cpu-fidelity.md) — provided by the engine; no port-side integration |
 

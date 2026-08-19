@@ -163,7 +163,53 @@ test in the same change. To change the persistence format, edit the codec in
 `high_score_persistence.cpp`; a format change that must remain loadable from older saves is a schema
 version bump plus a migration step registered on the store.
 
+## Recording a score
+
+`src/systems/high_scores.{h,cpp}` is what reads and writes the tables in play.
+
+`updateTypeATopScores` and `updateTypeBTopScores` each take the whole game context, pick the slice for
+the current difficulty, and do the comparison, the insert, and the staging in one pass. They match the
+refresh-seam signature the difficulty screens take, so they bind straight into
+`installMenuScreenHandlers` — Type A to the Type A init and level picker, Type B to the Type B init,
+level picker and height picker:
+
+```cpp
+installMenuScreenHandlers(dispatcher, updateTypeATopScores, updateTypeBTopScores);
+```
+
+`drawTopScoresToVram` carries the staged rows into the displayed map. It gates itself on the redraw
+request, so call it every frame from the frame's last beat alongside the other vertical-blank work.
+
+`enterTopScore` is the name-entry screen, installed with `installHighScoreHandlers`. Its second
+argument is the save seam — it is handed the finished table when a name is submitted, which is where
+the port writes top scores to disk:
+
+```cpp
+installHighScoreHandlers(dispatcher, [&saves](const HighScoreState& scores) {
+    saveTopScores(scores, saves);
+});
+```
+
+Both the seam and the refresh parameters default to empty, so a build that installs only some of this
+still runs.
+
+### Changing the layout
+
+The three display rows are described by the constants at the top of `systems/high_scores.h`:
+`kTopScoreTopRow` (13), `kTopScoreNameCol` (4), `kTopScoreScoreCol` (12), `kTopScoreNameLength` and
+`kTopScoreDigits` (6 each). Moving the block is a matter of changing those; the clear, the staging,
+and the flush all derive from them. `kNameEntryBlinkInterval` is the cursor's blink period in frames.
+
+The letter wheel's order is the charmap's own: the glyphs between `LETTER_A` and the skip glyph are
+walked by value, so adding a glyph to that run in `char_tile.h` adds it to the wheel.
+
 ## Testing
+
+`tests/test_high_scores.cpp` covers the recording flow: the slice walk over every level and height,
+the insert vectors including the tie that does not displace, the digit printer's skipped leading
+zeros, the staged layout and its name delimiter, the flush geometry and the gap it steps over, the
+letter wheel swept over its whole domain in both directions and both modes, the cursor moves, the
+blink and key-repeat timelines, and the submit fork with its save call.
 
 `tests/test_high_score_state.cpp` pins the two tables and the four owned bytes against the layout
 fixtures, resolves every owned byte to exactly one field (with a negative guard on the derivable

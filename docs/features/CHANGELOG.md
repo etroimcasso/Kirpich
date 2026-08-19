@@ -10,6 +10,14 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-19
 
+- **High-score recording** ⬜ → ✅. A round is remembered. A finished score is compared against the
+  three stored for the difficulty it was played at, takes a rank if it beat one, and the player
+  spells a name for it on the letter-wheel entry screen; the three ranked rows show on the difficulty
+  screen. The tables and the save format had been sitting finished and unreachable since the state
+  layer wrote them — the loader already ran at startup, but nothing had ever written a score back.
+  Heart mode's last unported effect lands here too: it swaps the wheel's `×` for a `♥`, so a heart can
+  go in a name.
+
 - **Number readouts** ⬜ → ✅. The panel shows its numbers. The score, the level, the line count and
   the Type B starting height had all been live in the simulation for several units with nothing
   drawing them; one printer and eight drawing functions fill the cells the stored backdrops leave

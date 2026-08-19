@@ -116,6 +116,13 @@ void clearOamObjects(GameContext& game);
 
 // Install the eight selection-screen handlers into their dispatch slots. The bare $09 slot keeps its
 // default stub; the remaining pre-game states (title / copyright) are installed by their own unit.
-void installMenuScreenHandlers(GameStateDispatcher& dispatcher);
+//
+// The two refresh seams are bound here because the five handlers that take one are wrapped in this
+// call. Each difficulty screen refreshes its own game type's table, the way the original binds them:
+// `typeA` goes to the Type A init and level picker, `typeB` to the Type B init, level picker and
+// height picker. Both default to empty, so a build that installs only the menus still runs.
+void installMenuScreenHandlers(GameStateDispatcher& dispatcher,
+                               const TopScoresRefresh& typeA = {},
+                               const TopScoresRefresh& typeB = {});
 
 }  // namespace kirpich::systems
