@@ -8,6 +8,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-20
+
+- **Launch scenes** ⬜ → ✅. The two bonus endings run. Winning a Type B round started at garbage
+  height 5 launches the Buran and prints a congratulations message; scoring 100 000 in Type A launches
+  one of three rockets, sized by the score. Both were live dead-ends before this: the ending dance and
+  the game-over chain had been writing their entry states all along, and neither had a handler, so a
+  player who earned either one watched the game stop. Both chains build a pad on the second background
+  map, hold, ignite, and fly the vehicle up off the top of the screen — its coordinate wrapping past
+  zero on the way, which is the mechanism and not an overflow — before handing back to the Type B
+  scoreboard and the Type A difficulty screen respectively. This is the last dead-end in the
+  single-player flow. Drawing them also brought the third tile set into the render bridge: it was
+  extracted and uploaded but nothing could select it, and the two regimes that existed both load a
+  font the launch scenes' loader does not.
+
 ## 2026-08-19
 
 - **Demo playback** ⬜ → ✅. The title screen plays the game to itself again. Left alone it counts

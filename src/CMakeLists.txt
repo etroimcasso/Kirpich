@@ -22,6 +22,7 @@ add_library(kirpich-lib STATIC
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp
+    systems/launch_scenes.cpp
     systems/high_scores.cpp
     systems/demo.cpp
     systems/readouts.cpp

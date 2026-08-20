@@ -57,12 +57,13 @@ namespace kirpich {
 // first nine tiles of that same art and then the config-and-gameplay art. The exact index-to-picture
 // relation both regimes produce is derived in src/render/tile_atlas.h.
 //
-// A third set (the multiplayer and Buran art) exists in the ROM and is extracted, but no solo screen
-// selects it: the screens that do are the link-cable and launch scenes, which are not ported yet. It
-// gets no enumerator until one of them needs it.
+// A third set (the multiplayer and Buran art) is loaded by InitRocketLaunchGraphics (:2729-2733),
+// which both bonus-ending launch scenes call to build their pad. The link-cable screens load the same
+// set, and will select it through this enumerator when they are ported.
 enum class TileSheet : std::uint8_t {
-    COPYRIGHT_TITLE = 0,  // LoadCopyrightAndTitleScreenTiles - the copyright and title screens
-    GAMEPLAY        = 1,  // LoadGameplayTiles - the config, difficulty, and gameplay screens
+    COPYRIGHT_TITLE   = 0,  // LoadCopyrightAndTitleScreenTiles - the copyright and title screens
+    GAMEPLAY          = 1,  // LoadGameplayTiles - the config, difficulty, and gameplay screens
+    MULTIPLAYER_BURAN = 2,  // InitRocketLaunchGraphics - the launch scenes and the link-cable screens
 };
 
 // A background map is the same shape as the board it is carried from, and the visible screen is its
@@ -75,10 +76,11 @@ using BackgroundMap =
     std::array<std::array<std::uint8_t, kBackgroundMapCols>, kBackgroundMapRows>;
 
 // Which of the two maps the display reads. The hardware selects it with a bit of its control
-// register (tetris.asm:4461 sets it, :4487 clears it).
+// register (tetris.asm:4461 sets it, :4487 clears it; the launch scenes set it at :2718 and :2951 and
+// clear it at :2926 and :3061).
 enum class DisplayedMap : std::uint8_t {
-    FIRST  = 0,  // $9800 - every screen except the paused one
-    SECOND = 1,  // $9C00 - the paused screen
+    FIRST  = 0,  // $9800 - every screen except the paused one and the launch scenes
+    SECOND = 1,  // $9C00 - the paused screen, and both bonus-ending launch scenes
 };
 
 struct DisplayState {

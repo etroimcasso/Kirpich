@@ -17,7 +17,8 @@ displays one at a time; `displayed` names which, and `displayedMap()` returns it
 that map's top-left 18 rows × 20 columns (`SCRN_Y_B`, `SCRN_X_B`; the row stride is `SCRN_VX_B` = 32,
 `hardware.inc:896-901`).
 
-The second map is the paused screen — §4. Everything below that says "the map" without qualification
+The second map is the paused screen and, since the launch scenes, the surface those draw on
+([`launch-scenes.md`](launch-scenes.md) §3) — §4. Everything below that says "the map" without qualification
 means the first.
 
 It is a different thing from the board (`PlayingFieldState`, `$C800`), which is the game's own copy of
@@ -60,8 +61,9 @@ under either regime; they differ in what follows it. The exact index-to-picture 
 is derived in `src/render/tile_atlas.h`, and the per-screen table of which screen loads what is
 [`screen.md`](screen.md) §4.
 
-A third set — the multiplayer and Buran art — exists in the ROM and is extracted, but no screen the
-port draws selects it, so it gets no enumerator.
+A third set — the multiplayer and Buran art — is selected by `MULTIPLAYER_BURAN`. Both launch scenes
+load it when they build their pad (`InitRocketLaunchGraphics`, `:2729-2733`), and the link-cable
+screens load the same set.
 
 **Boot value:** `COPYRIGHT_TITLE`, the art the game's first screen loads (`GameState_24`, `:481`).
 

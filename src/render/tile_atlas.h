@@ -42,9 +42,10 @@ namespace kirpich::render {
 // Which sheet a tile index draws from. Distinct from kirpich::TileSheet, which names a regime: a
 // regime chooses between these, and the font belongs to both.
 enum class TileSource : std::uint8_t {
-    FONT,             // font.png - indices $00-$26 under either regime
-    COPYRIGHT_TITLE,  // copyrightandtitlescreen.png
-    GAMEPLAY,         // configandgameplay.png
+    FONT,               // font.png - indices $00-$26 under the two regimes that load a font
+    COPYRIGHT_TITLE,    // copyrightandtitlescreen.png
+    GAMEPLAY,           // configandgameplay.png
+    MULTIPLAYER_BURAN,  // multiplayerandburan.png
 };
 
 // Where a tile index's art sits: which sheet, and which cell of it. The cell index is the tile's
@@ -58,9 +59,10 @@ struct TileLocation {
 
 // How many real tiles each sheet holds. The sheets are padded out to a whole row of 16, so the
 // files are larger than these; a cell past the real count is art nobody drew.
-inline constexpr std::uint16_t kFontTileCount           = 39;   // $00-$26
-inline constexpr std::uint16_t kCopyrightTitleTileCount = 119;
-inline constexpr std::uint16_t kGameplayTileCount       = 197;
+inline constexpr std::uint16_t kFontTileCount             = 39;   // $00-$26
+inline constexpr std::uint16_t kCopyrightTitleTileCount   = 119;
+inline constexpr std::uint16_t kGameplayTileCount         = 197;
+inline constexpr std::uint16_t kMultiplayerBuranTileCount = 207;
 
 // The first index past the font, where each regime's own art begins.
 inline constexpr std::uint8_t kContentTileBase = 0x27;
@@ -104,8 +106,8 @@ struct TileAtlas {
     retropp::AtlasId font{};
     retropp::AtlasId copyrightTitle{};
     retropp::AtlasId gameplay{};
-    // Uploaded because the extractor writes it and the presence check requires it. No screen the
-    // port draws selects it - the link-cable and launch scenes that do are not ported.
+    // Selected by the two launch scenes, which load it whole over the base of the tile block. The
+    // link-cable screens load the same sheet.
     retropp::AtlasId multiplayerBuran{};
 
     retropp::PaletteId fontPalette{};     // two entries: black, white

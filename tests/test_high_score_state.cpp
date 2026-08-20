@@ -203,7 +203,11 @@ TEST(HighScoreState, StructShapeAndFieldResolution) {
         for (std::size_t j = i + 1; j < std::size(kOwned); ++j)
             EXPECT_NE(kOwned[i].addr, kOwned[j].addr);
 
-    // Negative guard: the name-cursor pointer halves are derived state, owned by no field here (D6).
+    // Negative guard: the name-cursor pointer halves are derived state and this unit owns neither.
+    // $FFCA does have an owner elsewhere - the launch scenes' congratulations cursor carries it as
+    // GameFlowState::congratulationsColumn, the same disjoint-in-time split as $FFC6 above - but the
+    // top-score screen recomputes its own cursor each frame, so it claims no role in that byte.
+    // $FFC9 is the pointer's constant high half and is carried by no surface at all.
     EXPECT_FALSE(isOwned(0xFFC9));
     EXPECT_FALSE(isOwned(0xFFCA));
 }

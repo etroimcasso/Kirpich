@@ -64,8 +64,8 @@ bool sameCells(const std::vector<retropp::TileCell>& a, const std::vector<retrop
 }  // namespace
 
 // ── Test 1: TileIndexResolvesOverTheWholeDomain ─────────────────────────────────────────────────────
-// locateTile over all 256 indices in both regimes, against the relation read out of the two loaders
-// (tetris.asm:6368-6398). Full domain, not a sample.
+// locateTile over all 256 indices in all three regimes, against the relation read out of the three
+// loaders (tetris.asm:6368-6398, :2731-2733). Full domain, not a sample.
 TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
     using kirpich::render::kCarriedCopyrightTiles;
     using kirpich::render::kContentTileBase;
@@ -73,6 +73,7 @@ TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
     using kirpich::render::kFontTileCount;
     using kirpich::render::kGameplayTileBase;
     using kirpich::render::kGameplayTileCount;
+    using kirpich::render::kMultiplayerBuranTileCount;
 
     // The fallback both regimes use for an index past the art that was actually loaded.
     const TileLocation fallback{.source = TileSource::COPYRIGHT_TITLE,
@@ -81,7 +82,21 @@ TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
     for (int i = 0; i <= 0xFF; ++i) {
         const auto index = static_cast<std::uint8_t>(i);
 
-        // The font is the first 39 slots under either regime (LoadFontTiles, :6378-6392).
+        // The launch scenes' regime loads its sheet over the base of the tile block and loads no font
+        // (InitRocketLaunchGraphics, :2731-2733), so an index IS the cell from zero up - there is no
+        // font range here and no carried-over block. Asserted across the whole domain, including the
+        // range the other two regimes give to the font: reading those as font is exactly the way this
+        // goes wrong, and it draws the pad through the wrong art with every index still "valid".
+        {
+            const TileLocation want =
+                index < kMultiplayerBuranTileCount
+                    ? TileLocation{.source = TileSource::MULTIPLAYER_BURAN, .cell = index}
+                    : fallback;
+            ASSERT_EQ(kirpich::render::locateTile(index, TileSheet::MULTIPLAYER_BURAN), want)
+                << "index " << i;
+        }
+
+        // The font is the first 39 slots under either of the other regimes (LoadFontTiles, :6378-6392).
         if (index < kFontTileCount) {
             const TileLocation want{.source = TileSource::FONT, .cell = index};
             ASSERT_EQ(kirpich::render::locateTile(index, TileSheet::COPYRIGHT_TITLE), want)
@@ -121,6 +136,7 @@ TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
     // The boundaries the loaders set, stated on their own so a shifted base is unmistakable.
     EXPECT_EQ(kContentTileBase, 0x27);
     EXPECT_EQ(kGameplayTileBase, 0x30);
+    EXPECT_EQ(kMultiplayerBuranTileCount, 207);
     EXPECT_EQ(kCarriedCopyrightTiles, 9);
 
     // The empty cell is one of the carried-over nine, so it names one picture on every screen.
