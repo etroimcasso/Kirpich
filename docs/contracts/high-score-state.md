@@ -77,17 +77,26 @@ per-byte ownership stays with the game-flow surface (its census guard's `$FFC6` 
 high-score surface carries `nameEntryColumn` as an overlay field. Adjudicated 2026-08-14
 (user-approved).
 
-### The name-cursor pointer `$FFC9`/`$FFCA` gets no field
+### The name-cursor pointer `$FFC9`/`$FFCA` gets no field *here*
 
 `UpdateTopScores` stores the address of the name cell being entered big-endian across `$FFC9`/`$FFCA`
 (`:3824-3827`, `ld a, d` / `ldh [$C9], a` / `ld a, e` / `ldh [$CA], a` — the same "Bug?" big-endian
 storage the pointer-hi/lo pair uses). This is fully derivable state: the pointer = the name field of
 (`gameType` table, level[, height], `newScoreRank`, `nameEntryColumn`). The port recomputes it rather
 than storing it. `GameState_15` reads it back (`:3967-3970`) and re-derives it as the column moves
-(`:4095-4099`). The census (refCounts 6/7) covers this and a second, disjoint role — `GameState_2B` /
-`_2C` reuse the pair as a VRAM typewriter cursor for the Type-B ending message (`:2851-2854`,
-`:2880-2906`), game-flow machinery out of this surface. The surface's verdict for both bytes is
-**mechanism, no field**.
+(`:4095-4099`). The surface's verdict for both bytes, **for this role**, is **mechanism, no field**.
+
+The census (refCounts 6/7) covers this and a second, disjoint role: the Buran launch reuses the pair
+as a cursor for its congratulations message, seeded by `GameState_03` (`:2851-2854`) and stepped by
+`GameState_2C` (`:2880-2906`). That role is *not* derivable — nothing else records how far the sixteen
+letters have printed — so it does carry a field, `GameFlowState::congratulationsColumn`, which holds
+the low half as a screen column. `$FFC9` stays uncarried by either surface: it is the pointer's high
+half and both roles hold it constant for their whole run. See
+[`launch-scenes.md`](launch-scenes.md) §11.
+
+So `$FFCA` is a shared byte with two disjoint-in-time roles, the same shape as `$FFC6`
+(`coarseCountdown` / `nameEntryColumn` above) and `$FFFB`/`$FFFC` below — the name-entry screen and the
+congratulations screen cannot run at the same time.
 
 ### The `$FFFB`/`$FFFC` pointer role: mechanism
 

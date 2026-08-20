@@ -68,6 +68,18 @@ struct GameFlowState {
                                      // name-entry column, carried as HighScoreState::nameEntryColumn
                                      // (src/state/high_score_state.h); the two uses are disjoint in time.
 
+    // How far the Buran ending's congratulations message has printed: the second-map column the next
+    // letter goes in, seeded to 2 when the shuttle clears the screen and terminal at 18
+    // (tetris.asm:2851-2854, :2880-2912). Progress through the sixteen letters is recorded nowhere
+    // else, so it has to survive the frame.
+    //
+    // The original stores a full destination address across $FFC9/$FFCA, big-endian. The port carries
+    // the low half only, as a column: the high byte is $9C for the whole sequence, and which map is
+    // being drawn is already known from DisplayState. Shared byte: $FFCA's other role is the low half
+    // of the top-score name-entry cursor, which that screen recomputes each frame rather than storing,
+    // and the two screens cannot run at once. See docs/contracts/launch-scenes.md.
+    uint8_t congratulationsColumn = 0;  // $FFCA (shared byte; $FFC9 is the constant page byte, not carried)
+
     // One byte carrying two roles, both of which the readouts depend on ($FFE0).
     //
     // Outside a number print it means "the score has changed": every addition to the score sets it

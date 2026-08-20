@@ -33,8 +33,12 @@ spared them and switching the console off cleared them for good.
 two recorded rounds — first the Type A, then the Type B, alternating from then on — by feeding the
 cartridge's own recorded button presses through the ordinary game. Press Start and it stops.
 
-What remains is two-player play, the rocket and Buran launch scenes, the palette effects, and the
-display filters.
+**Both bonus endings launch.** Win a Type B round that started under five rows of garbage and the
+Buran lifts off its pad and climbs off the top of the screen, and the game spells out a
+congratulations; score 100 000 in Type A and a rocket does the same, one of three sized by how far you
+went past it. They were the last two places the single-player game could reach and find nothing there.
+
+What remains is two-player play, the palette effects, and the display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
 ROM: the character map and the 22 static background screens, the composed sprites and their on-screen
@@ -80,6 +84,7 @@ The table below is kept honest as components land.
 | Pre-game screens | **complete** — the copyright and title screens and the game-type, music, and difficulty menus |
 | In-round gameplay states | **complete** — the shared round init, the per-frame gameplay loop, the pause, and the game-over chain |
 | Type B round | **complete** — the starting garbage, and the win chain: the scoreboard and the dance the hardest level earns |
+| Launch scenes | **complete** — both bonus endings: the Buran a height-5 Type B win earns, and the rocket a 100 000-point Type A game earns |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
 | Attract-mode demo | **complete** — the title screen plays both recorded rounds to itself and alternates between them, feeding recorded input through the ordinary game |
 | Background rendering | **complete** — every screen's backdrop, the screen buffers the hardware keeps, the wipe and flash that live between them, and the paused screen |

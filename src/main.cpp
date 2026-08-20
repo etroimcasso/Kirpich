@@ -57,6 +57,7 @@
 #include "systems/gameplay.h"
 #include "systems/high_scores.h"
 #include "systems/input.h"
+#include "systems/launch_scenes.h"
 #include "systems/line_clear.h"
 #include "systems/menu_screens.h"
 #include "systems/readouts.h"
@@ -189,6 +190,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // real query is what ends the dance on a build that has sound; the default reports silence.
     kirpich::systems::installTypeBEndingHandlers(
         dispatcher, [&sound] { return sound.currentMusic().has_value(); });
+
+    // The two bonus endings. Without these the dance's height-5 fork and the game-over chain's
+    // 100 000-point fork both write a state nothing implements, and the game stops where it should
+    // launch something.
+    kirpich::systems::installLaunchSceneHandlers(dispatcher);
 
     // Both seams take the machine's raw byte source: the round's piece selection and the garbage
     // fill's per-cell pick each own their own logic and only ask the divider for a number.

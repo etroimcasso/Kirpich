@@ -149,8 +149,13 @@ The panel readouts keep it current: each writes both maps as it goes, so the pau
 score, level and height that were live. The line count is the exception — it reaches the second map
 only through the copy the pause itself performs (`docs/contracts/readouts.md` §6).
 
-The same map serves the link-cable round init (`:1245-1250`) and the launch scenes (`:2696-2801`),
-neither of which is ported.
+The same map serves the launch scenes, which clear it and build their pad on it, switch to it on the
+way in and back on the way out ([`launch-scenes.md`](launch-scenes.md) §2–§3), and the link-cable round
+init (`:1245-1250`), which is not ported.
+
+Those scenes also stamp shapes this surface's loader cannot express — a four-row block starting part
+way down the map, and seven-cell vertical strips — so they carry their own stamps rather than widening
+`loadScreenTilemap`, which is fixed at a full 18×20 screen from the top-left corner.
 
 Port surface: `DisplayState::secondMap`, `DisplayState::displayed`, and
 `DisplayState::displayedMap()`, which is what the render bridge composes.

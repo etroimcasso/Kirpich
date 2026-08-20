@@ -151,11 +151,16 @@ TEST(GameFlowState, EveryCensusByteHasExactlyOneOwner) {
         0xFFB1, 0xFFCE, 0xFFD1, 0xFFD2, 0xFFD3, 0xFFD4, 0xFFD5, 0xFFD6,
         0xFFD9, 0xFFDA, 0xFFDB, 0xFFDC, 0xFFEF, 0xFFF0,
         // top-score state
-        0xFFC8, 0xFFC9, 0xFFCA,
+        0xFFC8,
+        // The high half of a big-endian cursor pointer. Both roles of that pointer - the top-score
+        // name cell and the launch scenes' congratulations cell - keep it constant for their whole
+        // run ($C9 and $9C respectively), so neither surface carries it.
+        0xFFC9,
     };
 
     auto ownerOf = [&](std::uint16_t a) -> const char* {
         if (inList(a, {0xFF98, 0xFF9C, 0xFFA0, 0xFFC6, 0xFFE0})) return "game-flow-foldin";
+        if (a == 0xFFCA) return "game-flow-congratulations";  // congratulationsColumn (shared byte)
         if (a == 0xFFFB) return "game-flow-topout";          // topOutLockCount (shares hTopScorePointerHi)
         if (inList(a, {0xFF9B, 0xFFFE})) return "mechanism";  // gap scratch + boot-clear top
         if (inList(a, {0xFFA4, 0xFFAF})) return "dead";

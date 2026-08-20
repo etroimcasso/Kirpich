@@ -31,7 +31,22 @@ static_assert(kEmptyLocation.cell < kCarriedCopyrightTiles,
 }  // namespace
 
 TileLocation locateTile(std::uint8_t index, TileSheet sheet) noexcept {
-    // The font is the first 39 slots under either regime (LoadFontTiles, tetris.asm:6378-6392).
+    // The launch scenes' regime is laid out unlike the other two. Its loader copies the whole sheet
+    // to the base of the tile block and loads no font at all (InitRocketLaunchGraphics,
+    // tetris.asm:2731-2733), so there is no font range and no carried-over block: an index IS the
+    // cell, all the way down from zero. The letters those scenes print come out of this sheet too.
+    //
+    // The loader copies 256 tiles where the art is 207 - the source calls the length "Way too much" -
+    // so the indices past the art hold whatever followed it in the cartridge. Nothing either scene
+    // draws reaches them; they resolve to the empty cell rather than to art nobody authored.
+    if (sheet == TileSheet::MULTIPLAYER_BURAN) {
+        return index < kMultiplayerBuranTileCount
+                   ? TileLocation{.source = TileSource::MULTIPLAYER_BURAN, .cell = index}
+                   : kEmptyLocation;
+    }
+
+    // The font is the first 39 slots under either of the other regimes (LoadFontTiles,
+    // tetris.asm:6378-6392).
     if (index < kFontTileCount) {
         return TileLocation{.source = TileSource::FONT, .cell = index};
     }
@@ -120,6 +135,10 @@ ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& a
         case TileSource::COPYRIGHT_TITLE:
             return ResolvedTile{
                 .atlas = atlas.copyrightTitle, .cell = where.cell, .palette = atlas.contentPalette};
+        case TileSource::MULTIPLAYER_BURAN:
+            return ResolvedTile{.atlas   = atlas.multiplayerBuran,
+                                .cell    = where.cell,
+                                .palette = atlas.contentPalette};
         case TileSource::GAMEPLAY:
             break;
     }
@@ -137,8 +156,12 @@ ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette
     }
 
     const retropp::PaletteId palette = palette1 ? atlas.spritePalette1 : atlas.spritePalette0;
-    const retropp::AtlasId source =
-        (where.source == TileSource::COPYRIGHT_TITLE) ? atlas.copyrightTitle : atlas.gameplay;
+    retropp::AtlasId         source   = atlas.gameplay;
+    if (where.source == TileSource::COPYRIGHT_TITLE) {
+        source = atlas.copyrightTitle;
+    } else if (where.source == TileSource::MULTIPLAYER_BURAN) {
+        source = atlas.multiplayerBuran;
+    }
     return ResolvedTile{.atlas = source, .cell = where.cell, .palette = palette};
 }
 
