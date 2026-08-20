@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #include <kirpich/action.h>
 #include <kirpich/char_tile.h>
@@ -227,12 +228,14 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
     game.demo.activeDemo = ActiveDemo::NONE;
 }
 
-void installTitleScreenHandlers(GameStateDispatcher& dispatcher) {
+void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo) {
     dispatcher.setHandler(GameState::INIT_COPYRIGHT, initCopyrightScreen);
     dispatcher.setHandler(GameState::COPYRIGHT_SCREEN, copyrightHold);
     dispatcher.setHandler(GameState::COPYRIGHT_SCREEN_SKIPPABLE, copyrightSkippable);
     dispatcher.setHandler(GameState::INIT_TITLE_SCREEN, initTitleScreen);
-    dispatcher.setHandler(GameState::TITLE_SCREEN, [](GameContext& g) { titleScreen(g); });
+    dispatcher.setHandler(GameState::TITLE_SCREEN, [startDemo = std::move(startDemo)](GameContext& g) {
+        titleScreen(g, startDemo);
+    });
 }
 
 }  // namespace kirpich::systems

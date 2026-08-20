@@ -23,6 +23,7 @@ add_library(kirpich-lib STATIC
     systems/gameplay.cpp
     systems/type_b_ending.cpp
     systems/high_scores.cpp
+    systems/demo.cpp
     systems/readouts.cpp
     systems/screen.cpp
     systems/sound.cpp
@@ -40,8 +41,9 @@ target_include_directories(kirpich-lib PUBLIC
 
 # Development builds resolve the asset root to the project tree, so a developer who has run
 # scripts/setup-dev-assets exercises the shipped load path against the real files without
-# copying anything next to the binary. A distributable turns this off and the engine's
-# default applies instead — the executable's own directory, where extracted assets land.
+# copying anything next to the binary. A distributable turns this off, and assets resolve to the
+# player's own data directory — the same place their save file goes, which is where the extractor
+# writes them.
 option(KIRPICH_DEV_ASSET_ROOT "Resolve the asset root to the project tree (development builds)" ON)
 if(KIRPICH_DEV_ASSET_ROOT)
     target_compile_definitions(kirpich-lib PUBLIC KIRPICH_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")

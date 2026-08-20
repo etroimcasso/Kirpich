@@ -29,8 +29,12 @@ take its rank and spell a name for it, six letters on a wheel; the three best sh
 screen. Kirpich keeps them between launches, which the cartridge could not — there, only a soft reset
 spared them and switching the console off cleared them for good.
 
-What remains is two-player play, the attract-mode demo, the rocket and Buran launch scenes, the
-palette effects, and the display filters.
+**The title screen plays the game to itself.** Leave it alone and it counts down, then runs one of the
+two recorded rounds — first the Type A, then the Type B, alternating from then on — by feeding the
+cartridge's own recorded button presses through the ordinary game. Press Start and it stops.
+
+What remains is two-player play, the rocket and Buran launch scenes, the palette effects, and the
+display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
 ROM: the character map and the 22 static background screens, the composed sprites and their on-screen
@@ -77,7 +81,7 @@ The table below is kept honest as components land.
 | In-round gameplay states | **complete** — the shared round init, the per-frame gameplay loop, the pause, and the game-over chain |
 | Type B round | **complete** — the starting garbage, and the win chain: the scoreboard and the dance the hardest level earns |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
-| Attract-mode demo | not started — the recorded inputs and piece list are ported |
+| Attract-mode demo | **complete** — the title screen plays both recorded rounds to itself and alternates between them, feeding recorded input through the ordinary game |
 | Background rendering | **complete** — every screen's backdrop, the screen buffers the hardware keeps, the wipe and flash that live between them, and the paused screen |
 | Sprite rendering | **complete** — the falling piece, the preview, the menu cursors, and the ending's performers |
 | Panel readouts | **complete** — the score, the level, the line count, and the Type B starting height |

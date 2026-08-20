@@ -51,6 +51,7 @@
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
+#include "systems/demo.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
@@ -165,7 +166,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::loadTopScores(saves, game.highScores);
 
     kirpich::systems::GameStateDispatcher dispatcher;
-    kirpich::systems::installTitleScreenHandlers(dispatcher);
+
+    // Left alone, the title screen counts down and plays one of the two recorded demos.
+    kirpich::systems::installTitleScreenHandlers(dispatcher, kirpich::systems::startDemo);
 
     // Each difficulty screen refreshes its own game type's table on the way in and on every move,
     // which is also where a just-finished round's score is compared against it and inserted.
@@ -192,6 +195,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installGameplayHandlers(
         dispatcher, kirpich::systems::GameplayWiring{
                         .draw        = [&drawPiece] { return drawPiece(); },
+                        .demo        = kirpich::systems::demoHooks(),
                         .initGarbage = kirpich::vm::makeInitGarbageHook(
                             [&garbageFold] { return garbageFold(); }),
                     });

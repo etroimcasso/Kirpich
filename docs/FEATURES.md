@@ -77,8 +77,8 @@ Game logic.
 | Title / config / menu screens | ✅ | [`features/menu-screens.md`](features/menu-screens.md), [`features/title-screens.md`](features/title-screens.md) — the whole pre-game flow (copyright, title, config, and the game-type / music-type / difficulty selectors) is delivered as per-state handlers. The demo launch and the two-player serial paths are seams later units fill |
 | Gameplay session | ✅ | [`features/gameplay.md`](features/gameplay.md) — the shared round init (both game types and the attract demo), the twelve-step gameplay frame, the pause (shared with two-player), the game-over chain and its rocket endings, and the Type B results re-arm, as per-state handlers. The garbage fill, the demo input, and the soft reset are seams later units fill |
 | Type-B gameplay | ✅ | [`features/type-b-ending.md`](features/type-b-ending.md) — a Type B round is delivered across three units: the shared round init and frame (`features/gameplay.md`), the starting garbage (`features/garbage-init.md`), and the win chain here — the scoreboard, and the dance the hardest level earns first, as per-state handlers. The Buran launch a height-5 win enters is an ending scene and is not written yet |
-| Demo playback | ⬜ | `features/demo-playback.md` |
-| Demo recording (dead-but-present) | ⬜ | `features/demo-recording.md` |
+| Demo playback | ✅ | [`features/demo-playback.md`](features/demo-playback.md) — the title screen's attract demos: the launch and the Type A / Type B alternation, the run-length replay that substitutes recorded input for the player's, the restore that hands the buttons back, and the two ways a demo ends |
+| Demo recording (dead-but-present) | ✅ | [`features/demo-playback.md`](features/demo-playback.md) — ported with playback, and dead exactly as it is in the original: the recorder runs every gameplay frame behind a flag nothing sets, because the routine that arms it has no caller |
 | Serial protocol | ⬜ | `features/serial-protocol.md` |
 | Multiplayer | ⬜ | `features/multiplayer.md` |
 | Heart Mode (easter egg) | ⬜ | `features/heart-mode.md` |

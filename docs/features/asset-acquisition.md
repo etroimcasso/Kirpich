@@ -2,19 +2,22 @@
 
 **Date:** 2026-05-14; revised 2026-05-15 (single asset path, no pack system); revised
 2026-08-03 (first-start ROM selection replaces the manual tool step); revised 2026-08-07
-(graphics extraction implemented)
-**Status:** Presence check, first-start flow, and graphics extraction implemented; the audio
-byte spans are settled alongside the audio backend
+(graphics extraction implemented); revised 2026-08-17 (the sound driver image joins the
+extraction and the presence check); revised 2026-08-19 (extracted assets move to the player's
+own data directory)
+**Status:** Complete — the presence check, the first-start flow, and extraction of both the tile
+graphics and the sound driver image
 
 How the game gets the graphics and ROM byte spans it needs, without any copyrighted content
 entering this repository or a shipped build.
 
 ## Concept
 
-The engine loads tile graphics from one canonical path: `assets/gfx/default/`. The virtual machine
-consumes ROM byte spans — the randomization routine, the sound driver, and the per-song and
-per-effect data — from a separate fixed path. Both are populated either by the extraction tool
-(on the user's machine, against a ROM they own) or by manual placement.
+The engine loads tile graphics from one canonical path, `assets/gfx/default/`, and the sound driver
+image from `assets/audio/default/sound_driver.bin`. Both are relative to the asset root, which is the
+player's own data directory for an installed game and the project tree for a development build — see
+"Extracted assets live in the player's own data directory" below. They are populated either by the
+extractor (on the player's machine, against a ROM they own) or by manual placement.
 
 **No pack system.** No swappable graphics or audio packs, no pack discovery, no manifest, no
 fallback chain. The engine reads the canonical paths or it reports an error.

@@ -10,6 +10,16 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-19
 
+- **Demo playback** ⬜ → ✅. The title screen plays the game to itself again. Left alone it counts
+  down and runs one of the two recorded rounds — Type A first, Type B second, alternating — by feeding
+  recorded button presses into the ordinary frame, and stops on Start or when the recording runs out
+  of pieces. The recordings and the fixed piece list they replay had been sitting finished since the
+  data layer read them out of the ROM, and the five places the game hands control to a demo had been
+  in place and doing nothing since the screens and the round were written.
+- **Demo recording (dead-but-present)** ⬜ → ✅. Ported alongside playback and dead exactly as it is in
+  the original: the recorder runs every gameplay frame behind a flag nothing ever sets, because the
+  routine that would arm it has no caller anywhere in the game.
+
 - **High-score recording** ⬜ → ✅. A round is remembered. A finished score is compared against the
   three stored for the difficulty it was played at, takes a rank if it beat one, and the player
   spells a name for it on the letter-wheel entry screen; the three ranked rows show on the difficulty
