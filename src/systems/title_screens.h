@@ -60,6 +60,10 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo = {});
 // ── Installer ─────────────────────────────────────────────────────────────────────────────────────
 
 // Install the five copyright / title handlers into their dispatch slots ($24, $25, $35, $06, $07).
-void installTitleScreenHandlers(GameStateDispatcher& dispatcher);
+//
+// The demo seam is bound here because the title-screen handler that fires it is wrapped in this call.
+// It defaults to empty, so a build that installs only these screens still runs — it simply idles at
+// the title instead of playing a demo.
+void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo = {});
 
 }  // namespace kirpich::systems

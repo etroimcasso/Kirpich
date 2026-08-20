@@ -7,16 +7,18 @@
 
 // The first-start flow: what happens when Kirpich launches and its graphics are not there.
 //
-// Kirpich ships with no graphics — they are derived from the Game Boy Tetris ROM. Rather
-// than failing with an error that sends the player off to run a command-line tool, the
-// port asks for the ROM on the spot: a native file-selection dialog, extraction in-process,
-// and then the ordinary load path. The same first-start model as Ship of Harkinian.
+// Kirpich ships with no cartridge content — the tile graphics and the sound driver image are
+// both derived from the Game Boy Tetris ROM. Rather than failing with an error that sends the
+// player off to run a command-line tool, the port asks for the ROM on the spot: a native
+// file-selection dialog, extraction in-process, and then the ordinary load path. The same
+// first-start model as Ship of Harkinian.
 //
 // The sequence lives entirely in the port, ahead of engine construction:
 //
-//   1. checkRequired() (presence.h) — are the graphics there?
+//   1. checkRequired() (presence.h) — is every required asset there?
 //   2. If not, promptForRom() — the player points at their own ROM.
-//   3. extractFromRom() (extract.h) — writes every required file into assets/gfx/default/.
+//   3. extractFromRom() (extract.h) — writes every required file: the tile graphics into
+//      assets/gfx/default/ and the driver image into assets/audio/default/.
 //   4. Proceed into normal engine construction and asset loading — the same code path
 //      every subsequent launch takes.
 //

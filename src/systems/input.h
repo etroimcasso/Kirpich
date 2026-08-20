@@ -34,11 +34,16 @@ struct JoypadState {
     friend bool operator==(const JoypadState&, const JoypadState&) = default;
 };
 
-// Derives the per-tick snapshot from a held-action set. Both input sources call sample(): live play
-// passes the engine-sampled held set, and demo playback passes the recorded timeline's held set —
-// the original substitutes the held byte and reuses the same edge derivation (DemoSimulateJoypad,
-// tetris.asm:794-796). The previous-held is this system's own mechanism state, not game state (the
-// original's hJoyHeld is engine mechanism, not part of GameFlowState).
+// Derives the per-tick snapshot from a held-action set. This is the live input path: the engine
+// samples the devices, and sample() turns the held set into the held/pressed pair the game reads.
+// The previous-held is this system's own mechanism state, not game state (the original's hJoyHeld
+// is engine mechanism, not part of GameFlowState).
+//
+// Demo playback does not go through here. It derives the same relation against its own baseline —
+// the previous step of the recording rather than the previous tick's real buttons — and overwrites
+// the snapshot mid-frame (DemoSimulateJoypad, tetris.asm:794-796; see systems/demo.h). Routing it
+// through sample() would report presses the recording never made and would leave this system's
+// history holding the demo's input for the next tick.
 class InputSystem {
 public:
     // Compute pressed = heldNow & ~previousHeld (ReadJoypad, tetris.asm:6546-6549), store heldNow as

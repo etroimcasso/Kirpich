@@ -32,7 +32,6 @@
 
 #include "data/misc.h"           // SpriteCoordinate
 #include "data/scene_sprites.h"  // SceneSprite
-#include "state/engine_state.h"
 #include "state/sprite_renderer_state.h"
 #include "systems/game_context.h"
 
