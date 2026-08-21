@@ -298,6 +298,35 @@ TEST(Sound, InitialisationIsOrderedAheadOfTheFramesSounds) {
     EXPECT_FALSE(gesturesFor(quiet).initDriver);
 }
 
+// 6b. A machine reset asks for the driver's whole startup, which is a different gesture from the
+//     initialisation the game asks for at a game over. The difference is the work-RAM clear: the
+//     initialisation entry does not touch the driver's pause-tune timer (audio.asm:804-830), and while
+//     that byte is set the driver plays the pause tune and never reaches its sound routines at all
+//     (:69-71) - and it latches, so it stays set until something clears the memory (:145-148). A reset
+//     that only initialised would silence every effect and the music for the rest of the session.
+TEST(Sound, AMachineResetAsksForTheWholeStartupNotJustAnInitialisation) {
+    GameContext resetting;
+    resetting.audioCues.driverRestartRequested = true;
+
+    const SoundGestures reset = gesturesFor(resetting);
+    EXPECT_TRUE(reset.restartDriver);
+    EXPECT_FALSE(reset.initDriver);
+
+    // The game's own InitAudio sites are the other gesture, and they stay that way: a game over must
+    // not wipe the driver's memory, because the original's game over does not.
+    GameContext gameOver;
+    gameOver.audioCues.resetRequested = true;
+
+    const SoundGestures init = gesturesFor(gameOver);
+    EXPECT_TRUE(init.initDriver);
+    EXPECT_FALSE(init.restartDriver);
+
+    // Neither is asked for on an ordinary frame.
+    const SoundGestures idle = gesturesFor(GameContext{});
+    EXPECT_FALSE(idle.restartDriver);
+    EXPECT_FALSE(idle.initDriver);
+}
+
 // 7. The startup routine does the three things the driver depends on and the cartridge's own image
 //    does not carry: switch the sound hardware on, clear the driver's work RAM, and only then call
 //    the driver's initialisation. Each omission is silent and each one silences the driver in its

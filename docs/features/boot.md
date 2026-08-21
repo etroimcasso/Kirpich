@@ -67,14 +67,36 @@ takes its frame from the engine's run loop, so there is nothing for those writes
 leave that as an absence a reader has to infer, the contract carries a line-by-line accounting of the
 whole routine — every range, and what became of it.
 
+**A reset restarts the sound driver; it does not merely initialise it.** These are two different
+requests and the port carries both. An initialisation is the driver's initialisation entry, which is
+what the game itself asks for at a game over, at the Type B scoreboard, and on the rocket's exit. A
+restart is the driver's whole startup — sound hardware on, work RAM cleared, then that same entry —
+and only a machine reset asks for one.
+
+The difference is not academic. The initialisation entry clears the four current-sound bytes and the
+four channel locks and nothing else; it leaves the pause-tune timer alone, and the driver checks that
+byte before anything else it does. Set, it plays the pause tune and never reaches the routines that
+play effects or music — and it latches, so it stays set until the memory holding it is cleared. A
+player who paused and then reset a port that only initialised would lose every sound effect and all
+music for the rest of the session, with the pause tune the one thing still audible. That is a field
+report, not a hypothetical: it is what this feature shipped with for one commit, and
+`AMachineResetAsksForTheWholeStartupNotJustAnInitialisation` is the test that now holds the two
+requests apart.
+
 ### Considered and rejected
 
-**Giving the sound system a synchronous re-initialisation call.** The original calls the driver's
-initialisation inline, part way through the reset; the port sets the request the frame's sound step
-consumes, so it happens a frame later. Adding a direct call would match the original's instant more
-closely and buy nothing: no state handler runs between the two points, and the sound step performs the
-re-initialisation before it reads the frame's cues, so no cue can be lost to the gap. The request
-mailbox is also how every other part of the game asks for the same thing.
+**Reaching into the driver's memory to clear the byte directly.** The failure is one byte, and the
+port could have declared a slot for it and written a zero. It would have worked and it would have been
+a guess: the original clears 256 bytes, not one, so picking the byte the symptom pointed at leaves
+every other byte in the window wrong and waits for the next symptom. The engine gained a restart
+instead, which is what a machine reset actually is.
+
+**Giving the sound system a synchronous restart call.** The original runs the driver's startup inline,
+part way through the reset; the port sets the request the frame's sound step consumes, so it happens a
+frame later. Adding a direct call would match the original's instant more closely and buy nothing: no
+state handler runs between the two points, and the sound step performs the restart before it reads the
+frame's cues, so no cue can be lost to the gap. The request mailbox is also how every other part of the
+game asks the driver for anything.
 
 **Preventing the reset from running twice in one frame.** From the gameplay path the reset fires, the
 frame ends, and the frame-level check then matches the same still-held chord and fires it again. The

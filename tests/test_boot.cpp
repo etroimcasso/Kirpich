@@ -192,8 +192,11 @@ TEST(Boot, ColdBootComposition) {
     EXPECT_EQ(game.display.displayed, DisplayedMap::FIRST);
     EXPECT_EQ(game.display.sheet, TileSheet::COPYRIGHT_TITLE);
 
-    // The sound driver's startup is asked for, not performed here (contract section 6).
-    EXPECT_TRUE(game.audioCues.resetRequested);
+    // The sound driver's whole startup is asked for, not performed here (contract section 6). Not the
+    // plain initialisation the game asks for elsewhere: that one leaves the driver's pause state
+    // latched and silences it for the rest of the session.
+    EXPECT_TRUE(game.audioCues.driverRestartRequested);
+    EXPECT_FALSE(game.audioCues.resetRequested);
 
     // What the boot leaves behind (:371-376).
     EXPECT_EQ(game.flow.gameType, GameType::TYPE_A);
@@ -291,7 +294,7 @@ TEST(Boot, BootOrderKeepsSavedScores) {
     // ...and the boot still happened around them.
     EXPECT_EQ(game.flow.gameState, GameState::INIT_COPYRIGHT);
     EXPECT_EQ(game.flow.gameType, GameType::TYPE_A);
-    EXPECT_TRUE(game.audioCues.resetRequested);
+    EXPECT_TRUE(game.audioCues.driverRestartRequested);
     expectFirstMapFilledSecondMapZero(game);
     EXPECT_TRUE(game.field == GameContext{}.field);
 

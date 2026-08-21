@@ -39,10 +39,17 @@ void coldBoot(GameContext& game) {
     clearFirstBackgroundMap(game.display);
 
     // The sound driver's startup: the hardware writes at :301-306, the work-RAM clear at :311-317, and
-    // the InitAudio call at :367. All three live in the driver's own startup routine here, which the
-    // frame's sound step runs when it sees this request. It arrives a frame later than the original's
-    // inline call, and contract §12 argues why nothing can observe that.
-    game.audioCues.resetRequested = true;
+    // the InitAudio call at :367. All three are the driver's own startup routine here
+    // (src/vm/audio_boot.asm), which the frame's sound step asks to be run again.
+    //
+    // Not the plain initialisation the game asks for elsewhere. That entry leaves the driver's
+    // pause-tune timer latched, and a driver with that byte set never reaches its sound routines
+    // again — every effect and the music stop for good. The work-RAM clear is what the original clears
+    // it with, and only the whole startup performs one.
+    //
+    // It arrives a frame later than the original's inline call, and contract §12 argues why nothing
+    // can observe that.
+    game.audioCues.driverRestartRequested = true;
 
     // What the boot leaves behind (:371-376). The two selections double as cursor positions and sprite
     // numbers on the screens that read them, which is why they carry these byte values.

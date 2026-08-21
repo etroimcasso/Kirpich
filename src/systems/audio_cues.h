@@ -44,6 +44,20 @@ struct AudioCues {
     WaveSfxId   wave   = WaveSfxId::NONE;    // wave-channel sound effect (wNewWaveSFXID)
     bool resetRequested = false;             // re-initialise the driver before reading the cues
 
+    // Put the driver back the way it started — a different and larger thing than resetRequested above.
+    //
+    // resetRequested is the game's own `call InitAudio`: the game-over path, the Type B scoreboard, the
+    // rocket's exit. That entry clears the channels and their locks and nothing else. A machine reset
+    // is more — the original wipes the driver's whole work RAM and then initialises it
+    // (tetris.asm:311-317 then :367) — and the difference is audible rather than academic: the
+    // initialisation alone leaves the driver's pause-tune timer latched, and while that byte is set the
+    // driver plays the pause tune and never reaches its sound routines, so every effect and the music
+    // stop for good (audio.asm:69-71, and :145-148 for why it latches).
+    //
+    // The audio tick performs this as the driver's own startup routine run again, which is exactly the
+    // three things the game's startup does — see src/vm/audio_boot.asm.
+    bool driverRestartRequested = false;
+
     // Suspend or resume the current song (wPauseUnpauseSound).
     AudioPauseCommand pause = AudioPauseCommand::NONE;
 

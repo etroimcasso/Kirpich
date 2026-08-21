@@ -153,8 +153,20 @@ already executes all three, on the machine, as the driver's own startup:
 
 The driver's own image carries none of the first two, which is why hosting it alone leaves it running
 silently — the hardware is never switched on and its work RAM is never cleared. The port's driver
-startup performs all three, in this order, and it is what both a cold boot and a soft reset ask for.
+startup performs all three, in this order, and a boot asks for that whole startup to be run again.
 See [`sound-driver.md`](sound-driver.md).
+
+**This is not the same request the game makes elsewhere, and the difference is audible.** Five or so
+sites in the game do `call InitAudio` on their own — the game-over path, the Type B scoreboard, the
+rocket's exit — and those are the initialisation entry alone, with no memory wipe. A boot needs the
+wipe as well, because `_InitAudio` clears the four current-sound bytes and the four channel locks and
+nothing else (`audio.asm:804–830`). In particular it leaves `wPauseTuneTimer` (`$DF7E`) alone, and
+that byte is checked at the top of every driver pass (`:69–71`): non-zero sends the driver down its
+pause-tune path, which never reaches `PlaySquareSFX` / `PlayNoiseSFX` / `PlayWaveSFX` / `StartMusic` /
+`PlayMusic`. It also **latches** — at 16 the routine puts it back (`:145–148`, upstream comment *"Keep
+the music paused by keeping wPauseTuneTimer non-zero. Seems like a hack..."*). So a player who pauses
+and then resets a port that only initialised would lose every sound effect and all music for the rest
+of the session, with the pause tune the one thing still audible.
 
 **A soft reset needs this as much as a cold boot does**, because clear 2 is inside `.softReset`: the
 driver's work RAM is wiped and re-initialised on every reset, even though the top scores are not.
@@ -263,9 +275,9 @@ port; reading the file again would be a difference, not a fidelity gain.
 
 Two, both stated rather than hidden:
 
-**The sound driver is re-initialised one frame later.** The original calls `InitAudio` inline, part
-way through the reset. The port sets the driver-reset request that the frame's sound step consumes, so
-the driver is re-initialised at the next frame's sound step instead. Nothing observes the gap: no
+**The sound driver is restarted one frame later.** The original runs its startup inline, part
+way through the reset. The port sets the driver-restart request that the frame's sound step consumes,
+so the driver is restarted at the next frame's sound step instead. Nothing observes the gap: no
 state handler runs between the two points, and the sound step performs the re-initialisation before it
 reads the frame's cues, so a cue raised by the first screen cannot be lost to it.
 

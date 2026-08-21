@@ -58,12 +58,18 @@ struct SoundDriverSlots {
 
 // What one frame asks of the driver. The members are performed in the order they are declared, and
 // that order is the original's: the demo gate is published before anything else, because the driver
-// reads it before it plays anything; the initialisation runs next, because the game code that asks
-// for one runs it before the frame's sounds are requested; then the song; then the frame's mailbox
-// batch. Getting this order wrong is audible — an initialisation performed after a sound effect has
-// started silences that effect on the frame it began.
+// reads it before it plays anything; a restart next, since a machine reset precedes everything the
+// frame after it does; then the initialisation, because the game code that asks for one runs it
+// before the frame's sounds are requested; then the song; then the frame's mailbox batch. Getting
+// this order wrong is audible — an initialisation performed after a sound effect has started silences
+// that effect on the frame it began.
+//
+// A restart and an initialisation are not alternatives and a frame may ask for both, though nothing
+// in the game does today: a restart runs the driver's whole startup, an initialisation only its
+// initialisation entry. See AudioCues.
 struct SoundGestures {
     SoundDriverSlots demoGate;              // published first, every frame
+    bool             restartDriver = false; // run the driver's startup again — a machine reset
     bool             initDriver = false;    // re-initialise the driver (clears channels and locks)
     std::optional<std::uint8_t> music;      // song to start; the stop id is a legal value here
     SoundDriverSlots mailboxes;             // the frame's effect cues and pause command

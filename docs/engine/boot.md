@@ -76,7 +76,13 @@ became of it — check there before concluding something was dropped.
 
 The sound driver's own startup (switching the sound hardware on, clearing the driver's work RAM, and
 its initialisation call) is real and does run, but it lives in the driver's startup routine rather than
-here; `coldBoot` asks for it by setting the driver-reset request the frame's sound step consumes. See
+here; `coldBoot` asks for that whole startup to be run again by setting the driver-restart request the
+frame's sound step consumes.
+
+**Not the plain initialisation the game asks for elsewhere.** That entry leaves the driver's pause-tune
+timer set, and while it is set the driver plays the pause tune and never reaches its sound routines —
+so a reset that only initialised would silence every effect and all music for the rest of the session.
+The work-RAM clear is what puts that byte back, and only the whole startup performs one. See
 [`sound-driver.md`](sound-driver.md).
 
 ## Changing behavior

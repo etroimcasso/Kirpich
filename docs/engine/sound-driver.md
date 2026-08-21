@@ -80,16 +80,24 @@ request protocol can be exercised with no sound hardware present — which is wh
 
 ```cpp
 struct SoundGestures {
-    SoundDriverSlots            demoGate;             // published first, every frame
-    bool                        initDriver = false;   // re-initialise the driver
-    std::optional<std::uint8_t> music;                // song to start
-    SoundDriverSlots            mailboxes;            // the frame's effect cues and pause command
+    SoundDriverSlots            demoGate;               // published first, every frame
+    bool                        restartDriver = false;  // run the driver's whole startup again
+    bool                        initDriver = false;     // re-initialise the driver
+    std::optional<std::uint8_t> music;                  // song to start
+    SoundDriverSlots            mailboxes;              // the frame's effect cues and pause command
 };
 ```
 
 **The members are performed in the order they are declared, and that order is load-bearing.** An
 initialisation performed after a sound effect has started silences that effect on the frame it
 began, because initialising clears every channel and its lock. The contract works the case through.
+
+**A restart and an initialisation are different gestures.** An initialisation runs the driver's
+initialisation entry — the game asks for one at a game over, at the Type B scoreboard, and on the
+rocket's exit. A restart runs the driver's whole startup: the sound hardware switched on, its work RAM
+cleared, and only then that same entry. Only a machine reset asks for one, and it has to, because the
+initialisation entry leaves the driver's pause-tune timer set and a driver with that byte set never
+reaches its sound routines again. See [`boot.md`](boot.md).
 
 ### The sound system
 
@@ -140,6 +148,7 @@ game.audioCues.music  = MusicId::STOP;                // stop all audio
 game.audioCues.square = SquareSfxId::ROTATE_PIECE;    // a square-channel effect
 game.audioCues.pause  = AudioPauseCommand::PAUSE;     // suspend the current song
 game.audioCues.resetRequested = true;                 // re-initialise the driver
+game.audioCues.driverRestartRequested = true;         // run its whole startup again — a machine reset
 ```
 
 A cue written and then overwritten within the same frame never reaches the driver — only the last
