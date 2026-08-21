@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <utility>
 
 #include <kirpich/action.h>
 #include <kirpich/char_tile.h>
@@ -438,6 +439,62 @@ TEST(SettingsScreen, PaletteRowScrollsEveryRamp) {
     kirpich::systems::settingsScreen(game, wiring);
     EXPECT_EQ(probe.settings.shadeRamp, 0);
     EXPECT_EQ(probe.applied, appliedAtBottom) << "the first ramp is an end stop";
+}
+
+// (6c) The scroller's arrows are the game's own selector tile, the left one flipped, and each is
+// present only where there is somewhere to scroll to. They are objects, so the screen also selects
+// the tile art that tile belongs to - under the gameplay art the same index is a solid block.
+TEST(SettingsScreen, ScrollArrowsAreTheGamesOwnSelector) {
+    constexpr std::uint8_t kSelectorTile = 0x58;
+
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+
+    // Enter from a paused round, which has the gameplay art loaded - the case that would draw a solid
+    // block if the screen did not select the art the arrow lives in.
+    game.display.sheet = kirpich::TileSheet::GAMEPLAY;
+    openFrom(game, wiring, GameState::NORMAL_GAMEPLAY);
+    EXPECT_EQ(game.display.sheet, kirpich::TileSheet::COPYRIGHT_TITLE);
+
+    game.screens.settingsRow = SettingsRow::SHADE_RAMP;
+
+    const auto arrows = [&] {
+        press(game, {});
+        kirpich::systems::settingsScreen(game, wiring);
+        return std::pair{game.engine.oam[0], game.engine.oam[1]};
+    };
+
+    // The first ramp has nowhere to go left.
+    probe.settings.shadeRamp = 0;
+    auto [left, right] = arrows();
+    EXPECT_EQ(left, kirpich::OamEntry{}) << "no left arrow at the first ramp";
+    EXPECT_EQ(right.tile, kSelectorTile);
+    EXPECT_FALSE(right.xflip) << "the game's arrow already points right";
+
+    // A middle ramp has both, and the left one is the same tile flipped.
+    probe.settings.shadeRamp = 3;
+    std::tie(left, right) = arrows();
+    EXPECT_EQ(left.tile, kSelectorTile);
+    EXPECT_TRUE(left.xflip) << "the left arrow is the selector flipped, not a second tile";
+    EXPECT_EQ(right.tile, kSelectorTile);
+    EXPECT_LT(left.x, right.x) << "the arrows bracket the number";
+
+    // The last ramp has nowhere to go right.
+    probe.settings.shadeRamp = kirpich::render::kShadeRampCount - 1;
+    std::tie(left, right) = arrows();
+    EXPECT_EQ(left.tile, kSelectorTile);
+    EXPECT_EQ(right, kirpich::OamEntry{}) << "no right arrow at the last ramp";
+
+    // The second page has no scroller at all, and leaving puts the caller's art back.
+    game.screens.settingsRow = SettingsRow::RESET_SCORES;
+    std::tie(left, right) = arrows();
+    EXPECT_EQ(left, kirpich::OamEntry{});
+    EXPECT_EQ(right, kirpich::OamEntry{});
+
+    press(game, {Action::Back});
+    kirpich::systems::settingsScreen(game, wiring);
+    EXPECT_EQ(game.display.sheet, kirpich::TileSheet::GAMEPLAY) << "the caller's art comes back";
 }
 
 // (7) Only the reset row acts on Confirm and Start; the two value rows ignore both, so a player

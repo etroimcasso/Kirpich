@@ -95,6 +95,12 @@ struct ScreenUiState {
     BackgroundMap              savedMap{};
     decltype(EngineState::oam) savedOam{};
 
+    // The tile art the caller was drawing through. The settings screen selects the copyright-and-title
+    // set while it is up, because that is the set the game's own selector arrow lives in — the same
+    // index is a solid block under the gameplay art. Its text is unaffected either way: the font and
+    // the empty cell mean the same picture under both sets.
+    TileSheet savedSheet = TileSheet::COPYRIGHT_TITLE;
+
     // Return every field to its boot value.
     void reset() { *this = ScreenUiState{}; }
 
