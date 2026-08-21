@@ -101,6 +101,18 @@ Measured on macOS arm64, `Release`, before and after:
 | Size | 4 610 296 B | 3 733 448 B (−19%) |
 | Symbols | 13 816 | 3 443 (−75%) |
 
+**The bundle is signed after the strip, and has to be.** Apple silicon will not run an unsigned
+binary at all, so the linker ad-hoc signs every build — and the strip then edits the binary, which
+invalidates that signature. A bundle's signature also has to cover its `Info.plist` and seal its
+resources, which a linker signature over the executable alone never does. Left that way macOS calls
+the app **damaged** and refuses to open it, which is worse than unsigned: a player can wave an
+unsigned app past Gatekeeper with right-click → Open, and cannot do anything at all with a broken
+signature. So the build signs the bundle last, ad-hoc, and verifies it.
+
+Ad-hoc is a signature with no identity behind it — enough to run, not enough for another machine to
+trust a download. A downloaded ad-hoc-signed app is still refused by Gatekeeper until it is signed
+with a Developer ID and notarized, which is the release's job.
+
 The strip has to coexist with the routine bake, and does. Each baked SM83 routine's registry is
 anchored by an `extern "C"` symbol the engine names undefined at link time, which makes it a root
 the dead strip keeps and a global symbol `strip -x` does not touch; all three anchors are present in

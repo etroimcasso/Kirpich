@@ -155,3 +155,21 @@ if(NOT MSVC)
             COMMENT "Stripping symbols from the shipped binary")
     endif()
 endif()
+
+# Sign the bundle, last, after everything that modifies it.
+#
+# Apple silicon will not run an unsigned binary at all, so the linker ad-hoc signs every build. The
+# strip above edits the binary afterwards, which invalidates that signature — and a bundle's
+# signature has to cover its Info.plist and seal its resources besides, which a linker signature over
+# the executable alone never does. Left that way macOS calls the result damaged rather than
+# unsigned, and refuses to open it at all: a broken signature is not something a player can wave
+# past, where an absent one is.
+#
+# Ad-hoc means a signature with no identity behind it: enough to run, not enough for someone else's
+# machine to trust a download. Signing for distribution replaces this and belongs to the release.
+if(APPLE)
+    add_custom_command(TARGET kirpich POST_BUILD
+        COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:kirpich>"
+        COMMAND codesign --verify --strict "$<TARGET_BUNDLE_DIR:kirpich>"
+        COMMENT "Signing the app bundle")
+endif()
