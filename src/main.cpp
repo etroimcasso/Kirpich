@@ -47,6 +47,8 @@
 #include <retropp/vm.h>
 #include <retropp/windowed_host.h>
 
+#include <kirpich/action.h>
+
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
@@ -320,6 +322,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // quits comes back fullscreen. Held across ticks so the chord fires on the press, not every frame
     // the keys are down.
     bool fullscreenChordHeld = false;
+    bool chordSwallowsEnter  = false;
 
     // Seeded with what the window was opened as, then kept current by SDL's own reports.
     FullscreenWatch fullscreen{.observed = settings.fullscreen};
@@ -346,21 +349,36 @@ int main(int /*argc*/, char* /*argv*/[]) {
             }
         }
 
-        const bool modifier = (SDL_GetModState() & (SDL_KMOD_ALT | SDL_KMOD_GUI)) != 0;
-        const bool chord = modifier && SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RETURN];
+        const bool enterDown = SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RETURN];
+        const bool modifier  = (SDL_GetModState() & (SDL_KMOD_ALT | SDL_KMOD_GUI)) != 0;
+        const bool chord     = modifier && enterDown;
         if (chord && !fullscreenChordHeld) {
             settings.fullscreen = !settings.fullscreen;
             applySettings(settings);
             kirpich::saveSettings(settings, saves);
+            chordSwallowsEnter = true;
         }
         fullscreenChordHeld = chord;
+        // The key has to come back up before Enter is the Start button again. Letting go of the
+        // modifier first would otherwise leave Enter still down and newly unmasked, which the game
+        // reads as a fresh press of Start.
+        if (!enterDown) {
+            chordSwallowsEnter = false;
+        }
 
         // The divider free-runs with engine time: one tick's worth of cycles per sim tick keeps it
         // ticking between the draws and fills that read it. Without this it freezes and the piece
         // sequence degenerates into a counter.
         vm.advanceClock(config.timing.cpuCyclesPerTick());
 
-        dispatcher.tick(game, kirpich::systems::heldActions(in));
+        // Enter is also the Start button. The chord is a chord, not a press of Start, so Start is
+        // withheld for as long as the chord's key is down — otherwise taking the game fullscreen
+        // also starts a round, pauses one, or skips a screen.
+        retropp::ActionSet held = kirpich::systems::heldActions(in);
+        if (chord || chordSwallowsEnter) {
+            held.set(retropp::actionId(kirpich::Action::Start), false);
+        }
+        dispatcher.tick(game, held);
 
         // The frame's last beat. The original runs these in its vertical-blank handler, after the
         // dispatch and the timers the dispatcher already ran (tetris.asm:214-249), and the line-clear
