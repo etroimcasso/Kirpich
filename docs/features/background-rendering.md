@@ -85,11 +85,11 @@ draws its pieces and then fills its garbage in the same frame — so the draws a
 fill goes on to read. Both routines register on one machine here. Nothing in the types enforces it,
 so it is stated at the host, at both headers, and pinned by a test on the garbage side.
 
-### The boot path is substituted, and said to be
+### The boot path is its own unit
 
-The original's startup routine is not ported. The host seeds the machine directly to the copyright
-screen, which is where the game starts. That is a substitution, not a port, and it is written down as
-one in the host's own comment and in the contract.
+The host does not seed the machine. It calls the ported startup routine, which leaves the game at the
+copyright screen with a game type and a music selection already chosen, and it installs that routine's
+reset into the two seams the four-button chord fires. See [`boot.md`](boot.md).
 
 ## Implementation details
 

@@ -103,7 +103,7 @@ correctness contract.
 
 | Quirk | Description |
 |---|---|
-| Sprite-copy over-transfer | The OAM copy routine transfers two bytes more than needed. Harmless on hardware; preserved. |
+| Boot's routine-copy overrun | Init copies the sprite-transfer routine into high memory two bytes longer than the routine is. The routine itself does not over-transfer — the hardware fixes that transfer's length. The two extra bytes land on the game-type and music-type selection bytes, which Init overwrites a few instructions later on every path, so nothing can read them. Preserved as an equivalence, with the reachability argument in `contracts/boot.md` §8. |
 | Top two rows never cleared | Line-clear logic checks 16 of 18 rows. The top two playfield rows are never cleared — invisible in normal play, observable in edge cases. Deliberate; preserved. |
 | Multi-line clear duplicates top row | When several lines clear at once, the top row of the playfield is duplicated. Likely an oversight in the original; preserved. |
 | Stereo panning preserved-as-broken | The ROM carries stereo panning data for the music, but the panning is non-functional in the shipped game. The data and the broken behavior both ship as-is; the virtualized driver runs the same code paths the original did. |

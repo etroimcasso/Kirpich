@@ -11,11 +11,11 @@
 //
 // The frame draws two layers: the board as a tile layer, and the object buffer as sprites over it.
 //
-// ONE THING THIS DOES NOT DO, deliberate and visible.
-//
-// The real boot path. The original's startup routine is not ported, so this seeds the machine
-// directly to the first screen the game shows. That is a substitution, not a port, and the state it
-// skips over is named in docs/contracts/screen.md.
+// The machine starts from the ported boot path (systems/boot.h), which is also what the four-button
+// reset chord runs. What that path does NOT do is write the original's display, interrupt, stack and
+// timer registers: this port draws through a display the engine owns and takes its frame from the
+// engine's run loop, so those writes have nothing to reach. docs/contracts/boot.md §4 accounts for
+// every line of the original's startup routine and what became of it.
 
 #include <cstdint>
 #include <cstdlib>
@@ -41,16 +41,13 @@
 #include <retropp/vm.h>
 #include <retropp/windowed_host.h>
 
-#include <kirpich/game_state.h>
-#include <kirpich/game_type.h>
-#include <kirpich/music_type.h>
-
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
+#include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
@@ -160,13 +157,21 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     // ── The game ─────────────────────────────────────────────────────────────
     kirpich::systems::GameContext game;
-
-    // Top scores outlive a launch, so they load before the first screen reads them. An absent
-    // document is an ordinary first run and leaves the boot zeros in place.
-    retropp::SaveStore saves;
-    kirpich::loadTopScores(saves, game.highScores);
+    retropp::SaveStore            saves;
 
     kirpich::systems::GameStateDispatcher dispatcher;
+
+    // The reset the four-button chord asks for. Both places that detect the chord fire this same
+    // closure, because the original reaches one routine from both of its detection sites.
+    //
+    // The dispatcher's own reset goes with it: the original's startup clears the held-buttons byte, so
+    // the frame after a reset derives its presses against nothing and every button still down reads as
+    // freshly pressed. That is also what makes a chord held down keep resetting until it is released.
+    const auto reset = [&game, &dispatcher] {
+        kirpich::systems::softReset(game);
+        dispatcher.reset();
+    };
+    dispatcher.softReset = reset;
 
     // Left alone, the title screen counts down and plays one of the two recorded demos.
     kirpich::systems::installTitleScreenHandlers(dispatcher, kirpich::systems::startDemo);
@@ -204,16 +209,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
                         .demo        = kirpich::systems::demoHooks(),
                         .initGarbage = kirpich::vm::makeInitGarbageHook(
                             [&garbageFold] { return garbageFold(); }),
+                        .softReset = reset,
                     });
 
-    // The original's startup routine (_Start / Init) is not ported. Seeding the machine directly is a
-    // stated substitution for it: it arrives at the copyright screen the way the game does, but
-    // without having run the boot it runs to get there. Three values are what that boot leaves behind
-    // and the screens that follow read (tetris.asm:371-376) — the first screen, and the two menu
-    // selections whose stored values double as a cursor position and a sprite id.
-    game.flow.gameType = kirpich::GameType::TYPE_A;
-    game.flow.musicType = kirpich::MusicType::MUSIC_A;
-    game.flow.gameState = kirpich::GameState::INIT_COPYRIGHT;
+    // Start the machine: the boot path, then the player's saved top scores read back over the tables
+    // it just cleared. bootGame owns that order — reversed, a launch would wipe the scores it had just
+    // loaded — and it leaves the game at the copyright screen with the two menu selections the
+    // following screens read.
+    kirpich::systems::bootGame(game, saves);
 
     // ── Input ────────────────────────────────────────────────────────────────
     retropp::ActionMap actions = kirpich::systems::defaultActionMap();

@@ -255,7 +255,13 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
 }
 
 void normalGameplay(GameContext& game, const GameplayDemoHooks& demo, const SoftResetHook& softReset) {
-    handleStartSelect(game, softReset);
+    // A matched soft-reset chord ends the frame here. The original reaches its reset with a jump
+    // (tetris.asm:4444) and that reset falls into the top of the main loop, so the rest of this frame —
+    // the demo substitution, the piece, the scan, the lock, the compaction, the award — never runs.
+    // Continuing would step a piece across the board the reset has just cleared.
+    if (!handleStartSelect(game, softReset)) {
+        return;
+    }
     if (game.flow.paused) {
         return;
     }
@@ -284,42 +290,45 @@ void normalGameplay(GameContext& game, const GameplayDemoHooks& demo, const Soft
     }
 }
 
-void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
+bool handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
     // The frame dispatcher tests this same chord each tick and this tests it again — the original does
     // both (tetris.asm:4441-4444).
+    //
+    // The original's second test is a jump into the reset, not a call, so it abandons the rest of the
+    // frame as well as the rest of this routine; false is how that reaches the caller.
     if (softResetChordHeld(game)) {
         if (softReset) {
             softReset();
         }
-        return;
+        return false;
     }
 
     // Recorded input cannot pause the game (tetris.asm:4445-4447).
     if (game.demo.activeDemo != ActiveDemo::NONE) {
-        return;
+        return true;
     }
 
     if (!pressed(game, Action::Start)) {
         handleSelect(game);
-        return;
+        return true;
     }
 
     if (game.multiplayer.isMultiplayer) {
         // Only the master may pause or unpause (tetris.asm:4497-4499).
         if (game.multiplayer.role != SerialRole::MASTER) {
-            return;
+            return true;
         }
         game.flow.paused = !game.flow.paused;
         if (!game.flow.paused) {
             // The master jumps straight into the shared unpause, skipping the protocol wait
             // (tetris.asm:4500-4503).
             unpauseMultiplayer(game);
-            return;
+            return true;
         }
         game.audioCues.pause = AudioPauseCommand::PAUSE;
         game.multiplayer.savedRx = game.multiplayer.rx;
         game.multiplayer.savedTx = game.multiplayer.tx;
-        return;
+        return true;
     }
 
     game.flow.paused = !game.flow.paused;
@@ -335,7 +344,7 @@ void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
         // the status change visible.
         renderActivePieceSprite(game);
         renderPreviewPieceSprite(game);
-        return;
+        return true;
     }
 
     game.display.displayed = DisplayedMap::FIRST;  // (:4487)
@@ -345,6 +354,7 @@ void handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
     game.spriteRenderer.slots[kPreviewPieceSlot].hidden = game.engine.hidePreviewPiece;
     renderActivePieceSprite(game);
     renderPreviewPieceSprite(game);
+    return true;
 }
 
 bool handlePausedMultiplayer(GameContext& game) {

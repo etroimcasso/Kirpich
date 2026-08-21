@@ -97,11 +97,16 @@ the timer decrements. Dispatch and the audio tick run first, exactly as above.
 ### The reset itself is not this beat
 
 `MainLoop` only *detects* the chord; the reset it jumps to is `Init.softReset` (`:276–384`), which is
-a separate mechanism the boot path owns. One property of that reset matters here and is recorded for
-the boot path: `.softReset` enters *below* the work-RAM-bank-1 clear (`:264–274`), so **a soft reset
-preserves the top-score tables; only a cold boot wipes them** (the upstream comment at `:267–268`
-asks exactly this). The port's dispatcher detects the chord and fires the seam; the boot path
-composes the real reset and preserves the top scores.
+a separate mechanism the boot path owns — see [`boot.md`](boot.md). One property of that reset matters
+here: `.softReset` enters *below* the work-RAM-bank-1 clear (`:264–274`), so **a soft reset preserves
+the top-score tables; only a cold boot wipes them** (the upstream comment at `:267–268` asks exactly
+this). The port's dispatcher detects the chord and fires the seam; the boot path composes the reset
+and installs it into this seam.
+
+The reset also clears the joypad bytes, so the frame after one derives its presses against an empty
+held set and a chord still held matches again — which is why the same chord resets repeatedly until it
+is released. The seam's installer pairs `softReset` with `GameStateDispatcher::reset`, which returns
+this unit's input mechanism to that state.
 
 ### A duplicate check exists downstream
 
@@ -153,7 +158,7 @@ their owners:
 | Serial interrupt-enable rewrite when a multiplayer game is running | `:406–410` | the serial/multiplayer system |
 | Frame-boundary wait and loop-back (with the upstream missing-`HALT` comment) | `:411–417` | the native run loop's frame pacing — no observable native counterpart |
 | Frame-counter increment (in the VBlank handler, not `MainLoop`) | `:251–252` | the frame-tick handler |
-| `Init` / `.softReset` bodies and the cold-boot vs soft-reset work-RAM distinction | `:264–384` | the boot path (installs the real soft-reset target) |
+| `Init` / `.softReset` bodies and the cold-boot vs soft-reset work-RAM distinction | `:264–384` | the boot path — [`boot.md`](boot.md); it installs this unit's soft-reset seam |
 | `UpdateAudio` sound-driver tick | `audio.asm` | the audio system (installs the real audio tick) |
 | Duplicate chord check | `:4440–4444` | the pause/select handler |
 

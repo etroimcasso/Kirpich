@@ -92,7 +92,11 @@ void state0CUnknown(GameContext& game);
 
 // HandleStartSelect — the soft-reset chord, then (unless a demo is running) Start to pause or unpause
 // and Select to toggle the preview piece. Shared with the two-player round.
-void handleStartSelect(GameContext& game, const SoftResetHook& softReset = {});
+//
+// Returns whether the frame continues. The original reaches its reset with a jump, not a call
+// (tetris.asm:4444), so a matched chord abandons the rest of the frame outright — the caller runs
+// nothing further. Every other path returns true. See docs/contracts/boot.md §10.
+[[nodiscard]] bool handleStartSelect(GameContext& game, const SoftResetHook& softReset = {});
 
 // HandlePausedMultiplayer — run the two-player unpause protocol: the master sends the unpause command,
 // the slave unpauses when it reads one. Returns true when the caller must return immediately without
