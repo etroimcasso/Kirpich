@@ -406,16 +406,21 @@ int main(int /*argc*/, char* /*argv*/[]) {
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
                                         tiles, sprites, settings.shadeRamp);
 
+        // The settings screen's own drawn parts. Its page arrow is the game's selector tile stood on
+        // end, which an object cannot express — the hardware has two flips and no quarter turn — so it
+        // joins the object buffer's sprites here rather than going through it. Its palette preview is
+        // colour, which the art has no tile for at all, so that is a region over the finished frame.
         retropp::FrameDrawState frame;
-        frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
-        frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
-
-        // The settings screen's palette preview. It is colour rather than art, so it is drawn over
-        // the composited frame instead of through a tile, and only while that screen is showing.
         if (game.flow.gameState == kirpich::GameState::SETTINGS) {
+            const auto arrows =
+                kirpich::render::settingsPageArrows(game.screens, settings.shadeRamp, tiles);
+            sprites.insert(sprites.end(), arrows.begin(), arrows.end());
             frame.regions = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
                                                              kViewport.width);
         }
+
+        frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
+        frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
         renderer.renderFrame(frame);
     });
 

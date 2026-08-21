@@ -12,13 +12,12 @@ namespace {
 
 constexpr int kCell = 8;  // a background cell's side, in viewport pixels
 
-// The colour the arrows are drawn in: the darkest shade of the ramp on show, so they read as ink on
-// the screen's own paper whichever ramp that is.
-retropp::Rgba8 inkFor(std::uint8_t ramp) {
-    retropp::Rgba8 ink = rampColours(ramp)[0];
-    ink.a              = 255;
-    return ink;
-}
+// The game's own selector arrow, the same tile the settings screen puts either side of the palette
+// number. It points right; a quarter turn stands it up.
+constexpr std::uint8_t kSelectorTile = 0x58;
+
+// Above every sprite the object buffer can produce, so a page arrow is never hidden behind one.
+constexpr std::int32_t kPageArrowZ = 100;
 
 retropp::Region filled(std::string key, retropp::ShapePoints shape, retropp::Rgba8 fill) {
     return retropp::Region{
@@ -31,66 +30,63 @@ retropp::Region filled(std::string key, retropp::ShapePoints shape, retropp::Rgb
     };
 }
 
-// Which way an arrow points.
-enum class Point { Left, Right, Up, Down };
-
-// A solid triangle filling one cell. Its apex sits on the middle of the edge it points at and its
-// base spans the opposite edge, both inset so the arrow does not touch its neighbours.
-retropp::ShapePoints arrow(std::size_t col, std::size_t row, Point points) {
-    const auto left    = static_cast<float>(col * kCell + kArrowInset);
-    const auto right   = static_cast<float>((col + 1) * kCell - kArrowInset);
-    const auto top     = static_cast<float>(row * kCell + kArrowInset);
-    const auto bottom  = static_cast<float>((row + 1) * kCell - kArrowInset);
-    const auto midX    = (left + right) / 2.0f;
-    const auto midY    = (top + bottom) / 2.0f;
-
-    switch (points) {
-        case Point::Left:  return {.points = {{left, midY}, {right, top}, {right, bottom}}};
-        case Point::Right: return {.points = {{right, midY}, {left, top}, {left, bottom}}};
-        case Point::Up:    return {.points = {{midX, top}, {left, bottom}, {right, bottom}}};
-        case Point::Down:  break;
-    }
-    return {.points = {{midX, bottom}, {left, top}, {right, top}}};
-}
-
 }  // namespace
+
+std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
+                                                const TileAtlas& atlas) {
+    const std::uint8_t page = kirpich::settingsPageOf(ui.settingsRow);
+
+    // The screen selects the copyright-and-title art while it is up, which is the set the selector
+    // tile belongs to.
+    const ResolvedTile art = resolveSpriteTile(kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE,
+                                               /*palette1=*/false, atlas, ramp);
+
+    std::vector<retropp::Sprite> sprites;
+    const auto arrow = [&](std::string key, std::size_t row, retropp::Rotation turn) {
+        sprites.push_back(retropp::Sprite{
+            .key      = retropp::ObjectKey{std::move(key)},
+            .x        = static_cast<int>(kirpich::systems::kPageArrowCol) * kCell,
+            .y        = static_cast<int>(row) * kCell,
+            // Above the object buffer's own sprites, which number at most one per buffer entry.
+            .z        = kPageArrowZ,
+            .atlas    = art.atlas,
+            .tile     = art.cell,
+            .palette  = art.palette,
+            .rotation = turn,
+        });
+    };
+
+    // The selector points right, so a quarter turn stands it up. An arrow is drawn only where there
+    // is a page in that direction.
+    if (page > 0) {
+        arrow("settings-page-up", kirpich::systems::kPageUpArrowRow, retropp::Rotation::Rot270);
+    }
+    if (page + 1 < kirpich::kSettingsPageCount) {
+        arrow("settings-page-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
+    }
+    return sprites;
+}
 
 std::vector<retropp::Region> settingsOverlay(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
                                              int viewportWidth) {
     const std::uint8_t                  chosen  = clampShadeRamp(ramp);
     const std::array<retropp::Rgba8, 4> colours = rampColours(chosen);
-    const retropp::Rgba8                ink     = inkFor(chosen);
     const std::uint8_t                  page    = kirpich::settingsPageOf(ui.settingsRow);
 
     std::vector<retropp::Region> regions;
-    regions.reserve(colours.size() + 3);
+    regions.reserve(colours.size());
 
-    // The arrow that says another page is there, at the edge it lies past.
-    if (page > 0) {
-        regions.push_back(filled(
-            "settings-page-up",
-            arrow(systems::kPageArrowCol, systems::kPageUpArrowRow, Point::Up), ink));
-    }
-    if (page + 1 < kirpich::kSettingsPageCount) {
-        regions.push_back(filled(
-            "settings-page-down",
-            arrow(systems::kPageArrowCol, systems::kPageDownArrowRow, Point::Down), ink));
-    }
-
-    // The palette scroller and its preview live on the first page only.
+    // The two arrows either side of the palette number are objects the settings screen places, and the
+    // page arrow is a sprite (settingsPageArrows) - both are the game's own selector tile. What is
+    // left here is the one thing the art has no tile for: colour.
+    //
+    // The preview lives on the first page only, with the row it previews.
     if (page != 0) {
         return regions;
     }
 
-    const std::size_t rampRow = systems::settingsRowLine(kirpich::SettingsRow::SHADE_RAMP);
-    if (chosen > 0) {
-        regions.push_back(filled("palette-arrow-left",
-                                 arrow(systems::kPaletteLeftArrowCol, rampRow, Point::Left), ink));
-    }
-    if (chosen + 1 < kShadeRampCount) {
-        regions.push_back(filled("palette-arrow-right",
-                                 arrow(systems::kPaletteRightArrowCol, rampRow, Point::Right), ink));
-    }
+    // The scroller's own two arrows are objects rather than shapes: the game already has a selector
+    // arrow of its own, and the left one is that tile flipped. The settings screen places them.
 
     // The preview: four squares, darkest to lightest, abutting so the strip reads as one band of
     // colour rather than as four separate blocks.

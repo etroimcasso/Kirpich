@@ -10,6 +10,7 @@
 #include <cstdint>
 
 #include "render/palettes.h"
+#include "render/tile_atlas.h"
 #include "render/settings_overlay.h"
 #include "state/screen_ui_state.h"
 
@@ -18,6 +19,7 @@ namespace {
 using kirpich::ScreenUiState;
 using kirpich::SettingsRow;
 using kirpich::render::kShadeRampCount;
+using kirpich::render::TileAtlas;
 
 constexpr int kViewportWidth = 160;
 
@@ -73,54 +75,59 @@ TEST(SettingsOverlay, PreviewShowsTheRampsFourColoursAdjacent) {
     }
 }
 
-// (2) A scroll arrow is drawn only where there is somewhere to scroll to, so the ends of the range
-// are visible rather than something a player finds by pressing.
-TEST(SettingsOverlay, ScrollArrowsVanishAtTheEndsOfTheRange) {
-    const auto arrowsFor = [](std::uint8_t ramp) {
-        const auto regions =
-            kirpich::render::settingsOverlay(on(SettingsRow::SHADE_RAMP), ramp, kViewportWidth);
-        // One of the arrows is the page arrow, which is always there on the first page.
-        return countWith(regions, kArrowPoints);
-    };
+// (3) The page arrow is the game's own selector tile stood on end, and it points at the page that is
+// actually there. It is a sprite because an object carries only the hardware's two flips, and no flip
+// stands a sideways triangle upright.
+TEST(SettingsOverlay, PageArrowIsTheSelectorTurnedAQuarter) {
+    constexpr std::uint8_t kSelectorTile = 0x58;
 
-    EXPECT_EQ(arrowsFor(0), 2u) << "first ramp: a right arrow and the page arrow, no left";
-    EXPECT_EQ(arrowsFor(kShadeRampCount - 1), 2u) << "last ramp: a left arrow and the page arrow";
-    for (std::uint8_t ramp = 1; ramp + 1 < kShadeRampCount; ++ramp) {
-        EXPECT_EQ(arrowsFor(ramp), 3u) << "middle ramp " << +ramp << ": both arrows and the page one";
+    // Recognisable handles, so a wrong sheet or palette is loud.
+    TileAtlas atlas;
+    atlas.copyrightTitle = static_cast<retropp::AtlasId>(22);
+    for (std::size_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
+        atlas.palettes[ramp].sprite0 = static_cast<retropp::PaletteId>(70 + ramp);
+    }
+
+    const auto expected = kirpich::render::resolveSpriteTile(
+        kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE, false, atlas, 0);
+
+    // The first page: one arrow, turned to point down at the page below it.
+    {
+        const auto arrows =
+            kirpich::render::settingsPageArrows(on(SettingsRow::FULLSCREEN), 0, atlas);
+        ASSERT_EQ(arrows.size(), 1u);
+        EXPECT_EQ(arrows[0].tile, expected.cell) << "the game's own selector, not a new tile";
+        EXPECT_EQ(arrows[0].atlas, expected.atlas);
+        EXPECT_EQ(arrows[0].palette, expected.palette);
+        EXPECT_EQ(arrows[0].rotation, retropp::Rotation::Rot90);
+        EXPECT_FALSE(arrows[0].flipX) << "a flip cannot stand it up; the rotation does";
+    }
+
+    // The last page: one arrow, turned the other way.
+    {
+        const auto arrows =
+            kirpich::render::settingsPageArrows(on(SettingsRow::RESET_SCORES), 0, atlas);
+        ASSERT_EQ(arrows.size(), 1u);
+        EXPECT_EQ(arrows[0].tile, expected.cell);
+        EXPECT_EQ(arrows[0].rotation, retropp::Rotation::Rot270)
+            << "the two page arrows are the same tile turned opposite ways";
+    }
+
+    // Whichever ramp is on, the arrow is coloured by that ramp's object palette.
+    for (std::uint8_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
+        const auto arrows =
+            kirpich::render::settingsPageArrows(on(SettingsRow::FULLSCREEN), ramp, atlas);
+        ASSERT_EQ(arrows.size(), 1u);
+        EXPECT_EQ(arrows[0].palette, static_cast<retropp::PaletteId>(70 + ramp))
+            << "ramp " << +ramp;
     }
 }
 
-// (3) The page arrow points at the page that is there, and only that one. The second page carries no
-// palette scroller at all, since the palette row is not on it.
-TEST(SettingsOverlay, PageArrowPointsAtThePageThatExists) {
-    // First page: one page arrow, and it points down.
-    {
-        const auto regions =
-            kirpich::render::settingsOverlay(on(SettingsRow::FULLSCREEN), 0, kViewportWidth);
-        EXPECT_EQ(countWith(regions, kSquarePoints), 4u) << "the preview belongs to the first page";
-
-        bool sawDown = false;
-        for (const auto& region : regions) {
-            if (region.shape.points.size() != kArrowPoints) continue;
-            // A downward arrow's apex is below its base; an upward one's is above.
-            const float apexY = region.shape.points[0].y;
-            const float baseY = region.shape.points[1].y;
-            if (apexY > baseY) sawDown = true;
-        }
-        EXPECT_TRUE(sawDown) << "the first page must say there is one below it";
-    }
-
-    // Second page: an upward arrow, and nothing belonging to the palette row.
-    {
-        const auto regions =
-            kirpich::render::settingsOverlay(on(SettingsRow::RESET_SCORES), 3, kViewportWidth);
-        EXPECT_EQ(countWith(regions, kSquarePoints), 0u) << "no preview on the second page";
-        ASSERT_EQ(countWith(regions, kArrowPoints), 1u) << "only the page arrow";
-
-        const auto& arrow = regions.front();
-        EXPECT_LT(arrow.shape.points[0].y, arrow.shape.points[1].y)
-            << "the second page's arrow must point up";
-    }
+// (3b) The second page carries no palette preview, since the row it previews is not on it.
+TEST(SettingsOverlay, SecondPageHasNoPreview) {
+    const auto regions =
+        kirpich::render::settingsOverlay(on(SettingsRow::RESET_SCORES), 3, kViewportWidth);
+    EXPECT_TRUE(regions.empty()) << "nothing on the second page is a shape";
 }
 
 // (4) The strip is centred across the viewport, whatever the viewport is.

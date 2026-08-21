@@ -15,8 +15,9 @@
 #include <cstdint>
 #include <vector>
 
-#include <retropp/draw_state.h>  // Region
+#include <retropp/draw_state.h>  // Region, Sprite
 
+#include "render/tile_atlas.h"      // TileAtlas
 #include "state/screen_ui_state.h"  // ScreenUiState
 
 namespace kirpich::render {
@@ -38,5 +39,17 @@ inline constexpr int kArrowInset = 2;
 // The ends of a range are visible rather than something a player finds by pressing.
 [[nodiscard]] std::vector<retropp::Region> settingsOverlay(const kirpich::ScreenUiState& ui,
                                                            std::uint8_t ramp, int viewportWidth);
+
+// The page arrow, as a sprite: the game's own selector tile turned a quarter turn, so the arrow that
+// says "there is another page" is the same arrow that points at everything else.
+//
+// It is a sprite rather than an object because an object carries only the two flips the hardware has,
+// and a flip cannot stand a sideways triangle upright — a quarter turn can. Append the result to the
+// sprites the object buffer produced, before they are wrapped as the frame's sprite layer.
+//
+// Empty on a page with nothing past it in that direction.
+[[nodiscard]] std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui,
+                                                              std::uint8_t ramp,
+                                                              const TileAtlas& atlas);
 
 }  // namespace kirpich::render

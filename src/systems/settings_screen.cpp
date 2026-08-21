@@ -52,6 +52,47 @@ constexpr std::size_t kChoiceCursorGap  = 2;  // cells between the cursor and th
 constexpr auto kSpace       = static_cast<std::uint8_t>(CharTile::SPACE);
 constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
 
+// The game's own selector arrow — the one the title screen points at the player count with. It points
+// right, and the left arrow is the same tile flipped, so the scroller is drawn in the game's own hand
+// rather than in shapes invented for it. It is a tile of the copyright-and-title art, which is why
+// this screen selects that art while it is up.
+constexpr std::uint8_t kSelectorTile = 0x58;
+
+// The object entries the two arrows occupy. The screen empties the buffer on the way in, so nothing
+// else is using them.
+constexpr std::size_t kLeftArrowObject  = 0;
+constexpr std::size_t kRightArrowObject = 1;
+
+// Object coordinates are offset from the screen's by (8, 16).
+constexpr std::uint8_t kObjectOriginX = 8;
+constexpr std::uint8_t kObjectOriginY = 16;
+
+// Place the scroller's arrows, or take them away where there is nowhere to scroll to. Off the second
+// page there is no scroller at all.
+void drawRampArrows(GameContext& game, std::uint8_t ramp, bool onPalettePage) {
+    game.engine.oam[kLeftArrowObject]  = OamEntry{};
+    game.engine.oam[kRightArrowObject] = OamEntry{};
+    if (!onPalettePage) {
+        return;
+    }
+
+    const auto y = static_cast<std::uint8_t>(
+        settingsRowLine(SettingsRow::SHADE_RAMP) * 8 + kObjectOriginY);
+    if (ramp > 0) {
+        game.engine.oam[kLeftArrowObject] =
+            OamEntry{.y     = y,
+                     .x     = static_cast<std::uint8_t>(kPaletteLeftArrowCol * 8 + kObjectOriginX),
+                     .tile  = kSelectorTile,
+                     .xflip = true};
+    }
+    if (ramp + 1 < render::kShadeRampCount) {
+        game.engine.oam[kRightArrowObject] =
+            OamEntry{.y    = y,
+                     .x    = static_cast<std::uint8_t>(kPaletteRightArrowCol * 8 + kObjectOriginX),
+                     .tile = kSelectorTile};
+    }
+}
+
 bool pressed(const GameContext& game, Action action) {
     return game.joypad.pressed.test(retropp::actionId(action));
 }
@@ -211,6 +252,7 @@ void leaveSettings(GameContext& game) {
     ScreenUiState& ui = game.screens;
 
     targetMap(game.display) = ui.savedMap;
+    game.display.sheet      = ui.savedSheet;
     game.engine.oam         = ui.savedOam;
     // The objects are back where they were, but nothing on screen has been theirs for however long
     // the screen was up, so none of them has a past for the renderer to ease them from.
@@ -227,6 +269,8 @@ void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
     BackgroundMap& map = targetMap(game.display);
     paintSettings(map, game.screens, settingsOf(wiring));
     game.screens.cursorVisible = true;
+    drawRampArrows(game, settingsOf(wiring).shadeRamp,
+                   settingsPageOf(game.screens.settingsRow) == 0);
     drawSettingsCursor(map, game.screens);
 
     game.flow.timer1      = kBlinkFrames;
@@ -300,13 +344,19 @@ void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
     ui.savedMap    = map;
     ui.savedOam    = game.engine.oam;
     ui.savedTimer1 = game.flow.timer1;
+    ui.savedSheet  = game.display.sheet;
     clearOamObjects(game);
+
+    // The set the game's own selector arrow is a tile of. Selecting it is an assignment - every set is
+    // already uploaded - and the screen's text reads the same either way.
+    game.display.sheet = TileSheet::COPYRIGHT_TITLE;
 
     ui.settingsRow   = SettingsRow::FULLSCREEN;
     ui.cursorVisible = true;
 
     paintSettings(map, game.screens, settingsOf(wiring));
     drawSettingsCursor(map, ui);
+    drawRampArrows(game, settingsOf(wiring).shadeRamp, true);
 
     game.flow.timer1    = kBlinkFrames;
     game.flow.gameState = GameState::SETTINGS;
@@ -360,6 +410,8 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         paintSettingsValues(map, settingsOf(wiring));
         paintRampValue(map, settingsOf(wiring).shadeRamp);
     }
+    drawRampArrows(game, settingsOf(wiring).shadeRamp,
+                   settingsPageOf(game.screens.settingsRow) == 0);
     drawSettingsCursor(map, game.screens);
 }
 
@@ -374,6 +426,7 @@ void initResetConfirmScreen(GameContext& game) {
 
     const ConfirmQuestion question = questionFor(ui.pendingConfirm);
 
+    drawRampArrows(game, 0, false);
     clearVisibleRegion(map);
     writeMapText(map, kConfirmRow1, centred(question.first.size()), question.first);
     writeMapText(map, kConfirmRow2, centred(question.second.size()), question.second);
