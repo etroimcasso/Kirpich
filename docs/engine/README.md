@@ -66,25 +66,34 @@ surface is small enough that a flat list is easier to scan.
 
 ## Status
 
-Kirpich is early, but it now opens a window. What exists today is the build, the engine
-wiring, the asset pipeline — including the extractor that produces the graphics and the sound
-driver's image from a player's ROM, into the per-user data directory their save lives in —
-the full data layer, the full state layer, and the systems layer so far: the
-piece randomizer, the input layer, the game-state dispatcher framework, the piece system,
-the line-clear pipeline, the scoring pipeline, the whole pre-game flow, the gameplay
-session, the Type B starting garbage, the Type B ending, the two bonus-ending launch
-scenes, the attract demos, the high-score recording, the boot path and its reset chord, and
-the sound, which hosts the game's own driver and is audible. A solo round runs end to end —
-from the title screen, through play, to the game-over screen on a loss or the scoreboard on
-a Type B win, and on to a launch when one is earned.
+The single-player game is complete. What exists today is the build, the engine wiring, the
+asset pipeline — including the extractor that produces the graphics and the sound driver's
+image from a player's ROM, into the per-user data directory their save lives in — the full
+data layer, the full state layer, and the systems layer: the piece randomizer, the input
+layer, the game-state dispatcher framework, the piece system, the line-clear pipeline, the
+scoring pipeline, the whole pre-game flow, the gameplay session, the Type B starting
+garbage, the Type B ending, the two bonus-ending launch scenes, the attract demos, the
+high-score recording, the boot path and its reset chord, the settings screen, and the sound,
+which hosts the game's own driver and is audible. A solo round runs end to end — from the
+title screen, through play, to the game-over screen on a loss or the scoreboard on a Type B
+win, and on to a launch when one is earned.
 
 Backgrounds and objects both draw: the screens, the menus, the playing field and the blocks
 as they stack, along with the falling piece, the next-piece preview, the menu cursors and
-the ending's dancers — a solo round is playable. The port keeps both background maps the
-hardware keeps, so the field wipe sweeps, the line-clear flash flashes, a Type B round
-starts under garbage that shows, and pausing shows the paused screen. The stats panel keeps
-score, level, line count and the Type B starting height. Two-player play, the demo, the
-rocket and Buran ending scenes, top-score entry, the palette effects, and the display
-filters are not written yet.
+the ending's dancers. The port keeps both background maps the hardware keeps, so the field
+wipe sweeps, the line-clear flash flashes, a Type B round starts under garbage that shows,
+and pausing shows the paused screen. The stats panel keeps score, level, line count and the
+Type B starting height. The player chooses fullscreen, the window size and one of twelve
+colour ramps, and those choices persist beside their scores.
+
+Two things are not written. **Two-player play** — the link-cable protocol and every screen
+behind it. **The display filters** — pixel-art upscaling and the DMG-mimicking shader, which
+are post-process stages.
+
+One visible difference is deliberate: the hardware blanks the screen while a tilemap loads,
+and the port does not. That is a display-control write, not a palette one — the game sets its
+palette registers once at boot and never touches them again, so its own colours are exactly
+what the port draws, and the colour ramps the settings screen offers replace those four
+shades wholesale.
 Pages appear as their surfaces do, so an area missing from the index above is an area that
 does not exist yet rather than one that is undocumented.

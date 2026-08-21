@@ -128,14 +128,30 @@ The board and the map sit `$3000` apart, which is the offset every one of those 
 wipe uses to reach one from the other. The two maps sit `$400` apart, and a cell has the same row and
 column in each.
 
-## 6. Palette effects, which the port does not draw
+## 6. The palette registers, which are written once and never again
 
-The original writes `BGP` for the fades and the blank at a screen change. The port renders through a
-fixed identity ramp: index 0 the darkest shade, the top index white, matching the inversion the
-extractor applies (`docs/contracts/tile-graphics.md`).
+The game sets its three palette registers in the boot routine and nowhere else. `tetris.asm:296-300`
+is every write in the ROM:
 
-The line-clear flash is not one of these — it repaints tiles rather than the palette, and it is
-ported.
+```
+ld a, %11100100   ; 3210 - the identity
+ldh [rBGP], a
+ldh [rOBP0], a
+ld a, %11000100   ; 3010 - the object variant
+ldh [rOBP1], a
+```
+
+So there is no fade and no palette animation anywhere in this game. The port's fixed ramps are its
+palettes exactly: the identity for the background and the plain object ramp, and `%11000100` for the
+second object ramp, which is the one the ending's dancers select. Index 0 is the darkest shade and the
+top index is white, matching the inversion the extractor applies
+(`docs/contracts/tile-graphics.md`).
+
+What the port does not reproduce is the screen blanking while a tilemap loads. That is `rLCDC` —
+eighteen writes across the ROM — and it is display control rather than palette, so it is a separate
+visible difference and is recorded in §5.
+
+The line-clear flash is neither: it repaints tiles, and it is ported.
 
 ## 7. The second map
 

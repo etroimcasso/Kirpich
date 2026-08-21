@@ -105,7 +105,7 @@ The table below is kept honest as components land.
 | Sprite rendering | **complete** — the falling piece, the preview, the menu cursors, and the ending's performers |
 | Panel readouts | **complete** — the score, the level, the line count, and the Type B starting height |
 | Frame loop | **complete** — the entry point is a host: it ticks the game and submits a frame at the original's rate |
-| Display effects | not started — the original's palette fades, and the scaling and filter options |
+| Display filters | not started — pixel-art upscaling and the DMG-mimicking shader. The game has no palette effects to port: it writes its palette registers once at boot and never again |
 
 ## How it works
 

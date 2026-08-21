@@ -73,10 +73,13 @@ A single four-entry ramp for everything is the obvious choice and is wrong. The 
 decoded sample as its own palette index, and the two bit depths do not share an index space: a 2bpp
 tile yields 0-3 and the 1bpp font yields 0-1. One four-entry ramp would draw every lit font pixel in
 the second-darkest shade. Two uploads ship — a two-entry ramp for the font, a four-entry one for the content sheets —
-each the identity for its own sheet. Both are the fixed DMG grey ramp; the original's palette
-register writes (the fades, the blank at a screen change) are a later unit and are named as a visible
-difference. The line-clear flash is not among them — it repaints tiles rather than the palette, and it
-is ported.
+each the identity for its own sheet. Both are the fixed DMG grey ramp, and that is the whole of it: the game writes its palette
+registers exactly once, at boot (`tetris.asm:296-300`) — the identity into `rBGP` and `rOBP0`, and
+`%11000100` into `rOBP1`, the object variant the ending's dancers select. Nothing writes them again
+anywhere in the ROM, so there is no fade and no palette animation to port. What the port does not
+reproduce is the screen blanking while a tilemap loads, which is a display-control write rather than a
+palette one and is named as a visible difference. The line-clear flash is neither — it repaints tiles,
+and it is ported.
 
 ### One virtual machine, shared, and the host is where that is paid
 

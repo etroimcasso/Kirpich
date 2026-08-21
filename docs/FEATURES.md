@@ -92,7 +92,7 @@ Game logic.
 
 | Feature | Status | Doc |
 |---|---|---|
-| Background rendering | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the displayed map bridged to the engine's tile path and submitted as one layer, with the tile-art regime it resolves against. Both background maps are carried, so the field wipe sweeps, the line-clear flash flashes, and pausing shows the paused screen. The palette fades are not drawn |
+| Background rendering | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the displayed map bridged to the engine's tile path and submitted as one layer, with the tile-art regime it resolves against. Both background maps are carried, so the field wipe sweeps, the line-clear flash flashes, and pausing shows the paused screen. The screen does not blank while a tilemap loads, as the hardware's does |
 | Sprite renderer | ✅ | [`features/sprite-renderer.md`](features/sprite-renderer.md) — the walk that fills the object buffer, restored at the sites the handlers make it from, plus the bridge that submits it as a layer |
 | Tilemap loader | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the backdrop stamp (`loadScreenTilemap`) and the tile-art selection, restored at every solo screen. The window form of the original's loader serves only the second background map and lands with whichever unit models it |
 | Sprite-copy routine | ⬜ | `features/dma.md` |
