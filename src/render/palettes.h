@@ -35,78 +35,150 @@ struct ShadeRamp {
 };
 
 // The ramps, in the order the settings screen numbers them: the screen shows 1 for the first.
-inline constexpr std::array<ShadeRamp, 12> kShadeRamps{{
+inline constexpr std::array<ShadeRamp, 24> kShadeRamps{{
     // 1 - greyscale. The hardware's four shades as the port has always drawn them.
-    {.darkest  = {.r = 0x00, .g = 0x00, .b = 0x00},
-     .dark     = {.r = 0x55, .g = 0x55, .b = 0x55},
-     .light    = {.r = 0xAA, .g = 0xAA, .b = 0xAA},
-     .lightest = {.r = 0xFF, .g = 0xFF, .b = 0xFF}},
+    {.darkest  = {.r =   0, .g =   0, .b =   0},
+     .dark     = {.r =  85, .g =  85, .b =  85},
+     .light    = {.r = 170, .g = 170, .b = 170},
+     .lightest = {.r = 255, .g = 255, .b = 255}},
 
     // 2 - the green of the original handheld's screen.
-    {.darkest  = {.r = 0x0F, .g = 0x38, .b = 0x0F},
-     .dark     = {.r = 0x30, .g = 0x62, .b = 0x30},
-     .light    = {.r = 0x8B, .g = 0xAC, .b = 0x0F},
-     .lightest = {.r = 0x9B, .g = 0xBC, .b = 0x0F}},
+    {.darkest  = {.r =  15, .g =  56, .b =  15},
+     .dark     = {.r =  48, .g =  98, .b =  48},
+     .light    = {.r = 139, .g = 172, .b =  15},
+     .lightest = {.r = 155, .g = 188, .b =  15}},
 
     // 3 - amber, the way an old monitor burned.
-    {.darkest  = {.r = 0x1A, .g = 0x0D, .b = 0x00},
-     .dark     = {.r = 0x6B, .g = 0x38, .b = 0x00},
-     .light    = {.r = 0xC8, .g = 0x7A, .b = 0x0A},
-     .lightest = {.r = 0xFF, .g = 0xC7, .b = 0x4A}},
+    {.darkest  = {.r =  26, .g =  13, .b =   0},
+     .dark     = {.r = 107, .g =  56, .b =   0},
+     .light    = {.r = 200, .g = 122, .b =  10},
+     .lightest = {.r = 255, .g = 199, .b =  74}},
 
     // 4 - dusk, a cold blue.
-    {.darkest  = {.r = 0x0B, .g = 0x10, .b = 0x26},
-     .dark     = {.r = 0x2A, .g = 0x3A, .b = 0x6B},
-     .light    = {.r = 0x5C, .g = 0x7F, .b = 0xC4},
-     .lightest = {.r = 0xC2, .g = 0xE0, .b = 0xFF}},
+    {.darkest  = {.r =  11, .g =  16, .b =  38},
+     .dark     = {.r =  42, .g =  58, .b = 107},
+     .light    = {.r =  92, .g = 127, .b = 196},
+     .lightest = {.r = 194, .g = 224, .b = 255}},
 
     // 5 - brick, after the name this port carries.
-    {.darkest  = {.r = 0x2B, .g = 0x0C, .b = 0x0A},
-     .dark     = {.r = 0x7A, .g = 0x28, .b = 0x1E},
-     .light    = {.r = 0xC0, .g = 0x5B, .b = 0x3C},
-     .lightest = {.r = 0xF2, .g = 0xC9, .b = 0xA8}},
+    {.darkest  = {.r =  43, .g =  12, .b =  10},
+     .dark     = {.r = 122, .g =  40, .b =  30},
+     .light    = {.r = 192, .g =  91, .b =  60},
+     .lightest = {.r = 242, .g = 201, .b = 168}},
 
     // 6 - a plum ultraviolet.
-    {.darkest  = {.r = 0x16, .g = 0x08, .b = 0x2B},
-     .dark     = {.r = 0x4B, .g = 0x1D, .b = 0x77},
-     .light    = {.r = 0x9B, .g = 0x53, .b = 0xC4},
-     .lightest = {.r = 0xE8, .g = 0xC6, .b = 0xF7}},
+    {.darkest  = {.r =  22, .g =   8, .b =  43},
+     .dark     = {.r =  75, .g =  29, .b = 119},
+     .light    = {.r = 155, .g =  83, .b = 196},
+     .lightest = {.r = 232, .g = 198, .b = 247}},
 
     // 7 - sea, a blue-green with a pale sand at the top.
-    {.darkest  = {.r = 0x04, .g = 0x24, .b = 0x28},
-     .dark     = {.r = 0x11, .g = 0x64, .b = 0x66},
-     .light    = {.r = 0x3F, .g = 0xB2, .b = 0xA1},
-     .lightest = {.r = 0xE4, .g = 0xF7, .b = 0xDA}},
+    {.darkest  = {.r =   4, .g =  36, .b =  40},
+     .dark     = {.r =  17, .g = 100, .b = 102},
+     .light    = {.r =  63, .g = 178, .b = 161},
+     .lightest = {.r = 228, .g = 247, .b = 218}},
 
     // 8 - ink, a near-black blue under a cold white.
-    {.darkest  = {.r = 0x08, .g = 0x0A, .b = 0x10},
-     .dark     = {.r = 0x2C, .g = 0x33, .b = 0x44},
-     .light    = {.r = 0x74, .g = 0x82, .b = 0x9B},
-     .lightest = {.r = 0xE9, .g = 0xEF, .b = 0xF7}},
+    {.darkest  = {.r =   8, .g =  10, .b =  16},
+     .dark     = {.r =  44, .g =  51, .b =  68},
+     .light    = {.r = 116, .g = 130, .b = 155},
+     .lightest = {.r = 233, .g = 239, .b = 247}},
 
     // 9 - cherry, a deep red rising to pink.
-    {.darkest  = {.r = 0x2B, .g = 0x05, .b = 0x12},
-     .dark     = {.r = 0x7A, .g = 0x0F, .b = 0x2E},
-     .light    = {.r = 0xC4, .g = 0x3A, .b = 0x5B},
-     .lightest = {.r = 0xF7, .g = 0xC9, .b = 0xD4}},
+    {.darkest  = {.r =  43, .g =   5, .b =  18},
+     .dark     = {.r = 122, .g =  15, .b =  46},
+     .light    = {.r = 196, .g =  58, .b =  91},
+     .lightest = {.r = 247, .g = 201, .b = 212}},
 
     // 10 - moss, olive under a pale khaki.
-    {.darkest  = {.r = 0x14, .g = 0x1A, .b = 0x0A},
-     .dark     = {.r = 0x3E, .g = 0x4A, .b = 0x1C},
-     .light    = {.r = 0x7E, .g = 0x8F, .b = 0x3C},
-     .lightest = {.r = 0xD8, .g = 0xE0, .b = 0xA8}},
+    {.darkest  = {.r =  20, .g =  26, .b =  10},
+     .dark     = {.r =  62, .g =  74, .b =  28},
+     .light    = {.r = 126, .g = 143, .b =  60},
+     .lightest = {.r = 216, .g = 224, .b = 168}},
 
     // 11 - sepia, brown to cream.
-    {.darkest  = {.r = 0x23, .g = 0x1A, .b = 0x12},
-     .dark     = {.r = 0x5E, .g = 0x46, .b = 0x32},
-     .light    = {.r = 0xA9, .g = 0x8A, .b = 0x63},
-     .lightest = {.r = 0xF0, .g = 0xE2, .b = 0xC8}},
+    {.darkest  = {.r =  35, .g =  26, .b =  18},
+     .dark     = {.r =  94, .g =  70, .b =  50},
+     .light    = {.r = 169, .g = 138, .b =  99},
+     .lightest = {.r = 240, .g = 226, .b = 200}},
 
     // 12 - sunset, purple through red to a warm gold.
-    {.darkest  = {.r = 0x2A, .g = 0x10, .b = 0x38},
-     .dark     = {.r = 0x7A, .g = 0x2A, .b = 0x5C},
-     .light    = {.r = 0xD9, .g = 0x61, .b = 0x4A},
-     .lightest = {.r = 0xFF, .g = 0xD9, .b = 0xA0}},
+    {.darkest  = {.r =  42, .g =  16, .b =  56},
+     .dark     = {.r = 122, .g =  42, .b =  92},
+     .light    = {.r = 217, .g =  97, .b =  74},
+     .lightest = {.r = 255, .g = 217, .b = 160}},
+
+    // 13 - ice, deep water under a pale cyan.
+    {.darkest  = {.r =   6, .g =  30, .b =  46},
+     .dark     = {.r =  23, .g =  84, .b = 119},
+     .light    = {.r =  89, .g = 168, .b = 196},
+     .lightest = {.r = 223, .g = 245, .b = 255}},
+
+    // 14 - forest, near-black green to a sunlit leaf.
+    {.darkest  = {.r =   8, .g =  28, .b =  16},
+     .dark     = {.r =  31, .g =  77, .b =  42},
+     .light    = {.r =  84, .g = 150, .b =  79},
+     .lightest = {.r = 203, .g = 232, .b = 166}},
+
+    // 15 - wine, a dark red with the colour drained out of the top.
+    {.darkest  = {.r =  30, .g =  10, .b =  14},
+     .dark     = {.r =  90, .g =  30, .b =  44},
+     .light    = {.r = 158, .g =  90, .b =  98},
+     .lightest = {.r = 228, .g = 207, .b = 203}},
+
+    // 16 - slate, cool greys with a blue cast.
+    {.darkest  = {.r =  26, .g =  31, .b =  38},
+     .dark     = {.r =  69, .g =  80, .b =  94},
+     .light    = {.r = 138, .g = 152, .b = 168},
+     .lightest = {.r = 221, .g = 228, .b = 236}},
+
+    // 17 - lime, an acid green over near-black.
+    {.darkest  = {.r =  12, .g =  18, .b =   4},
+     .dark     = {.r =  56, .g =  84, .b =  12},
+     .light    = {.r = 134, .g = 196, .b =  28},
+     .lightest = {.r = 230, .g = 255, .b = 138}},
+
+    // 18 - copper, dark metal to a bright tarnish.
+    {.darkest  = {.r =  32, .g =  15, .b =   8},
+     .dark     = {.r = 110, .g =  51, .b =  24},
+     .light    = {.r = 194, .g = 107, .b =  46},
+     .lightest = {.r = 248, .g = 210, .b = 154}},
+
+    // 19 - lavender, indigo under a pale lilac.
+    {.darkest  = {.r =  28, .g =  22, .b =  52},
+     .dark     = {.r =  74, .g =  66, .b = 128},
+     .light    = {.r = 146, .g = 138, .b = 200},
+     .lightest = {.r = 230, .g = 224, .b = 248}},
+
+    // 20 - mint, dark green-blue to a pale wash.
+    {.darkest  = {.r =   7, .g =  34, .b =  30},
+     .dark     = {.r =  29, .g =  94, .b =  80},
+     .light    = {.r =  92, .g = 184, .b = 156},
+     .lightest = {.r = 220, .g = 248, .b = 232}},
+
+    // 21 - magenta, a hot pink over deep purple.
+    {.darkest  = {.r =  30, .g =   4, .b =  28},
+     .dark     = {.r = 110, .g =  18, .b =  94},
+     .light    = {.r = 200, .g =  64, .b = 166},
+     .lightest = {.r = 250, .g = 207, .b = 238}},
+
+    // 22 - gold, dark bronze to a bright yellow.
+    {.darkest  = {.r =  28, .g =  20, .b =   2},
+     .dark     = {.r =  99, .g =  74, .b =  10},
+     .light    = {.r = 198, .g = 158, .b =  30},
+     .lightest = {.r = 252, .g = 236, .b = 158}},
+
+    // 23 - storm, a low-contrast blue-grey that barely separates.
+    {.darkest  = {.r =  34, .g =  39, .b =  44},
+     .dark     = {.r =  78, .g =  87, .b =  96},
+     .light    = {.r = 126, .g = 137, .b = 148},
+     .lightest = {.r = 180, .g = 190, .b = 200}},
+
+    // 24 - aurora, indigo through teal to a pale green.
+    {.darkest  = {.r =  16, .g =  12, .b =  48},
+     .dark     = {.r =  28, .g =  80, .b = 118},
+     .light    = {.r =  62, .g = 174, .b = 160},
+     .lightest = {.r = 214, .g = 246, .b = 196}},
 }};
 
 // How many ramps there are, and which one a build draws in until a player says otherwise.

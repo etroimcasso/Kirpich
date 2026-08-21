@@ -46,13 +46,24 @@ inline constexpr std::size_t kSettingsRowStride = 3;
     return kSettingsFirstRow + kSettingsRowStride * settingsRowWithinPage(row);
 }
 
-// The palette row's scroller: an arrow, the number of the ramp in effect, an arrow - and the preview
-// strip on the line below it. The number is right-aligned across two cells, which is what a build
-// offering ten ramps or more needs and what a build offering fewer simply leaves half empty.
-inline constexpr std::size_t kPaletteLeftArrowCol  = 11;
-inline constexpr std::size_t kPaletteValueCol      = 13;
-inline constexpr std::size_t kPaletteValueWidth    = 2;
-inline constexpr std::size_t kPaletteRightArrowCol = 16;
+// Every row that holds a choice is a scroller: an arrow, the value, an arrow. One geometry for all of
+// them, so the arrows line up down the screen instead of each row placing its own.
+//
+// The value starts at the field's first cell and runs right, so every value on the screen begins in
+// the same column and the rows read as one list - "off", "on", "4x" and a palette number all start
+// where "off" starts. A value shorter than the field leaves the cells after it empty.
+//
+// The arrows sit at fixed columns rather than beside the text, so they stay put as a value changes
+// width. A row whose value cannot go further that way simply has no arrow on that side.
+// The left arrow clears the longest label on the screen: "fullscreen" is ten cells from column 3 and
+// so ends on column 12.
+inline constexpr std::size_t kOptionLeftArrowCol  = 13;
+inline constexpr std::size_t kOptionValueCol      = 15;
+inline constexpr std::size_t kOptionValueWidth    = 3;  // "off" is the widest value on the screen
+inline constexpr std::size_t kOptionRightArrowCol = 19;
+
+// The last cell of the value field. A value never runs past it.
+inline constexpr std::size_t kOptionValueEnd = kOptionValueCol + kOptionValueWidth - 1;
 inline constexpr std::size_t kPaletteSwatchRow     = settingsRowLine(SettingsRow::SHADE_RAMP) + 1;
 
 // The page arrows: one at the foot of a page that has another below it, one at the head of a page

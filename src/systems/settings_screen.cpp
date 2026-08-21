@@ -35,8 +35,6 @@ constexpr std::size_t kScreenCols = 20;
 // value field is three cells wide because "off" is the widest thing that goes in it.
 constexpr std::size_t kTitleRow  = 2;
 constexpr std::size_t kLabelCol  = 3;
-constexpr std::size_t kValueCol       = 15;
-constexpr std::size_t kValueWidth     = 3;
 constexpr std::size_t kCursorCol      = 1;
 
 
@@ -58,38 +56,59 @@ constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
 // this screen selects that art while it is up.
 constexpr std::uint8_t kSelectorTile = 0x58;
 
-// The object entries the two arrows occupy. The screen empties the buffer on the way in, so nothing
-// else is using them.
-constexpr std::size_t kLeftArrowObject  = 0;
-constexpr std::size_t kRightArrowObject = 1;
+// The object entries the arrows occupy: two per scroller row, in row order. The screen empties the
+// buffer on the way in, so nothing else is using them.
+constexpr std::size_t kFirstArrowObject = 0;
 
 // Object coordinates are offset from the screen's by (8, 16).
 constexpr std::uint8_t kObjectOriginX = 8;
 constexpr std::uint8_t kObjectOriginY = 16;
 
-// Place the scroller's arrows, or take them away where there is nowhere to scroll to. Off the second
-// page there is no scroller at all.
-void drawRampArrows(GameContext& game, std::uint8_t ramp, bool onPalettePage) {
-    game.engine.oam[kLeftArrowObject]  = OamEntry{};
-    game.engine.oam[kRightArrowObject] = OamEntry{};
-    if (!onPalettePage) {
-        return;
-    }
+// Which way each scroller row can still go. A row at the end of its range loses that arrow, so the
+// ends of a range are visible rather than something a player finds by pressing.
+struct Reach {
+    bool left  = false;
+    bool right = false;
+};
 
-    const auto y = static_cast<std::uint8_t>(
-        settingsRowLine(SettingsRow::SHADE_RAMP) * 8 + kObjectOriginY);
-    if (ramp > 0) {
-        game.engine.oam[kLeftArrowObject] =
-            OamEntry{.y     = y,
-                     .x     = static_cast<std::uint8_t>(kPaletteLeftArrowCol * 8 + kObjectOriginX),
-                     .tile  = kSelectorTile,
-                     .xflip = true};
+Reach reachOf(SettingsRow row, const Settings& settings) {
+    switch (row) {
+        case SettingsRow::FULLSCREEN:
+            return {.left = settings.fullscreen, .right = !settings.fullscreen};
+        case SettingsRow::WINDOW_SCALE:
+            return {.left  = settings.windowScale > kMinWindowScale,
+                    .right = settings.windowScale < kMaxWindowScale};
+        case SettingsRow::SHADE_RAMP:
+            return {.left  = settings.shadeRamp > 0,
+                    .right = settings.shadeRamp + 1 < render::kShadeRampCount};
+        case SettingsRow::EXIT_GAME:
+        case SettingsRow::RESET_SCORES:
+            return {};  // an action has nothing to scroll through
     }
-    if (ramp + 1 < render::kShadeRampCount) {
-        game.engine.oam[kRightArrowObject] =
-            OamEntry{.y    = y,
-                     .x    = static_cast<std::uint8_t>(kPaletteRightArrowCol * 8 + kObjectOriginX),
-                     .tile = kSelectorTile};
+    return {};
+}
+
+// Place every scroller row's arrows, or take them away. Rows off the current page have none, and
+// neither does a row that is an action rather than a choice.
+void drawValueArrows(GameContext& game, const Settings& settings, std::uint8_t page) {
+    std::size_t entry = kFirstArrowObject;
+    const auto  place = [&](bool present, std::size_t col, std::size_t line, bool flip) {
+        game.engine.oam[entry] =
+            present ? OamEntry{.y     = static_cast<std::uint8_t>(line * 8 + kObjectOriginY),
+                               .x     = static_cast<std::uint8_t>(col * 8 + kObjectOriginX),
+                               .tile  = kSelectorTile,
+                               .xflip = flip}
+                    : OamEntry{};
+        ++entry;
+    };
+
+    for (std::uint8_t i = 0; i < kSettingsRowCount; ++i) {
+        const auto row = static_cast<SettingsRow>(i);
+        const Reach reach =
+            settingsPageOf(row) == page ? reachOf(row, settings) : Reach{};
+        const std::size_t line = settingsRowLine(row);
+        place(reach.left, kOptionLeftArrowCol, line, /*flip=*/true);
+        place(reach.right, kOptionRightArrowCol, line, /*flip=*/false);
     }
 }
 
@@ -121,19 +140,25 @@ Settings settingsOf(const SettingsWiring& wiring) {
     return wiring.settings != nullptr ? *wiring.settings : Settings{};
 }
 
-// The two value fields, blanked and rewritten. Called on the way in and after every change.
-void paintSettingsValues(BackgroundMap& map, const Settings& settings) {
-    for (std::size_t i = 0; i < kValueWidth; ++i) {
-        map[settingsRowLine(SettingsRow::FULLSCREEN)][kValueCol + i]   = kSpace;
-        map[settingsRowLine(SettingsRow::WINDOW_SCALE)][kValueCol + i] = kSpace;
+// Write one row's value into the field, from its first cell, blanking whatever was there.
+void paintValue(BackgroundMap& map, SettingsRow row, std::string_view text) {
+    const std::size_t line = settingsRowLine(row);
+    for (std::size_t i = 0; i < kOptionValueWidth; ++i) {
+        map[line][kOptionValueCol + i] = kSpace;
     }
-    writeMapText(map, settingsRowLine(SettingsRow::FULLSCREEN), kValueCol,
-                 settings.fullscreen ? "on" : "off");
+    if (text.size() > kOptionValueWidth) {
+        text = text.substr(0, kOptionValueWidth);
+    }
+    writeMapText(map, line, kOptionValueCol, text);
+}
+
+// Every scroller row's value. Called on the way in and after every change.
+void paintSettingsValues(BackgroundMap& map, const Settings& settings) {
+    paintValue(map, SettingsRow::FULLSCREEN, settings.fullscreen ? "on" : "off");
 
     // One digit and an x - the scales this build offers are all single digits.
     const char scale[2] = {static_cast<char>('0' + settings.windowScale), 'x'};
-    writeMapText(map, settingsRowLine(SettingsRow::WINDOW_SCALE), kValueCol,
-                 std::string_view{scale, sizeof scale});
+    paintValue(map, SettingsRow::WINDOW_SCALE, std::string_view{scale, sizeof scale});
 }
 
 // The palette row's number: the ramp in effect, counted from one. It is the only text in the
@@ -143,18 +168,11 @@ static_assert(render::kShadeRampCount <= 99,
               "a ramp past the ninety-ninth has no room in the two cells the number is drawn in");
 
 void paintRampValue(BackgroundMap& map, std::uint8_t ramp) {
-    const std::size_t row = settingsRowLine(SettingsRow::SHADE_RAMP);
-    map[row][kPaletteLeftArrowCol]  = kSpace;
-    map[row][kPaletteRightArrowCol] = kSpace;
-
-    // Right-aligned across its two cells, with a leading zero drawn as a space rather than as a
-    // zero - the same law the game's own number readouts print under.
-    const int number = render::clampShadeRamp(ramp) + 1;
-    const auto digit = [](int value) {
-        return static_cast<std::uint8_t>(static_cast<std::uint8_t>(CharTile::DIGIT_0) + value);
-    };
-    map[row][kPaletteValueCol]     = number >= 10 ? digit(number / 10) : kSpace;
-    map[row][kPaletteValueCol + 1] = digit(number % 10);
+    const int  number = render::clampShadeRamp(ramp) + 1;
+    const char digits[2] = {static_cast<char>('0' + number / 10),
+                            static_cast<char>('0' + number % 10)};
+    paintValue(map, SettingsRow::SHADE_RAMP,
+               number >= 10 ? std::string_view{digits, 2} : std::string_view{digits + 1, 1});
 }
 
 // Which rows the given page draws, in order.
@@ -269,8 +287,7 @@ void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
     BackgroundMap& map = targetMap(game.display);
     paintSettings(map, game.screens, settingsOf(wiring));
     game.screens.cursorVisible = true;
-    drawRampArrows(game, settingsOf(wiring).shadeRamp,
-                   settingsPageOf(game.screens.settingsRow) == 0);
+    drawValueArrows(game, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
     drawSettingsCursor(map, game.screens);
 
     game.flow.timer1      = kBlinkFrames;
@@ -356,7 +373,7 @@ void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
 
     paintSettings(map, game.screens, settingsOf(wiring));
     drawSettingsCursor(map, ui);
-    drawRampArrows(game, settingsOf(wiring).shadeRamp, true);
+    drawValueArrows(game, settingsOf(wiring), settingsPageOf(ui.settingsRow));
 
     game.flow.timer1    = kBlinkFrames;
     game.flow.gameState = GameState::SETTINGS;
@@ -410,8 +427,7 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         paintSettingsValues(map, settingsOf(wiring));
         paintRampValue(map, settingsOf(wiring).shadeRamp);
     }
-    drawRampArrows(game, settingsOf(wiring).shadeRamp,
-                   settingsPageOf(game.screens.settingsRow) == 0);
+    drawValueArrows(game, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
     drawSettingsCursor(map, game.screens);
 }
 
@@ -426,7 +442,7 @@ void initResetConfirmScreen(GameContext& game) {
 
     const ConfirmQuestion question = questionFor(ui.pendingConfirm);
 
-    drawRampArrows(game, 0, false);
+    drawValueArrows(game, Settings{}, kSettingsPageCount);  // the confirm has no scrollers
     clearVisibleRegion(map);
     writeMapText(map, kConfirmRow1, centred(question.first.size()), question.first);
     writeMapText(map, kConfirmRow2, centred(question.second.size()), question.second);
