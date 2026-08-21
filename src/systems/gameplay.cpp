@@ -28,6 +28,7 @@
 #include "systems/readouts.h"      // printLevel, printLinesSeed, printStartHeight, copyLinesToSecondMap
 #include "systems/screen.h"        // loadScreenTilemap
 #include "systems/scoring.h"          // addLineClearScore, clearScoreAndStats
+#include "systems/settings_screen.h"  // openSettings
 #include "systems/sprite_renderer.h"  // renderActivePieceSprite, renderPreviewPieceSprite
 
 namespace kirpich::systems {
@@ -123,6 +124,15 @@ void printWindowBlockToMap(BackgroundMap& map, std::size_t row, std::size_t col,
 constexpr std::size_t kPauseMessageRow = 3;
 constexpr std::size_t kPauseMessageCol = 3;
 
+// The port's own hint on the paused screen: the field area, which that screen leaves blank and where
+// a paused player is already looking. It says which button opens the settings screen, because the
+// cartridge has no such screen and so leaves no habit to lean on. It borrows the wording and the
+// centring of the message above it ("hit start to continue game"), and names the button the way the
+// game names its buttons rather than the way any one keyboard spells it.
+constexpr std::size_t kSettingsHintRow      = 14;
+constexpr std::size_t kSettingsHintButtonCol = 4;  // "hit a" centred over the message's own columns
+constexpr std::size_t kSettingsHintWordCol   = 3;  // "settings"
+
 // CopyUntilFF (tetris.asm:6267-6276) applied to one descriptor. The round's init seeds both piece
 // slots from their stored templates (:4176-4181), and that is where the two pieces get their screen
 // positions and attributes: the preview's position is the only thing that ever puts it in its box,
@@ -216,6 +226,8 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     loadScreenTilemap(game.display.secondMap, backdrop);
     printWindowBlockToMap(game.display.secondMap, kPauseMessageRow, kPauseMessageCol,
                           kPauseMessageTilemap);
+    writeMapText(game.display.secondMap, kSettingsHintRow, kSettingsHintButtonCol, "hit a");
+    writeMapText(game.display.secondMap, kSettingsHintRow + 1, kSettingsHintWordCol, "settings");
 
     // The level, into the cell its game type uses, in both maps (:4162-4175).
     printLevel(game);
@@ -305,6 +317,15 @@ bool handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
 
     // Recorded input cannot pause the game (tetris.asm:4445-4447).
     if (game.demo.activeDemo != ActiveDemo::NONE) {
+        return true;
+    }
+
+    // A opens the settings screen from a paused round - the port's own screen, which the cartridge
+    // has no counterpart for. The button is free here because rotation does not run while paused.
+    // The frame continues: the pause check below this routine ends it anyway, and the screen's own
+    // init runs on the next tick.
+    if (game.flow.paused && pressed(game, Action::Confirm)) {
+        openSettings(game);
         return true;
     }
 

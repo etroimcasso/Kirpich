@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include <utility>
 
 #include <kirpich/action.h>
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
+#include "data/charmap.h"   // encodeCharmapText
 #include "data/demo.h"      // kDemoPieceList
 #include "data/music.h"     // MusicId
 #include "data/tilemaps.h"  // kCopyrightScreenTilemap, kTitleScreenTilemap
@@ -19,8 +21,9 @@
 #include "systems/game_state_dispatcher.h"
 #include "systems/line_clear.h"    // clearLineClearsList
 #include "systems/menu_screens.h"  // clearOamObjects
-#include "systems/screen.h"        // loadScreenTilemap, loadTileSheet
-#include "systems/scoring.h"       // clearScoreAndStats
+#include "systems/screen.h"          // loadScreenTilemap, loadTileSheet, writeMapText
+#include "systems/scoring.h"         // clearScoreAndStats
+#include "systems/settings_screen.h"  // openSettings
 
 namespace kirpich::systems {
 
@@ -35,6 +38,39 @@ constexpr std::uint8_t kTitleCursorTile = 0x58;
 constexpr std::uint8_t kTitleCursorY = 0x80;
 constexpr std::uint8_t kCursorX1P = 0x10;
 constexpr std::uint8_t kCursorX2P = 0x60;
+
+// The port's own third item, drawn as objects rather than as a row of the background.
+//
+// The background is a grid of eight-pixel cells and the panel's two spare cells are spoken for, but
+// the art inside them is not. The player options' underline inks only the FIRST pixel row of its
+// cell, leaving the seven below it blank, and a font letter inks six of its eight rows. So the word
+// fits in that blank band with its own line beneath it - and objects are what can be placed there,
+// because they are positioned per pixel while a background cell cannot be.
+//
+// Object coordinates are offset from the screen's by (8, 16). The word's letters ink screen rows
+// 122-127, its line lands on 128 directly beneath them, and the copyright keeps a whole cell to
+// itself at the bottom of the panel.
+constexpr std::uint8_t kObjectOriginX = 8;
+constexpr std::uint8_t kObjectOriginY = 16;
+
+constexpr std::size_t  kSettingsTextCol = 6;  // "settings" - eight cells, centred in twenty
+constexpr std::uint8_t kSettingsTextY   = 121 + kObjectOriginY;
+constexpr std::uint8_t kSettingsLineY   = 128 + kObjectOriginY;
+constexpr std::uint8_t kSettingsCursorY = 121 + kObjectOriginY;
+constexpr std::uint8_t kSettingsCursorX = 0x30;  // one cell left of the word
+
+// The tile the game underlines its own player options with, borrowed for the third item so the two
+// are underlined with the same line.
+constexpr std::uint8_t kUnderlineTile = 0x9A;
+
+// The stored screen's copyright row. Its cell is cleared and the line is redrawn as objects one
+// pixel higher than any cell could put it, so the panel keeps a margin under the notice instead of
+// running it into the bottom of the screen.
+constexpr std::size_t  kCopyrightRow = 16;
+constexpr std::uint8_t kCopyrightY   = 135 + kObjectOriginY;
+
+// The object entries the item occupies. Entry 0 stays the selector, as the stored screen has it.
+constexpr std::size_t kSettingsFirstObject = 1;
 
 // Frame counts: the title screen's attract timer (125) and the copyright screen's display timer
 // (250 = 4*60 + 10).
@@ -65,11 +101,84 @@ void fillWallColumn(PlayingFieldState& field, std::size_t col) {
     }
 }
 
-// The title screen's .updateCursor (tetris.asm:710-718): store the one/two-player flag and place the
-// selector's X. The flag doubles as the cursor index.
+// Fill consecutive object entries with one glyph each, left to right from `col`. Returns the entry
+// after the last one written.
+std::size_t drawTextObjects(GameContext& game, std::size_t entry, std::uint8_t y, std::size_t col,
+                            std::string_view text) {
+    const auto glyphs = encodeCharmapText(text);
+    if (!glyphs) {
+        return entry;
+    }
+    for (std::size_t i = 0; i < glyphs->size(); ++i, ++entry) {
+        OamEntry& object = game.engine.oam[entry];
+        object.y    = y;
+        object.x    = static_cast<std::uint8_t>((col + i) * 8 + kObjectOriginX);
+        object.tile = static_cast<std::uint8_t>((*glyphs)[i]);
+    }
+    return entry;
+}
+
+// The third item: the word, then the line under it, one object per cell of each.
+std::size_t drawSettingsItem(GameContext& game, std::size_t entry) {
+    const std::string_view word = "settings";
+    entry = drawTextObjects(game, entry, kSettingsTextY, kSettingsTextCol, word);
+
+    for (std::size_t i = 0; i < word.size(); ++i, ++entry) {
+        OamEntry& object = game.engine.oam[entry];
+        object.y    = kSettingsLineY;
+        object.x    = static_cast<std::uint8_t>((kSettingsTextCol + i) * 8 + kObjectOriginX);
+        object.tile = kUnderlineTile;
+    }
+    return entry;
+}
+
+// The copyright line, redrawn from the stored screen's own row at the pixel height that leaves a
+// margin below it. The tiles are read out of that row rather than written out here, so the notice is
+// the cartridge's own art wherever it ends up being drawn; the blank cells of the row are skipped,
+// since an object is only needed where there is something to see.
+std::size_t drawCopyrightLine(GameContext& game, std::size_t entry) {
+    const auto blank = static_cast<std::uint8_t>(CharTile::SPACE);
+    for (std::size_t col = 0; col < kTilemapScreenCols; ++col) {
+        const std::uint8_t tile = kTitleScreenTilemap[kCopyrightRow][col];
+        if (tile == blank) {
+            continue;
+        }
+        OamEntry& object = game.engine.oam[entry++];
+        object.y    = kCopyrightY;
+        object.x    = static_cast<std::uint8_t>(col * 8 + kObjectOriginX);
+        object.tile = tile;
+    }
+    return entry;
+}
+
+// Put the selector where the current choice is. On the player-count row that is the original's own
+// placement (.updateCursor, tetris.asm:710-718), where the one/two-player flag doubles as the cursor
+// index; on the settings item it is the one fixed place below it.
+void placeTitleCursor(GameContext& game) {
+    if (game.screens.titleSettingsSelected) {
+        game.engine.oam[0].y = kSettingsCursorY;
+        game.engine.oam[0].x = kSettingsCursorX;
+        return;
+    }
+    game.engine.oam[0].y = kTitleCursorY;
+    game.engine.oam[0].x = game.multiplayer.isMultiplayer ? kCursorX2P : kCursorX1P;
+}
+
+// The title screen's .updateCursor: store the one/two-player flag and place the selector.
 void setTitleCursor(GameContext& game, bool multiplayer) {
     game.multiplayer.isMultiplayer = multiplayer;
-    game.engine.oam[0].x = multiplayer ? kCursorX2P : kCursorX1P;
+    placeTitleCursor(game);
+}
+
+// Move between the player-count row and the settings item, leaving the player count where the player
+// left it. Returns whether the cursor moved.
+bool setTitleSettingsSelected(GameContext& game, bool selected) {
+    if (game.screens.titleSettingsSelected == selected) {
+        return false;
+    }
+    game.screens.titleSettingsSelected = selected;
+    placeTitleCursor(game);
+    return true;
 }
 
 }  // namespace
@@ -149,11 +258,23 @@ void initTitleScreen(GameContext& game) {
     // row, and the wall columns past the screen's 20). See docs/contracts/screen.md.
     loadScreenTilemap(game.display, kTitleScreenTilemap);
 
-    // The 1P/2P selector cursor (:558-564): clear the object buffer, then seed OAM object 0.
+    // Empty the copyright line's cell. Both it and the third item are redrawn as objects below, at
+    // pixel heights no cell can reach.
+    for (std::size_t col = 0; col < kTilemapScreenCols; ++col) {
+        game.display.map[kCopyrightRow][col] = static_cast<std::uint8_t>(CharTile::SPACE);
+    }
+
+    // The 1P/2P selector cursor (:558-564): clear the object buffer, then seed OAM object 0. The
+    // cursor starts on the player-count row whatever it was on when the player last left the screen.
     clearOamObjects(game);
+    game.screens.titleSettingsSelected = false;
     game.engine.oam[0].y = kTitleCursorY;
     game.engine.oam[0].x = kCursorX1P;
     game.engine.oam[0].tile = kTitleCursorTile;
+
+    // The port's own third item, over the blank band the player options' underline leaves, and then
+    // the copyright line beneath it.
+    drawCopyrightLine(game, drawSettingsItem(game, kSettingsFirstObject));
 
     game.audioCues.music = MusicId::TITLE;  // wNewMusicID = 3 (:565-566)
 
@@ -188,6 +309,23 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
     // game or resets the cursor. Link-cable mechanism the serial system owns; nothing sets its trigger
     // without that system, so it has no effect here.
 
+    // The port's third item sits below the player-count pair, so up and down move between the two
+    // rows and the pair's own left/right/select laws apply only while the cursor is on it.
+    if (pressed(game, Action::MenuDown)) {
+        setTitleSettingsSelected(game, true);
+        return;
+    }
+    if (pressed(game, Action::MenuUp)) {
+        setTitleSettingsSelected(game, false);
+        return;
+    }
+    if (game.screens.titleSettingsSelected) {
+        if (pressed(game, Action::Start) || pressed(game, Action::Confirm)) {
+            openSettings(game);
+        }
+        return;
+    }
+
     // Cursor / input (:657-731): isMultiplayer doubles as the cursor index. Buttons are tested in this
     // order; the first match handles the frame.
     if (pressed(game, Action::Select)) {  // (:661-662, :708-718)
@@ -206,7 +344,9 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
         }
         return;
     }
-    if (!pressed(game, Action::Start)) {  // (:667-668)
+    // The cartridge acts on Start alone here (:667-668). The port takes A as well, so one button
+    // acts on all three items instead of on the third one only.
+    if (!pressed(game, Action::Start) && !pressed(game, Action::Confirm)) {
         return;
     }
     if (game.multiplayer.isMultiplayer) {

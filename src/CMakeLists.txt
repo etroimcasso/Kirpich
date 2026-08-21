@@ -13,6 +13,7 @@ add_library(kirpich-lib STATIC
     data/gravity.cpp
     data/scoring.cpp
     state/high_score_persistence.cpp
+    state/settings.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/boot.cpp
@@ -28,6 +29,7 @@ add_library(kirpich-lib STATIC
     systems/demo.cpp
     systems/readouts.cpp
     systems/screen.cpp
+    systems/settings_screen.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
     render/tile_atlas.cpp

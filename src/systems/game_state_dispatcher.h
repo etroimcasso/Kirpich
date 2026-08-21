@@ -23,10 +23,12 @@
 
 namespace kirpich::systems {
 
-// The dispatch table covers the 54 labelled game states ($00-$35, contiguous). The original's
-// pointer table has a 55th slot at index $36 holding a raw address, not a handler — a dispatch
-// over-read, not a state (see include/kirpich/game_state.h); it gets no slot here.
-inline constexpr std::size_t kGameStateCount = 54;
+// The dispatch table covers every game state, indexed by the state byte itself: the 54 labelled
+// cartridge states ($00-$35, contiguous) and the port's own screens from $40 up. The slots between
+// them name nothing and keep the not-ported stub, as does $36 — the original's pointer table has a
+// 55th entry there holding a raw address rather than a handler, a dispatch over-read and not a state
+// (see include/kirpich/game_state.h).
+inline constexpr std::size_t kGameStateCount = 0x44;
 
 // The frame dispatcher. Holds one handler per game state, an owned input mechanism (the previous-held
 // byte the edge relation needs is mechanism state, not game state, so it lives here rather than on

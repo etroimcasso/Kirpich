@@ -1,6 +1,9 @@
 #include "systems/screen.h"
 
 #include <cstddef>
+#include <cstdint>
+
+#include "data/charmap.h"  // encodeCharmapText
 
 namespace kirpich::systems {
 
@@ -17,6 +20,16 @@ void loadScreenTilemap(BackgroundMap& map, const ScreenTilemap& tilemap) {
 
 void loadScreenTilemap(DisplayState& display, const ScreenTilemap& tilemap) {
     loadScreenTilemap(display.map, tilemap);
+}
+
+void writeMapText(BackgroundMap& map, std::size_t row, std::size_t col, std::string_view text) {
+    const auto glyphs = encodeCharmapText(text);
+    if (!glyphs) {
+        return;
+    }
+    for (std::size_t i = 0; i < glyphs->size() && col + i < kTilemapScreenCols; ++i) {
+        map[row][col + i] = static_cast<std::uint8_t>((*glyphs)[i]);
+    }
 }
 
 void loadTileSheet(DisplayState& display, TileSheet sheet) {

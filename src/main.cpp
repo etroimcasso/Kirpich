@@ -24,8 +24,13 @@
 #include <system_error>
 #include <vector>
 
+#include <SDL3/SDL_keyboard.h>
+#include <SDL3/SDL_keycode.h>
+#include <SDL3/SDL_scancode.h>
+
 #include <spdlog/spdlog.h>
 
+#include <retropp/app_identity.h>
 #include <retropp/asset_registry.h>
 #include <retropp/clock.h>
 #include <retropp/draw_state.h>
@@ -47,6 +52,7 @@
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
+#include "state/settings.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/game_context.h"
@@ -59,6 +65,7 @@
 #include "systems/menu_screens.h"
 #include "systems/readouts.h"
 #include "systems/scoring.h"
+#include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -117,12 +124,25 @@ void configureAssetRoot() {
 int main(int /*argc*/, char* /*argv*/[]) {
     spdlog::info("kirpich 0.1.0 — Retro++ engine {}", retropp::version());
 
+    const retropp::AppIdentity identity{.organization = std::string{kirpich::kSaveOrganization},
+                                        .application  = std::string{kirpich::kSaveApplication}};
+
+    // The player's own store, and the display choices they last made — read first, so the window can
+    // be opened the way they left it rather than at the engine's default and then jumping to it. The
+    // store is rooted at the directory the identity resolves to, which is the same directory a
+    // default-constructed store finds once the config is published; naming it here is what lets the
+    // config below be built complete and published once.
+    retropp::SaveStore saves = retropp::SaveStore::atPath(retropp::userDataDir(identity));
+    kirpich::Settings  settings;
+    kirpich::loadSettings(saves, settings);
+
     const retropp::EngineConfig config{
-        .identity = {.organization = std::string{kirpich::kSaveOrganization},
-                     .application  = std::string{kirpich::kSaveApplication}},
-        .window   = {.title = "Kirpich"},
-        .viewport = kViewport,
-        .timing   = retropp::TimingProfile::GameBoy,
+        .identity     = identity,
+        .window       = {.title = "Kirpich"},
+        .viewport     = kViewport,
+        .timing       = retropp::TimingProfile::GameBoy,
+        .enhancements = {.windowScale = settings.windowScale,
+                         .fullscreen  = settings.fullscreen},
     };
     retropp::EngineConfig::setActive(config);
 
@@ -157,7 +177,19 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     // ── The game ─────────────────────────────────────────────────────────────
     kirpich::systems::GameContext game;
-    retropp::SaveStore            saves;
+
+    // Put the display choices into effect. Fullscreen is asked for either way, so leaving it turns
+    // the window back on; the size is applied only when windowed, where it is the only thing that
+    // can be seen. The engine ignores a setter handed the value it already has, so this is also what
+    // the startup config above did and repeating it costs nothing.
+    const auto applySettings = [&platform](const kirpich::Settings& current) {
+        retropp::Window& window = platform.window();
+        window.fullscreen(current.fullscreen);
+        if (!current.fullscreen) {
+            window.size(retropp::PixelSize{kViewport.width * current.windowScale,
+                                           kViewport.height * current.windowScale});
+        }
+    };
 
     kirpich::systems::GameStateDispatcher dispatcher;
 
@@ -186,6 +218,22 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installHighScoreHandlers(
         dispatcher, [&saves](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
+        });
+
+    // The settings screen, reached from the title screen's third item and from a paused round. It
+    // edits the same value the window was opened from, and writes every change out as it is made.
+    kirpich::systems::installSettingsHandlers(
+        dispatcher,
+        kirpich::systems::SettingsWiring{
+            .settings = &settings,
+            .apply    = applySettings,
+            .save     = [&saves](const kirpich::Settings& current) {
+                kirpich::saveSettings(current, saves);
+            },
+            .saveScores =
+                [&saves](const kirpich::HighScoreState& scores) {
+                    kirpich::saveTopScores(scores, saves);
+                },
         });
 
     kirpich::systems::SoundSystem sound;
@@ -229,7 +277,26 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // next's. See render/sprites.h.
     std::uint16_t simTicks = 0;
 
+    // Alt+Enter, and Cmd+Enter on macOS — what people reach for without being told. It cannot be an
+    // action binding: the engine's action map has no modifier concept, so the two keys are read from
+    // SDL directly, which is what this port does where the engine has no opinion (the other place is
+    // the first-start file dialog). Either modifier is accepted everywhere rather than one per
+    // platform — nothing else in the game wants that combination. It sets the same setting the
+    // screen's row sets and is written out the same way, so a player who goes fullscreen by chord and
+    // quits comes back fullscreen. Held across ticks so the chord fires on the press, not every frame
+    // the keys are down.
+    bool fullscreenChordHeld = false;
+
     loop.simTick([&](const retropp::InputState& in) {
+        const bool modifier = (SDL_GetModState() & (SDL_KMOD_ALT | SDL_KMOD_GUI)) != 0;
+        const bool chord = modifier && SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RETURN];
+        if (chord && !fullscreenChordHeld) {
+            settings.fullscreen = !settings.fullscreen;
+            applySettings(settings);
+            kirpich::saveSettings(settings, saves);
+        }
+        fullscreenChordHeld = chord;
+
         // The divider free-runs with engine time: one tick's worth of cycles per sim tick keeps it
         // ticking between the draws and fills that read it. Without this it freezes and the piece
         // sequence degenerates into a counter.
