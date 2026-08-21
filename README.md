@@ -11,11 +11,12 @@ layer.
 
 ## Status
 
-**Kirpich is playable.** A solo round runs from the title screen through the menus into play and out
-the other side — you steer the piece, see the next one waiting, clear lines, keep score, and reach the
-game-over screen or, on a Type B win, the scoreboard and the dance the hardest level earns. The game's
-own sound driver runs on the engine's emulated audio unit, so the music and effects are the
-cartridge's.
+**The single-player game is complete.** A solo round runs from the title screen through the menus into
+play and out the other side — you steer the piece, see the next one waiting, clear lines, keep score,
+and reach the game-over screen or, on a Type B win, the scoreboard and the dance the hardest level
+earns. Every screen the cartridge's solo flow can reach is there, and so is everything that leads
+between them. The game's own sound driver runs on the engine's emulated audio unit, so the music and
+effects are the cartridge's.
 
 Both halves of the picture draw: the backgrounds — screens, menus, the playing field with its walls
 and panel, the blocks as they stack — and the objects, which are the piece you are steering, the
@@ -105,6 +106,7 @@ The table below is kept honest as components land.
 | Sprite rendering | **complete** — the falling piece, the preview, the menu cursors, and the ending's performers |
 | Panel readouts | **complete** — the score, the level, the line count, and the Type B starting height |
 | Frame loop | **complete** — the entry point is a host: it ticks the game and submits a frame at the original's rate |
+| Two-player | not started — the link-cable protocol and every screen behind it. Waiting on the engine's netcode surface, which does not exist yet |
 | Display filters | not started — pixel-art upscaling and the DMG-mimicking shader. The game has no palette effects to port: it writes its palette registers once at boot and never again |
 
 ## How it works
@@ -123,8 +125,8 @@ emulated CPU inside the engine:
   cycle-driven cadence. Reproducing the chiptune output faithfully requires running that driver
   against an emulated audio unit.
 
-Everything else — the run loop, rendering, input, scoring, line clears, menus, multiplayer —
-is native code.
+Everything else — the run loop, rendering, input, scoring, line clears, menus — is native
+code, and two-player will be when it lands.
 
 ## What ships and what doesn't
 
