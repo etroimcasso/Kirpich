@@ -184,15 +184,17 @@ jobs:
           OUT="$GITHUB_WORKSPACE/build-release/out"
           rm -rf "$OUT" && mkdir -p "$OUT"
 
-          # What the player sees when the image opens: the app, and the folder to drag it into.
-          DMGROOT="$GITHUB_WORKSPACE/build-release/dmgroot"
-          rm -rf "$DMGROOT" && mkdir -p "$DMGROOT"
-          cp -R "$STAGE/Kirpich.app" "$DMGROOT/Kirpich.app"
-          ln -s /Applications "$DMGROOT/Applications"
-
+          # The same script the CI job uses, so a tested image and a shipped one differ only by the
+          # signature and the ticket. The app inside is already signed and stapled.
           DMG="$OUT/Kirpich-${GITHUB_REF_NAME}-macOS-arm64.dmg"
-          hdiutil create -volname "Kirpich" -srcfolder "$DMGROOT" -ov -format UDZO "$DMG"
-          codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"
+          sh "$GITHUB_WORKSPACE/scripts/make-macos-dmg.sh" "$STAGE/Kirpich.app" "$DMG"
+
+          if [ -n "${KIRPICH_KEYCHAIN:-}" ]; then
+            codesign --force --timestamp --keychain "$KIRPICH_KEYCHAIN" \
+                     --sign "$SIGN_IDENTITY" "$DMG"
+          else
+            codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"
+          fi
           xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
           xcrun stapler staple "$DMG"
 

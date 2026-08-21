@@ -110,6 +110,22 @@ check, and `tests/test_embedded_routines.cpp` is the guard that the routines sti
 Link-time optimization and a size-oriented optimization level are worth measuring against these
 numbers, and are not applied today.
 
+### macOS ships a disk image
+
+`scripts/make-macos-dmg.sh` builds it: the app and a symlink to `/Applications`, compressed
+read-only. That is how a Mac application is distributed and it is what someone can actually open.
+
+**Both the continuous-integration job and the release build the image with this same script**, so
+what gets tested and what gets shipped differ only by the signature and the notarization ticket. The
+script signs nothing — a development build has nothing to sign with, and the release signs the image
+after the script has produced it.
+
+An archive was the alternative and is worse in two ways: it arrives as a folder of files rather than
+something to drag, and anything but `ditto` drops the bundle's symlinks and its executable bit on
+the way through. Handing a `.app` to GitHub's upload-artifact action has the same problem for a
+sharper reason — it uploads the *files under* a directory, so the bundle arrives with no wrapper at
+all.
+
 ### The distributable is assembled by a packaging step, not by hand
 
 The mechanism that stages a shippable tree — the binary, the empty asset structure, tooling, and
@@ -125,15 +141,19 @@ bundle.
 - `scripts/check-distributable-clean.sh` — the packaging gate; POSIX shell, exits non-zero on any
   ROM-derived content in the asset directories and on a binary carrying a development asset root.
 - The lean link and strip configuration (in `src/CMakeLists.txt`), applied to every non-Debug build.
+- `scripts/make-macos-dmg.sh` — the disk image, built identically by CI and by the release.
+- `.github/workflows/release.yml` — a version tag builds, signs, notarizes, staples and publishes
+  the macOS distributable on the trusted runner.
 - `KIRPICH_DEV_ASSET_ROOT` (in `src/CMakeLists.txt`) — off for a distributable; the asset root is
   then the player's own per-user data directory, beside their save.
 - `.gitignore` ROM-extension bans — the backstop against committing ROM-derived bytes.
 
 **Not yet built:**
 
-- A packaging / install target (CMake `install` rules, CPack, or a staging script — undecided).
-- CI wiring: the clean gate run against the packaged artifact, and a distributable build exercised
-  per platform. Nothing calls the gate today.
+- Linux and Windows distributables. The Linux binary is already self-contained and opens no terminal
+  when launched from a desktop, so what it wants is a `.desktop` entry and an icon rather than a
+  dependency bundle.
+- An icon, on any platform.
 
 ## Open questions
 

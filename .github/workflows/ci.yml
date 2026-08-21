@@ -169,14 +169,27 @@ jobs:
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
-      # See the Linux x64 job for what this artifact is and is not. macOS builds an .app rather than
-      # a bare executable, so the whole bundle is uploaded; it is unsigned here, and signing and
-      # notarization belong to the release, not to this job.
+      # See the Linux x64 job for what this artifact is and is not.
+      #
+      # A disk image, the same one the release builds, because that is how a Mac application is
+      # distributed and it is what someone can actually open. Handing upload-artifact the .app
+      # directly would not work: it uploads the FILES UNDER a directory, so the bundle would arrive
+      # as a bare Contents/ tree with no wrapper, and it carries no permissions either, so the
+      # executable inside would lose its executable bit.
+      #
+      # Unsigned here. Signing, notarization and stapling belong to the release workflow, which a
+      # version tag starts — it builds the image with this same script, so the shape is identical.
+      - name: Build the disk image
+        run: |
+          sh "$GITHUB_WORKSPACE/scripts/make-macos-dmg.sh" \
+            "$GITHUB_WORKSPACE/build/Kirpich.app" \
+            "$GITHUB_WORKSPACE/build/Kirpich-macos-arm64.dmg"
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: macos-kirpich
-          path: build/Kirpich.app
+          path: build/Kirpich-macos-arm64.dmg
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
