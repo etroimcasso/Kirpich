@@ -80,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-kirpich
-          path: build/kirpich
+          path: build/Kirpich
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
@@ -169,12 +169,14 @@ jobs:
       - name: Build
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
-      # See the Linux x64 job for what this artifact is and is not.
+      # See the Linux x64 job for what this artifact is and is not. macOS builds an .app rather than
+      # a bare executable, so the whole bundle is uploaded; it is unsigned here, and signing and
+      # notarization belong to the release, not to this job.
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: macos-kirpich
-          path: build/kirpich
+          path: build/Kirpich.app
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
@@ -253,8 +255,8 @@ jobs:
         with:
           name: windows-kirpich
           path: |
-            C:\kirpich-ci-build\Release\kirpich.exe
-            C:\kirpich-ci-build\src\Release\kirpich.exe
+            C:\kirpich-ci-build\Release\Kirpich.exe
+            C:\kirpich-ci-build\src\Release\Kirpich.exe
           if-no-files-found: error
 
       - name: Test
@@ -326,7 +328,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-arm64-kirpich
-          path: build/kirpich
+          path: build/Kirpich
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
@@ -404,8 +406,8 @@ jobs:
         with:
           name: windows-arm64-kirpich
           path: |
-            C:\kirpich-ci-build\Release\kirpich.exe
-            C:\kirpich-ci-build\src\Release\kirpich.exe
+            C:\kirpich-ci-build\Release\Kirpich.exe
+            C:\kirpich-ci-build\src\Release\Kirpich.exe
           if-no-files-found: error
 
       - name: Test

@@ -29,6 +29,7 @@
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_scancode.h>
 
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
 #include <retropp/app_identity.h>
@@ -152,13 +153,36 @@ bool watchFullscreen(void* user, SDL_Event* event) {
     return true;  // a watch observes; it never filters the event out
 }
 
+// Where the game's own log goes.
+//
+// A shipped build has no terminal to write into. It is launched from the Finder or from a desktop,
+// and on Windows it is a windows-subsystem program with no console at all — so anything written to
+// the console is either invisible or noise in a session that did not ask for it. The log goes beside
+// the player's save instead, replaced each launch rather than grown forever, which keeps a
+// first-start failure diagnosable when there is no developer at the machine.
+//
+// A Debug build keeps the console, where somebody is already looking.
+void configureLogging([[maybe_unused]] const retropp::AppIdentity& identity) {
+#ifdef NDEBUG
+    try {
+        const std::filesystem::path logFile = retropp::userDataDir(identity) / "kirpich.log";
+        spdlog::set_default_logger(spdlog::basic_logger_mt("kirpich", logFile.string(), true));
+        spdlog::flush_on(spdlog::level::info);
+    } catch (const std::exception&) {
+        // An unresolvable or unwritable directory is not worth ending a run over. The console logger
+        // stays; on a windowed launch nothing reads it, which is the same place we started.
+    }
+#endif
+}
+
 }  // namespace
 
 int main(int /*argc*/, char* /*argv*/[]) {
-    spdlog::info("kirpich 0.1.0 — Retro++ engine {}", retropp::version());
-
     const retropp::AppIdentity identity{.organization = std::string{kirpich::kSaveOrganization},
                                         .application  = std::string{kirpich::kSaveApplication}};
+
+    configureLogging(identity);
+    spdlog::info("Kirpich {} — Retro++ engine {}", KIRPICH_VERSION, retropp::version());
 
     // The player's own store, and the display choices they last made — read first, so the window can
     // be opened the way they left it rather than at the engine's default and then jumping to it. The

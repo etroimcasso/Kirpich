@@ -20,7 +20,7 @@ chronologically; this file holds current state.
 | Asset acquisition | ✅ | [`features/asset-acquisition.md`](features/asset-acquisition.md) — graphics and the sound driver image |
 | ROM extraction tool | ✅ | [`features/tile-graphics.md`](features/tile-graphics.md) — graphics; audio byte spans ride the audio backend |
 | Continuous integration | ⬜ | [`features/ci.md`](features/ci.md) |
-| Distributable build | ⬜ | [`features/distributable-build.md`](features/distributable-build.md) |
+| Distributable build | 🟡 | [`features/distributable-build.md`](features/distributable-build.md) |
 
 ## Data
 
