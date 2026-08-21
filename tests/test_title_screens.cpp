@@ -228,9 +228,58 @@ TEST(TitleScreens, TitleInitVectors) {
             }
         }
 
-        // Cursor object, cleared buffer, music, timer, transition.
-        EXPECT_EQ(game.engine.oam[7], OamEntry{});  // buffer cleared
+        // Cursor object, music, timer, transition.
         EXPECT_EQ(game.engine.oam[0], (OamEntry{.y = kCursorY, .x = kCursorX1P, .tile = kCursorTile}));
+
+        // The buffer is cleared and then refilled with the port's own third item: the word in
+        // entries 1-8 and its underline in 9-16, both one object per cell across the same columns.
+        // The word sits in the blank band the player options' underline leaves, which is why it is
+        // drawn as objects at all - a background cell cannot start on pixel row 122.
+        constexpr std::uint8_t kSettingsWordY = 121 + 16;
+        constexpr std::uint8_t kSettingsLineY = 128 + 16;
+        constexpr std::size_t  kSettingsCol   = 6;
+        constexpr std::array<CharTile, 8> kSettingsWord{
+            CharTile::LETTER_S, CharTile::LETTER_E, CharTile::LETTER_T, CharTile::LETTER_T,
+            CharTile::LETTER_I, CharTile::LETTER_N, CharTile::LETTER_G, CharTile::LETTER_S};
+
+        for (std::size_t i = 0; i < kSettingsWord.size(); ++i) {
+            const auto x = static_cast<std::uint8_t>((kSettingsCol + i) * 8 + 8);
+            EXPECT_EQ(game.engine.oam[1 + i],
+                      (OamEntry{.y    = kSettingsWordY,
+                                .x    = x,
+                                .tile = static_cast<std::uint8_t>(kSettingsWord[i])}))
+                << "settings letter " << i;
+            EXPECT_EQ(game.engine.oam[9 + i],
+                      (OamEntry{.y = kSettingsLineY, .x = x, .tile = 0x9A}))
+                << "settings underline cell " << i;
+        }
+
+        // The copyright line follows, redrawn as objects one pixel above the cell it is stored in so
+        // the panel keeps a margin beneath it. Its cell is emptied, and the tiles come from the
+        // stored screen itself - the notice is the cartridge's own art wherever it is drawn.
+        constexpr std::size_t  kCopyrightRow = 16;
+        constexpr std::uint8_t kCopyrightY   = 135 + 16;
+        for (std::size_t col = 0; col < kirpich::kTilemapScreenCols; ++col) {
+            EXPECT_EQ(game.display.map[kCopyrightRow][col], kSpace) << "copyright cell " << col;
+        }
+
+        std::size_t entry = 17;
+        for (std::size_t col = 0; col < kirpich::kTilemapScreenCols; ++col) {
+            const std::uint8_t tile = kirpich::kTitleScreenTilemap[kCopyrightRow][col];
+            if (tile == kSpace) continue;
+            EXPECT_EQ(game.engine.oam[entry],
+                      (OamEntry{.y    = kCopyrightY,
+                                .x    = static_cast<std::uint8_t>(col * 8 + 8),
+                                .tile = tile}))
+                << "copyright object for column " << col;
+            ++entry;
+        }
+        EXPECT_EQ(entry, 28u) << "the copyright line is eleven drawn cells";
+
+        // Nothing past it: the clear ran and only these refilled the buffer.
+        for (; entry < game.engine.oam.size(); ++entry) {
+            EXPECT_EQ(game.engine.oam[entry], OamEntry{}) << "entry " << entry;
+        }
         EXPECT_EQ(game.audioCues.music, MusicId::TITLE);
         EXPECT_EQ(game.flow.timer1, kTitleTimer);
         EXPECT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);

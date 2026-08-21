@@ -97,6 +97,7 @@ Game logic.
 | Tilemap loader | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the backdrop stamp (`loadScreenTilemap`) and the tile-art selection, restored at every solo screen. The window form of the original's loader serves only the second background map and lands with whichever unit models it |
 | Sprite-copy routine | ⬜ | `features/dma.md` |
 | Frame tick handler | ⬜ | `features/vblank.md` |
+| Settings screen | ✅ | [`features/settings.md`](features/settings.md) — fullscreen, window size, twelve colour palettes, a guarded erase of the high scores, and a guarded quit; reached from the title screen and from a paused round, with the choices saved beside the top scores |
 | Presentation framework | ⬜ | `features/presentation-framework.md` |
 | Integer-scale output | ⬜ | `features/presentation-integer-scale.md` |
 | Free-aspect output | ⬜ | `features/presentation-free-aspect.md` |

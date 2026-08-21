@@ -100,6 +100,42 @@ GameContext readyToStart(GameType type, std::uint8_t level, std::uint8_t height 
 
 }  // namespace
 
+// ── Test 0: PausedScreenCarriesTheSettingsHint ──────────────────────────────────────────────────────
+// The round init stamps the port's own hint into the paused screen's field area, which that screen
+// leaves blank. It says which button opens the settings screen, because the cartridge has no such
+// screen and so leaves no habit to lean on. It goes in the SECOND map only - the live map is the
+// playing field, and a hint written there would be sitting in it.
+TEST(Gameplay, PausedScreenCarriesTheSettingsHint) {
+    using C = kirpich::CharTile;
+    constexpr std::size_t kHintRow    = 14;
+    constexpr std::size_t kButtonCol  = 4;  // "hit a"
+    constexpr std::size_t kWordCol    = 3;  // "settings"
+
+    for (const GameType type : {GameType::TYPE_A, GameType::TYPE_B}) {
+        GameContext game = readyToStart(type, 0);
+        kirpich::systems::initGame(game, cyclingDraw());
+
+        const auto glyph = [&](std::size_t row, std::size_t col) {
+            return game.display.secondMap[row][col];
+        };
+        const std::array<C, 5> button{C::LETTER_H, C::LETTER_I, C::LETTER_T, C::SPACE, C::LETTER_A};
+        for (std::size_t i = 0; i < button.size(); ++i) {
+            EXPECT_EQ(glyph(kHintRow, kButtonCol + i), static_cast<std::uint8_t>(button[i]))
+                << "hint button cell " << i;
+        }
+        const std::array<C, 8> word{C::LETTER_S, C::LETTER_E, C::LETTER_T, C::LETTER_T,
+                                    C::LETTER_I, C::LETTER_N, C::LETTER_G, C::LETTER_S};
+        for (std::size_t i = 0; i < word.size(); ++i) {
+            EXPECT_EQ(glyph(kHintRow + 1, kWordCol + i), static_cast<std::uint8_t>(word[i]))
+                << "hint word cell " << i;
+        }
+
+        // The live map keeps the playing field there, not the hint.
+        EXPECT_NE(game.display.map[kHintRow][kButtonCol], static_cast<std::uint8_t>(C::LETTER_H));
+        EXPECT_NE(game.display.map[kHintRow + 1][kWordCol], static_cast<std::uint8_t>(C::LETTER_S));
+    }
+}
+
 // ── Test 1: InitGameVectors ─────────────────────────────────────────────────────────────────────────
 // GameState_0A (tetris.asm:4124-4238): the shared init, swept over both game types and heart mode.
 TEST(Gameplay, InitGameVectors) {

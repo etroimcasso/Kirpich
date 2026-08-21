@@ -16,7 +16,9 @@
 // see docs/contracts/screen.md.
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 #include "data/tilemaps.h"
 #include "state/display_state.h"
@@ -43,6 +45,17 @@ void loadScreenTilemap(DisplayState& display, const ScreenTilemap& tilemap);
 // The same stamp into a chosen map. The round init uses it to put the gameplay backdrop in the
 // second map as well as the first (tetris.asm:4155-4157), which is what the paused screen shows.
 void loadScreenTilemap(BackgroundMap& map, const ScreenTilemap& tilemap);
+
+// Spell text into a map row through the character map, left to right from (row, col).
+//
+// The port's own screens draw their text this way, where the game's screens use a stored backdrop
+// with the words already in it. Encoding is the same greedy longest match the assembler performs on
+// a text literal (src/data/charmap.h), so what a screen writes and what the cartridge's own screens
+// hold are the same glyphs.
+//
+// Text a build cannot spell writes nothing at all, and text that would run past the twentieth cell
+// is clipped there rather than continuing into the row below.
+void writeMapText(BackgroundMap& map, std::size_t row, std::size_t col, std::string_view text);
 
 // Load a tile set (LoadCopyrightAndTitleScreenTiles :6394-6398 / LoadGameplayTiles :6368-6376).
 //

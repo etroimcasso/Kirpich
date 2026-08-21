@@ -36,14 +36,30 @@ using kirpich::render::TileSource;
 using kirpich::systems::GameContext;
 
 // Handles chosen to be distinct and recognisable, so a mis-routed cell names the wrong one loudly.
-constexpr TileAtlas kAtlas{
-    .font             = static_cast<retropp::AtlasId>(11),
-    .copyrightTitle   = static_cast<retropp::AtlasId>(22),
-    .gameplay         = static_cast<retropp::AtlasId>(33),
-    .multiplayerBuran = static_cast<retropp::AtlasId>(44),
-    .fontPalette      = static_cast<retropp::PaletteId>(55),
-    .contentPalette   = static_cast<retropp::PaletteId>(66),
-};
+// The palettes are numbered by ramp as well, so a cell drawn through the wrong ramp is as loud as one
+// drawn from the wrong sheet: ramp r's content palette is 60 + r, its font palette 50 + r.
+constexpr retropp::PaletteId fontPaletteFor(std::size_t ramp) {
+    return static_cast<retropp::PaletteId>(50 + ramp);
+}
+constexpr retropp::PaletteId contentPaletteFor(std::size_t ramp) {
+    return static_cast<retropp::PaletteId>(60 + ramp);
+}
+
+constexpr TileAtlas makeAtlas() {
+    TileAtlas atlas{
+        .font             = static_cast<retropp::AtlasId>(11),
+        .copyrightTitle   = static_cast<retropp::AtlasId>(22),
+        .gameplay         = static_cast<retropp::AtlasId>(33),
+        .multiplayerBuran = static_cast<retropp::AtlasId>(44),
+    };
+    for (std::size_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+        atlas.palettes[ramp].font    = fontPaletteFor(ramp);
+        atlas.palettes[ramp].content = contentPaletteFor(ramp);
+    }
+    return atlas;
+}
+
+constexpr TileAtlas kAtlas = makeAtlas();
 
 // Where the empty cell resolves. Both regimes agree, which is the property test 2 of test_screen.cpp
 // pins from the data side.
@@ -145,13 +161,40 @@ TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
 
     // Each source carries its own sheet handle, and the two bit depths their own palettes.
     EXPECT_EQ(kirpich::render::resolveTile(0, TileSheet::GAMEPLAY, kAtlas),
-              (ResolvedTile{.atlas = kAtlas.font, .cell = 0, .palette = kAtlas.fontPalette}));
+              (ResolvedTile{.atlas = kAtlas.font, .cell = 0, .palette = fontPaletteFor(0)}));
     EXPECT_EQ(kirpich::render::resolveTile(kContentTileBase, TileSheet::COPYRIGHT_TITLE, kAtlas),
               (ResolvedTile{
-                  .atlas = kAtlas.copyrightTitle, .cell = 0, .palette = kAtlas.contentPalette}));
+                  .atlas = kAtlas.copyrightTitle, .cell = 0, .palette = contentPaletteFor(0)}));
     EXPECT_EQ(kirpich::render::resolveTile(kGameplayTileBase, TileSheet::GAMEPLAY, kAtlas),
               (ResolvedTile{
-                  .atlas = kAtlas.gameplay, .cell = 0, .palette = kAtlas.contentPalette}));
+                  .atlas = kAtlas.gameplay, .cell = 0, .palette = contentPaletteFor(0)}));
+}
+
+// ── Test 1b: EveryRampDrawsTheSameArtThroughItsOwnPalettes ──────────────────────────────────────────
+// A shade ramp changes which colours a cell resolves to and nothing else. Swept over every ramp and
+// over the whole index space, so a ramp that leaked into the art selection fails here.
+TEST(BackgroundBridge, EveryRampDrawsTheSameArtThroughItsOwnPalettes) {
+    for (std::uint8_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+        for (const TileSheet sheet :
+             {TileSheet::COPYRIGHT_TITLE, TileSheet::GAMEPLAY, TileSheet::MULTIPLAYER_BURAN}) {
+            for (int index = 0; index <= 0xFF; ++index) {
+                const auto i        = static_cast<std::uint8_t>(index);
+                const auto atRamp   = kirpich::render::resolveTile(i, sheet, kAtlas, ramp);
+                const auto atFirst  = kirpich::render::resolveTile(i, sheet, kAtlas, 0);
+                const bool isFont   = kirpich::render::locateTile(i, sheet).source ==
+                                    kirpich::render::TileSource::FONT;
+
+                EXPECT_EQ(atRamp.atlas, atFirst.atlas) << "ramp " << +ramp << " index " << index;
+                EXPECT_EQ(atRamp.cell, atFirst.cell) << "ramp " << +ramp << " index " << index;
+                EXPECT_EQ(atRamp.palette, isFont ? fontPaletteFor(ramp) : contentPaletteFor(ramp))
+                    << "ramp " << +ramp << " index " << index;
+            }
+        }
+    }
+
+    // A ramp the build does not offer clamps rather than reading past the set it has.
+    EXPECT_EQ(kirpich::render::resolveTile(0, TileSheet::GAMEPLAY, kAtlas, 200).palette,
+              fontPaletteFor(kirpich::render::kShadeRampCount - 1));
 }
 
 // ── Test 2: ComposeReadsTheVisibleWindowAndOnlyThat ─────────────────────────────────────────────────

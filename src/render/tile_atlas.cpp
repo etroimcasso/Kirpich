@@ -100,63 +100,74 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
                                             retropp::ContentKind::Tileset)
                                  .atlasId;
 
-    constexpr std::array<retropp::Rgba8, 2> fontShades{kShadeDarkest, kShadeLightest};
-    constexpr std::array<retropp::Rgba8, 4> contentShades{kShadeDarkest, kShadeDark, kShadeLight,
-                                                          kShadeLightest};
-    atlas.fontPalette    = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontShades));
-    atlas.contentPalette = renderer.uploadPalette(std::span<const retropp::Rgba8>(contentShades));
-
-    // The object ramps. Each is its background counterpart with the last entry - the one the decode's
-    // inversion puts the see-through colour at - made see-through.
+    // One set of palettes per shade ramp, all uploaded here. A ramp only changes what the four shades
+    // are, so each set is built the same way from its own four colours, and choosing a ramp later is
+    // choosing between handles rather than uploading anything.
     //
-    // The plain ramp is otherwise the background's: every colour keeps its own shade. The variant
-    // differs in one place, the second entry: the colour that is ordinarily the second-darkest is
-    // drawn at the lightest shade instead. That is the ramp the two dancers select, and it is why
+    // The object palettes are each the background counterpart with the last entry - the one the
+    // decode's inversion puts the see-through colour at - made see-through.
+    //
+    // The plain object ramp is otherwise the background's: every colour keeps its own shade. The
+    // variant differs in one place, the second entry: the colour that is ordinarily the second-darkest
+    // is drawn at the lightest shade instead. That is the ramp the two dancers select, and it is why
     // they read differently from their neighbours.
-    constexpr std::array<retropp::Rgba8, 2> fontSpriteShades{kShadeDarkest, kShadeTransparent};
-    constexpr std::array<retropp::Rgba8, 4> sprite0Shades{kShadeDarkest, kShadeDark, kShadeLight,
-                                                          kShadeTransparent};
-    constexpr std::array<retropp::Rgba8, 4> sprite1Shades{kShadeDarkest, kShadeLightest, kShadeLight,
-                                                          kShadeTransparent};
-    atlas.fontSpritePalette =
-        renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSpriteShades));
-    atlas.spritePalette0 = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite0Shades));
-    atlas.spritePalette1 = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite1Shades));
+    for (std::size_t i = 0; i < kShadeRampCount; ++i) {
+        const ShadeRamp& shades = kShadeRamps[i];
+
+        const std::array<retropp::Rgba8, 2> font{shades.darkest, shades.lightest};
+        const std::array<retropp::Rgba8, 4> content{shades.darkest, shades.dark, shades.light,
+                                                    shades.lightest};
+        const std::array<retropp::Rgba8, 2> fontSprite{shades.darkest, kShadeTransparent};
+        const std::array<retropp::Rgba8, 4> sprite0{shades.darkest, shades.dark, shades.light,
+                                                    kShadeTransparent};
+        const std::array<retropp::Rgba8, 4> sprite1{shades.darkest, shades.lightest, shades.light,
+                                                    kShadeTransparent};
+
+        atlas.palettes[i] = RampPalettes{
+            .font       = renderer.uploadPalette(std::span<const retropp::Rgba8>(font)),
+            .content    = renderer.uploadPalette(std::span<const retropp::Rgba8>(content)),
+            .fontSprite = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSprite)),
+            .sprite0    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite0)),
+            .sprite1    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite1)),
+        };
+    }
 
     return atlas;
 }
 
-ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas) noexcept {
-    const TileLocation where = locateTile(index, sheet);
+ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
+                         std::uint8_t ramp) noexcept {
+    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    const TileLocation  where    = locateTile(index, sheet);
     switch (where.source) {
         case TileSource::FONT:
             return ResolvedTile{
-                .atlas = atlas.font, .cell = where.cell, .palette = atlas.fontPalette};
+                .atlas = atlas.font, .cell = where.cell, .palette = palettes.font};
         case TileSource::COPYRIGHT_TITLE:
             return ResolvedTile{
-                .atlas = atlas.copyrightTitle, .cell = where.cell, .palette = atlas.contentPalette};
+                .atlas = atlas.copyrightTitle, .cell = where.cell, .palette = palettes.content};
         case TileSource::MULTIPLAYER_BURAN:
             return ResolvedTile{.atlas   = atlas.multiplayerBuran,
                                 .cell    = where.cell,
-                                .palette = atlas.contentPalette};
+                                .palette = palettes.content};
         case TileSource::GAMEPLAY:
             break;
     }
-    return ResolvedTile{
-        .atlas = atlas.gameplay, .cell = where.cell, .palette = atlas.contentPalette};
+    return ResolvedTile{.atlas = atlas.gameplay, .cell = where.cell, .palette = palettes.content};
 }
 
 ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
-                               const TileAtlas& atlas) noexcept {
-    const TileLocation where = locateTile(index, sheet);
+                               const TileAtlas& atlas, std::uint8_t ramp) noexcept {
+    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    const TileLocation  where    = locateTile(index, sheet);
     // The font's two colours are the same under either object palette, so its art needs no variant.
     if (where.source == TileSource::FONT) {
         return ResolvedTile{
-            .atlas = atlas.font, .cell = where.cell, .palette = atlas.fontSpritePalette};
+            .atlas = atlas.font, .cell = where.cell, .palette = palettes.fontSprite};
     }
 
-    const retropp::PaletteId palette = palette1 ? atlas.spritePalette1 : atlas.spritePalette0;
-    retropp::AtlasId         source   = atlas.gameplay;
+    const retropp::PaletteId palette = palette1 ? palettes.sprite1 : palettes.sprite0;
+    retropp::AtlasId         source  = atlas.gameplay;
     if (where.source == TileSource::COPYRIGHT_TITLE) {
         source = atlas.copyrightTitle;
     } else if (where.source == TileSource::MULTIPLAYER_BURAN) {

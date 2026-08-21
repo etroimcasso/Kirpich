@@ -24,8 +24,14 @@
 #include <system_error>
 #include <vector>
 
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_keyboard.h>
+#include <SDL3/SDL_keycode.h>
+#include <SDL3/SDL_scancode.h>
+
 #include <spdlog/spdlog.h>
 
+#include <retropp/app_identity.h>
 #include <retropp/asset_registry.h>
 #include <retropp/clock.h>
 #include <retropp/draw_state.h>
@@ -41,12 +47,16 @@
 #include <retropp/vm.h>
 #include <retropp/windowed_host.h>
 
+#include <kirpich/action.h>
+
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
+#include "render/settings_overlay.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
+#include "state/settings.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/game_context.h"
@@ -59,6 +69,7 @@
 #include "systems/menu_screens.h"
 #include "systems/readouts.h"
 #include "systems/scoring.h"
+#include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -112,17 +123,59 @@ void configureAssetRoot() {
     }
 }
 
+// What the window itself reports about being fullscreen.
+//
+// A player can leave fullscreen without going through the game — macOS lets a fullscreen window be
+// dragged out of its Space, and every desktop has some equivalent. `Platform::fullscreen()` is the
+// surface that should answer this, and it is where the answer belongs; it currently reports what the
+// game last set rather than what the window is, so the game listens for SDL's own report instead.
+//
+// INTERIM, and only until the engine observes the change itself, which has been asked for upstream.
+// When it lands, this watch and the reconciliation in the frame both come out, and the setting reads
+// `platform.window().fullscreen()` instead.
+struct FullscreenWatch {
+    bool observed = false;  // what the window last reported
+    bool changed  = false;  // set when a report has not been acted on yet
+};
+
+// Called by SDL as it pumps, on the pumping thread — the same thread the frame runs on, so the flags
+// need no synchronisation. It records and returns; acting on the change is the frame's business.
+bool watchFullscreen(void* user, SDL_Event* event) {
+    auto& watch = *static_cast<FullscreenWatch*>(user);
+    if (event->type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN) {
+        watch.observed = true;
+        watch.changed  = true;
+    } else if (event->type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN) {
+        watch.observed = false;
+        watch.changed  = true;
+    }
+    return true;  // a watch observes; it never filters the event out
+}
+
 }  // namespace
 
 int main(int /*argc*/, char* /*argv*/[]) {
     spdlog::info("kirpich 0.1.0 — Retro++ engine {}", retropp::version());
 
+    const retropp::AppIdentity identity{.organization = std::string{kirpich::kSaveOrganization},
+                                        .application  = std::string{kirpich::kSaveApplication}};
+
+    // The player's own store, and the display choices they last made — read first, so the window can
+    // be opened the way they left it rather than at the engine's default and then jumping to it. The
+    // store is rooted at the directory the identity resolves to, which is the same directory a
+    // default-constructed store finds once the config is published; naming it here is what lets the
+    // config below be built complete and published once.
+    retropp::SaveStore saves = retropp::SaveStore::atPath(retropp::userDataDir(identity));
+    kirpich::Settings  settings;
+    kirpich::loadSettings(saves, settings);
+
     const retropp::EngineConfig config{
-        .identity = {.organization = std::string{kirpich::kSaveOrganization},
-                     .application  = std::string{kirpich::kSaveApplication}},
-        .window   = {.title = "Kirpich"},
-        .viewport = kViewport,
-        .timing   = retropp::TimingProfile::GameBoy,
+        .identity     = identity,
+        .window       = {.title = "Kirpich"},
+        .viewport     = kViewport,
+        .timing       = retropp::TimingProfile::GameBoy,
+        .enhancements = {.windowScale = settings.windowScale,
+                         .fullscreen  = settings.fullscreen},
     };
     retropp::EngineConfig::setActive(config);
 
@@ -157,7 +210,19 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     // ── The game ─────────────────────────────────────────────────────────────
     kirpich::systems::GameContext game;
-    retropp::SaveStore            saves;
+
+    // Put the display choices into effect. Fullscreen is asked for either way, so leaving it turns
+    // the window back on; the size is applied only when windowed, where it is the only thing that
+    // can be seen. The engine ignores a setter handed the value it already has, so this is also what
+    // the startup config above did and repeating it costs nothing.
+    const auto applySettings = [&platform](const kirpich::Settings& current) {
+        retropp::Window& window = platform.window();
+        window.fullscreen(current.fullscreen);
+        if (!current.fullscreen) {
+            window.size(retropp::PixelSize{kViewport.width * current.windowScale,
+                                           kViewport.height * current.windowScale});
+        }
+    };
 
     kirpich::systems::GameStateDispatcher dispatcher;
 
@@ -186,6 +251,25 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installHighScoreHandlers(
         dispatcher, [&saves](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
+        });
+
+    // The settings screen, reached from the title screen's third item and from a paused round. It
+    // edits the same value the window was opened from, and writes every change out as it is made.
+    kirpich::systems::installSettingsHandlers(
+        dispatcher,
+        kirpich::systems::SettingsWiring{
+            .settings = &settings,
+            .apply    = applySettings,
+            .save     = [&saves](const kirpich::Settings& current) {
+                kirpich::saveSettings(current, saves);
+            },
+            .saveScores =
+                [&saves](const kirpich::HighScoreState& scores) {
+                    kirpich::saveTopScores(scores, saves);
+                },
+            // Submitted rather than performed: the engine ends the run at the next frame boundary, so
+            // the frame the player answered on finishes drawing first.
+            .exit = [&loop] { loop.exitRequest(); },
         });
 
     kirpich::systems::SoundSystem sound;
@@ -229,13 +313,72 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // next's. See render/sprites.h.
     std::uint16_t simTicks = 0;
 
+    // Alt+Enter, and Cmd+Enter on macOS — what people reach for without being told. It cannot be an
+    // action binding: the engine's action map has no modifier concept, so the two keys are read from
+    // SDL directly, which is what this port does where the engine has no opinion (the other place is
+    // the first-start file dialog). Either modifier is accepted everywhere rather than one per
+    // platform — nothing else in the game wants that combination. It sets the same setting the
+    // screen's row sets and is written out the same way, so a player who goes fullscreen by chord and
+    // quits comes back fullscreen. Held across ticks so the chord fires on the press, not every frame
+    // the keys are down.
+    bool fullscreenChordHeld = false;
+    bool chordSwallowsEnter  = false;
+
+    // Seeded with what the window was opened as, then kept current by SDL's own reports.
+    FullscreenWatch fullscreen{.observed = settings.fullscreen};
+    SDL_AddEventWatch(watchFullscreen, &fullscreen);
+
     loop.simTick([&](const retropp::InputState& in) {
+        // Adopt whatever the window last reported, rather than trusting the setting to be whatever
+        // the game last set it to. Adopted rather than re-applied — the window is already in this
+        // state — and written out, because a player who left fullscreen by hand meant it as much as
+        // one who used the settings row.
+        if (fullscreen.changed) {
+            fullscreen.changed = false;
+
+            // Tell the window what it already is. The setter ignores a value equal to the last one
+            // set through it, and a change made outside the game never went through it — so without
+            // this the next toggle back is read as "no change" and swallowed, and the row stops
+            // working until it is toggled twice. Asserting the observed value costs nothing at the
+            // window (it is already in that state) and leaves the setter able to see the next change.
+            platform.window().fullscreen(fullscreen.observed);
+
+            if (settings.fullscreen != fullscreen.observed) {
+                settings.fullscreen = fullscreen.observed;
+                kirpich::saveSettings(settings, saves);
+            }
+        }
+
+        const bool enterDown = SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RETURN];
+        const bool modifier  = (SDL_GetModState() & (SDL_KMOD_ALT | SDL_KMOD_GUI)) != 0;
+        const bool chord     = modifier && enterDown;
+        if (chord && !fullscreenChordHeld) {
+            settings.fullscreen = !settings.fullscreen;
+            applySettings(settings);
+            kirpich::saveSettings(settings, saves);
+            chordSwallowsEnter = true;
+        }
+        fullscreenChordHeld = chord;
+        // The key has to come back up before Enter is the Start button again. Letting go of the
+        // modifier first would otherwise leave Enter still down and newly unmasked, which the game
+        // reads as a fresh press of Start.
+        if (!enterDown) {
+            chordSwallowsEnter = false;
+        }
+
         // The divider free-runs with engine time: one tick's worth of cycles per sim tick keeps it
         // ticking between the draws and fills that read it. Without this it freezes and the piece
         // sequence degenerates into a counter.
         vm.advanceClock(config.timing.cpuCyclesPerTick());
 
-        dispatcher.tick(game, kirpich::systems::heldActions(in));
+        // Enter is also the Start button. The chord is a chord, not a press of Start, so Start is
+        // withheld for as long as the chord's key is down — otherwise taking the game fullscreen
+        // also starts a round, pauses one, or skips a screen.
+        retropp::ActionSet held = kirpich::systems::heldActions(in);
+        if (chord || chordSwallowsEnter) {
+            held.set(retropp::actionId(kirpich::Action::Start), false);
+        }
+        dispatcher.tick(game, held);
 
         // The frame's last beat. The original runs these in its vertical-blank handler, after the
         // dispatch and the timers the dispatcher already ran (tetris.asm:214-249), and the line-clear
@@ -259,13 +402,20 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
-        kirpich::render::composeBackground(game.display, tiles, cells);
+        kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
-                                        tiles, sprites);
+                                        tiles, sprites, settings.shadeRamp);
 
         retropp::FrameDrawState frame;
         frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
         frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
+
+        // The settings screen's palette preview. It is colour rather than art, so it is drawn over
+        // the composited frame instead of through a tile, and only while that screen is showing.
+        if (game.flow.gameState == kirpich::GameState::SETTINGS) {
+            frame.regions = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
+                                                             kViewport.width);
+        }
         renderer.renderFrame(frame);
     });
 

@@ -74,7 +74,8 @@ bool onScreen(int x, int y) {
 }  // namespace
 
 void composeSprites(const EngineState& engine, const OamSourceTable& sources, TileSheet sheet,
-                    std::uint16_t tick, const TileAtlas& atlas, std::vector<retropp::Sprite>& sprites) {
+                    std::uint16_t tick, const TileAtlas& atlas,
+                    std::vector<retropp::Sprite>& sprites, std::uint8_t ramp) {
     sprites.clear();
     sprites.reserve(engine.oam.size());
 
@@ -88,7 +89,7 @@ void composeSprites(const EngineState& engine, const OamSourceTable& sources, Ti
         }
 
         const OamSource& src = sources.entries[i];
-        const ResolvedTile art = resolveSpriteTile(entry.tile, sheet, entry.palette1, atlas);
+        const ResolvedTile art = resolveSpriteTile(entry.tile, sheet, entry.palette1, atlas, ramp);
 
         sprites.push_back(retropp::Sprite{
             .key = src.drawn ? drawnKey(src, tick) : directKey(i, tick),

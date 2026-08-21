@@ -8,6 +8,17 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-21
+
+- **Settings screen** ⬜ → ✅. A player can choose how the game is shown and what it is drawn in:
+  fullscreen, the window size, one of twelve colour palettes, an erase of the high-score tables, and a
+  way to quit. It is reached from a third item on the title screen and from a paused round, and it
+  returns a paused round exactly as it was. The choices persist in their own save document beside the
+  top scores and are read before the window is opened. Alt+Enter — Cmd+Enter on macOS — sets fullscreen
+  from anywhere, and leaving fullscreen from outside the game is noticed and adopted.
+
+---
+
 ## 2026-08-20
 
 - **Boot path and init quirks** ⬜ → ✅. The machine now starts from the original's startup routine

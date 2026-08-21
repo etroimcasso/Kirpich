@@ -2,8 +2,9 @@
 
 // The main loop's state ID. Every frame, MainLoop reads this byte and jumps through a 55-entry
 // pointer table to the handler for the current state; the handler runs one frame's worth of that
-// state and may write a new value here to transition. The 54 values below are the labelled
-// handlers (upstream GameState_00..GameState_35, contiguous $00..$35).
+// state and may write a new value here to transition. The first 54 values below are the labelled
+// handlers (upstream GameState_00..GameState_35, contiguous $00..$35); the four after them are the
+// port's own screens, which the cartridge has no counterpart for.
 //
 // The values are transcribed from the dispatch table; the names are port-authored from the
 // upstream jump-table comments, because the disassembly labels carry no name beyond their hex
@@ -73,6 +74,15 @@ enum class GameState : uint8_t {
     END_OF_BONUS_SCENE       = 0x33,  // End of bonus scene
     GAME_OVER_TO_BONUS       = 0x34,  // Game over screen leading to bonus ending
     COPYRIGHT_SCREEN_SKIPPABLE = 0x35,  // Copyright screen, but skippable
+
+    // ── The port's own states ──────────────────────────────────────────────────────────────────
+    // Screens the cartridge never had. The byte holds 0..255 and the cartridge names 54 of them, so
+    // the rest are free; these start at $40 rather than at the first unused value so that "from $40
+    // up" is all anyone has to remember about where the port's own range begins.
+    INIT_SETTINGS      = 0x40,  // Lay out the settings screen
+    SETTINGS           = 0x41,  // Settings screen
+    INIT_RESET_CONFIRM = 0x42,  // Lay out the erase-scores confirm
+    RESET_CONFIRM      = 0x43,  // Erase-scores confirm
 };
 
 }  // namespace kirpich
