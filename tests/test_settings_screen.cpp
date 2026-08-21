@@ -51,7 +51,8 @@ constexpr std::size_t kPaletteRow = 11;
 constexpr std::size_t kExitRow  = 14;  // the last row of the first page
 constexpr std::size_t kResetRow = 5;   // the only row of the second page
 constexpr std::size_t kLabelCol = 3;
-constexpr std::size_t kValueCol = 15;
+constexpr std::size_t kValueStart = kirpich::systems::kOptionValueCol;  // values start here
+constexpr std::size_t kValueEnd   = kirpich::systems::kOptionValueEnd;
 constexpr std::size_t kCursorCol = 1;
 constexpr std::size_t kScreenRows = 18;
 constexpr std::size_t kScreenCols = 20;
@@ -199,17 +200,21 @@ TEST(SettingsScreen, PaintedLayoutIsExact) {
                  {C::LETTER_P, C::LETTER_A, C::LETTER_L, C::LETTER_E, C::LETTER_T, C::LETTER_T,
                   C::LETTER_E});
 
-    expectGlyphs(map, kFullscreenRow, kValueCol, {C::LETTER_O, C::LETTER_F, C::LETTER_F});
-    expectGlyphs(map, kScaleRow, kValueCol, {C::DIGIT_4, C::LETTER_X});
+    // Every value starts in the same column, so the scroller rows read as one list.
+    expectGlyphs(map, kFullscreenRow, kValueStart, {C::LETTER_O, C::LETTER_F, C::LETTER_F});
+    expectGlyphs(map, kScaleRow, kValueStart, {C::DIGIT_4, C::LETTER_X});
+    EXPECT_EQ(map[kPaletteRow][kValueStart], static_cast<std::uint8_t>(C::DIGIT_1));
 
-    // The palette row is a scroller: only its number is text. The cells its arrows occupy are left
-    // empty, because the arrows are shapes the render bridge draws over the frame. The number is
-    // right-aligned across two cells, so ramp one reads as a blank tens cell and a 1.
-    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteValueCol], kSpace);
-    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteValueCol + 1],
-              static_cast<std::uint8_t>(C::DIGIT_1));
-    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteLeftArrowCol], kSpace);
-    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteRightArrowCol], kSpace);
+    // A shorter value leaves the cells after it empty rather than shifting where it starts.
+    EXPECT_EQ(map[kScaleRow][kValueEnd], kSpace);
+    EXPECT_EQ(map[kPaletteRow][kValueStart + 1], kSpace);
+    EXPECT_EQ(map[kPaletteRow][kValueEnd], kSpace);
+
+    // The arrows are objects, so no row writes anything into the cells they sit in.
+    for (const std::size_t row : {kFullscreenRow, kScaleRow, kPaletteRow}) {
+        EXPECT_EQ(map[row][kirpich::systems::kOptionLeftArrowCol], kSpace) << "row " << row;
+        EXPECT_EQ(map[row][kirpich::systems::kOptionRightArrowCol], kSpace) << "row " << row;
+    }
 
     expectGlyphs(map, kExitRow, kLabelCol,
                  {C::LETTER_E, C::LETTER_X, C::LETTER_I, C::LETTER_T, C::SPACE, C::LETTER_G,
@@ -222,15 +227,13 @@ TEST(SettingsScreen, PaintedLayoutIsExact) {
     // Everything the screen did not write is empty. The written spans are excluded by extent.
     const auto written = [](std::size_t row, std::size_t col) {
         if (row == kTitleRow) return col >= kTitleCol && col < kTitleCol + 10;
+        const bool valueField = col >= kirpich::systems::kOptionValueCol &&
+                                col <= kirpich::systems::kOptionValueEnd;
         if (row == kFullscreenRow || row == kScaleRow) {
-            return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 10) ||
-                   (col >= kValueCol && col < kValueCol + 3);
+            return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 10) || valueField;
         }
         if (row == kPaletteRow) {
-            return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 7) ||
-                   (col >= kirpich::systems::kPaletteValueCol &&
-                    col < kirpich::systems::kPaletteValueCol +
-                              kirpich::systems::kPaletteValueWidth);
+            return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 7) || valueField;
         }
         if (row == kExitRow) return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 9);
         return false;
@@ -326,9 +329,9 @@ TEST(SettingsScreen, FullscreenRowTogglesAndFiresBothSeams) {
     EXPECT_TRUE(probe.lastApplied.fullscreen);
     EXPECT_EQ(probe.applied, 1);
     EXPECT_EQ(probe.saved, 1);
-    expectGlyphs(game.display.map, kFullscreenRow, kValueCol, {C::LETTER_O, C::LETTER_N});
+    expectGlyphs(game.display.map, kFullscreenRow, kValueStart, {C::LETTER_O, C::LETTER_N});
     // The third cell of the field must be blanked, or "off" would show through as "onf".
-    EXPECT_EQ(game.display.map[kFullscreenRow][kValueCol + 2], kSpace);
+    EXPECT_EQ(game.display.map[kFullscreenRow][kValueEnd], kSpace);
 
     game.audioCues = kirpich::systems::AudioCues{};
     press(game, {Action::MenuRight});  // already on
@@ -341,7 +344,7 @@ TEST(SettingsScreen, FullscreenRowTogglesAndFiresBothSeams) {
     kirpich::systems::settingsScreen(game, wiring);
     EXPECT_FALSE(probe.settings.fullscreen);
     EXPECT_EQ(probe.applied, 2);
-    expectGlyphs(game.display.map, kFullscreenRow, kValueCol,
+    expectGlyphs(game.display.map, kFullscreenRow, kValueStart,
                  {C::LETTER_O, C::LETTER_F, C::LETTER_F});
 }
 
@@ -362,9 +365,9 @@ TEST(SettingsScreen, WindowScaleRowStepsAndStops) {
         press(game, {Action::MenuRight});
         kirpich::systems::settingsScreen(game, wiring);
         EXPECT_EQ(probe.settings.windowScale, scale + 1);
-        EXPECT_EQ(game.display.map[kScaleRow][kValueCol],
+        EXPECT_EQ(game.display.map[kScaleRow][kValueStart],
                   static_cast<std::uint8_t>(CharTile::DIGIT_0) + (scale + 1));
-        EXPECT_EQ(game.display.map[kScaleRow][kValueCol + 1],
+        EXPECT_EQ(game.display.map[kScaleRow][kValueStart + 1],
                   static_cast<std::uint8_t>(CharTile::LETTER_X));
     }
 
@@ -402,8 +405,8 @@ TEST(SettingsScreen, PaletteRowScrollsEveryRamp) {
     kirpich::systems::settingsScreen(game, wiring);
     ASSERT_EQ(game.screens.settingsRow, SettingsRow::SHADE_RAMP);
 
-    const std::size_t tens  = kirpich::systems::kPaletteValueCol;
-    const std::size_t units = tens + 1;
+    const std::size_t tens  = kValueStart;      // a two-digit number starts here
+    const std::size_t units = kValueStart + 1;
     const auto        digit = [](int value) {
         return static_cast<std::uint8_t>(static_cast<std::uint8_t>(CharTile::DIGIT_0) + value);
     };
@@ -415,11 +418,14 @@ TEST(SettingsScreen, PaletteRowScrollsEveryRamp) {
         EXPECT_EQ(probe.settings.shadeRamp, ramp + 1);
 
         const int number = ramp + 2;  // counted from one
-        EXPECT_EQ(game.display.map[kPaletteRow][tens],
-                  number >= 10 ? digit(number / 10) : kSpace)
-            << "tens cell at ramp number " << number;
-        EXPECT_EQ(game.display.map[kPaletteRow][units], digit(number % 10))
-            << "units cell at ramp number " << number;
+        if (number >= 10) {
+            EXPECT_EQ(game.display.map[kPaletteRow][tens], digit(number / 10)) << number;
+            EXPECT_EQ(game.display.map[kPaletteRow][units], digit(number % 10)) << number;
+        } else {
+            // A single digit starts where a double one does, and leaves the cell after it empty.
+            EXPECT_EQ(game.display.map[kPaletteRow][tens], digit(number)) << number;
+            EXPECT_EQ(game.display.map[kPaletteRow][units], kSpace) << number;
+        }
     }
 
     const int appliedAtTop = probe.applied;
@@ -459,10 +465,12 @@ TEST(SettingsScreen, ScrollArrowsAreTheGamesOwnSelector) {
 
     game.screens.settingsRow = SettingsRow::SHADE_RAMP;
 
+    // Two entries per row, in row order — the palette row is the third, so it takes the third pair.
+    constexpr std::size_t kPaletteLeft  = 2 * static_cast<std::size_t>(SettingsRow::SHADE_RAMP);
     const auto arrows = [&] {
         press(game, {});
         kirpich::systems::settingsScreen(game, wiring);
-        return std::pair{game.engine.oam[0], game.engine.oam[1]};
+        return std::pair{game.engine.oam[kPaletteLeft], game.engine.oam[kPaletteLeft + 1]};
     };
 
     // The first ramp has nowhere to go left.
@@ -495,6 +503,73 @@ TEST(SettingsScreen, ScrollArrowsAreTheGamesOwnSelector) {
     press(game, {Action::Back});
     kirpich::systems::settingsScreen(game, wiring);
     EXPECT_EQ(game.display.sheet, kirpich::TileSheet::GAMEPLAY) << "the caller's art comes back";
+}
+
+// (6d) Every row holding a choice carries arrows, each with its own end stops, and the rows that are
+// actions carry none — so what a player can scroll is visible without pressing anything.
+TEST(SettingsScreen, EveryChoiceRowCarriesItsOwnArrows) {
+    constexpr std::uint8_t kSelectorTile = 0x58;
+
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+    openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+    // Two entries per row, in row order.
+    const auto arrowsFor = [&](SettingsRow row) {
+        const auto entry = 2 * static_cast<std::size_t>(row);
+        return std::pair{game.engine.oam[entry], game.engine.oam[entry + 1]};
+    };
+    const auto repaint = [&] {
+        press(game, {});
+        kirpich::systems::settingsScreen(game, wiring);
+    };
+
+    // Fullscreen off: it can only be turned on, so only the right arrow is there. On: the reverse.
+    probe.settings.fullscreen = false;
+    repaint();
+    auto [fsLeft, fsRight] = arrowsFor(SettingsRow::FULLSCREEN);
+    EXPECT_EQ(fsLeft, kirpich::OamEntry{}) << "off cannot go further off";
+    EXPECT_EQ(fsRight.tile, kSelectorTile);
+
+    probe.settings.fullscreen = true;
+    repaint();
+    std::tie(fsLeft, fsRight) = arrowsFor(SettingsRow::FULLSCREEN);
+    EXPECT_EQ(fsLeft.tile, kSelectorTile);
+    EXPECT_TRUE(fsLeft.xflip);
+    EXPECT_EQ(fsRight, kirpich::OamEntry{}) << "on cannot go further on";
+
+    // The size row stops at both ends of its range and carries both arrows between them.
+    probe.settings.windowScale = kirpich::kMinWindowScale;
+    repaint();
+    auto [szLeft, szRight] = arrowsFor(SettingsRow::WINDOW_SCALE);
+    EXPECT_EQ(szLeft, kirpich::OamEntry{});
+    EXPECT_EQ(szRight.tile, kSelectorTile);
+
+    probe.settings.windowScale = kirpich::kMaxWindowScale;
+    repaint();
+    std::tie(szLeft, szRight) = arrowsFor(SettingsRow::WINDOW_SCALE);
+    EXPECT_EQ(szLeft.tile, kSelectorTile);
+    EXPECT_EQ(szRight, kirpich::OamEntry{});
+
+    probe.settings.windowScale = kirpich::kMinWindowScale + 1;
+    repaint();
+    std::tie(szLeft, szRight) = arrowsFor(SettingsRow::WINDOW_SCALE);
+    EXPECT_EQ(szLeft.tile, kSelectorTile);
+    EXPECT_EQ(szRight.tile, kSelectorTile);
+
+    // The two rows that act rather than choose carry no arrows on either page.
+    for (const SettingsRow row : {SettingsRow::EXIT_GAME, SettingsRow::RESET_SCORES}) {
+        game.screens.settingsRow = row;
+        repaint();
+        const auto [left, right] = arrowsFor(row);
+        EXPECT_EQ(left, kirpich::OamEntry{}) << "an action has nothing to scroll";
+        EXPECT_EQ(right, kirpich::OamEntry{}) << "an action has nothing to scroll";
+    }
+
+    // All three arrow columns line up, and every value ends on the same cell.
+    EXPECT_LT(kirpich::systems::kOptionLeftArrowCol, kirpich::systems::kOptionValueCol);
+    EXPECT_LT(kirpich::systems::kOptionValueEnd, kirpich::systems::kOptionRightArrowCol);
 }
 
 // (7) Only the reset row acts on Confirm and Start; the two value rows ignore both, so a player

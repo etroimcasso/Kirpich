@@ -23,8 +23,8 @@ using kirpich::render::TileAtlas;
 
 constexpr int kViewportWidth = 160;
 
-// A shape's vertex count says what it is: three for an arrow, four for a preview square.
-constexpr std::size_t kArrowPoints  = 3;
+// A shape's vertex count says what it is. Only the preview squares are shapes now — every arrow on
+// the screen is the game's own selector tile, drawn as an object or a sprite.
 constexpr std::size_t kSquarePoints = 4;
 
 std::size_t countWith(const std::vector<retropp::Region>& regions, std::size_t points) {
@@ -39,6 +39,38 @@ ScreenUiState on(SettingsRow row) {
     ScreenUiState ui;
     ui.settingsRow = row;
     return ui;
+}
+
+// (0) Every ramp runs dark to light, which is what the whole scheme rests on: the art stores a sample
+// per pixel and the ramp says what that sample is worth, so a ramp whose shades are out of order
+// draws the game inverted or muddy. Swept over every ramp the build offers, so authoring a new one
+// out of order fails here rather than on screen.
+TEST(ShadeRamps, EveryRampRunsDarkToLight) {
+    const auto luminance = [](retropp::Rgba8 c) {
+        return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+    };
+
+    for (std::uint8_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
+        const auto colours = kirpich::render::rampColours(ramp);
+        for (std::size_t i = 0; i + 1 < colours.size(); ++i) {
+            EXPECT_LT(luminance(colours[i]), luminance(colours[i + 1]))
+                << "ramp " << (ramp + 1) << ", shade " << i << " is not darker than shade "
+                << (i + 1);
+        }
+    }
+}
+
+// (0b) The default is the first ramp, and it is the greyscale the hardware's own shades map to — so a
+// player who never opens the settings screen sees what the game always looked like.
+TEST(ShadeRamps, DefaultIsTheHardwareGreyscale) {
+    EXPECT_EQ(kirpich::render::kDefaultShadeRamp, 0);
+    const auto grey = kirpich::render::rampColours(kirpich::render::kDefaultShadeRamp);
+    for (const retropp::Rgba8 shade : grey) {
+        EXPECT_EQ(shade.r, shade.g) << "the default ramp must be neutral";
+        EXPECT_EQ(shade.g, shade.b) << "the default ramp must be neutral";
+    }
+    EXPECT_EQ(grey.front().r, 0x00);
+    EXPECT_EQ(grey.back().r, 0xFF);
 }
 
 // (1) The preview strip is the chosen ramp's four colours, in ramp order, opaque — and the squares
