@@ -35,6 +35,7 @@ add_library(kirpich-lib STATIC
     render/tile_atlas.cpp
     render/background.cpp
     render/sprites.cpp
+    render/settings_overlay.cpp
     vm/piece_random.cpp
     vm/garbage_fill.cpp
 )

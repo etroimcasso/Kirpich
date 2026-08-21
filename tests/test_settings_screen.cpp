@@ -15,6 +15,7 @@
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
+#include "render/palettes.h"
 #include "retropp/input.h"
 #include "state/display_state.h"
 #include "state/high_score_state.h"
@@ -42,10 +43,12 @@ using kirpich::systems::SettingsWiring;
 
 // The layout the screen draws, pinned here so a move shows up as a test change rather than silently.
 constexpr std::size_t kTitleRow = 2;
-constexpr std::size_t kTitleCol = 6;
-constexpr std::size_t kFullscreenRow = 6;
+constexpr std::size_t kTitleCol = 5;  // "settings 1" - ten cells, centred in twenty
+constexpr std::size_t kFullscreenRow = 5;
 constexpr std::size_t kScaleRow = 8;
-constexpr std::size_t kResetRow = 10;
+constexpr std::size_t kPaletteRow = 11;
+constexpr std::size_t kExitRow  = 14;  // the last row of the first page
+constexpr std::size_t kResetRow = 5;   // the only row of the second page
 constexpr std::size_t kLabelCol = 3;
 constexpr std::size_t kValueCol = 15;
 constexpr std::size_t kCursorCol = 1;
@@ -183,32 +186,52 @@ TEST(SettingsScreen, PaintedLayoutIsExact) {
     const BackgroundMap& map = game.display.map;
 
     using C = CharTile;
+    // The header names the page as well as the screen; the font has no slash, so a space stands in.
     expectGlyphs(map, kTitleRow, kTitleCol,
                  {C::LETTER_S, C::LETTER_E, C::LETTER_T, C::LETTER_T, C::LETTER_I, C::LETTER_N,
-                  C::LETTER_G, C::LETTER_S});
+                  C::LETTER_G, C::LETTER_S, C::SPACE, C::DIGIT_1});
     expectGlyphs(map, kFullscreenRow, kLabelCol,
                  {C::LETTER_F, C::LETTER_U, C::LETTER_L, C::LETTER_L, C::LETTER_S, C::LETTER_C,
                   C::LETTER_R, C::LETTER_E, C::LETTER_E, C::LETTER_N});
     expectGlyphs(map, kScaleRow, kLabelCol, {C::LETTER_S, C::LETTER_I, C::LETTER_Z, C::LETTER_E});
-    expectGlyphs(map, kResetRow, kLabelCol,
-                 {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
-                  C::LETTER_S, C::LETTER_C, C::LETTER_O, C::LETTER_R, C::LETTER_E, C::LETTER_S});
+    expectGlyphs(map, kPaletteRow, kLabelCol,
+                 {C::LETTER_P, C::LETTER_A, C::LETTER_L, C::LETTER_E, C::LETTER_T, C::LETTER_T,
+                  C::LETTER_E});
 
     expectGlyphs(map, kFullscreenRow, kValueCol, {C::LETTER_O, C::LETTER_F, C::LETTER_F});
     expectGlyphs(map, kScaleRow, kValueCol, {C::DIGIT_4, C::LETTER_X});
 
+    // The palette row is a scroller: only its number is text. The cells its arrows occupy are left
+    // empty, because the arrows are shapes the render bridge draws over the frame. The number is
+    // right-aligned across two cells, so ramp one reads as a blank tens cell and a 1.
+    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteValueCol], kSpace);
+    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteValueCol + 1],
+              static_cast<std::uint8_t>(C::DIGIT_1));
+    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteLeftArrowCol], kSpace);
+    EXPECT_EQ(map[kPaletteRow][kirpich::systems::kPaletteRightArrowCol], kSpace);
+
+    expectGlyphs(map, kExitRow, kLabelCol,
+                 {C::LETTER_E, C::LETTER_X, C::LETTER_I, C::LETTER_T, C::SPACE, C::LETTER_G,
+                  C::LETTER_A, C::LETTER_M, C::LETTER_E});
+
     EXPECT_EQ(map[kFullscreenRow][kCursorCol], kCursor);
     EXPECT_EQ(map[kScaleRow][kCursorCol], kSpace);
-    EXPECT_EQ(map[kResetRow][kCursorCol], kSpace);
+    EXPECT_EQ(map[kExitRow][kCursorCol], kSpace);
 
     // Everything the screen did not write is empty. The written spans are excluded by extent.
     const auto written = [](std::size_t row, std::size_t col) {
-        if (row == kTitleRow) return col >= kTitleCol && col < kTitleCol + 8;
+        if (row == kTitleRow) return col >= kTitleCol && col < kTitleCol + 10;
         if (row == kFullscreenRow || row == kScaleRow) {
             return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 10) ||
                    (col >= kValueCol && col < kValueCol + 3);
         }
-        if (row == kResetRow) return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 12);
+        if (row == kPaletteRow) {
+            return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 7) ||
+                   (col >= kirpich::systems::kPaletteValueCol &&
+                    col < kirpich::systems::kPaletteValueCol +
+                              kirpich::systems::kPaletteValueWidth);
+        }
+        if (row == kExitRow) return col == kCursorCol || (col >= kLabelCol && col < kLabelCol + 9);
         return false;
     };
     for (std::size_t row = 0; row < kScreenRows; ++row) {
@@ -219,7 +242,9 @@ TEST(SettingsScreen, PaintedLayoutIsExact) {
     }
 }
 
-// (4) The cursor walks the three rows and stops at both ends. A move says so; an end stop does not.
+// (4) The cursor walks every row and stops at both ends, turning the page when it crosses between
+// them. A move says so; an end stop does not. The page turn is what the labels prove: crossing onto
+// the second page must lay the second page's labels out, not merely move the cursor.
 TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     GameContext game;
     Probe       probe;
@@ -237,17 +262,47 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
 
     step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::SHADE_RAMP);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+
+    step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::EXIT_GAME);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+    EXPECT_EQ(game.display.map[kExitRow][kCursorCol], kCursor);
+
+    // Down again crosses onto the second page: its label is laid out, the first page's are gone, and
+    // the header counts up.
+    step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
-    EXPECT_EQ(game.display.map[kResetRow][kCursorCol], kCursor);
+    {
+        using C = CharTile;
+        const BackgroundMap& map = game.display.map;
+        expectGlyphs(map, kResetRow, kLabelCol,
+                     {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
+                      C::LETTER_S, C::LETTER_C, C::LETTER_O, C::LETTER_R, C::LETTER_E, C::LETTER_S});
+        EXPECT_EQ(map[kResetRow][kCursorCol], kCursor);
+        EXPECT_EQ(map[kTitleRow][kTitleCol + 9], static_cast<std::uint8_t>(C::DIGIT_2));
+        // The first page's rows are not on this one.
+        EXPECT_EQ(map[kPaletteRow][kLabelCol], kSpace);
+        EXPECT_EQ(map[kExitRow][kLabelCol], kSpace);
+    }
 
     step(Action::MenuDown);  // the bottom end stop
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
 
-    step(Action::MenuUp);
-    step(Action::MenuUp);
+    // Back up, across the page boundary again, to the top.
+    for (int i = 0; i < 4; ++i) step(Action::MenuUp);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::FULLSCREEN);
+    {
+        using C = CharTile;
+        const BackgroundMap& map = game.display.map;
+        EXPECT_EQ(map[kTitleRow][kTitleCol + 9], static_cast<std::uint8_t>(C::DIGIT_1));
+        expectGlyphs(map, kExitRow, kLabelCol,
+                     {C::LETTER_E, C::LETTER_X, C::LETTER_I, C::LETTER_T, C::SPACE, C::LETTER_G,
+                      C::LETTER_A, C::LETTER_M, C::LETTER_E});
+    }
 
     step(Action::MenuUp);  // the top end stop
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::FULLSCREEN);
@@ -330,6 +385,59 @@ TEST(SettingsScreen, WindowScaleRowStepsAndStops) {
     kirpich::systems::settingsScreen(game, wiring);
     EXPECT_EQ(probe.settings.windowScale, kirpich::kMinWindowScale);
     EXPECT_EQ(probe.applied, appliedAtFloor) << "the floor is an end stop";
+}
+
+// (6b) The palette row scrolls through every ramp the build offers and stops at both ends. The
+// number is right-aligned across two cells, so it reads correctly either side of ten.
+TEST(SettingsScreen, PaletteRowScrollsEveryRamp) {
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+    openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+    press(game, {Action::MenuDown});
+    kirpich::systems::settingsScreen(game, wiring);
+    press(game, {Action::MenuDown});
+    kirpich::systems::settingsScreen(game, wiring);
+    ASSERT_EQ(game.screens.settingsRow, SettingsRow::SHADE_RAMP);
+
+    const std::size_t tens  = kirpich::systems::kPaletteValueCol;
+    const std::size_t units = tens + 1;
+    const auto        digit = [](int value) {
+        return static_cast<std::uint8_t>(static_cast<std::uint8_t>(CharTile::DIGIT_0) + value);
+    };
+
+    // Up through every ramp, checking the drawn number at each step.
+    for (std::uint8_t ramp = 0; ramp + 1 < kirpich::render::kShadeRampCount; ++ramp) {
+        press(game, {Action::MenuRight});
+        kirpich::systems::settingsScreen(game, wiring);
+        EXPECT_EQ(probe.settings.shadeRamp, ramp + 1);
+
+        const int number = ramp + 2;  // counted from one
+        EXPECT_EQ(game.display.map[kPaletteRow][tens],
+                  number >= 10 ? digit(number / 10) : kSpace)
+            << "tens cell at ramp number " << number;
+        EXPECT_EQ(game.display.map[kPaletteRow][units], digit(number % 10))
+            << "units cell at ramp number " << number;
+    }
+
+    const int appliedAtTop = probe.applied;
+    press(game, {Action::MenuRight});
+    kirpich::systems::settingsScreen(game, wiring);
+    EXPECT_EQ(probe.settings.shadeRamp, kirpich::render::kShadeRampCount - 1);
+    EXPECT_EQ(probe.applied, appliedAtTop) << "the last ramp is an end stop";
+
+    // All the way back down to the first.
+    for (std::uint8_t ramp = kirpich::render::kShadeRampCount - 1; ramp > 0; --ramp) {
+        press(game, {Action::MenuLeft});
+        kirpich::systems::settingsScreen(game, wiring);
+        EXPECT_EQ(probe.settings.shadeRamp, ramp - 1);
+    }
+    const int appliedAtBottom = probe.applied;
+    press(game, {Action::MenuLeft});
+    kirpich::systems::settingsScreen(game, wiring);
+    EXPECT_EQ(probe.settings.shadeRamp, 0);
+    EXPECT_EQ(probe.applied, appliedAtBottom) << "the first ramp is an end stop";
 }
 
 // (7) Only the reset row acts on Confirm and Start; the two value rows ignore both, so a player
@@ -479,6 +587,75 @@ TEST(SettingsScreen, ConfirmActsOnYesAndOnlyOnYes) {
         EXPECT_EQ(game.highScores.typeB[2][1][0].score, 6789u);
         EXPECT_EQ(probe.savedScores, 0);
         EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
+    }
+}
+
+// (10b) Exit is guarded by the same confirm, which asks about whichever row opened it. Yes ends the
+// run; no and Back do not, and neither does merely landing on the row.
+TEST(SettingsScreen, ExitIsGuardedByTheSameConfirm) {
+    using C = CharTile;
+
+    const auto openExitConfirm = [](GameContext& game, const SettingsWiring& wiring) {
+        game.screens.settingsRow = SettingsRow::EXIT_GAME;
+        press(game, {Action::Confirm});
+        kirpich::systems::settingsScreen(game, wiring);
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_RESET_CONFIRM)
+            << "exit must not end the run on a single press";
+        kirpich::systems::initResetConfirmScreen(game);
+    };
+
+    // The confirm asks about exiting, not about the scores.
+    {
+        GameContext game;
+        Probe       probe;
+        const auto  wiring = probe.wiring();
+        int         exits  = 0;
+        auto        wired  = wiring;
+        wired.exit         = [&exits] { ++exits; };
+
+        openFrom(game, wired, GameState::TITLE_SCREEN);
+        openExitConfirm(game, wired);
+
+        EXPECT_EQ(game.screens.pendingConfirm, kirpich::ConfirmAction::EXIT_GAME);
+        expectGlyphs(game.display.map, kConfirmRow1, 8, {C::LETTER_E, C::LETTER_X, C::LETTER_I,
+                                                          C::LETTER_T});
+        expectGlyphs(game.display.map, kConfirmRow2, 6,
+                     {C::LETTER_T, C::LETTER_H, C::LETTER_E, C::SPACE, C::LETTER_G, C::LETTER_A,
+                      C::LETTER_M, C::LETTER_E});
+
+        // No: the run continues and the screen comes back.
+        press(game, {Action::Confirm});
+        kirpich::systems::resetConfirmScreen(game, wired);
+        EXPECT_EQ(exits, 0);
+        EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
+
+        // Yes: the run is asked to end, exactly once, and the scores are untouched by it.
+        openExitConfirm(game, wired);
+        press(game, {Action::MenuRight});
+        kirpich::systems::resetConfirmScreen(game, wired);
+        press(game, {Action::Confirm});
+        kirpich::systems::resetConfirmScreen(game, wired);
+        EXPECT_EQ(exits, 1);
+        EXPECT_EQ(probe.savedScores, 0) << "exiting must not touch the score tables";
+        // The confirm stays up until the run ends. Going back to the settings screen first would
+        // show the player a screen they have just left, and then quit out of it.
+        EXPECT_EQ(game.flow.gameState, GameState::RESET_CONFIRM);
+        expectGlyphs(game.display.map, kConfirmRow1, 8,
+                     {C::LETTER_E, C::LETTER_X, C::LETTER_I, C::LETTER_T});
+    }
+
+    // A build with no exit wired simply has a row that does nothing - it must not crash.
+    {
+        GameContext game;
+        Probe       probe;
+        const auto  wiring = probe.wiring();  // .exit left empty
+        openFrom(game, wiring, GameState::TITLE_SCREEN);
+        openExitConfirm(game, wiring);
+        press(game, {Action::MenuRight});
+        kirpich::systems::resetConfirmScreen(game, wiring);
+        press(game, {Action::Confirm});
+        kirpich::systems::resetConfirmScreen(game, wiring);
+        EXPECT_EQ(game.flow.gameState, GameState::RESET_CONFIRM);
     }
 }
 

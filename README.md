@@ -43,7 +43,14 @@ routine rather than putting the game at its first screen by hand, and Start + Se
 mid-round — keeping the high-score tables and clearing everything else, exactly as the cartridge's own
 reset does, because the routine it jumps to skips the one clear those tables live in.
 
-What remains is two-player play, the palette effects, and the display filters.
+**There is a settings screen**, which the cartridge never had. It is reached from a third item on the
+title screen and from a paused round, and it holds fullscreen, the window size, twelve colour palettes
+with the chosen one previewed under the row, an erase of the high-score tables, and a way to quit —
+the last two behind a confirm. Your choices are kept beside your scores and read before the window
+opens, so a fullscreen game starts fullscreen. Alt+Enter — Cmd+Enter on macOS — toggles fullscreen from
+anywhere, and leaving fullscreen by dragging the window out of it is noticed too.
+
+What remains is two-player play and the display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
 ROM: the character map and the 22 static background screens, the composed sprites and their on-screen
@@ -92,6 +99,7 @@ The table below is kept honest as components land.
 | Launch scenes | **complete** — both bonus endings: the Buran a height-5 Type B win earns, and the rocket a 100 000-point Type A game earns |
 | Boot and reset | **complete** — the cartridge's startup routine, and the four-button reset chord, which keeps the high-score tables and clears the rest |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
+| Settings | **complete** — fullscreen, window size, twelve colour palettes, a guarded score erase and a guarded quit, saved beside the scores and applied before the window opens |
 | Attract-mode demo | **complete** — the title screen plays both recorded rounds to itself and alternates between them, feeding recorded input through the ordinary game |
 | Background rendering | **complete** — every screen's backdrop, the screen buffers the hardware keeps, the wipe and flash that live between them, and the paused screen |
 | Sprite rendering | **complete** — the falling piece, the preview, the menu cursors, and the ending's performers |

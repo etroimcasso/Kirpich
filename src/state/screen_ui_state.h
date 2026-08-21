@@ -26,15 +26,45 @@
 namespace kirpich {
 
 // The settings screen's option rows, in the order the cursor walks them.
+//
+// They span two pages: the display choices on the first, the two that end something on the second.
+// The walk itself is continuous - going down past the last row of a page turns to the next one, and
+// up past the first row turns back - so a page is where a row is drawn rather than a mode the player
+// has to switch between.
 enum class SettingsRow : std::uint8_t {
     FULLSCREEN   = 0,
     WINDOW_SCALE = 1,
-    RESET_SCORES = 2,
+    SHADE_RAMP   = 2,
+    EXIT_GAME    = 3,
+    RESET_SCORES = 4,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.
 inline constexpr std::uint8_t kSettingsRowCount =
     static_cast<std::uint8_t>(SettingsRow::RESET_SCORES) + 1;
+
+// How many rows the first page holds; the rest are on the second. Erasing the scores is the one that
+// sits apart, so the first page carries the rest.
+inline constexpr std::uint8_t kSettingsFirstPageRows = 4;
+inline constexpr std::uint8_t kSettingsPageCount     = 2;
+
+// Which page a row is drawn on, and where it sits within that page.
+[[nodiscard]] constexpr std::uint8_t settingsPageOf(SettingsRow row) noexcept {
+    return static_cast<std::uint8_t>(row) < kSettingsFirstPageRows ? 0 : 1;
+}
+[[nodiscard]] constexpr std::uint8_t settingsRowWithinPage(SettingsRow row) noexcept {
+    const auto index = static_cast<std::uint8_t>(row);
+    return index < kSettingsFirstPageRows
+               ? index
+               : static_cast<std::uint8_t>(index - kSettingsFirstPageRows);
+}
+
+// What the confirm screen is currently guarding. Both of its actions are ones a player cannot undo,
+// which is why neither happens without it.
+enum class ConfirmAction : std::uint8_t {
+    ERASE_SCORES = 0,
+    EXIT_GAME    = 1,
+};
 
 struct ScreenUiState {
     // Whether the title screen's cursor is on the settings item rather than the player-count pair.
@@ -46,9 +76,10 @@ struct ScreenUiState {
     SettingsRow settingsRow = SettingsRow::FULLSCREEN;
     bool        cursorVisible = true;
 
-    // The reset confirm's choice. It opens on "no" every time, so a player who reaches the screen by
-    // accident leaves it by pressing anything that acts.
-    bool confirmYes = false;
+    // The confirm's choice, and which of the two actions it is currently guarding. It opens on "no"
+    // every time, so a player who reaches it by accident leaves it by pressing anything that acts.
+    bool          confirmYes     = false;
+    ConfirmAction pendingConfirm = ConfirmAction::ERASE_SCORES;
 
     // The state to return to when the player leaves: the title screen, or the paused round the
     // screen was opened from.

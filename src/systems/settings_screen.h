@@ -29,6 +29,38 @@ namespace kirpich::systems {
 
 class GameStateDispatcher;
 
+// ── Where the drawn parts of the screen sit ───────────────────────────────────────────────────────
+//
+// Some of the screen is shape rather than text: the palette row's two scroll arrows, the preview
+// strip of the ramp they scroll through, and the arrow at the edge of a page that says another page
+// is there. The render bridge draws those (src/render/settings_overlay.h) and reads their geometry
+// from here, so the drawn parts and the written ones cannot drift apart.
+//
+// Cells, not pixels: (row, column) in the background map, the same units the rest of the screen uses.
+
+// An option row's place on its page. Every page lays its rows out the same way.
+inline constexpr std::size_t kSettingsFirstRow  = 5;
+inline constexpr std::size_t kSettingsRowStride = 3;
+
+[[nodiscard]] constexpr std::size_t settingsRowLine(SettingsRow row) noexcept {
+    return kSettingsFirstRow + kSettingsRowStride * settingsRowWithinPage(row);
+}
+
+// The palette row's scroller: an arrow, the number of the ramp in effect, an arrow - and the preview
+// strip on the line below it. The number is right-aligned across two cells, which is what a build
+// offering ten ramps or more needs and what a build offering fewer simply leaves half empty.
+inline constexpr std::size_t kPaletteLeftArrowCol  = 11;
+inline constexpr std::size_t kPaletteValueCol      = 13;
+inline constexpr std::size_t kPaletteValueWidth    = 2;
+inline constexpr std::size_t kPaletteRightArrowCol = 16;
+inline constexpr std::size_t kPaletteSwatchRow     = settingsRowLine(SettingsRow::SHADE_RAMP) + 1;
+
+// The page arrows: one at the foot of a page that has another below it, one at the head of a page
+// that has one above. Centred, so they read as belonging to the page rather than to a row.
+inline constexpr std::size_t kPageArrowCol      = 10;
+inline constexpr std::size_t kPageDownArrowRow  = 16;
+inline constexpr std::size_t kPageUpArrowRow    = 3;
+
 // Everything the settings screens need from outside the game state.
 //
 // `settings` is the live value the screen edits — the host owns it, because it outlives a reset and
@@ -37,10 +69,14 @@ class GameStateDispatcher;
 // persists the cleared tables when the confirm is answered yes. Every seam defaults to inert, so a
 // build that installs only the screens still runs.
 struct SettingsWiring {
-    Settings*                                settings = nullptr;
-    std::function<void(const Settings&)>     apply;
-    std::function<void(const Settings&)>     save;
+    Settings*                                  settings = nullptr;
+    std::function<void(const Settings&)>       apply;
+    std::function<void(const Settings&)>       save;
     std::function<void(const HighScoreState&)> saveScores;
+
+    // Ends the run. The confirm calls it once the player has answered yes; what ending the run means
+    // is the host's business, and a build without one simply has an Exit row that does nothing.
+    std::function<void()> exit;
 };
 
 // ── Opening ───────────────────────────────────────────────────────────────────────────────────────

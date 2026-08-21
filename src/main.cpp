@@ -24,6 +24,7 @@
 #include <system_error>
 #include <vector>
 
+#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_scancode.h>
@@ -49,6 +50,7 @@
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
+#include "render/settings_overlay.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
@@ -117,6 +119,35 @@ void configureAssetRoot() {
             "directory, which works but is not where your files belong.",
             error.what());
     }
+}
+
+// What the window itself reports about being fullscreen.
+//
+// A player can leave fullscreen without going through the game — macOS lets a fullscreen window be
+// dragged out of its Space, and every desktop has some equivalent. `Platform::fullscreen()` is the
+// surface that should answer this, and it is where the answer belongs; it currently reports what the
+// game last set rather than what the window is, so the game listens for SDL's own report instead.
+//
+// INTERIM, and only until the engine observes the change itself, which has been asked for upstream.
+// When it lands, this watch and the reconciliation in the frame both come out, and the setting reads
+// `platform.window().fullscreen()` instead.
+struct FullscreenWatch {
+    bool observed = false;  // what the window last reported
+    bool changed  = false;  // set when a report has not been acted on yet
+};
+
+// Called by SDL as it pumps, on the pumping thread — the same thread the frame runs on, so the flags
+// need no synchronisation. It records and returns; acting on the change is the frame's business.
+bool watchFullscreen(void* user, SDL_Event* event) {
+    auto& watch = *static_cast<FullscreenWatch*>(user);
+    if (event->type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN) {
+        watch.observed = true;
+        watch.changed  = true;
+    } else if (event->type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN) {
+        watch.observed = false;
+        watch.changed  = true;
+    }
+    return true;  // a watch observes; it never filters the event out
 }
 
 }  // namespace
@@ -234,6 +265,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 [&saves](const kirpich::HighScoreState& scores) {
                     kirpich::saveTopScores(scores, saves);
                 },
+            // Submitted rather than performed: the engine ends the run at the next frame boundary, so
+            // the frame the player answered on finishes drawing first.
+            .exit = [&loop] { loop.exitRequest(); },
         });
 
     kirpich::systems::SoundSystem sound;
@@ -287,7 +321,31 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // the keys are down.
     bool fullscreenChordHeld = false;
 
+    // Seeded with what the window was opened as, then kept current by SDL's own reports.
+    FullscreenWatch fullscreen{.observed = settings.fullscreen};
+    SDL_AddEventWatch(watchFullscreen, &fullscreen);
+
     loop.simTick([&](const retropp::InputState& in) {
+        // Adopt whatever the window last reported, rather than trusting the setting to be whatever
+        // the game last set it to. Adopted rather than re-applied — the window is already in this
+        // state — and written out, because a player who left fullscreen by hand meant it as much as
+        // one who used the settings row.
+        if (fullscreen.changed) {
+            fullscreen.changed = false;
+
+            // Tell the window what it already is. The setter ignores a value equal to the last one
+            // set through it, and a change made outside the game never went through it — so without
+            // this the next toggle back is read as "no change" and swallowed, and the row stops
+            // working until it is toggled twice. Asserting the observed value costs nothing at the
+            // window (it is already in that state) and leaves the setter able to see the next change.
+            platform.window().fullscreen(fullscreen.observed);
+
+            if (settings.fullscreen != fullscreen.observed) {
+                settings.fullscreen = fullscreen.observed;
+                kirpich::saveSettings(settings, saves);
+            }
+        }
+
         const bool modifier = (SDL_GetModState() & (SDL_KMOD_ALT | SDL_KMOD_GUI)) != 0;
         const bool chord = modifier && SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RETURN];
         if (chord && !fullscreenChordHeld) {
@@ -326,13 +384,20 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
-        kirpich::render::composeBackground(game.display, tiles, cells);
+        kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
-                                        tiles, sprites);
+                                        tiles, sprites, settings.shadeRamp);
 
         retropp::FrameDrawState frame;
         frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
         frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
+
+        // The settings screen's palette preview. It is colour rather than art, so it is drawn over
+        // the composited frame instead of through a tile, and only while that screen is showing.
+        if (game.flow.gameState == kirpich::GameState::SETTINGS) {
+            frame.regions = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
+                                                             kViewport.width);
+        }
         renderer.renderFrame(frame);
     });
 

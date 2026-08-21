@@ -50,11 +50,18 @@ TileAtlas labelledAtlas() {
     atlas.copyrightTitle = retropp::AtlasId{2};
     atlas.gameplay = retropp::AtlasId{3};
     atlas.multiplayerBuran = retropp::AtlasId{4};
-    atlas.fontPalette = retropp::PaletteId{10};
-    atlas.contentPalette = retropp::PaletteId{11};
-    atlas.fontSpritePalette = retropp::PaletteId{12};
-    atlas.spritePalette0 = retropp::PaletteId{13};
-    atlas.spritePalette1 = retropp::PaletteId{14};
+    // Every ramp gets its own recognisable handles, so a cell drawn through the wrong ramp is as
+    // loud as one drawn from the wrong sheet.
+    for (std::size_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+        const auto id = [ramp](int base) {
+            return static_cast<retropp::PaletteId>(base + ramp * 10);
+        };
+        atlas.palettes[ramp].font       = id(10);
+        atlas.palettes[ramp].content    = id(11);
+        atlas.palettes[ramp].fontSprite = id(12);
+        atlas.palettes[ramp].sprite0    = id(13);
+        atlas.palettes[ramp].sprite1    = id(14);
+    }
     return atlas;
 }
 
@@ -125,13 +132,13 @@ TEST(SpriteBridge, ArtAndPaletteSelection) {
     const Row rows[] = {
         // The font block is the first 39 indices under either regime, and its two colours are the
         // same through both object palettes, so one palette serves whichever is selected.
-        {0x00, TileSheet::GAMEPLAY, false, atlas.font, atlas.fontSpritePalette},
-        {0x00, TileSheet::GAMEPLAY, true, atlas.font, atlas.fontSpritePalette},
-        {0x26, TileSheet::COPYRIGHT_TITLE, false, atlas.font, atlas.fontSpritePalette},
+        {0x00, TileSheet::GAMEPLAY, false, atlas.font, atlas.palettes[0].fontSprite},
+        {0x00, TileSheet::GAMEPLAY, true, atlas.font, atlas.palettes[0].fontSprite},
+        {0x26, TileSheet::COPYRIGHT_TITLE, false, atlas.font, atlas.palettes[0].fontSprite},
         // Content art takes the object palette the attribute names.
-        {0x84, TileSheet::GAMEPLAY, false, atlas.gameplay, atlas.spritePalette0},
-        {0x84, TileSheet::GAMEPLAY, true, atlas.gameplay, atlas.spritePalette1},
-        {0x28, TileSheet::COPYRIGHT_TITLE, false, atlas.copyrightTitle, atlas.spritePalette0},
+        {0x84, TileSheet::GAMEPLAY, false, atlas.gameplay, atlas.palettes[0].sprite0},
+        {0x84, TileSheet::GAMEPLAY, true, atlas.gameplay, atlas.palettes[0].sprite1},
+        {0x28, TileSheet::COPYRIGHT_TITLE, false, atlas.copyrightTitle, atlas.palettes[0].sprite0},
     };
 
     for (const Row& row : rows) {

@@ -29,12 +29,14 @@
 // to the empty cell here rather than throwing: the original draws whatever the block happens to
 // contain, and a screen the port has not finished should look wrong, not crash.
 
+#include <array>
 #include <cstdint>
 
 #include <retropp/image.h>     // AtlasId
 #include <retropp/palette.h>   // PaletteId, Rgba8
 #include <retropp/renderer.h>  // Renderer
 
+#include "render/palettes.h"      // ShadeRamp, kShadeRampCount
 #include "state/display_state.h"  // TileSheet
 
 namespace kirpich::render {
@@ -73,7 +75,9 @@ inline constexpr std::uint8_t kGameplayTileBase = 0x30;
 // Tiles of the copyright-and-title art that survive under the gameplay regime, at kContentTileBase.
 inline constexpr std::uint16_t kCarriedCopyrightTiles = kGameplayTileBase - kContentTileBase;  // 9
 
-// Resolve a tile index to its art under a regime. Pure - no renderer, no upload, no device.
+// Resolve a tile index to its art under a regime. Pure - no renderer, no upload, no device. A shade
+// ramp does not enter into it: a ramp changes the colours a sample means, never which art a tile
+// index names.
 [[nodiscard]] TileLocation locateTile(std::uint8_t index, TileSheet sheet) noexcept;
 
 // The uploaded sheets and the palettes their samples index through.
@@ -102,6 +106,18 @@ inline constexpr std::uint16_t kCarriedCopyrightTiles = kGameplayTileBase - kCon
 // so one font palette serves whichever is selected.
 inline constexpr retropp::Rgba8 kShadeTransparent{.r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00};
 
+// The five palettes one shade ramp produces. A ramp changes what the four shades are; these are the
+// five ways the renderer needs them arranged, and every one of them is rebuilt per ramp.
+struct RampPalettes {
+    retropp::PaletteId font{};     // two entries: the darkest shade and the lightest
+    retropp::PaletteId content{};  // four entries: the whole ramp, darkest first
+
+    // The object palettes. Same ramps, last entry see-through.
+    retropp::PaletteId fontSprite{};  // font art drawn as an object; serves both object palettes
+    retropp::PaletteId sprite0{};     // the plain ramp
+    retropp::PaletteId sprite1{};     // the variant the dancers select
+};
+
 struct TileAtlas {
     retropp::AtlasId font{};
     retropp::AtlasId copyrightTitle{};
@@ -110,20 +126,17 @@ struct TileAtlas {
     // link-cable screens load the same sheet.
     retropp::AtlasId multiplayerBuran{};
 
-    retropp::PaletteId fontPalette{};     // two entries: black, white
-    retropp::PaletteId contentPalette{};  // four entries: the DMG shade ramp, darkest first
-
-    // The object palettes. Same ramps, last entry see-through.
-    retropp::PaletteId fontSpritePalette{};  // font art drawn as an object; serves both object palettes
-    retropp::PaletteId spritePalette0{};     // the plain ramp
-    retropp::PaletteId spritePalette1{};     // the variant the dancers select
+    // One set per shade ramp, all uploaded at startup. Switching ramps is choosing between them, the
+    // same way choosing a tile sheet is: nothing is uploaded or released when a player changes one.
+    std::array<RampPalettes, kShadeRampCount> palettes{};
 };
 
-// The four DMG shades, darkest first - the order the decode's inversion produces.
-inline constexpr retropp::Rgba8 kShadeDarkest{.r = 0x00, .g = 0x00, .b = 0x00};
-inline constexpr retropp::Rgba8 kShadeDark{.r = 0x55, .g = 0x55, .b = 0x55};
-inline constexpr retropp::Rgba8 kShadeLight{.r = 0xAA, .g = 0xAA, .b = 0xAA};
-inline constexpr retropp::Rgba8 kShadeLightest{.r = 0xFF, .g = 0xFF, .b = 0xFF};
+// The four DMG shades, darkest first - the order the decode's inversion produces. They are the first
+// shade ramp (src/render/palettes.h), which is what a build draws in until a player picks another.
+inline constexpr retropp::Rgba8 kShadeDarkest  = kShadeRamps[kDefaultShadeRamp].darkest;
+inline constexpr retropp::Rgba8 kShadeDark     = kShadeRamps[kDefaultShadeRamp].dark;
+inline constexpr retropp::Rgba8 kShadeLight    = kShadeRamps[kDefaultShadeRamp].light;
+inline constexpr retropp::Rgba8 kShadeLightest = kShadeRamps[kDefaultShadeRamp].lightest;
 
 // Upload every sheet and both palettes. Call once, after the assets are present. Throws whatever
 // the engine's loaders throw when a file is missing or will not decode.
@@ -138,13 +151,15 @@ struct ResolvedTile {
     friend constexpr bool operator==(const ResolvedTile&, const ResolvedTile&) = default;
 };
 
-// locateTile, carried through to the uploaded handles.
-[[nodiscard]] ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet,
-                                       const TileAtlas& atlas) noexcept;
+// locateTile, carried through to the uploaded handles. `ramp` picks which shade ramp's palettes the
+// cell is drawn through; out-of-range values clamp, so a stored ramp can never name nothing.
+[[nodiscard]] ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
+                                       std::uint8_t ramp = kDefaultShadeRamp) noexcept;
 
 // The same, for a tile drawn as an object: same sheet and cell, an object palette instead of a
 // background one. `palette1` selects the variant ramp, as the object's own attribute does.
 [[nodiscard]] ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
-                                             const TileAtlas& atlas) noexcept;
+                                             const TileAtlas& atlas,
+                                             std::uint8_t ramp = kDefaultShadeRamp) noexcept;
 
 }  // namespace kirpich::render

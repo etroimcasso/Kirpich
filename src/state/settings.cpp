@@ -4,6 +4,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "render/palettes.h"  // clampShadeRamp
+
 namespace kirpich {
 
 std::uint8_t clampWindowScale(int scale) {
@@ -13,14 +15,18 @@ std::uint8_t clampWindowScale(int scale) {
 }
 
 std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings) {
-    return {static_cast<std::uint8_t>(settings.fullscreen ? 1 : 0), settings.windowScale};
+    return {static_cast<std::uint8_t>(settings.fullscreen ? 1 : 0), settings.windowScale,
+            settings.shadeRamp};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
-    if (image.size() != kSettingsImageBytes) return false;
+    if (image.empty() || image.size() > kSettingsImageBytes) return false;
 
-    settings.fullscreen  = image[0] != 0;
-    settings.windowScale = clampWindowScale(image[1]);
+    // Read as far as the image goes. A document written before a setting existed simply stops short
+    // of it, and that setting keeps the default it already holds.
+    settings.fullscreen = image[0] != 0;
+    if (image.size() > 1) settings.windowScale = clampWindowScale(image[1]);
+    if (image.size() > 2) settings.shadeRamp = render::clampShadeRamp(image[2]);
     return true;
 }
 

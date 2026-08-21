@@ -48,8 +48,12 @@ inline constexpr std::int32_t kBackgroundLayerZ  = 0;
 // Writes into `cells` rather than returning a fresh vector so a caller can keep one buffer for the
 // whole run: the frame is rebuilt every time, and a per-frame allocation for a grid that never
 // changes size is waste. `cells` is resized to kVisibleCells if it is not already.
+//
+// `ramp` is the shade ramp the player has chosen (src/render/palettes.h). It decides only which
+// colours the cells' samples resolve to, never which art they name.
 void composeBackground(const DisplayState& display, const TileAtlas& atlas,
-                       std::vector<retropp::TileCell>& cells);
+                       std::vector<retropp::TileCell>& cells,
+                       std::uint8_t ramp = kDefaultShadeRamp);
 
 // Wrap composed cells as the frame's background layer.
 //

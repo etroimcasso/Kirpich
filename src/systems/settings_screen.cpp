@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <kirpich/action.h>
 #include <kirpich/char_tile.h>
@@ -12,6 +13,7 @@
 #include "data/sfx.h"        // SquareSfxId
 #include "retropp/input.h"   // actionId
 #include "state/display_state.h"
+#include "render/palettes.h"  // kShadeRampCount, clampShadeRamp
 #include "state/screen_ui_state.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/menu_screens.h"  // clearOamObjects
@@ -29,23 +31,19 @@ constexpr std::uint8_t kBlinkFrames = 16;
 constexpr std::size_t kScreenRows = 18;
 constexpr std::size_t kScreenCols = 20;
 
-// The settings screen. The three option rows are evenly spaced so the cursor's walk reads as a
-// column; the value field is three cells wide because "off" is the widest thing that goes in it.
-constexpr std::size_t kTitleRow       = 2;
-constexpr std::size_t kTitleCol       = 6;  // "settings" - eight cells, centred in twenty
-constexpr std::size_t kFirstOptionRow = 6;
-constexpr std::size_t kOptionRowStride = 2;
-constexpr std::size_t kLabelCol       = 3;
+// The settings screen. The option rows are evenly spaced so the cursor's walk reads as a column; the
+// value field is three cells wide because "off" is the widest thing that goes in it.
+constexpr std::size_t kTitleRow  = 2;
+constexpr std::size_t kLabelCol  = 3;
 constexpr std::size_t kValueCol       = 15;
 constexpr std::size_t kValueWidth     = 3;
 constexpr std::size_t kCursorCol      = 1;
 
+
 // The confirm. Its question is two lines because the font has no question mark and "erase all high
 // scores" is one cell wider than the screen.
 constexpr std::size_t kConfirmRow1      = 5;
-constexpr std::size_t kConfirmCol1      = 5;  // "erase all"
 constexpr std::size_t kConfirmRow2      = 7;
-constexpr std::size_t kConfirmCol2      = 4;  // "high scores"
 constexpr std::size_t kChoiceRow        = 11;
 constexpr std::size_t kNoCol            = 6;
 constexpr std::size_t kYesCol           = 12;
@@ -65,9 +63,8 @@ BackgroundMap& targetMap(DisplayState& display) {
     return display.displayed == DisplayedMap::SECOND ? display.secondMap : display.map;
 }
 
-std::size_t optionRow(SettingsRow row) {
-    return kFirstOptionRow + kOptionRowStride * static_cast<std::size_t>(row);
-}
+// Centre a run of `length` cells across the visible width.
+std::size_t centred(std::size_t length) { return (kScreenCols - length) / 2; }
 
 // Empty the visible region. The rest of the map is left as the caller had it - it is off screen, and
 // the whole map goes back on the way out anyway.
@@ -86,34 +83,108 @@ Settings settingsOf(const SettingsWiring& wiring) {
 // The two value fields, blanked and rewritten. Called on the way in and after every change.
 void paintSettingsValues(BackgroundMap& map, const Settings& settings) {
     for (std::size_t i = 0; i < kValueWidth; ++i) {
-        map[optionRow(SettingsRow::FULLSCREEN)][kValueCol + i]   = kSpace;
-        map[optionRow(SettingsRow::WINDOW_SCALE)][kValueCol + i] = kSpace;
+        map[settingsRowLine(SettingsRow::FULLSCREEN)][kValueCol + i]   = kSpace;
+        map[settingsRowLine(SettingsRow::WINDOW_SCALE)][kValueCol + i] = kSpace;
     }
-    writeMapText(map, optionRow(SettingsRow::FULLSCREEN), kValueCol,
+    writeMapText(map, settingsRowLine(SettingsRow::FULLSCREEN), kValueCol,
                  settings.fullscreen ? "on" : "off");
 
     // One digit and an x - the scales this build offers are all single digits.
     const char scale[2] = {static_cast<char>('0' + settings.windowScale), 'x'};
-    writeMapText(map, optionRow(SettingsRow::WINDOW_SCALE), kValueCol,
+    writeMapText(map, settingsRowLine(SettingsRow::WINDOW_SCALE), kValueCol,
                  std::string_view{scale, sizeof scale});
 }
 
-void paintSettings(BackgroundMap& map, const Settings& settings) {
+// The palette row's number: the ramp in effect, counted from one. It is the only text in the
+// scroller - the arrows either side of it and the preview strip below are shapes the render bridge
+// draws (src/render/settings_overlay.h), which is why the cells they sit in are cleared here.
+static_assert(render::kShadeRampCount <= 99,
+              "a ramp past the ninety-ninth has no room in the two cells the number is drawn in");
+
+void paintRampValue(BackgroundMap& map, std::uint8_t ramp) {
+    const std::size_t row = settingsRowLine(SettingsRow::SHADE_RAMP);
+    map[row][kPaletteLeftArrowCol]  = kSpace;
+    map[row][kPaletteRightArrowCol] = kSpace;
+
+    // Right-aligned across its two cells, with a leading zero drawn as a space rather than as a
+    // zero - the same law the game's own number readouts print under.
+    const int number = render::clampShadeRamp(ramp) + 1;
+    const auto digit = [](int value) {
+        return static_cast<std::uint8_t>(static_cast<std::uint8_t>(CharTile::DIGIT_0) + value);
+    };
+    map[row][kPaletteValueCol]     = number >= 10 ? digit(number / 10) : kSpace;
+    map[row][kPaletteValueCol + 1] = digit(number % 10);
+}
+
+// Which rows the given page draws, in order.
+std::vector<SettingsRow> rowsOnPage(std::uint8_t page) {
+    std::vector<SettingsRow> rows;
+    for (std::uint8_t i = 0; i < kSettingsRowCount; ++i) {
+        const auto row = static_cast<SettingsRow>(i);
+        if (settingsPageOf(row) == page) rows.push_back(row);
+    }
+    return rows;
+}
+
+std::string_view labelFor(SettingsRow row) {
+    switch (row) {
+        case SettingsRow::FULLSCREEN:   return "fullscreen";
+        case SettingsRow::WINDOW_SCALE: return "size";
+        case SettingsRow::SHADE_RAMP:   return "palette";
+        case SettingsRow::RESET_SCORES: return "reset scores";
+        // "exit game", not "exit": on its own the word reads as leaving this screen, which is what
+        // Back does, and a player reaching for it would be asked to quit instead.
+        case SettingsRow::EXIT_GAME:    return "exit game";
+    }
+    return {};
+}
+
+void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& settings) {
+    const std::uint8_t page = settingsPageOf(ui.settingsRow);
+
     clearVisibleRegion(map);
-    writeMapText(map, kTitleRow, kTitleCol, "settings");
-    writeMapText(map, optionRow(SettingsRow::FULLSCREEN), kLabelCol, "fullscreen");
-    writeMapText(map, optionRow(SettingsRow::WINDOW_SCALE), kLabelCol, "size");
-    writeMapText(map, optionRow(SettingsRow::RESET_SCORES), kLabelCol, "reset scores");
-    paintSettingsValues(map, settings);
+
+    // The header names the page as well as the screen. The font has no slash, so the two sit a cell
+    // apart rather than reading "settings/1".
+    const char header[10] = {'s', 'e', 't', 't', 'i', 'n', 'g', 's', ' ',
+                             static_cast<char>('1' + page)};
+    const std::string_view title{header, sizeof header};
+    writeMapText(map, kTitleRow, centred(title.size()), title);
+
+    for (const SettingsRow row : rowsOnPage(page)) {
+        writeMapText(map, settingsRowLine(row), kLabelCol, labelFor(row));
+    }
+
+    // Only the first page carries the two value fields and the palette scroller.
+    if (page == 0) {
+        paintSettingsValues(map, settings);
+        paintRampValue(map, settings.shadeRamp);
+    }
 }
 
 void drawSettingsCursor(BackgroundMap& map, const ScreenUiState& ui) {
-    for (std::uint8_t i = 0; i < kSettingsRowCount; ++i) {
-        map[optionRow(static_cast<SettingsRow>(i))][kCursorCol] = kSpace;
+    const std::uint8_t page = settingsPageOf(ui.settingsRow);
+    for (const SettingsRow row : rowsOnPage(page)) {
+        map[settingsRowLine(row)][kCursorCol] = kSpace;
     }
     if (ui.cursorVisible) {
-        map[optionRow(ui.settingsRow)][kCursorCol] = kCursorGlyph;
+        map[settingsRowLine(ui.settingsRow)][kCursorCol] = kCursorGlyph;
     }
+}
+
+// What the confirm asks, for each of the two actions it guards. Two lines apiece, each centred, so
+// both read the same way - and neither needs a question mark, which the font does not carry.
+struct ConfirmQuestion {
+    std::string_view first;
+    std::string_view second;
+};
+
+ConfirmQuestion questionFor(ConfirmAction action) {
+    switch (action) {
+        case ConfirmAction::ERASE_SCORES: return {"erase all", "high scores"};
+        case ConfirmAction::EXIT_GAME:    return {"exit", "the game"};
+    }
+    return {};
 }
 
 void drawConfirmCursor(BackgroundMap& map, const ScreenUiState& ui) {
@@ -154,7 +225,7 @@ void leaveSettings(GameContext& game) {
 // would save the confirm's own picture as the caller's screen and lose the real one.
 void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
     BackgroundMap& map = targetMap(game.display);
-    paintSettings(map, settingsOf(wiring));
+    paintSettings(map, game.screens, settingsOf(wiring));
     game.screens.cursorVisible = true;
     drawSettingsCursor(map, game.screens);
 
@@ -163,13 +234,17 @@ void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
 }
 
-void moveCursor(GameContext& game, int delta) {
+// Move the cursor one row. Returns whether that crossed onto the other page, which is the caller's
+// cue to repaint: a page is a different set of labels, not just a different cursor position.
+bool moveCursor(GameContext& game, int delta) {
     const int next = static_cast<int>(game.screens.settingsRow) + delta;
     if (next < 0 || next >= static_cast<int>(kSettingsRowCount)) {
-        return;  // an end stop moves nothing and says nothing
+        return false;  // an end stop moves nothing and says nothing
     }
-    game.screens.settingsRow = static_cast<SettingsRow>(next);
-    game.audioCues.square    = SquareSfxId::TINK;
+    const std::uint8_t before = settingsPageOf(game.screens.settingsRow);
+    game.screens.settingsRow  = static_cast<SettingsRow>(next);
+    game.audioCues.square     = SquareSfxId::TINK;
+    return settingsPageOf(game.screens.settingsRow) != before;
 }
 
 // Change the value on the row the cursor is on. Right turns fullscreen on and steps the size up;
@@ -187,7 +262,11 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
         case SettingsRow::WINDOW_SCALE:
             next.windowScale = clampWindowScale(static_cast<int>(next.windowScale) + delta);
             break;
+        case SettingsRow::SHADE_RAMP:
+            next.shadeRamp = render::clampShadeRamp(static_cast<int>(next.shadeRamp) + delta);
+            break;
         case SettingsRow::RESET_SCORES:
+        case SettingsRow::EXIT_GAME:
             return;  // an action, not a value
     }
     if (next == *wiring.settings) {
@@ -197,6 +276,7 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
     *wiring.settings      = next;
     game.audioCues.square = SquareSfxId::TINK;
     paintSettingsValues(targetMap(game.display), next);
+    paintRampValue(targetMap(game.display), next.shadeRamp);
     if (wiring.apply) {
         wiring.apply(next);
     }
@@ -225,7 +305,7 @@ void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
     ui.settingsRow   = SettingsRow::FULLSCREEN;
     ui.cursorVisible = true;
 
-    paintSettings(map, settingsOf(wiring));
+    paintSettings(map, game.screens, settingsOf(wiring));
     drawSettingsCursor(map, ui);
 
     game.flow.timer1    = kBlinkFrames;
@@ -240,11 +320,18 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         return;
     }
 
-    if (game.screens.settingsRow == SettingsRow::RESET_SCORES &&
-        (pressed(game, Action::Confirm) || pressed(game, Action::Start))) {
-        game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-        game.flow.gameState   = GameState::INIT_RESET_CONFIRM;
-        return;
+    // The two rows that end something both go through the same confirm, which asks about whichever
+    // one opened it. Neither happens on a single press.
+    if (pressed(game, Action::Confirm) || pressed(game, Action::Start)) {
+        const SettingsRow row = game.screens.settingsRow;
+        if (row == SettingsRow::RESET_SCORES || row == SettingsRow::EXIT_GAME) {
+            game.screens.pendingConfirm = row == SettingsRow::RESET_SCORES
+                                              ? ConfirmAction::ERASE_SCORES
+                                              : ConfirmAction::EXIT_GAME;
+            game.audioCues.square       = SquareSfxId::CHANGE_SCREEN;
+            game.flow.gameState         = GameState::INIT_RESET_CONFIRM;
+            return;
+        }
     }
 
     if (pressed(game, Action::MenuRight)) {
@@ -253,17 +340,26 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         changeValue(game, wiring, -1);
     }
 
+    bool turnedPage = false;
     if (pressed(game, Action::MenuDown)) {
-        moveCursor(game, 1);
+        turnedPage = moveCursor(game, 1);
     } else if (pressed(game, Action::MenuUp)) {
-        moveCursor(game, -1);
+        turnedPage = moveCursor(game, -1);
     }
 
-    // The values are redrawn every frame, not only when this screen changes one: the fullscreen
-    // chord sets the same setting from outside, and a row showing what the chord just turned off is
-    // the whole point of having the row.
     BackgroundMap& map = targetMap(game.display);
-    paintSettingsValues(map, settingsOf(wiring));
+
+    // A page turn changes which labels are on screen, so the whole screen is laid out again rather
+    // than only the cursor being moved.
+    if (turnedPage) {
+        paintSettings(map, game.screens, settingsOf(wiring));
+    } else if (settingsPageOf(game.screens.settingsRow) == 0) {
+        // The values are redrawn every frame, not only when this screen changes one: the fullscreen
+        // chord sets the same setting from outside, and a row showing what the chord just turned off
+        // is the whole point of having the row. Only the first page carries them.
+        paintSettingsValues(map, settingsOf(wiring));
+        paintRampValue(map, settingsOf(wiring).shadeRamp);
+    }
     drawSettingsCursor(map, game.screens);
 }
 
@@ -276,9 +372,11 @@ void initResetConfirmScreen(GameContext& game) {
     ui.confirmYes    = false;
     ui.cursorVisible = true;
 
+    const ConfirmQuestion question = questionFor(ui.pendingConfirm);
+
     clearVisibleRegion(map);
-    writeMapText(map, kConfirmRow1, kConfirmCol1, "erase all");
-    writeMapText(map, kConfirmRow2, kConfirmCol2, "high scores");
+    writeMapText(map, kConfirmRow1, centred(question.first.size()), question.first);
+    writeMapText(map, kConfirmRow2, centred(question.second.size()), question.second);
     writeMapText(map, kChoiceRow, kNoCol, "no");
     writeMapText(map, kChoiceRow, kYesCol, "yes");
     drawConfirmCursor(map, ui);
@@ -298,6 +396,16 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
     }
 
     if (pressed(game, Action::Confirm) || pressed(game, Action::Start)) {
+        if (ui.confirmYes && ui.pendingConfirm == ConfirmAction::EXIT_GAME) {
+            // The run ends here. The confirm stays on screen for the frames it takes the engine to
+            // resolve the request: going back to the settings screen first would show the player a
+            // screen they have just left, and then quit out of it.
+            if (wiring.exit) {
+                wiring.exit();
+            }
+            return;
+        }
+
         if (ui.confirmYes) {
             // Both tables, back to the state a machine that has never been played holds. A cleared
             // name is six zero bytes, which is what the top-score printer reads as no name at all.

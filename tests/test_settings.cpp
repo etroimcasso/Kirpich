@@ -16,6 +16,7 @@
 #include <retropp/engine_config.h>
 #include <retropp/save_store.h>
 
+#include "render/palettes.h"
 #include "state/settings.h"
 
 namespace {
@@ -35,18 +36,22 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
     EXPECT_EQ(kirpich::clampWindowScale(255), kirpich::kMaxWindowScale);
 }
 
-// (2) The image is the two bytes the contract names, in that order: the fullscreen flag as 0 or 1,
-// then the scale as itself.
-TEST(SettingsValue, ImageIsTheFlagThenTheScale) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 2u);
+// (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
+// the scale as itself, then the shade ramp as itself.
+TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRamp) {
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 3u);
 
-    const auto off = kirpich::encodeSettings(Settings{.fullscreen = false, .windowScale = 3});
+    const auto off = kirpich::encodeSettings(
+        Settings{.fullscreen = false, .windowScale = 3, .shadeRamp = 0});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
+    EXPECT_EQ(off[2], 0u);
 
-    const auto on = kirpich::encodeSettings(Settings{.fullscreen = true, .windowScale = 6});
+    const auto on = kirpich::encodeSettings(
+        Settings{.fullscreen = true, .windowScale = 6, .shadeRamp = 2});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
+    EXPECT_EQ(on[2], 2u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -54,12 +59,16 @@ TEST(SettingsValue, CodecRoundTripsEveryReachableValue) {
     for (const bool fullscreen : {false, true}) {
         for (std::uint8_t scale = kirpich::kMinWindowScale; scale <= kirpich::kMaxWindowScale;
              ++scale) {
-            const Settings source{.fullscreen = fullscreen, .windowScale = scale};
-            const auto     image = kirpich::encodeSettings(source);
+            for (std::uint8_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+                const Settings source{
+                    .fullscreen = fullscreen, .windowScale = scale, .shadeRamp = ramp};
+                const auto image = kirpich::encodeSettings(source);
 
-            Settings decoded{};
-            ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
-            EXPECT_TRUE(decoded == source) << "fullscreen " << fullscreen << " scale " << +scale;
+                Settings decoded{};
+                ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+                EXPECT_TRUE(decoded == source)
+                    << "fullscreen " << fullscreen << " scale " << +scale << " ramp " << +ramp;
+            }
         }
     }
 }
@@ -68,34 +77,57 @@ TEST(SettingsValue, CodecRoundTripsEveryReachableValue) {
 // beside it survives — the whole point of clamping instead of rejecting. Any non-zero first byte
 // means fullscreen, not just 1.
 TEST(SettingsValue, DecodeClampsTheScaleAndKeepsTheFlag) {
-    const std::array<std::uint8_t, 2> tooLarge{1, 200};
+    const std::array<std::uint8_t, 3> tooLarge{1, 200, 200};
     Settings                          decoded{};
     ASSERT_TRUE(kirpich::decodeSettings(tooLarge, decoded));
     EXPECT_TRUE(decoded.fullscreen);
     EXPECT_EQ(decoded.windowScale, kirpich::kMaxWindowScale);
+    EXPECT_EQ(decoded.shadeRamp, kirpich::render::kShadeRampCount - 1)
+        << "a ramp the build does not offer clamps rather than naming nothing";
 
-    const std::array<std::uint8_t, 2> tooSmall{0, 0};
+    const std::array<std::uint8_t, 3> tooSmall{0, 0, 0};
     ASSERT_TRUE(kirpich::decodeSettings(tooSmall, decoded));
     EXPECT_FALSE(decoded.fullscreen);
     EXPECT_EQ(decoded.windowScale, kirpich::kMinWindowScale);
 
-    const std::array<std::uint8_t, 2> oddFlag{0x5A, 2};
+    const std::array<std::uint8_t, 3> oddFlag{0x5A, 2, 0};
     ASSERT_TRUE(kirpich::decodeSettings(oddFlag, decoded));
     EXPECT_TRUE(decoded.fullscreen);
 }
 
-// (5) An image of the wrong length is refused outright, and the settings handed in are left exactly
-// as they were — a short read must not half-write a value.
-TEST(SettingsValue, WrongLengthImageIsRefusedAndWritesNothing) {
-    const Settings before{.fullscreen = true, .windowScale = 5};
+// (5) An empty image, or one longer than this build writes, is refused outright and leaves the
+// settings exactly as they were. Nothing can be said about bytes this build does not understand.
+TEST(SettingsValue, EmptyOrOverlongImageIsRefusedAndWritesNothing) {
+    const Settings before{.fullscreen = true, .windowScale = 5, .shadeRamp = 1};
 
-    for (const std::size_t length : {std::size_t{0}, std::size_t{1}, std::size_t{3}}) {
-        const std::array<std::uint8_t, 3> bytes{9, 9, 9};
-        Settings                          target = before;
+    const std::array<std::uint8_t, 4> bytes{1, 2, 3, 4};
+    for (const std::size_t length : {std::size_t{0}, std::size_t{4}}) {
+        Settings target = before;
         EXPECT_FALSE(kirpich::decodeSettings(std::span<const std::uint8_t>{bytes.data(), length},
                                              target));
         EXPECT_TRUE(target == before) << "length " << length;
     }
+}
+
+// (5b) A shorter image is read as far as it goes, and every value it does not carry keeps the
+// default it already held. That is what lets a document written before a setting existed cost the
+// player only that setting rather than all of them.
+TEST(SettingsValue, ShorterImageLeavesTheValuesItDoesNotCarry) {
+    const std::array<std::uint8_t, 3> full{1, 6, 2};
+
+    // Just the flag: the scale and the ramp stay where they were.
+    Settings target{.fullscreen = false, .windowScale = 3, .shadeRamp = 1};
+    ASSERT_TRUE(kirpich::decodeSettings(std::span<const std::uint8_t>{full.data(), 1}, target));
+    EXPECT_TRUE(target.fullscreen);
+    EXPECT_EQ(target.windowScale, 3);
+    EXPECT_EQ(target.shadeRamp, 1);
+
+    // The flag and the scale: only the ramp stays.
+    target = Settings{.fullscreen = false, .windowScale = 3, .shadeRamp = 1};
+    ASSERT_TRUE(kirpich::decodeSettings(std::span<const std::uint8_t>{full.data(), 2}, target));
+    EXPECT_TRUE(target.fullscreen);
+    EXPECT_EQ(target.windowScale, 6);
+    EXPECT_EQ(target.shadeRamp, 1);
 }
 
 // (6) The store round trip: absent is an ordinary first run, a written document comes back equal,
@@ -116,7 +148,7 @@ TEST(SettingsValue, StoreRoundTrip) {
     // Written, then read back.
     {
         auto           store = retropp::SaveStore::atPath(root);
-        const Settings saved{.fullscreen = true, .windowScale = 2};
+        const Settings saved{.fullscreen = true, .windowScale = 2, .shadeRamp = 2};
         ASSERT_TRUE(kirpich::saveSettings(saved, store));
 
         Settings loaded{};
@@ -156,6 +188,7 @@ TEST(SettingsValue, DefaultsAreWindowedAtTheEngineScale) {
     EXPECT_FALSE(defaults.fullscreen);
     EXPECT_EQ(defaults.windowScale, kirpich::kDefaultWindowScale);
     EXPECT_EQ(defaults.windowScale, retropp::EngineConfig{}.enhancements.windowScale);
+    EXPECT_EQ(defaults.shadeRamp, kirpich::render::kDefaultShadeRamp);
 }
 
 }  // namespace

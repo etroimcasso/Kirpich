@@ -34,23 +34,32 @@ struct Settings {
     bool         fullscreen  = false;
     std::uint8_t windowScale = kDefaultWindowScale;
 
+    // Which shade ramp the game is drawn in (src/render/palettes.h). 0 is the greyscale the hardware's
+    // own shades map to, so a player who never touches it sees what they always saw.
+    std::uint8_t shadeRamp = 0;
+
     friend bool operator==(const Settings&, const Settings&) = default;
 };
 
-// The settings save document: schema version and the fixed image size. The name is spelled as a
-// literal at the call sites, as the top-score document's is.
+// The settings save document: schema version and the image size. The name is spelled as a literal at
+// the call sites, as the top-score document's is.
+//
+// A shorter image is read as far as it goes and the values it does not carry keep their defaults, so
+// a document written before a setting existed costs the player only that setting. A longer one is
+// refused, since nothing can be said about bytes this build does not understand.
 inline constexpr std::uint32_t kSettingsSchemaVersion = 1;
-inline constexpr std::size_t   kSettingsImageBytes    = 2;
+inline constexpr std::size_t   kSettingsImageBytes    = 3;
 
 // Bring a scale into the range this build offers. Values below the floor come up to it and values
 // above the ceiling come down to it; the range itself is what a build changes when it offers more.
 [[nodiscard]] std::uint8_t clampWindowScale(int scale);
 
-// Encode the settings into the two-byte image: the fullscreen flag as 0 or 1, then the scale.
+// Encode the settings into the image: the fullscreen flag as 0 or 1, then the scale, then the ramp.
 [[nodiscard]] std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings);
 
 // Decode an image into `settings`. Returns false and leaves `settings` untouched when the image is
-// not exactly two bytes; true otherwise. Any non-zero first byte means fullscreen, and the scale is
+// empty or longer than this build writes; true otherwise, with any byte the image does not carry
+// left at its default. Any non-zero first byte means fullscreen, and both the scale and the ramp are
 // clamped on the way in.
 [[nodiscard]] bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings);
 

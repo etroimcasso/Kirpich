@@ -64,9 +64,12 @@ inline constexpr int kSpriteSizePx   = 8;
 //
 // Writes into `sprites` rather than returning a fresh vector so a caller can keep one buffer for the
 // whole run - the frame is rebuilt every time.
+//
+// `ramp` is the shade ramp the player has chosen (src/render/palettes.h). Objects take it with its
+// last entry made see-through, which is the hardware's own rule.
 void composeSprites(const EngineState& engine, const OamSourceTable& sources, TileSheet sheet,
                     std::uint16_t tick, const TileAtlas& atlas,
-                    std::vector<retropp::Sprite>& sprites);
+                    std::vector<retropp::Sprite>& sprites, std::uint8_t ramp = kDefaultShadeRamp);
 
 // Wrap composed sprites as the frame's object layer.
 //
