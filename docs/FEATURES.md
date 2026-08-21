@@ -85,7 +85,7 @@ Game logic.
 | Heart Mode (easter egg) | ⬜ | `features/heart-mode.md` |
 | Victory / defeat screens | ⬜ | `features/victory-defeat-screens.md` |
 | High-score recording | ✅ | [`features/high-score-recording.md`](features/high-score-recording.md) — a finished round's score compared against the three stored for its difficulty, inserted if it beat one, staged for the difficulty screen, and named on the letter-wheel entry screen; the tables are written to disk when a name is submitted |
-| Boot path and init quirks | ⬜ | `features/boot.md` |
+| Boot path and init quirks | ✅ | [`features/boot.md`](features/boot.md) — the cold boot and the soft reset the four-button chord runs, which differ only in whether the top-score tables are cleared; the startup ordering that lets a launch keep a player's saved scores; and the preserved routine-copy overrun, carried as an equivalence |
 | CPU virtualization | 🟫 | [`features/cpu-fidelity.md`](features/cpu-fidelity.md) — provided by the engine; no port-side integration |
 
 ## Rendering
@@ -107,8 +107,8 @@ Game logic.
 
 | Feature | Status | Doc |
 |---|---|---|
-| Entry point and platform init | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the boot host: engine config, asset check, platform and renderer, the shared virtual machine, the art upload, every handler installed |
-| Bootstrap and main loop | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the two run-loop callbacks (advance the divider and run a game frame; compose and submit). The original's own startup routine is substituted, not ported — see `features/boot.md` |
+| Entry point and platform init | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the boot host: engine config, asset check, platform and renderer, the shared virtual machine, the art upload, every handler installed, and the startup that leaves the machine at the copyright screen ([`features/boot.md`](features/boot.md)) |
+| Bootstrap and main loop | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the two run-loop callbacks (advance the divider and run a game frame; compose and submit). The machine itself starts from the ported startup routine — see [`features/boot.md`](features/boot.md) |
 | Golden-frame test harness | ⬜ | `features/golden-frame-harness.md` |
 | Demo-replay integration test | ⬜ | `features/demo-replay-test.md` |
 | Tick scheduling | 🟫 | — (the engine run loop is the scheduler) |

@@ -134,6 +134,13 @@ Steps 3, 4, 5 and 12 belong to demo playback and recording; they do nothing duri
 Start+Select+B+A each tick, and this routine tests it again (`:4441–4444`). The disassembly notes the
 redundancy. Both checks are preserved.
 
+**A matched chord ends the frame, not just this routine.** `:4444` is a `jp` into the reset, and the
+reset falls into the top of the main loop — so nothing below this call runs: not the demo
+substitution, not the piece, not the scan, the lock, the compaction, or the award. The port's
+`handleStartSelect` returns whether the frame continues, and `normalGameplay` stops on false.
+Continuing would step a piece across a board the reset has just cleared. The reset itself is the boot
+path's — see [`boot.md`](boot.md) §10.
+
 **A demo suppresses everything below.** With a demo running, the routine returns before any pause or
 preview handling (`:4445–4447`) — the recorded input cannot pause the game.
 

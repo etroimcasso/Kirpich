@@ -58,6 +58,7 @@ of routines that need one. Where a page says "the engine", it means Retro++; whe
 | [demo-playback.md](demo-playback.md) | The attract demos the title screen plays to itself — the launch and the alternation between the two recordings, the run-length replay that feeds recorded input into the ordinary frame, the baseline its presses are derived against, the restore that hands the player their buttons back, the two ways a demo ends, and the recorder that ships dead; where they live, and what to edit to change which demo plays, how long a demo runs, or how long the title screen waits. |
 | [type-b-ending.md](type-b-ending.md) | What a won Type B round shows — the scoreboard that totals the round, and the dance the hardest level earns first; the two field-shaped screens and the wipe they arm, the per-performer animation and the one performer who jumps, the query that holds the dance until its jingle ends, where they live, and what to edit to change the hold timings, the animation speeds, or how many performers a starting height reveals. |
 | [launch-scenes.md](launch-scenes.md) | The two bonus endings — the Buran a height-5 Type B win earns and the rocket a 100 000-point Type A game earns; the pad both scenes build on the second background map, the timed steps each chain runs, the climb whose coordinate wraps past zero, the congratulations message and its cursor, the three places the chains deliberately differ, where they live, and what to edit to change a timing or a placement. |
+| [boot.md](boot.md) | How the machine starts and what the four-button reset chord runs — the cold boot, the soft reset that keeps the top-score tables, the startup ordering that lets a launch load a player's saved scores, the two seams the reset installs into, and the parts of the original's startup the engine owns instead; where they live, and what to edit to change what a boot leaves behind or what a reset preserves. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
@@ -70,9 +71,11 @@ driver's image from a player's ROM, into the per-user data directory their save 
 the full data layer, the full state layer, and the systems layer so far: the
 piece randomizer, the input layer, the game-state dispatcher framework, the piece system,
 the line-clear pipeline, the scoring pipeline, the whole pre-game flow, the gameplay
-session, the Type B starting garbage, the Type B ending, and the sound, which hosts the
-game's own driver and is audible. A solo round runs end to end — from the title screen,
-through play, to the game-over screen on a loss or the scoreboard on a Type B win.
+session, the Type B starting garbage, the Type B ending, the two bonus-ending launch
+scenes, the attract demos, the high-score recording, the boot path and its reset chord, and
+the sound, which hosts the game's own driver and is audible. A solo round runs end to end —
+from the title screen, through play, to the game-over screen on a loss or the scoreboard on
+a Type B win, and on to a launch when one is earned.
 
 Backgrounds and objects both draw: the screens, the menus, the playing field and the blocks
 as they stack, along with the falling piece, the next-piece preview, the menu cursors and

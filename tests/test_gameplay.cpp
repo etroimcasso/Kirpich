@@ -289,22 +289,23 @@ TEST(Gameplay, NormalGameplayBeatOrder) {
 // ── Test 3: PauseVectors ────────────────────────────────────────────────────────────────────────────
 // HandleStartSelect / handleSelect (tetris.asm:4423-4494): the chord, demo suppression, pause, preview.
 TEST(Gameplay, PauseVectors) {
-    // The soft-reset chord fires the seam and stops there (:4441-4444).
+    // The soft-reset chord fires the seam and stops there (:4441-4444). The original gets there with a
+    // jump, so the frame ends too — false is that reaching the caller.
     {
         GameContext game;
         hold(game, {Action::Start, Action::Select, Action::RotateClockwise,
                     Action::RotateCounterClockwise});
         int resets = 0;
-        kirpich::systems::handleStartSelect(game, [&resets]() { ++resets; });
+        EXPECT_FALSE(kirpich::systems::handleStartSelect(game, [&resets]() { ++resets; }));
         EXPECT_EQ(resets, 1);
         EXPECT_FALSE(game.flow.paused);
     }
-    // Three of the four is not the chord.
+    // Three of the four is not the chord, and the frame carries on.
     {
         GameContext game;
         hold(game, {Action::Start, Action::Select, Action::RotateClockwise});
         int resets = 0;
-        kirpich::systems::handleStartSelect(game, [&resets]() { ++resets; });
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game, [&resets]() { ++resets; }));
         EXPECT_EQ(resets, 0);
     }
 
@@ -313,7 +314,7 @@ TEST(Gameplay, PauseVectors) {
         GameContext game;
         game.demo.activeDemo = ActiveDemo::TYPE_A;
         press(game, {Action::Start});
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_FALSE(game.flow.paused);
     }
 
@@ -321,7 +322,7 @@ TEST(Gameplay, PauseVectors) {
     {
         GameContext game;
         press(game, {Action::Start});
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_TRUE(game.flow.paused);
         EXPECT_EQ(game.audioCues.pause, AudioPauseCommand::PAUSE);
         EXPECT_TRUE(game.spriteRenderer.slots[kActive].hidden);
@@ -337,7 +338,7 @@ TEST(Gameplay, PauseVectors) {
         game.spriteRenderer.slots[kPreview].hidden = true;
         press(game, {Action::Start});
 
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_FALSE(game.flow.paused);
         EXPECT_EQ(game.audioCues.pause, AudioPauseCommand::UNPAUSE);
         EXPECT_FALSE(game.spriteRenderer.slots[kActive].hidden);
@@ -348,12 +349,12 @@ TEST(Gameplay, PauseVectors) {
     {
         GameContext game;
         press(game, {Action::Select});
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_TRUE(game.engine.hidePreviewPiece);
         EXPECT_TRUE(game.spriteRenderer.slots[kPreview].hidden);
 
         press(game, {Action::Select});
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_FALSE(game.engine.hidePreviewPiece);
         EXPECT_FALSE(game.spriteRenderer.slots[kPreview].hidden);
     }
@@ -363,7 +364,7 @@ TEST(Gameplay, PauseVectors) {
         GameContext game;
         const GameContext before = game;
         press(game, {Action::MoveLeft});
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_EQ(game.flow.paused, before.flow.paused);
         EXPECT_EQ(game.engine.hidePreviewPiece, before.engine.hidePreviewPiece);
     }
@@ -378,7 +379,7 @@ TEST(Gameplay, PauseMultiplayerVectors) {
         game.multiplayer.isMultiplayer = true;
         game.multiplayer.role = SerialRole::SLAVE;
         press(game, {Action::Start});
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_FALSE(game.flow.paused);
         EXPECT_EQ(game.audioCues.pause, AudioPauseCommand::NONE);
     }
@@ -392,7 +393,7 @@ TEST(Gameplay, PauseMultiplayerVectors) {
         game.multiplayer.tx = 0x22;
         press(game, {Action::Start});
 
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_TRUE(game.flow.paused);
         EXPECT_EQ(game.audioCues.pause, AudioPauseCommand::PAUSE);
         EXPECT_EQ(game.multiplayer.savedRx, 0x11);
@@ -410,7 +411,7 @@ TEST(Gameplay, PauseMultiplayerVectors) {
         game.multiplayer.savedTx = 0x44;
         press(game, {Action::Start});
 
-        kirpich::systems::handleStartSelect(game);
+        EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
         EXPECT_FALSE(game.flow.paused);
         EXPECT_EQ(game.multiplayer.rx, 0x33);
         EXPECT_EQ(game.multiplayer.tx, 0x44);

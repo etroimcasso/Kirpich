@@ -15,6 +15,7 @@ add_library(kirpich-lib STATIC
     state/high_score_persistence.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
+    systems/boot.cpp
     systems/piece.cpp
     systems/line_clear.cpp
     systems/scoring.cpp

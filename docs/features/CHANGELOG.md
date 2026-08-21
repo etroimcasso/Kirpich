@@ -10,6 +10,17 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-20
 
+- **Boot path and init quirks** ⬜ → ✅. The machine now starts from the original's startup routine
+  instead of having three values written into it, and the Start + Select + B + A chord resets the game
+  the way the cartridge does. The chord had been detected in both of the places the original detects it
+  since those units landed, and both fired a seam nothing had assigned, so holding all four buttons did
+  nothing at all. A reset keeps the top-score tables and clears everything else — which is the
+  original's own behavior, and falls out of its startup routine having two entry points either side of
+  one clear loop. A launch clears and then loads the saved scores, in that order, because the reverse
+  would wipe them. Also corrects the design record's account of the routine-copy overrun, which named
+  the wrong routine: the sprite transfer does not over-transfer, the boot's copy of it into high memory
+  runs two bytes long, and those two bytes are overwritten before anything can read them.
+
 - **Launch scenes** ⬜ → ✅. The two bonus endings run. Winning a Type B round started at garbage
   height 5 launches the Buran and prints a congratulations message; scoring 100 000 in Type A launches
   one of three rockets, sized by the score. Both were live dead-ends before this: the ending dance and

@@ -38,6 +38,11 @@ Buran lifts off its pad and climbs off the top of the screen, and the game spell
 congratulations; score 100 000 in Type A and a rocket does the same, one of three sized by how far you
 went past it. They were the last two places the single-player game could reach and find nothing there.
 
+**The machine starts and resets the way the cartridge does.** Kirpich now runs the original's startup
+routine rather than putting the game at its first screen by hand, and Start + Select + B + A resets it
+mid-round — keeping the high-score tables and clearing everything else, exactly as the cartridge's own
+reset does, because the routine it jumps to skips the one clear those tables live in.
+
 What remains is two-player play, the palette effects, and the display filters.
 
 **The data.** Every table the cartridge reads is ported to typed, `constexpr` C++ and checked against the
@@ -85,6 +90,7 @@ The table below is kept honest as components land.
 | In-round gameplay states | **complete** — the shared round init, the per-frame gameplay loop, the pause, and the game-over chain |
 | Type B round | **complete** — the starting garbage, and the win chain: the scoreboard and the dance the hardest level earns |
 | Launch scenes | **complete** — both bonus endings: the Buran a height-5 Type B win earns, and the rocket a 100 000-point Type A game earns |
+| Boot and reset | **complete** — the cartridge's startup routine, and the four-button reset chord, which keeps the high-score tables and clears the rest |
 | Audio | **complete** — the game's own sound driver hosted on the engine's emulated audio unit, driven by a per-frame cue mailbox |
 | Attract-mode demo | **complete** — the title screen plays both recorded rounds to itself and alternates between them, feeding recorded input through the ordinary game |
 | Background rendering | **complete** — every screen's backdrop, the screen buffers the hardware keeps, the wipe and flash that live between them, and the paused screen |

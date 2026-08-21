@@ -537,7 +537,7 @@ TEST(Readouts, PauseShowsTheSecondMap) {
               (std::vector<std::uint8_t>{0, 0, 0, 0}));
 
     press(game, {Action::Start});
-    kirpich::systems::handleStartSelect(game);
+    EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
 
     EXPECT_TRUE(game.flow.paused);
     EXPECT_EQ(game.display.displayed, DisplayedMap::SECOND);
@@ -546,7 +546,7 @@ TEST(Readouts, PauseShowsTheSecondMap) {
               (std::vector<std::uint8_t>{kSpace, kSpace, 4, 2}));
 
     press(game, {Action::Start});
-    kirpich::systems::handleStartSelect(game);
+    EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
 
     EXPECT_FALSE(game.flow.paused);
     EXPECT_EQ(game.display.displayed, DisplayedMap::FIRST);
@@ -567,7 +567,7 @@ TEST(Readouts, SelectStillTogglesThePreviewWhilePaused) {
     game.engine.hidePreviewPiece = true;
 
     press(game, {Action::Start});
-    kirpich::systems::handleStartSelect(game);
+    EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
     ASSERT_TRUE(game.flow.paused);
     ASSERT_EQ(game.display.displayed, DisplayedMap::SECOND);
     // The pause hides both pieces, so nothing is drawn over the paused screen yet.
@@ -575,7 +575,7 @@ TEST(Readouts, SelectStillTogglesThePreviewWhilePaused) {
 
     // Select, still paused: the preview comes back and the paused screen stays up.
     press(game, {Action::Select});
-    kirpich::systems::handleStartSelect(game);
+    EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
 
     EXPECT_FALSE(game.engine.hidePreviewPiece);
     EXPECT_FALSE(game.spriteRenderer.slots[kirpich::kPreviewPieceSlot].hidden);
@@ -584,7 +584,7 @@ TEST(Readouts, SelectStillTogglesThePreviewWhilePaused) {
 
     // Pressing it again puts the preview away, still without leaving the pause.
     press(game, {Action::Select});
-    kirpich::systems::handleStartSelect(game);
+    EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
 
     EXPECT_TRUE(game.engine.hidePreviewPiece);
     EXPECT_TRUE(game.spriteRenderer.slots[kirpich::kPreviewPieceSlot].hidden);

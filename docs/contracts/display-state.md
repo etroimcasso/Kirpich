@@ -42,6 +42,11 @@ port carries both rather than collapsing them:
 the first screen fills what it needs — and `displayed` is `FIRST`, the map the game shows outside a
 pause.
 
+**What the startup routine leaves, which is not the same thing.** The boot clears video memory and
+then fills the *first* map with the character map's space glyph (`ClearTilemap9800`, `:366`), leaving
+the second one zeroed. So a machine that has booted holds `$2F` in every cell of `map` and `$00` in
+every cell of `secondMap`. The asymmetry is the original's — see [`boot.md`](boot.md) §5.
+
 ## 2. The tile regime
 
 `sheet` records which of the game's tile sets occupies the tile block the background reads through.

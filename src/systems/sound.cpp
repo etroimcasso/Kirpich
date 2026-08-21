@@ -125,7 +125,8 @@ SoundGestures gesturesFor(const GameContext& game, std::optional<std::uint8_t> a
         gestures.demoGate.demoNumber = gate;
     }
 
-    gestures.initDriver = cues.resetRequested;
+    gestures.restartDriver = cues.driverRestartRequested;
+    gestures.initDriver    = cues.resetRequested;
 
     if (cues.music != MusicId::NONE) {
         gestures.music = static_cast<std::uint8_t>(cues.music);
@@ -163,6 +164,12 @@ void SoundSystem::tick(GameContext& game) {
 
     // Performed in the order the members are declared — see the note on SoundGestures.
     driver_.slots(gestures.demoGate);
+    if (gestures.restartDriver) {
+        // The driver's whole startup again: the sound hardware switched on, its work RAM cleared, and
+        // its initialisation entry called (src/vm/audio_boot.asm). That last clear is the half the
+        // initialisation entry does not do and a machine reset needs.
+        driver_.restart();
+    }
     if (gestures.initDriver) {
         driver_.stop();
     }
