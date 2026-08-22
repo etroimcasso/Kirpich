@@ -183,12 +183,18 @@ void SoundSystem::tick(GameContext& game) {
 
 SoundDriverSlots SoundSystem::published() const { return driver_.slots(); }
 
-std::optional<MusicId> SoundSystem::currentMusic() const {
-    const SoundDriverSlots slots = published();
-    if (!slots.currentMusic.has_value()) {
+std::optional<MusicId> SoundSystem::musicFromReadback(std::optional<std::uint8_t> byte) {
+    // Empty two ways: the slot not yet published, and the driver reporting byte 0 — which is what
+    // its read-back holds when no song is playing. Returning NONE engaged here made "is the jingle
+    // still playing" answer yes forever, and the Type B dance never left for the tally.
+    if (!byte.has_value() || *byte == static_cast<std::uint8_t>(MusicId::NONE)) {
         return std::nullopt;
     }
-    return static_cast<MusicId>(*slots.currentMusic);
+    return static_cast<MusicId>(*byte);
+}
+
+std::optional<MusicId> SoundSystem::currentMusic() const {
+    return musicFromReadback(published().currentMusic);
 }
 
 void installSoundTick(GameStateDispatcher& dispatcher, SoundSystem& sound, GameContext& game) {

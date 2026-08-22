@@ -13,6 +13,9 @@ on:
   push:
     branches:
       - 'ci/**'
+      # Release branches build and sign distributables in their own workflow and must NOT also run
+      # the test suite — no test-result run ever lands on a release.
+      - '!ci/release-artifacts-*'
 
 # Each runner has one workspace and one fixed build directory per platform, so two runs on the same
 # branch would fight over both. Superseding the older run keeps that impossible.
