@@ -404,4 +404,25 @@ TEST(Sound, PlacingTheImageLandsTheEntriesWhereDeclared) {
     EXPECT_NE(static_cast<std::size_t>(def.tickEntry), kSoundDriverInitEntry);
 }
 
+// The read-back byte's meaning. The driver's current-song byte holds 0 when no song is playing —
+// the value the Type B dance waits for to leave for its tally — and it must come back as an EMPTY
+// answer, not as MusicId::NONE engaged. The engaged-zero form held the dance forever in the field
+// (v0.9.0): the exit asks .has_value(), and an engaged NONE answers "still playing" for the rest of
+// the session.
+TEST(Sound, ReadbackZeroMeansNoSongPlaying) {
+    using kirpich::systems::SoundSystem;
+
+    // Not yet published (the seqlock has not run): no song.
+    EXPECT_EQ(SoundSystem::musicFromReadback(std::nullopt), std::nullopt);
+
+    // Published 0: the driver says nothing is playing. This is the field-defect vector.
+    EXPECT_EQ(SoundSystem::musicFromReadback(std::uint8_t{0}), std::nullopt);
+
+    // A real song id comes back engaged, as itself.
+    const auto title = SoundSystem::musicFromReadback(
+        static_cast<std::uint8_t>(kirpich::MusicId::TITLE));
+    ASSERT_TRUE(title.has_value());
+    EXPECT_EQ(*title, kirpich::MusicId::TITLE);
+}
+
 }  // namespace

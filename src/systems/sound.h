@@ -109,14 +109,19 @@ public:
     // after the state handler has run and before the frame ends.
     void tick(GameContext& game);
 
-    // The song the driver reports it is playing, or nothing if it has not published one yet. The
-    // game reads this to decide when to switch to the danger music and to hold an animation until
-    // the music ends; those readers arrive with their own screens.
+    // The song the driver reports it is playing, or nothing — because the slot has not been
+    // published yet, or because the driver's read-back byte is 0, which is how it says no song is
+    // playing. The game reads this to hold the Type B dance until its jingle ends; treating that 0
+    // as an engaged value is what once held the dance forever.
     [[nodiscard]] std::optional<MusicId> currentMusic() const;
 
     // Everything the driver publishes back, as one value. Readable bytes come back engaged with
     // their current contents; write-only ones come back disengaged.
     [[nodiscard]] SoundDriverSlots published() const;
+
+    // The read-back byte's meaning, as the pure relation currentMusic() applies: disengaged in, or
+    // 0 in, means no song; anything else is that song's id.
+    [[nodiscard]] static std::optional<MusicId> musicFromReadback(std::optional<std::uint8_t> byte);
 
 private:
     // The demo-gate value the driver has been given, so an unchanged one is not re-sent.
