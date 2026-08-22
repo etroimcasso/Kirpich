@@ -38,10 +38,12 @@ platform/architecture set. Nothing else is registered here today, so the generic
 unambiguous — but a runner added later could silently start matching, and a job that lands on the
 wrong machine is a confusing failure. Pinning costs one label and removes the class.
 
-### The engine submodule needs a credential
+### The engine submodule is initialized in its own step
 
-`engine/` is a private repository, and a job's `GITHUB_TOKEN` is scoped to this repository alone, so
-the default checkout cannot descend into it. Checkout runs **without** submodules; a following step
+The engine repository is public, so any clone can descend into it. The credentialed form below
+predates that — it was required while the engine was private, when a job's `GITHUB_TOKEN` (scoped to
+this repository alone) could not reach it — and the workflows keep it because it works identically
+against a public repository and costs nothing. Checkout runs **without** submodules; a following step
 initializes just the engine, supplying a `ENGINE_PAT` repository secret per-invocation:
 
 ```sh
