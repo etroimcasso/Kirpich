@@ -236,6 +236,26 @@ jobs:
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
+      # The runner is a launchd service with no logged-in session, so the login keychain — where the
+      # Developer ID certificate created on this machine lives — is locked, and codesign fails with
+      # errSecInternalComponent. Unlock it, and allow codesign to use the key without a UI prompt.
+      - name: Unlock the keychain
+        if: env.HAS_IMPORTED_IDENTITY != 'true'
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${KEYCHAIN_PASSWORD:-}" ]; then
+            echo "error: MACOS_KEYCHAIN_PASSWORD is unset — the runner cannot open the login" >&2
+            echo "       keychain that holds the signing key. Set it to this machine's login password." >&2
+            exit 1
+          fi
+          KC="$HOME/Library/Keychains/login.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KC"
+          security set-keychain-settings -lut 7200 "$KC"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KC" >/dev/null
+
       # Developer ID, hardened runtime, timestamped. Missing secret is a hard failure, never a
       # silent unsigned fallthrough.
       - name: Sign the app
