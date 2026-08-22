@@ -289,6 +289,11 @@ jobs:
             exit 1
           fi
           STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          # Web-form pastes carry trailing newlines, and notarytool answers a credential with
+          # whitespace in it with a bare 401 — so all three are trimmed before use.
+          APPLE_ID="$(printf %s "$APPLE_ID" | tr -d '[:space:]')"
+          TEAM_ID="$(printf %s "$TEAM_ID" | tr -d '[:space:]')"
+          APP_PASSWORD="$(printf %s "$APP_PASSWORD" | tr -d '[:space:]')"
           ditto -c -k --keepParent "$STAGE/Kirpich.app" "$STAGE/Kirpich-notarize.zip"
           xcrun notarytool submit "$STAGE/Kirpich-notarize.zip" \
             --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
@@ -306,6 +311,9 @@ jobs:
         run: |
           set -eu
           STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          APPLE_ID="$(printf %s "$APPLE_ID" | tr -d '[:space:]')"
+          TEAM_ID="$(printf %s "$TEAM_ID" | tr -d '[:space:]')"
+          APP_PASSWORD="$(printf %s "$APP_PASSWORD" | tr -d '[:space:]')"
           DMG="$GITHUB_WORKSPACE/Kirpich-macOS-arm64.dmg"
           sh "$GITHUB_WORKSPACE/scripts/make-macos-dmg.sh" "$STAGE/Kirpich.app" "$DMG"
           if [ -n "${KIRPICH_KEYCHAIN:-}" ]; then
