@@ -98,6 +98,11 @@ baserom.*
 # clangd index cache
 .cache/
 
+# Release artifacts, built into the workspace root by the release workflow. The runners reuse their
+# checkouts, so these persist between runs and must never be offered for commit.
+/Kirpich-*.zip
+/Kirpich-*.dmg
+
 # Private working docs — local only, never pushed to any remote.
 docs-internal/
 /CLAUDE.md

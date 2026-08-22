@@ -4,18 +4,25 @@ name: Release Artifacts
 # the packaged binary, and nothing else. No tests, no test-result files: this workflow exists to
 # produce the things a person downloads, so a run's artifacts are exactly the five distributables.
 #
+# Every download is a container, never a bare executable: Linux and Windows ship a .zip holding a
+# single folder named for the platform, and macOS ships a signed, notarized .dmg. The Linux archives
+# record the Unix permission bits, so the executable arrives executable, and each job proves that by
+# extracting its own archive before uploading it.
+#
 # Every job configures with KIRPICH_DEV_ASSET_ROOT=OFF so the build machine's own path is never baked
 # into the binary, and then the packaging gate VERIFIES that rather than trusting the flag.
 #
-# Push to this branch to produce a fresh set. macOS is ad-hoc signed only here; the Developer ID
-# signing and notarization that a public download needs live in the tag-triggered release workflow.
+# Push a ci/release-artifacts-<version> branch to produce a fresh set. The branch name carries the
+# version and guard-version refuses any branch whose version disagrees with CMakeLists.txt, so the
+# trigger matches the whole family rather than one literal name — there is no per-release edit to
+# forget, and a mislabeled artifact still cannot escape.
 #
 # Self-hosted-runner safety: no pull_request family, so a run is only startable by someone who can
 # push here — the same reasoning as ci.yml.
 on:
   push:
     branches:
-      - 'ci/release-artifacts-0-9-0'
+      - 'ci/release-artifacts-*'
   workflow_dispatch:
 
 concurrency:
@@ -95,13 +102,23 @@ jobs:
           touch "$STAGE/assets/gfx/default/.gitkeep" "$STAGE/assets/audio/default/.gitkeep"
           cp "$GITHUB_WORKSPACE/build-release/Kirpich" "$STAGE/Kirpich"
           sh "$GITHUB_WORKSPACE/scripts/check-distributable-clean.sh" "$STAGE" "$STAGE/Kirpich"
-          cp "$STAGE/Kirpich" "$GITHUB_WORKSPACE/Kirpich-linux-x64"
+
+      - name: Package
+        env:
+          ASSET: Kirpich-linux-x64
+        run: |
+          set -eu
+          sh "$GITHUB_WORKSPACE/scripts/package-linux-zip.sh" \
+            "$GITHUB_WORKSPACE/build-release/stage/Kirpich" \
+            "$GITHUB_WORKSPACE/build-release/pkg" \
+            "$GITHUB_WORKSPACE/$ASSET.zip" \
+            "$ASSET"
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Kirpich-linux-x64
-          path: Kirpich-linux-x64
+          path: Kirpich-linux-x64.zip
           if-no-files-found: error
 
   # ── Windows x64 (WINDOWS-BVDA56O) ────────────────────────────────────────────
@@ -151,13 +168,41 @@ jobs:
             Write-Error "binary carries a development asset root: $env:GITHUB_WORKSPACE"
             exit 1
           }
-          Copy-Item $exe "$env:GITHUB_WORKSPACE\Kirpich-windows-x64.exe"
+
+      # One folder inside the archive, so unzipping never scatters files into the download
+      # directory. Windows carries no permission bits to lose, so there is nothing here matching
+      # the Linux script's executable-bit check — the archive is opened again only to confirm the
+      # executable is where the name says it is.
+      - name: Package
+        shell: powershell
+        run: |
+          $asset = "Kirpich-windows-x64"
+          $pkg   = "C:\kirpich-release-build\pkg"
+          if (Test-Path $pkg) { Remove-Item -Recurse -Force $pkg }
+          New-Item -ItemType Directory -Force -Path "$pkg\$asset" | Out-Null
+          Copy-Item "C:\kirpich-release-build\Release\Kirpich.exe" "$pkg\$asset\Kirpich.exe"
+
+          $zip = "$env:GITHUB_WORKSPACE\$asset.zip"
+          if (Test-Path $zip) { Remove-Item -Force $zip }
+          Compress-Archive -Path "$pkg\$asset" -DestinationPath $zip
+          if (-not (Test-Path $zip)) { Write-Error "no archive produced at $zip"; exit 1 }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+          $entry = $archive.Entries | Where-Object { $_.FullName -eq "$asset/Kirpich.exe" }
+          $names = ($archive.Entries | ForEach-Object { $_.FullName }) -join ", "
+          $archive.Dispose()
+          if (-not $entry) {
+            Write-Error "the archive does not contain $asset/Kirpich.exe; it contains: $names"
+            exit 1
+          }
+          Write-Host "packaged $zip ($asset/Kirpich.exe)"
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Kirpich-windows-x64
-          path: Kirpich-windows-x64.exe
+          path: Kirpich-windows-x64.zip
           if-no-files-found: error
 
   # ── macOS ARM64 (ericmacmini) — first of the three ARM64 jobs on the one host ─
@@ -384,13 +429,23 @@ jobs:
           touch "$STAGE/assets/gfx/default/.gitkeep" "$STAGE/assets/audio/default/.gitkeep"
           cp "$GITHUB_WORKSPACE/build-release/Kirpich" "$STAGE/Kirpich"
           sh "$GITHUB_WORKSPACE/scripts/check-distributable-clean.sh" "$STAGE" "$STAGE/Kirpich"
-          cp "$STAGE/Kirpich" "$GITHUB_WORKSPACE/Kirpich-linux-arm64"
+
+      - name: Package
+        env:
+          ASSET: Kirpich-linux-arm64
+        run: |
+          set -eu
+          sh "$GITHUB_WORKSPACE/scripts/package-linux-zip.sh" \
+            "$GITHUB_WORKSPACE/build-release/stage/Kirpich" \
+            "$GITHUB_WORKSPACE/build-release/pkg" \
+            "$GITHUB_WORKSPACE/$ASSET.zip" \
+            "$ASSET"
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Kirpich-linux-arm64
-          path: Kirpich-linux-arm64
+          path: Kirpich-linux-arm64.zip
           if-no-files-found: error
 
   # ── Windows ARM64 (WINMACARM64) — last, slowest, on the shared host ──────────
@@ -439,11 +494,37 @@ jobs:
             Write-Error "binary carries a development asset root: $env:GITHUB_WORKSPACE"
             exit 1
           }
-          Copy-Item $exe "$env:GITHUB_WORKSPACE\Kirpich-windows-arm64.exe"
+
+      # Same shape as the x64 job: one folder inside the archive, and the archive opened again to
+      # confirm the executable is where the name says it is.
+      - name: Package
+        shell: powershell
+        run: |
+          $asset = "Kirpich-windows-arm64"
+          $pkg   = "C:\kirpich-release-build\pkg"
+          if (Test-Path $pkg) { Remove-Item -Recurse -Force $pkg }
+          New-Item -ItemType Directory -Force -Path "$pkg\$asset" | Out-Null
+          Copy-Item "C:\kirpich-release-build\Release\Kirpich.exe" "$pkg\$asset\Kirpich.exe"
+
+          $zip = "$env:GITHUB_WORKSPACE\$asset.zip"
+          if (Test-Path $zip) { Remove-Item -Force $zip }
+          Compress-Archive -Path "$pkg\$asset" -DestinationPath $zip
+          if (-not (Test-Path $zip)) { Write-Error "no archive produced at $zip"; exit 1 }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+          $entry = $archive.Entries | Where-Object { $_.FullName -eq "$asset/Kirpich.exe" }
+          $names = ($archive.Entries | ForEach-Object { $_.FullName }) -join ", "
+          $archive.Dispose()
+          if (-not $entry) {
+            Write-Error "the archive does not contain $asset/Kirpich.exe; it contains: $names"
+            exit 1
+          }
+          Write-Host "packaged $zip ($asset/Kirpich.exe)"
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Kirpich-windows-arm64
-          path: Kirpich-windows-arm64.exe
+          path: Kirpich-windows-arm64.zip
           if-no-files-found: error
