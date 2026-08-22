@@ -222,4 +222,12 @@ jobs:
         run: |
           set -eu
           OUT="$GITHUB_WORKSPACE/build-release/out"
+          # A tag push does not create a release, and manual dispatch may run against a tag that
+          # already has one. Create it if it is missing, then upload either way.
+          if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "Kirpich ${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
           gh release upload "${GITHUB_REF_NAME}" "$OUT"/* --clobber --repo "${GITHUB_REPOSITORY}"
