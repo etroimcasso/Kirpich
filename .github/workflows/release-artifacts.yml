@@ -170,12 +170,14 @@ jobs:
           }
 
       # One folder inside the archive, so unzipping never scatters files into the download
-      # directory. Windows carries no permission bits to lose, so there is nothing here matching
-      # the Linux script's executable-bit check — the archive is opened again only to confirm the
-      # executable is where the name says it is.
+      # directory. Windows carries no permission bits to lose, so there is nothing here matching the
+      # Linux script's executable-bit check; the archive is expanded again and the expanded file
+      # tested, so what is uploaded is proven rather than assumed. Expanding rather than reading the
+      # entry names keeps this off the question of which slash Compress-Archive writes into them.
       - name: Package
         shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $asset = "Kirpich-windows-x64"
           $pkg   = "C:\kirpich-release-build\pkg"
           if (Test-Path $pkg) { Remove-Item -Recurse -Force $pkg }
@@ -187,16 +189,15 @@ jobs:
           Compress-Archive -Path "$pkg\$asset" -DestinationPath $zip
           if (-not (Test-Path $zip)) { Write-Error "no archive produced at $zip"; exit 1 }
 
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
-          $entry = $archive.Entries | Where-Object { $_.FullName -eq "$asset/Kirpich.exe" }
-          $names = ($archive.Entries | ForEach-Object { $_.FullName }) -join ", "
-          $archive.Dispose()
-          if (-not $entry) {
-            Write-Error "the archive does not contain $asset/Kirpich.exe; it contains: $names"
+          $verify = "$pkg\verify"
+          Expand-Archive -Path $zip -DestinationPath $verify -Force
+          if (-not (Test-Path "$verify\$asset\Kirpich.exe")) {
+            $found = (Get-ChildItem -Recurse -File $verify | ForEach-Object { $_.FullName }) -join ", "
+            Write-Error "the archive does not contain $asset\Kirpich.exe; it holds: $found"
             exit 1
           }
-          Write-Host "packaged $zip ($asset/Kirpich.exe)"
+          Remove-Item -Recurse -Force $verify
+          Write-Host "packaged $zip ($asset\Kirpich.exe)"
 
       - name: Upload
         uses: actions/upload-artifact@v4
@@ -495,11 +496,12 @@ jobs:
             exit 1
           }
 
-      # Same shape as the x64 job: one folder inside the archive, and the archive opened again to
-      # confirm the executable is where the name says it is.
+      # Same shape as the x64 job: one folder inside the archive, expanded again and the expanded
+      # file tested — separator-independent, unlike reading the entry names.
       - name: Package
         shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $asset = "Kirpich-windows-arm64"
           $pkg   = "C:\kirpich-release-build\pkg"
           if (Test-Path $pkg) { Remove-Item -Recurse -Force $pkg }
@@ -511,16 +513,15 @@ jobs:
           Compress-Archive -Path "$pkg\$asset" -DestinationPath $zip
           if (-not (Test-Path $zip)) { Write-Error "no archive produced at $zip"; exit 1 }
 
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
-          $entry = $archive.Entries | Where-Object { $_.FullName -eq "$asset/Kirpich.exe" }
-          $names = ($archive.Entries | ForEach-Object { $_.FullName }) -join ", "
-          $archive.Dispose()
-          if (-not $entry) {
-            Write-Error "the archive does not contain $asset/Kirpich.exe; it contains: $names"
+          $verify = "$pkg\verify"
+          Expand-Archive -Path $zip -DestinationPath $verify -Force
+          if (-not (Test-Path "$verify\$asset\Kirpich.exe")) {
+            $found = (Get-ChildItem -Recurse -File $verify | ForEach-Object { $_.FullName }) -join ", "
+            Write-Error "the archive does not contain $asset\Kirpich.exe; it holds: $found"
             exit 1
           }
-          Write-Host "packaged $zip ($asset/Kirpich.exe)"
+          Remove-Item -Recurse -Force $verify
+          Write-Host "packaged $zip ($asset\Kirpich.exe)"
 
       - name: Upload
         uses: actions/upload-artifact@v4
