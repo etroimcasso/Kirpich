@@ -8,15 +8,18 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <span>
+#include <vector>
 
 #include <retropp/engine_config.h>
 #include <retropp/save_store.h>
 
 #include "render/palettes.h"
+#include "state/high_score_persistence.h"
 #include "state/settings.h"
 
 namespace {
@@ -37,21 +40,26 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
 }
 
 // (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
-// the scale as itself, then the shade ramp as itself.
-TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRamp) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 3u);
+// the scale as itself, then the shade ramp as itself, then the ghost-piece flag as 0 or 1.
+TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheGhost) {
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 4u);
+    EXPECT_EQ(kirpich::kSettingsImageBytesV1, 3u);
+    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 2u)
+        << "the fourth byte is a new format, so it is a new version rather than a longer version 1";
 
     const auto off = kirpich::encodeSettings(
-        Settings{.fullscreen = false, .windowScale = 3, .shadeRamp = 0});
+        Settings{.fullscreen = false, .windowScale = 3, .shadeRamp = 0, .ghostPiece = false});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
     EXPECT_EQ(off[2], 0u);
+    EXPECT_EQ(off[3], 0u);
 
     const auto on = kirpich::encodeSettings(
-        Settings{.fullscreen = true, .windowScale = 6, .shadeRamp = 2});
+        Settings{.fullscreen = true, .windowScale = 6, .shadeRamp = 2, .ghostPiece = true});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
     EXPECT_EQ(on[2], 2u);
+    EXPECT_EQ(on[3], 1u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -60,14 +68,19 @@ TEST(SettingsValue, CodecRoundTripsEveryReachableValue) {
         for (std::uint8_t scale = kirpich::kMinWindowScale; scale <= kirpich::kMaxWindowScale;
              ++scale) {
             for (std::uint8_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
-                const Settings source{
-                    .fullscreen = fullscreen, .windowScale = scale, .shadeRamp = ramp};
-                const auto image = kirpich::encodeSettings(source);
+                for (const bool ghost : {false, true}) {
+                    const Settings source{.fullscreen = fullscreen,
+                                          .windowScale = scale,
+                                          .shadeRamp   = ramp,
+                                          .ghostPiece  = ghost};
+                    const auto image = kirpich::encodeSettings(source);
 
-                Settings decoded{};
-                ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
-                EXPECT_TRUE(decoded == source)
-                    << "fullscreen " << fullscreen << " scale " << +scale << " ramp " << +ramp;
+                    Settings decoded{};
+                    ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+                    EXPECT_TRUE(decoded == source)
+                        << "fullscreen " << fullscreen << " scale " << +scale << " ramp " << +ramp
+                        << " ghost " << ghost;
+                }
             }
         }
     }
@@ -100,8 +113,8 @@ TEST(SettingsValue, DecodeClampsTheScaleAndKeepsTheFlag) {
 TEST(SettingsValue, EmptyOrOverlongImageIsRefusedAndWritesNothing) {
     const Settings before{.fullscreen = true, .windowScale = 5, .shadeRamp = 1};
 
-    const std::array<std::uint8_t, 4> bytes{1, 2, 3, 4};
-    for (const std::size_t length : {std::size_t{0}, std::size_t{4}}) {
+    const std::array<std::uint8_t, 5> bytes{1, 2, 3, 1, 9};
+    for (const std::size_t length : {std::size_t{0}, std::size_t{5}}) {
         Settings target = before;
         EXPECT_FALSE(kirpich::decodeSettings(std::span<const std::uint8_t>{bytes.data(), length},
                                              target));
@@ -176,6 +189,123 @@ TEST(SettingsValue, StoreRoundTrip) {
             if (entry.is_regular_file()) stillPresent = true;
         }
         EXPECT_TRUE(stillPresent);
+    }
+
+    std::filesystem::remove_all(root);
+}
+
+// (7) The migration step, on its own: version 2 says one more thing than version 1 did, so the step
+// appends exactly one byte and leaves every byte version 1 wrote where it was. Off is what the
+// appended byte says, because a document written before the setting existed cannot say otherwise.
+TEST(SettingsValue, MigrationV1ToV2AppendsTheGhostFlagOff) {
+    const std::vector<std::byte> v1{std::byte{1}, std::byte{6}, std::byte{2}};
+    const std::vector<std::byte> v2 = kirpich::migrateSettingsV1ToV2(v1);
+
+    ASSERT_EQ(v2.size(), kirpich::kSettingsImageBytes);
+    EXPECT_EQ(v1.size(), kirpich::kSettingsImageBytesV1);
+    EXPECT_EQ(v2[0], v1[0]);
+    EXPECT_EQ(v2[1], v1[1]);
+    EXPECT_EQ(v2[2], v1[2]);
+    EXPECT_EQ(v2[3], std::byte{0});
+}
+
+// (8) A settings document written by a released build - Kirpich 0.9.0 and 0.9.1 wrote version 1,
+// three bytes - is migrated on the way in rather than read short. The three values it carries survive
+// exactly, and the one it predates comes up off.
+//
+// This is written as the old build wrote it: a version-1 document with a version-1 payload, straight
+// through the store. Reading it back through the shipped loader is the whole assertion.
+TEST(SettingsValue, AVersionOneDocumentFromAReleasedBuildMigratesForward) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_settings_v1_migration";
+    std::filesystem::remove_all(root);
+
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        // Fullscreen on, scale 2, ramp 5 - and no fourth byte, because there was no fourth setting.
+        const std::array<std::uint8_t, kirpich::kSettingsImageBytesV1> v1{1, 2, 5};
+        ASSERT_TRUE(store.write("settings", 1,
+                                std::as_bytes(std::span<const std::uint8_t>(v1))));
+    }
+
+    {
+        auto     store = retropp::SaveStore::atPath(root);
+        Settings loaded{};
+        ASSERT_TRUE(kirpich::loadSettings(store, loaded))
+            << "a document from the last release must still load";
+        EXPECT_TRUE(loaded.fullscreen);
+        EXPECT_EQ(loaded.windowScale, 2);
+        EXPECT_EQ(loaded.shadeRamp, 5);
+        EXPECT_FALSE(loaded.ghostPiece) << "a setting the document predates takes its default";
+
+        // …and it got there by being migrated, not by the short-image fallback happening to leave
+        // the same answer. The two are indistinguishable from the decoded values alone - both end
+        // with the ghost off - so the store is asked what the payload arrived as. loadSettings has
+        // already declared the version and registered the step on this store, so this read walks the
+        // same chain the load did.
+        const auto migrated = store.read("settings");
+        ASSERT_TRUE(migrated.has_value());
+        EXPECT_EQ(migrated->schemaVersion, kirpich::kSettingsSchemaVersion);
+        EXPECT_EQ(migrated->payload.size(), kirpich::kSettingsImageBytes)
+            << "a version 1 document must reach the decoder at version 2's length";
+    }
+
+    // Saved again, it is written at the current version and reads back without migrating.
+    {
+        auto     store = retropp::SaveStore::atPath(root);
+        Settings loaded{};
+        ASSERT_TRUE(kirpich::loadSettings(store, loaded));
+        loaded.ghostPiece = true;
+        ASSERT_TRUE(kirpich::saveSettings(loaded, store));
+
+        const auto doc = store.read("settings");
+        ASSERT_TRUE(doc.has_value());
+        EXPECT_EQ(doc->schemaVersion, kirpich::kSettingsSchemaVersion);
+        EXPECT_EQ(doc->payload.size(), kirpich::kSettingsImageBytes);
+    }
+
+    std::filesystem::remove_all(root);
+}
+
+// (9) The settings and the top scores share one store, and a store carries ONE current version and
+// ONE migration chain for every document in it. So a loader that declares version 2 and registers a
+// 1 -> 2 step has changed the terms every other document in that store is read under - and the top
+// scores are still at version 1, on the same disk, belonging to the same player.
+//
+// Each loader declaring its own version immediately before its own read is what keeps them apart.
+// This asserts it in the order a launch performs it, because that order is the one that would lose a
+// player's scores: settings first (main.cpp), then the boot's read of the tables.
+TEST(SettingsValue, LoadingSettingsDoesNotDisturbTheTopScoresInTheSameStore) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_settings_shares_a_store";
+    std::filesystem::remove_all(root);
+
+    kirpich::HighScoreState written{};
+    written.typeA[0][0].score = 12345;
+    using C                   = kirpich::CharTile;
+    written.typeA[0][0].name  = {C::LETTER_A, C::LETTER_B, C::LETTER_C,
+                                 C::SPACE,    C::SPACE,    C::SPACE};
+
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        ASSERT_TRUE(kirpich::saveTopScores(written, store));
+        ASSERT_TRUE(kirpich::saveSettings(Settings{.shadeRamp = 3}, store));
+    }
+
+    {
+        auto store = retropp::SaveStore::atPath(root);
+
+        Settings settings{};
+        ASSERT_TRUE(kirpich::loadSettings(store, settings));
+        EXPECT_EQ(settings.shadeRamp, 3);
+
+        // Now the store is set to the settings' version with the settings' migration registered.
+        // The top scores must still read as themselves.
+        kirpich::HighScoreState scores{};
+        ASSERT_TRUE(kirpich::loadTopScores(store, scores))
+            << "the settings' schema version must not follow the top scores into their own read";
+        EXPECT_EQ(scores.typeA[0][0].score, 12345u);
+        EXPECT_TRUE(scores == written);
     }
 
     std::filesystem::remove_all(root);

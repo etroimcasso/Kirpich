@@ -2,8 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
+#include <utility>
 
 namespace kirpich::render {
 
@@ -73,6 +75,42 @@ bool onScreen(int x, int y) {
 
 }  // namespace
 
+std::optional<retropp::Sprite> oamEntrySprite(const EngineState& engine,
+                                              const OamSourceTable& sources, std::size_t index,
+                                              TileSheet sheet, std::uint16_t tick,
+                                              const TileAtlas& atlas, std::uint8_t ramp,
+                                              bool includeOffScreen) {
+    if (index >= engine.oam.size()) {
+        return std::nullopt;
+    }
+    const OamEntry& entry = engine.oam[index];
+
+    const int x = static_cast<int>(entry.x) - kSpriteScreenOffsetX;
+    const int y = static_cast<int>(entry.y) - kSpriteScreenOffsetY;
+    if (!includeOffScreen && !onScreen(x, y)) {
+        return std::nullopt;
+    }
+
+    const OamSource&   src = sources.entries[index];
+    const ResolvedTile art = resolveSpriteTile(entry.tile, sheet, entry.palette1, atlas, ramp);
+
+    return retropp::Sprite{
+        .key = src.drawn ? drawnKey(src, tick) : directKey(index, tick),
+        .x   = x,
+        .y   = y,
+        // Earlier entries draw over later ones, which is how the hardware broke a tie between
+        // two objects at the same place. Ascending z draws back to front, so the order reverses
+        // here. (The hardware's other rule - that a further-left object wins outright, whatever
+        // its entry - is not reproduced; see the header.)
+        .z       = static_cast<std::int32_t>(engine.oam.size() - 1 - index),
+        .atlas   = art.atlas,
+        .tile    = art.cell,
+        .palette = art.palette,
+        .flipX   = entry.xflip,
+        .flipY   = entry.yflip,
+    };
+}
+
 void composeSprites(const EngineState& engine, const OamSourceTable& sources, TileSheet sheet,
                     std::uint16_t tick, const TileAtlas& atlas,
                     std::vector<retropp::Sprite>& sprites, std::uint8_t ramp) {
@@ -80,32 +118,9 @@ void composeSprites(const EngineState& engine, const OamSourceTable& sources, Ti
     sprites.reserve(engine.oam.size());
 
     for (std::size_t i = 0; i < engine.oam.size(); ++i) {
-        const OamEntry& entry = engine.oam[i];
-
-        const int x = static_cast<int>(entry.x) - kSpriteScreenOffsetX;
-        const int y = static_cast<int>(entry.y) - kSpriteScreenOffsetY;
-        if (!onScreen(x, y)) {
-            continue;
+        if (auto sprite = oamEntrySprite(engine, sources, i, sheet, tick, atlas, ramp)) {
+            sprites.push_back(std::move(*sprite));
         }
-
-        const OamSource& src = sources.entries[i];
-        const ResolvedTile art = resolveSpriteTile(entry.tile, sheet, entry.palette1, atlas, ramp);
-
-        sprites.push_back(retropp::Sprite{
-            .key = src.drawn ? drawnKey(src, tick) : directKey(i, tick),
-            .x   = x,
-            .y   = y,
-            // Earlier entries draw over later ones, which is how the hardware broke a tie between
-            // two objects at the same place. Ascending z draws back to front, so the order reverses
-            // here. (The hardware's other rule - that a further-left object wins outright, whatever
-            // its entry - is not reproduced; see the header.)
-            .z       = static_cast<std::int32_t>(engine.oam.size() - 1 - i),
-            .atlas   = art.atlas,
-            .tile    = art.cell,
-            .palette = art.palette,
-            .flipX   = entry.xflip,
-            .flipY   = entry.yflip,
-        });
     }
 }
 

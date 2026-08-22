@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include <SDL3/SDL_events.h>
@@ -53,6 +54,7 @@
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
 #include "render/background.h"
+#include "render/ghost_piece.h"
 #include "render/settings_overlay.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
@@ -435,15 +437,28 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // joins the object buffer's sprites here rather than going through it. Its palette preview is
         // colour, which the art has no tile for at all, so that is a region over the finished frame.
         retropp::FrameDrawState frame;
+
         if (game.flow.gameState == kirpich::GameState::SETTINGS) {
             const auto arrows =
                 kirpich::render::settingsPageArrows(game.screens, settings.shadeRamp, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
-            frame.regions = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
-                                                             kViewport.width);
+            const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
+                                                                  kViewport.width);
+            frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
         }
 
-        frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
+        retropp::DrawLayer background = kirpich::render::backgroundLayer(cells, kViewport);
+
+        // The shadow of the falling piece, when the player has asked for one: the silhouette of each
+        // of the piece's own sprites, moved down to where it would land — drawn from the piece rather
+        // than from a description of one. It rides the background layer so the piece passes in front
+        // of it; on the frame it would grade the piece too. Nothing in the simulation knows about it.
+        if (settings.ghostPiece) {
+            background.regions =
+                kirpich::render::ghostPieceRegions(game, tiles, simTicks, settings.shadeRamp);
+        }
+
+        frame.layers.push_back(std::move(background));
         frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
         renderer.renderFrame(frame);
     });

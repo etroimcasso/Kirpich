@@ -8,6 +8,33 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-22
+
+- **Ghost piece** ⬜ → ✅. The falling piece casts a shadow on the row it would land on, off unless a
+  player turns it on from the settings screen's second page. It changes nothing about how a round
+  plays: no game state records it, and a build with it off draws the frames a build without it draws.
+
+  **The silhouette is the piece's own.** Each part of the falling piece is already a placed sprite,
+  and a sprite can hand back its coverage as geometry — carrying its flips, its rotation, its
+  transform and its placement. The shadow moves that geometry down to the landing row and fills it, so
+  it cannot disagree with the piece about what shape a piece is. The landing row itself comes from the
+  same emptiness test the lock uses, so the shadow can never sit where the piece would not stop.
+
+  **The shadow and the piece never share a cell.** A piece block is see-through in its middle — an
+  object's lightest colour is transparency rather than a shade — so a shadow underneath one shows
+  through the block and tints it whatever order the two are drawn in. The shadow is withdrawn entire
+  the moment it would touch the piece, rather than giving way a block at a time.
+
+- **Settings screen** — the palette row now offers **thirty-two** ramps rather than twenty-four. The
+  eight added are the colour schemes Windows 3.1 shipped in its Control Panel, named as it named them:
+  Hot Dog Stand, Bordeaux, Emerald City, Arizona, Fluorescent, Plasma Power Saver, Pastel, and Black
+  Leather Jacket.
+
+  The settings save document goes to **version 2** to carry the ghost-piece flag, with a registered
+  migration that reads a version 1 document and appends the flag as off.
+
+---
+
 ## 2026-08-21
 
 - **Distributable build** ⬜ → 🟡. The game is now built as an application rather than as a

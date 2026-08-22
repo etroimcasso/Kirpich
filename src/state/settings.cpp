@@ -1,6 +1,8 @@
 #include "state/settings.h"
 
+#include <cstddef>
 #include <optional>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -16,7 +18,7 @@ std::uint8_t clampWindowScale(int scale) {
 
 std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings) {
     return {static_cast<std::uint8_t>(settings.fullscreen ? 1 : 0), settings.windowScale,
-            settings.shadeRamp};
+            settings.shadeRamp, static_cast<std::uint8_t>(settings.ghostPiece ? 1 : 0)};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
@@ -27,7 +29,16 @@ bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
     settings.fullscreen = image[0] != 0;
     if (image.size() > 1) settings.windowScale = clampWindowScale(image[1]);
     if (image.size() > 2) settings.shadeRamp = render::clampShadeRamp(image[2]);
+    if (image.size() > 3) settings.ghostPiece = image[3] != 0;
     return true;
+}
+
+std::vector<std::byte> migrateSettingsV1ToV2(std::vector<std::byte> payload) {
+    // One byte appended, not a resize to the version 2 length: the step's whole content is that
+    // version 2 carries one more value than version 1. A payload of any other length is not this
+    // step's to correct - decodeSettings refuses a wrong length downstream.
+    payload.push_back(std::byte{0});
+    return payload;
 }
 
 bool saveSettings(const Settings& settings, retropp::SaveStore& store) {
@@ -37,7 +48,11 @@ bool saveSettings(const Settings& settings, retropp::SaveStore& store) {
 }
 
 bool loadSettings(retropp::SaveStore& store, Settings& settings) {
+    // Both of these are the store's, not the document's, so they are declared here rather than once
+    // at startup: the same store also carries the top scores at their own version, and whichever
+    // loader is about to read has to be the one that last said which version it means.
     store.setCurrentVersion(kSettingsSchemaVersion);
+    store.registerMigration(1, migrateSettingsV1ToV2);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {
