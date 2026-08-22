@@ -5,7 +5,7 @@
 
 ## Concept
 
-The port consumes the [Retro++ engine](https://github.com/etroimcasso/GBCPP-Engine) as its platform
+The port consumes the [Retro++ engine](https://github.com/RetroPlusPlus/Engine) as its platform
 boundary, replacing the port-local infrastructure built earlier. Retro++ is a shared native engine
 for 8- and 16-bit tile-based ports, supplying the run loop, platform and windowing, input,
 renderer, audio chain, persistence, and a ROM-less SM83 virtual-machine host.
@@ -53,8 +53,10 @@ renderer, audio chain, persistence, and a ROM-less SM83 virtual-machine host.
   this port is the first. Watch items for when that work lands: the randomization preset's seeding
   semantics against this ROM's exact initialization, driver-registration fit for the ROM's sound
   code, and whether the enhanced anti-channel-stealing mode maps onto engine instance routing.
-- **CI requirements.** Recursive submodule checkout; an access token for submodule descent while
-  the engine repository is private; ClangCL on Windows, since SameBoy's Windows shims use
-  `#include_next`, which MSVC rejects; an offscreen video driver for headless Linux test steps.
-- **Licensing.** The engine's license interacts with the port's own license selection; both are
-  settled together when the license is chosen.
+- **CI requirements.** Recursive submodule checkout, synchronized before it is updated — a
+  submodule's remote is recorded when it is first cloned and is not re-read from `.gitmodules`, so a
+  workspace that predates a move keeps fetching the old one; ClangCL on Windows, since SameBoy's
+  Windows shims use `#include_next`, which MSVC rejects; an offscreen video driver for headless Linux
+  test steps.
+- **Licensing.** Settled: the port is AGPL-3.0, matching the engine, so the distributed build is one
+  combined work under that license.

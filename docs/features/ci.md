@@ -219,8 +219,13 @@ routine.
 The engine is consumed as a submodule with nested submodules of its own, which imposes:
 
 - **Recursive checkout** — `submodules: recursive`.
-- **Token access while the engine repository is private** — a secret plus a `git -c
-  url.…insteadOf` rewrite so the submodule descent authenticates.
+- **A sync before the update** — a submodule's remote is recorded in `.git/modules/<name>/config`
+  when it is first cloned, and `.gitmodules` is not consulted again. A workspace that predates a
+  move therefore keeps fetching the old remote and reports the pinned commit as a ref it does not
+  own. `git submodule sync --recursive` rewrites it, and the fallback removes the module directory
+  outright, since `deinit` leaves it behind with the stale remote intact.
+- **Token access for the submodule descent** — a secret plus a `git -c url.…insteadOf` rewrite.
+  Retained for any nested submodule that is not public.
 - **ClangCL on Windows** — the vendored emulator core's Windows shims use `#include_next`, which
   MSVC rejects with C1021. Both Windows jobs configure with the ClangCL toolset.
 - **A headless video driver on Linux** — test steps set `SDL_VIDEODRIVER=offscreen`.

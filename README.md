@@ -1,7 +1,7 @@
 # Kirpich
 
 A native C++ reimplementation of **Tetris** for the Game Boy (DMG), built on the
-[Retro++ engine](https://github.com/etroimcasso/GBCPP-Engine). The goal is behavioral
+[Retro++ engine](https://github.com/RetroPlusPlus/Engine). The goal is behavioral
 fidelity — the same observable behavior as the original cartridge given the same inputs and
 RNG state — running as ordinary native code on Windows, macOS, and Linux. Not an emulator,
 and not a mechanical assembly translation: idiomatic modern C++ against a portable engine
@@ -151,7 +151,7 @@ fixed. Details in [`docs/DESIGN.md`](docs/DESIGN.md).
 |---|---|
 | `src/`, `include/kirpich/` | Port source and public headers |
 | `tests/` | GoogleTest suite |
-| `engine/` | [Retro++](https://github.com/etroimcasso/GBCPP-Engine) engine submodule (currently a private repository — see note below) |
+| `engine/` | [Retro++](https://github.com/RetroPlusPlus/Engine) engine submodule — brings SDL3 and SameBoy with it |
 | `assets/gfx/default/`, `assets/audio/default/` | Where a development build reads its extracted assets; contents are generated locally and never committed. A player's own extraction goes to the per-user data directory beside their save, not here |
 | `docs/` | Design context and feature documentation |
 | `tools/` | Development tooling |
@@ -160,9 +160,9 @@ The [kaspermeerts/tetris](https://github.com/kaspermeerts/tetris) disassembly is
 reference. It is read during development as a sibling checkout outside this repository — it is
 not a submodule, and the build never depends on it.
 
-> **Note on submodules:** the Retro++ engine repository is private while it stabilizes, so
-> third-party clones cannot initialize `engine/` yet and the project will not build externally
-> until the engine is published.
+> **Note on submodules:** `engine/` is a submodule and must be initialized recursively — it brings
+> SDL3 and SameBoy with it. A plain `git clone` without `--recursive` leaves it empty and the build
+> fails at configure time saying so.
 
 ## Building
 

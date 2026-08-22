@@ -12,7 +12,7 @@ separately in [`../contracts/`](../contracts/), and the design rationale behind 
 feature lives in [`../features/`](../features/).
 
 Kirpich is a native reimplementation, not an emulator. It runs as ordinary C++ on top of
-the [Retro++](https://github.com/etroimcasso/GBCPP-Engine) engine, which supplies the
+the [Retro++](https://github.com/RetroPlusPlus/Engine) engine, which supplies the
 platform layer, run loop, renderer, audio, and the virtual machine that hosts the handful
 of routines that need one. Where a page says "the engine", it means Retro++; where it says
 "the port" or "Kirpich", it means the code in this repository.

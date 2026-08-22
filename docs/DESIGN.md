@@ -8,7 +8,7 @@ decision is measured against.
 ## 1. What this project is
 
 A behavior-preserving native C++ port of the Game Boy (DMG) release of Tetris, built as a consumer
-of the [Retro++ engine](https://github.com/etroimcasso/GBCPP-Engine). The port reads the
+of the [Retro++ engine](https://github.com/RetroPlusPlus/Engine). The port reads the
 [kaspermeerts/tetris](https://github.com/kaspermeerts/tetris) disassembly for intent, mechanics,
 and data, and writes idiomatic modern C++ against the engine's surface — run loop, renderer, input,
 audio, and CPU virtualization host. SDL3 with the SDL_GPU backend arrives transitively inside the
