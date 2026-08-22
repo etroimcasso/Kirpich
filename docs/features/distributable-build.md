@@ -1,8 +1,8 @@
 # Distributable Build
 
 **Date:** 2026-08-04
-**Status:** Partially implemented — the binary is lean and the shipping gate checks it; the
-packaging target does not exist yet
+**Status:** Complete — the binary is lean, the shipping gate checks it, and every platform packages
+into a container a person downloads
 
 How a shippable Kirpich artifact is produced: a lean binary, empty asset directories, and no
 copyrighted or ROM-derived byte anywhere in it. This document records the design; the build itself
@@ -20,8 +20,31 @@ ROM. Two properties define it and both are non-negotiable:
   or unstripped shipped binary is a defect, not a neutral default.
 
 Both properties are enforced by things that exist: the binary is built lean, and the gate checks
-both the asset directories and the binary itself. What is missing is the packaging step that
-assembles the pieces into a platform artifact.
+both the asset directories and the binary itself.
+
+## What a person downloads
+
+Every platform ships a container, never a bare executable — a loose binary on a release page is an
+unfinished thought, and on Linux it also arrives without its executable bit unless the archive
+carries permissions.
+
+| Platform | Artifact | Contains |
+|---|---|---|
+| Linux x64 / ARM64 | `Kirpich-linux-{x64,arm64}.zip` | a folder of the same name, holding `Kirpich` |
+| Windows x64 / ARM64 | `Kirpich-windows-{x64,arm64}.zip` | a folder of the same name, holding `Kirpich.exe` |
+| macOS ARM64 | `Kirpich-macOS-arm64.dmg` | `Kirpich.app`, signed, notarized and stapled |
+
+One folder inside each archive, so unzipping into a download directory never scatters files.
+
+**The Linux archives are made by `zip(1)` and by nothing else.** A release archive has to record the
+Unix permission bits, and the alternatives — Python's `zipfile`, the tar-based paths — do not; an
+archive that looks fine and produces a file the player has to `chmod +x` is worse than a build that
+stopped. `scripts/package-linux-zip.sh` refuses to substitute one, then extracts its own archive and
+tests the extracted file, so what is uploaded is proven rather than assumed. Windows has no
+permission bits to lose and uses `Compress-Archive`.
+
+macOS is not zipped: the disk image is already a container, and it is signed and notarized in its own
+right so the download opens clean rather than only the app inside it.
 
 ## Design decisions
 
