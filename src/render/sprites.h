@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <retropp/draw_state.h>  // DrawLayer, Sprite
@@ -53,6 +54,31 @@ inline constexpr int kSpriteScreenOffsetX = 8;
 inline constexpr int kScreenWidthPx  = 160;
 inline constexpr int kScreenHeightPx = 144;
 inline constexpr int kSpriteSizePx   = 8;
+
+// One buffer entry as a placed sprite, or nothing when the entry draws nothing.
+//
+// This is the whole of what composeSprites does per entry, named so that anything needing the shape
+// of a particular drawn object can ask the engine for it. A sprite's own mask query
+// (retropp::Sprite::maskShape) answers in the sprite's placed, flipped, oriented space, so the shape
+// it hands back is the shape actually on screen - but only for the sprite as submitted. Building a
+// second sprite by hand from the same entry would put the burden of matching that placement on the
+// caller; building it through this function cannot drift, because the frame's own sprites come from
+// here too. The ghost piece (render/ghost_piece.h) is the consumer.
+//
+// `includeOffScreen` serves a caller that wants an object's shape rather than its pixels. An entry
+// parked outside the screen puts nothing on it and the frame leaves it out, but a shape taken from it
+// and moved elsewhere draws normally - an upright piece at the top of the playing field carries three
+// quarters of itself above the first row and all of it inside the field at the row it lands on. It
+// defaults off, which is the rule a caller building the frame wants.
+//
+// The other arguments are composeSprites' own, and `tick` reaches the key the same way.
+[[nodiscard]] std::optional<retropp::Sprite> oamEntrySprite(const EngineState& engine,
+                                                            const OamSourceTable& sources,
+                                                            std::size_t index, TileSheet sheet,
+                                                            std::uint16_t tick,
+                                                            const TileAtlas& atlas,
+                                                            std::uint8_t ramp = kDefaultShadeRamp,
+                                                            bool includeOffScreen = false);
 
 // Compose the object buffer into placed sprites, skipping the entries that draw nothing.
 //

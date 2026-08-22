@@ -166,15 +166,19 @@ Shortening the overlap would change every blank cell on a gameplay screen.
 std::vector<retropp::TileCell> cells;     // both held across frames
 std::vector<retropp::Sprite>   sprites;
 
-kirpich::render::composeBackground(game.field, game.display.sheet, tiles, cells);
+kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
 kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
-                                tiles, sprites);
+                                tiles, sprites, settings.shadeRamp);
 
 retropp::FrameDrawState frame;
-frame.layers.push_back(kirpich::render::backgroundLayer(cells));
-frame.layers.push_back(kirpich::render::spriteLayer(sprites));
+frame.layers.push_back(kirpich::render::backgroundLayer(cells, kViewport));
+frame.layers.push_back(kirpich::render::spriteLayer(sprites, kViewport));
 renderer.renderFrame(frame);
 ```
+
+`composeBackground` reads `DisplayState`, not the board — the displayed map is what is on screen, and
+which of the two maps that is (`displayedMap()`) is the display's answer. The board is the game's own
+copy of the field, and the two differ whenever an effect lives in the gap between them.
 
 `composeBackground` resizes `cells` to 360 (20 × 18) and fills it row-major from the board's visible
 corner. `composeSprites` clears `sprites` and appends one per buffer entry that puts a pixel on the
@@ -197,6 +201,54 @@ renderer records that as it writes.
 
 There is no camera and no scroll: this game does not scroll, so the map and the screen are the same
 size.
+
+### The ghost piece — `src/render/ghost_piece.h`
+
+A shadow of the falling piece on the row it would land on, off unless the player turns it on. It is
+presentation only: nothing in the simulation records it or reads it.
+
+```cpp
+#include "render/ghost_piece.h"
+
+retropp::DrawLayer background = kirpich::render::backgroundLayer(cells, kViewport);
+if (settings.ghostPiece) {
+    background.regions =
+        kirpich::render::ghostPieceRegions(game, tiles, simTicks, settings.shadeRamp);
+}
+frame.layers.push_back(std::move(background));
+```
+
+| Call | Answers |
+|---|---|
+| `ghostDropRows(game)` | Rows the piece would fall before coming to rest |
+| `ghostVisible(game)` | Whether a shadow belongs on screen this frame |
+| `ghostShadowCells(game)` | The board cells the shadow occupies — four, or none |
+| `ghostPieceRegions(game, atlas, tick, ramp)` | The regions themselves |
+
+**The shape comes from the piece's own sprites.** Each part of the falling piece is already a placed
+sprite, and `retropp::Sprite::maskShape(n, Space::Layer)` hands back that sprite's coverage as a
+polygon carrying its flips, rotation, transform and placement. The shadow moves that polygon down and
+fills it — so it cannot disagree with the piece about what shape a piece is. The sprites it asks are
+built through `oamEntrySprite`, the same call that builds the frame's own, with `includeOffScreen`
+set: three quarters of an upright piece sits above the first row at the top of the field, and all of
+it is inside the field at the row it lands on.
+
+**The regions belong to the background layer, not the frame.** A frame region grades the composited
+picture, objects included, so a shadow attached there grades the piece as well.
+
+**The shadow and the piece never share a cell**, and depth is not what achieves that. A piece block is
+see-through in its middle — an object's lightest colour is transparency rather than a shade — so a
+shadow under a block shows through the block's own holes and tints it whatever order the two draw in.
+`ghostVisible` therefore withdraws the shadow entire the moment any of its four cells would coincide
+with a cell the piece occupies, which also covers a piece already at rest.
+
+**The landing row is the lock's answer.** The walk steps the piece down and asks the same emptiness
+test `detectCollision` uses, so the shadow can never sit where the piece could not stop. Rows step
+*around* the board rather than off the end of it, matching the eight-bit arithmetic a board row is
+derived by — a cell above the playing field is row 29, 30 or 31, not a negative number.
+
+`ghostPieceRegions` needs the tile art uploaded, since a sprite resolves its coverage against its
+uploaded sheet. The other three calls read game state alone.
 
 ## The host — `src/main.cpp`
 
@@ -241,14 +293,14 @@ There are two background maps, and the bridge composes whichever `DisplayState::
 Pausing switches to the second — the same stats panel with no playing field and a `PAUSE` label — and
 unpausing switches back. See [`readouts.md`](readouts.md).
 
+The game draws through whichever of the thirty-two shade ramps the player has chosen
+([`settings.md`](settings.md)); a ramp changes what the four shades are and never which art a tile
+index names.
+
 One difference from the original remains, deliberately:
 
 - **No palette effects.** The fades and the blank at a screen change are register writes the port does
-  not make; everything renders through the fixed grey ramp. The line-clear flash is not one of these —
-  it repaints tiles, and it is ported.
-
-Not drawn yet: the top-score table, which is a screen of its own and lands with the high-score
-recording.
+  not make. The line-clear flash is not one of these — it repaints tiles, and it is ported.
 
 Three object behaviours are also not reproduced — background priority, the per-scanline object limit,
 and left-to-right priority — and are recorded in
@@ -265,5 +317,6 @@ and left-to-right priority — and are recorded in
 | the colours, or an object palette | the shade constants and `uploadTileAtlas` in `src/render/tile_atlas.{h,cpp}` |
 | the visible window, layer key, depth, or wrap | `src/render/background.{h,cpp}` |
 | how objects are named, placed, or ordered | `src/render/sprites.{h,cpp}` |
+| the landing shadow's colour, opacity, or when it shows | `src/render/ghost_piece.{h,cpp}` |
 | what the program does at startup | `src/main.cpp` |
 | the backdrop data itself | regenerate the tilemaps — see [tilemaps.md](tilemaps.md) |

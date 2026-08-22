@@ -81,6 +81,8 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
         case SettingsRow::SHADE_RAMP:
             return {.left  = settings.shadeRamp > 0,
                     .right = settings.shadeRamp + 1 < render::kShadeRampCount};
+        case SettingsRow::GHOST_PIECE:
+            return {.left = settings.ghostPiece, .right = !settings.ghostPiece};
         case SettingsRow::EXIT_GAME:
         case SettingsRow::RESET_SCORES:
             return {};  // an action has nothing to scroll through
@@ -152,15 +154,6 @@ void paintValue(BackgroundMap& map, SettingsRow row, std::string_view text) {
     writeMapText(map, line, kOptionValueCol, text);
 }
 
-// Every scroller row's value. Called on the way in and after every change.
-void paintSettingsValues(BackgroundMap& map, const Settings& settings) {
-    paintValue(map, SettingsRow::FULLSCREEN, settings.fullscreen ? "on" : "off");
-
-    // One digit and an x - the scales this build offers are all single digits.
-    const char scale[2] = {static_cast<char>('0' + settings.windowScale), 'x'};
-    paintValue(map, SettingsRow::WINDOW_SCALE, std::string_view{scale, sizeof scale});
-}
-
 // The palette row's number: the ramp in effect, counted from one. It is the only text in the
 // scroller - the arrows either side of it and the preview strip below are shapes the render bridge
 // draws (src/render/settings_overlay.h), which is why the cells they sit in are cleared here.
@@ -173,6 +166,22 @@ void paintRampValue(BackgroundMap& map, std::uint8_t ramp) {
                             static_cast<char>('0' + number % 10)};
     paintValue(map, SettingsRow::SHADE_RAMP,
                number >= 10 ? std::string_view{digits, 2} : std::string_view{digits + 1, 1});
+}
+
+// Every value on the given page. Called on the way in and after every change - and a page paints only
+// its own rows, because the other page's lines hold whatever this one wrote there.
+void paintSettingsValues(BackgroundMap& map, const Settings& settings, std::uint8_t page) {
+    if (page == 0) {
+        paintValue(map, SettingsRow::FULLSCREEN, settings.fullscreen ? "on" : "off");
+
+        // One digit and an x - the scales this build offers are all single digits.
+        const char scale[2] = {static_cast<char>('0' + settings.windowScale), 'x'};
+        paintValue(map, SettingsRow::WINDOW_SCALE, std::string_view{scale, sizeof scale});
+
+        paintRampValue(map, settings.shadeRamp);
+        return;
+    }
+    paintValue(map, SettingsRow::GHOST_PIECE, settings.ghostPiece ? "on" : "off");
 }
 
 // Which rows the given page draws, in order.
@@ -190,6 +199,10 @@ std::string_view labelFor(SettingsRow row) {
         case SettingsRow::FULLSCREEN:   return "fullscreen";
         case SettingsRow::WINDOW_SCALE: return "size";
         case SettingsRow::SHADE_RAMP:   return "palette";
+        // "ghost", not "ghost piece": a label runs from column 3 to the left arrow at column 13, so
+        // ten cells is all there is, and the two-word form is eleven. The siblings are terse for the
+        // same reason - the size row is "size", not "window scale".
+        case SettingsRow::GHOST_PIECE:  return "ghost";
         case SettingsRow::RESET_SCORES: return "reset scores";
         // "exit game", not "exit": on its own the word reads as leaving this screen, which is what
         // Back does, and a player reaching for it would be asked to quit instead.
@@ -214,11 +227,7 @@ void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& 
         writeMapText(map, settingsRowLine(row), kLabelCol, labelFor(row));
     }
 
-    // Only the first page carries the two value fields and the palette scroller.
-    if (page == 0) {
-        paintSettingsValues(map, settings);
-        paintRampValue(map, settings.shadeRamp);
-    }
+    paintSettingsValues(map, settings, page);
 }
 
 void drawSettingsCursor(BackgroundMap& map, const ScreenUiState& ui) {
@@ -326,6 +335,9 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
         case SettingsRow::SHADE_RAMP:
             next.shadeRamp = render::clampShadeRamp(static_cast<int>(next.shadeRamp) + delta);
             break;
+        case SettingsRow::GHOST_PIECE:
+            next.ghostPiece = delta > 0;
+            break;
         case SettingsRow::RESET_SCORES:
         case SettingsRow::EXIT_GAME:
             return;  // an action, not a value
@@ -336,8 +348,8 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
 
     *wiring.settings      = next;
     game.audioCues.square = SquareSfxId::TINK;
-    paintSettingsValues(targetMap(game.display), next);
-    paintRampValue(targetMap(game.display), next.shadeRamp);
+    paintSettingsValues(targetMap(game.display), next,
+                        settingsPageOf(game.screens.settingsRow));
     if (wiring.apply) {
         wiring.apply(next);
     }
@@ -420,12 +432,11 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
     // than only the cursor being moved.
     if (turnedPage) {
         paintSettings(map, game.screens, settingsOf(wiring));
-    } else if (settingsPageOf(game.screens.settingsRow) == 0) {
+    } else {
         // The values are redrawn every frame, not only when this screen changes one: the fullscreen
         // chord sets the same setting from outside, and a row showing what the chord just turned off
-        // is the whole point of having the row. Only the first page carries them.
-        paintSettingsValues(map, settingsOf(wiring));
-        paintRampValue(map, settingsOf(wiring).shadeRamp);
+        // is the whole point of having the row.
+        paintSettingsValues(map, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
     }
     drawValueArrows(game, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
     drawSettingsCursor(map, game.screens);

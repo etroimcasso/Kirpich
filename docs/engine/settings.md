@@ -17,6 +17,7 @@ struct Settings {
     bool         fullscreen  = false;
     std::uint8_t windowScale = kDefaultWindowScale;  // 4
     std::uint8_t shadeRamp   = 0;                    // the greyscale ramp
+    bool         ghostPiece  = false;                // the falling piece's landing shadow
 };
 ```
 
@@ -38,15 +39,39 @@ offers. Both are applied on the way in from disk, so a stored value can never na
 
 ### The save document
 
-`"settings"`, version 1, three bytes: the fullscreen flag as 0 or 1, the window scale, the ramp.
+`"settings"`, **version 2**, four bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
+the ghost-piece flag as 0 or 1.
 
-`decodeSettings` accepts an image **shorter** than three bytes and leaves every value the image does
-not carry at its default — which is what lets a document written before a setting existed cost the
-player only that setting. It refuses an empty image and one longer than this build writes.
+Version 1 was three bytes, without the ghost-piece flag. `migrateSettingsV1ToV2` appends that flag as
+off, and `loadSettings` registers it on the store before reading, so a version 1 document reaches the
+decoder at version 2's length.
 
-**To add a setting:** append a field to `Settings`, append its byte to `encodeSettings`, read it in
-`decodeSettings` behind an `image.size() > n` guard, and raise `kSettingsImageBytes`. Existing saves
-keep working without a version bump, because a short image is already the supported case.
+`decodeSettings` accepts an image **shorter** than four bytes and leaves every value the image does not
+carry at its default, which keeps a truncated file costing one setting rather than all of them. It
+refuses an empty image and one longer than this build writes.
+
+**To add a setting:**
+
+1. Append a field to `Settings` and its byte to `encodeSettings`.
+2. Read it in `decodeSettings` behind an `image.size() > n` guard.
+3. Raise `kSettingsImageBytes`.
+4. **Raise `kSettingsSchemaVersion` and register a migration** from the previous version that appends
+   the new byte at its default.
+
+Step 4 is not optional, and the short-image path is not a substitute for it. A build that writes a
+different number of bytes under an unchanged version number leaves two formats answering to one
+version, which is the situation a schema version exists to prevent; the short-image path is what
+keeps a *damaged* file cheap, not what carries a format change.
+
+### One version and one migration chain per store, not per document
+
+`SaveStore::setCurrentVersion` and `registerMigration` are properties of the **store**, and this port
+keeps the settings and the top scores in the same store. Declaring version 2 therefore changes the
+terms every document in that store is read under.
+
+What keeps them apart is that each loader names its own version immediately before its own read —
+`loadSettings` sets 2 and registers its step, `loadTopScores` sets 1 — so a document is never read
+under another document's version. Any new document type in this store follows the same rule.
 
 ## The screens
 
@@ -84,14 +109,24 @@ at the title screen that is the first map, and in a paused round it is the secon
 
 ```cpp
 enum class SettingsRow : std::uint8_t {
-    FULLSCREEN, WINDOW_SCALE, SHADE_RAMP, EXIT_GAME, RESET_SCORES
+    FULLSCREEN, WINDOW_SCALE, SHADE_RAMP, EXIT_GAME,   // page 1
+    GHOST_PIECE, RESET_SCORES                          // page 2
 };
 ```
 
+`kSettingsFirstPageRows` is 4, so the first four enumerators draw on page 1 and the rest on page 2.
+`paintSettingsValues` takes the page and paints only that page's values.
+
 **To add a row:** add an enumerator in the position it should be walked, give it a label in
 `labelFor`, and handle it in `changeValue` (a value) or in the Confirm/Start branch of
-`settingsScreen` (an action). Raising `kSettingsFirstPageRows` moves the page boundary; the page a row
-lands on and the arrow that advertises the other page both follow from it.
+`settingsScreen` (an action). A value row also needs an entry in `reachOf`, which is what decides
+whether it draws a scroll arrow on each side, and a line in `paintSettingsValues` under its page.
+Raising `kSettingsFirstPageRows` moves the page boundary; the page a row lands on and the arrow that
+advertises the other page both follow from it.
+
+A label runs from `kLabelCol` (3) to the left scroll arrow at `kOptionLeftArrowCol` (13), so **ten
+cells is the most a label can be**. The existing labels are terse for that reason — the window-size
+row reads `size`, the ghost row reads `ghost`.
 
 **To change where a row sits**, edit `kSettingsFirstRow` and `kSettingsRowStride` in
 `src/systems/settings_screen.h`. Those are the geometry the drawn parts read too, so a row and its
@@ -108,8 +143,11 @@ punctuation glyphs — **no colon, slash, question mark or arrow**. Check any ne
 
 ```cpp
 struct ShadeRamp { retropp::Rgba8 darkest, dark, light, lightest; };
-inline constexpr std::array<ShadeRamp, 12> kShadeRamps{ /* ... */ };
+inline constexpr std::array<ShadeRamp, 32> kShadeRamps{ /* ... */ };
 ```
+
+Thirty-two of them: twenty-four built for this port, then the eight colour schemes Windows 3.1
+shipped in its Control Panel, named as it named them.
 
 Darkest first, matching the order the extractor's decode produces. `uploadTileAtlas` builds five
 palettes per ramp — background font, background content, and the three object variants — and uploads
@@ -127,25 +165,45 @@ visible colours to a sprite and four to the background.
 follows — the upload, the screen's count, and the clamp. Past ninety-nine ramps the two cells the
 number is drawn in run out, which a `static_assert` says.
 
+**A ramp must run dark to light** by Rec.601 luminance, strictly increasing across the four shades.
+The art stores a sample per pixel and the ramp says what that sample is worth, so a ramp out of order
+draws the game inverted or muddy. `ShadeRamps.EveryRampRunsDarkToLight` sweeps every ramp the build
+offers, so a new one authored out of order fails there rather than on screen.
+
 ## The drawn parts
 
-`settingsOverlay(ui, ramp, viewportWidth)` returns the regions for the palette scroller's arrows, the
-preview strip, and the page arrow. The host pushes them onto the frame's regions while the settings
-screen is showing:
+`settingsOverlay(ui, ramp, viewportWidth)` returns the regions for the palette preview strip. The host
+appends them to the frame's regions while the settings screen is showing:
 
 ```cpp
 if (game.flow.gameState == kirpich::GameState::SETTINGS) {
-    frame.regions = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
-                                                     kViewport.width);
+    const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
+                                                          kViewport.width);
+    frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
 }
 ```
 
-Each is a polygon carrying one `ColorFill` — three points for an arrow, four for a preview square.
-They are regions rather than cells because the art has neither an arrow nor a solid-colour tile, and
-because a region is placed per pixel, which is what lets the preview's squares abut exactly.
+Appended rather than assigned, because the frame's regions are shared — the ghost piece
+(`rendering.md`) puts its own on the background layer, but anything else reaching for `frame.regions`
+would otherwise overwrite this.
+
+`settingsPageArrows(ui, ramp, atlas)` returns the page arrow separately, as a sprite: it is the game's
+own selector tile given a quarter turn, which an object cannot express because the hardware has two
+flips and no rotation. Append it to the composed sprites before they are wrapped as the frame's sprite
+layer.
+
+A preview square is a four-point polygon carrying one `ColorFill`. It is a region rather than a cell
+because the art has no solid-colour tile, and because a region is placed per pixel — which is what
+lets the four squares abut exactly and read as one band of colour rather than as four blocks.
+
+The scroll arrows either side of a value are neither: they are the game's own selector tile placed in
+the object buffer by `drawValueArrows`, flipped for the left one. So the screen draws in the game's
+own hand wherever the art has something to draw with, and reaches for a region only for colour, which
+it has nothing for.
 
 An arrow is emitted only where there is somewhere to go: none to the left of the first ramp, none to
-the right of the last, none above the first page or below the last.
+the right of the last, none above the first page or below the last. A row that is an action rather
+than a choice has neither.
 
 ## Applying a change
 

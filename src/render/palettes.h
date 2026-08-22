@@ -35,7 +35,7 @@ struct ShadeRamp {
 };
 
 // The ramps, in the order the settings screen numbers them: the screen shows 1 for the first.
-inline constexpr std::array<ShadeRamp, 24> kShadeRamps{{
+inline constexpr std::array<ShadeRamp, 32> kShadeRamps{{
     // 1 - greyscale. The hardware's four shades as the port has always drawn them.
     {.darkest  = {.r =   0, .g =   0, .b =   0},
      .dark     = {.r =  85, .g =  85, .b =  85},
@@ -179,6 +179,60 @@ inline constexpr std::array<ShadeRamp, 24> kShadeRamps{{
      .dark     = {.r =  28, .g =  80, .b = 118},
      .light    = {.r =  62, .g = 174, .b = 160},
      .lightest = {.r = 214, .g = 246, .b = 196}},
+
+    // 25-32 are the colour schemes Windows 3.1 shipped in its Control Panel, named as it named them.
+    // They are louder than the twenty-four above and that is the point - they were designed for a
+    // 16-colour VGA palette by people with sixteen colours to spend, and several of them commit
+    // entirely to one idea. The four shades are chosen to run dark to light like every other ramp, so
+    // a scheme's character survives being reduced to a ramp even where its own screen used more.
+
+    // 25 - hot dog stand, the one everybody remembers and nobody chose twice.
+    {.darkest  = {.r =   0, .g =   0, .b =   0},
+     .dark     = {.r = 255, .g =   0, .b =   0},
+     .light    = {.r = 255, .g = 255, .b =   0},
+     .lightest = {.r = 255, .g = 255, .b = 255}},
+
+    // 26 - bordeaux, a wine-dark purple rising to a dusty blush.
+    {.darkest  = {.r =  43, .g =  10, .b =  30},
+     .dark     = {.r = 122, .g =  18, .b =  71},
+     .light    = {.r = 176, .g =  74, .b = 122},
+     .lightest = {.r = 232, .g = 196, .b = 216}},
+
+    // 27 - emerald city, a saturated green with nothing muted about it.
+    {.darkest  = {.r =   4, .g =  42, .b =  18},
+     .dark     = {.r =  14, .g = 122, .b =  46},
+     .light    = {.r =  53, .g = 194, .b =  92},
+     .lightest = {.r = 207, .g = 240, .b = 212}},
+
+    // 28 - arizona, desert browns under the turquoise the scheme is remembered for.
+    {.darkest  = {.r =  58, .g =  30, .b =  12},
+     .dark     = {.r = 156, .g =  74, .b =  24},
+     .light    = {.r = 216, .g = 154, .b =  76},
+     .lightest = {.r = 127, .g = 224, .b = 212}},
+
+    // 29 - fluorescent, magenta through cyan to acid. It does not blend and was never meant to.
+    {.darkest  = {.r =  20, .g =   0, .b =  30},
+     .dark     = {.r = 179, .g =   0, .b = 166},
+     .light    = {.r =   0, .g = 229, .b = 208},
+     .lightest = {.r = 234, .g = 255, .b = 107}},
+
+    // 30 - plasma power saver, black through magenta to a hot orange.
+    {.darkest  = {.r =  16, .g =   0, .b =  16},
+     .dark     = {.r = 110, .g =  11, .b =  82},
+     .light    = {.r = 214, .g =  59, .b = 107},
+     .lightest = {.r = 255, .g = 184, .b = 107}},
+
+    // 31 - pastel, the one ramp here that never goes near black: mauve to a warm white.
+    {.darkest  = {.r = 110, .g =  90, .b = 120},
+     .dark     = {.r = 169, .g = 143, .b = 196},
+     .light    = {.r = 201, .g = 226, .b = 192},
+     .lightest = {.r = 251, .g = 242, .b = 228}},
+
+    // 32 - black leather jacket, near-black up to chrome.
+    {.darkest  = {.r =   5, .g =   5, .b =  10},
+     .dark     = {.r =  31, .g =  34, .b =  41},
+     .light    = {.r =  94, .g = 101, .b = 112},
+     .lightest = {.r = 198, .g = 203, .b = 210}},
 }};
 
 // How many ramps there are, and which one a build draws in until a player says otherwise.

@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 #include <retropp/save_store.h>
 
@@ -38,37 +39,63 @@ struct Settings {
     // own shades map to, so a player who never touches it sees what they always saw.
     std::uint8_t shadeRamp = 0;
 
+    // Whether the falling piece casts a shadow on the row it would land on (src/render/ghost_piece.h).
+    // Off by default: it is help the original does not give, so a player gets the game they remember
+    // until they ask for something else.
+    bool ghostPiece = false;
+
     friend bool operator==(const Settings&, const Settings&) = default;
 };
 
 // The settings save document: schema version and the image size. The name is spelled as a literal at
 // the call sites, as the top-score document's is.
 //
-// A shorter image is read as far as it goes and the values it does not carry keep their defaults, so
-// a document written before a setting existed costs the player only that setting. A longer one is
-// refused, since nothing can be said about bytes this build does not understand.
-inline constexpr std::uint32_t kSettingsSchemaVersion = 1;
-inline constexpr std::size_t   kSettingsImageBytes    = 3;
+// Version 2 adds the ghost-piece flag to version 1's three bytes. A version 1 document is migrated on
+// the way in (migrateSettingsV1ToV2), not read short: two formats answering to one version number is
+// what a schema version exists to prevent.
+//
+// A shorter image is still read as far as it goes and the values it does not carry keep their
+// defaults, which keeps a truncated file costing one setting rather than all of them. A longer image
+// is refused, since nothing can be said about bytes this build does not understand.
+inline constexpr std::uint32_t kSettingsSchemaVersion = 2;
+inline constexpr std::size_t   kSettingsImageBytes    = 4;
+
+// What version 1 wrote: the flag, the scale, the ramp. Named so the migration and its test say the
+// same number.
+inline constexpr std::size_t kSettingsImageBytesV1 = 3;
 
 // Bring a scale into the range this build offers. Values below the floor come up to it and values
 // above the ceiling come down to it; the range itself is what a build changes when it offers more.
 [[nodiscard]] std::uint8_t clampWindowScale(int scale);
 
-// Encode the settings into the image: the fullscreen flag as 0 or 1, then the scale, then the ramp.
+// Encode the settings into the image: the fullscreen flag as 0 or 1, then the scale, then the ramp,
+// then the ghost-piece flag.
 [[nodiscard]] std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings);
 
 // Decode an image into `settings`. Returns false and leaves `settings` untouched when the image is
 // empty or longer than this build writes; true otherwise, with any byte the image does not carry
-// left at its default. Any non-zero first byte means fullscreen, and both the scale and the ramp are
-// clamped on the way in.
+// left at its default. Any non-zero flag byte means on, and both the scale and the ramp are clamped
+// on the way in.
 [[nodiscard]] bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings);
 
-// Persist the settings as document "settings" version 1. Returns whatever the atomic write reports.
+// Bring a version 1 image up to version 2 by appending the ghost-piece flag, off. A document written
+// before the setting existed cannot say anything about it, and off is what it would have been.
+//
+// Exposed so the migration can be tested for what it does rather than only through a store.
+[[nodiscard]] std::vector<std::byte> migrateSettingsV1ToV2(std::vector<std::byte> payload);
+
+// Persist the settings as document "settings" at the current schema version. Returns whatever the
+// atomic write reports.
 bool saveSettings(const Settings& settings, retropp::SaveStore& store);
 
-// Load the settings from the store. Absent document (ordinary first run) -> leave the defaults,
-// return false. Present and valid -> decode, return true. Corrupt or wrong length -> log an error,
-// leave the defaults, leave the damaged file in place, return false.
+// Load the settings from the store, migrating an older document forward on the way in. Absent
+// document (ordinary first run) -> leave the defaults, return false. Present and valid -> decode,
+// return true. Corrupt or wrong length -> log an error, leave the defaults, leave the damaged file
+// in place, return false.
+//
+// Declares this document's schema version and migration chain on the store before reading, because
+// both are the store's own rather than per-document: every loader sharing a store must name its own
+// version immediately before its own read (src/state/high_score_persistence.h does the same).
 bool loadSettings(retropp::SaveStore& store, Settings& settings);
 
 }  // namespace kirpich
