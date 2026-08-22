@@ -1,0 +1,287 @@
+name: Release Artifacts
+
+# Builds the shippable distributable on every platform and uploads ONE clean artifact per platform —
+# the packaged binary, and nothing else. No tests, no test-result files: this workflow exists to
+# produce the things a person downloads, so a run's artifacts are exactly the five distributables.
+#
+# Every job configures with KIRPICH_DEV_ASSET_ROOT=OFF so the build machine's own path is never baked
+# into the binary, and then the packaging gate VERIFIES that rather than trusting the flag.
+#
+# Push to this branch to produce a fresh set. macOS is ad-hoc signed only here; the Developer ID
+# signing and notarization that a public download needs live in the tag-triggered release workflow.
+#
+# Self-hosted-runner safety: no pull_request family, so a run is only startable by someone who can
+# push here — the same reasoning as ci.yml.
+on:
+  push:
+    branches:
+      - 'ci/release-artifacts'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+
+  # ── Linux x64 (beefserve) ────────────────────────────────────────────────────
+  linux-x64:
+    name: Linux x64 (beefserve)
+    runs-on: [self-hosted, Linux, X64, beefserve]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git submodule sync --recursive -- engine
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      - name: Build the distributable
+        run: |
+          set -eu
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build-release" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DKIRPICH_DEV_ASSET_ROOT=OFF -DBUILD_TESTING=OFF
+          cmake --build "$GITHUB_WORKSPACE/build-release" --parallel
+
+      - name: Stage and verify
+        run: |
+          set -eu
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          rm -rf "$STAGE"; mkdir -p "$STAGE/assets/gfx/default" "$STAGE/assets/audio/default"
+          touch "$STAGE/assets/gfx/default/.gitkeep" "$STAGE/assets/audio/default/.gitkeep"
+          cp "$GITHUB_WORKSPACE/build-release/Kirpich" "$STAGE/Kirpich"
+          sh "$GITHUB_WORKSPACE/scripts/check-distributable-clean.sh" "$STAGE" "$STAGE/Kirpich"
+          cp "$STAGE/Kirpich" "$GITHUB_WORKSPACE/Kirpich-linux-x64"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirpich-linux-x64
+          path: Kirpich-linux-x64
+          if-no-files-found: error
+
+  # ── Windows x64 (WINDOWS-BVDA56O) ────────────────────────────────────────────
+  windows-x64:
+    name: Windows x64 (WINDOWS-BVDA56O)
+    runs-on: [self-hosted, X64, Windows, Windows_X64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        shell: powershell
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd $env:GITHUB_WORKSPACE
+          git submodule sync --recursive -- engine
+          git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+          if ($LASTEXITCODE -ne 0) {
+            git submodule deinit -f -- engine
+            Remove-Item -Recurse -Force .git\modules\engine -ErrorAction SilentlyContinue
+            git submodule sync --recursive -- engine
+            git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build the distributable
+        shell: powershell
+        run: |
+          cmake -S $env:GITHUB_WORKSPACE -B C:\kirpich-release-build `
+            -G "Visual Studio 17 2022" -A x64 -T ClangCL `
+            -DKIRPICH_DEV_ASSET_ROOT=OFF -DBUILD_TESTING=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build C:\kirpich-release-build --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # The dev asset root is off, so KIRPICH_PROJECT_ROOT is never defined; this confirms the
+      # workspace path is not in the binary. `strings` is not on Windows, so the raw bytes are
+      # searched directly.
+      - name: Verify no development asset root
+        shell: powershell
+        run: |
+          $exe = "C:\kirpich-release-build\Release\Kirpich.exe"
+          $bytes = [System.IO.File]::ReadAllText($exe, [System.Text.Encoding]::ASCII)
+          if ($bytes.Contains($env:GITHUB_WORKSPACE)) {
+            Write-Error "binary carries a development asset root: $env:GITHUB_WORKSPACE"
+            exit 1
+          }
+          Copy-Item $exe "$env:GITHUB_WORKSPACE\Kirpich-windows-x64.exe"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirpich-windows-x64
+          path: Kirpich-windows-x64.exe
+          if-no-files-found: error
+
+  # ── macOS ARM64 (ericmacmini) — first of the three ARM64 jobs on the one host ─
+  macos-arm64:
+    name: macOS ARM64 (ericmacmini)
+    runs-on: [self-hosted, macOS, ARM64, ericmacmini]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git submodule sync --recursive -- engine
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      - name: Build the distributable
+        run: |
+          set -eu
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build-release" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DKIRPICH_DEV_ASSET_ROOT=OFF -DBUILD_TESTING=OFF
+          cmake --build "$GITHUB_WORKSPACE/build-release" --parallel
+
+      - name: Stage, verify, and package the disk image
+        run: |
+          set -eu
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          rm -rf "$STAGE"; mkdir -p "$STAGE/assets/gfx/default" "$STAGE/assets/audio/default"
+          touch "$STAGE/assets/gfx/default/.gitkeep" "$STAGE/assets/audio/default/.gitkeep"
+          cp -R "$GITHUB_WORKSPACE/build-release/Kirpich.app" "$STAGE/Kirpich.app"
+          sh "$GITHUB_WORKSPACE/scripts/check-distributable-clean.sh" "$STAGE" "$STAGE/Kirpich.app"
+          sh "$GITHUB_WORKSPACE/scripts/make-macos-dmg.sh" "$STAGE/Kirpich.app" \
+            "$GITHUB_WORKSPACE/Kirpich-macOS-arm64.dmg"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirpich-macOS-arm64
+          path: Kirpich-macOS-arm64.dmg
+          if-no-files-found: error
+
+  # ── Linux ARM64 (linmac-arm64) — second on the shared host ───────────────────
+  linux-arm64:
+    name: Linux ARM64 (linmac-arm64)
+    runs-on: [self-hosted, Linux, ARM64, linmac-arm64]
+    needs: macos-arm64
+    if: ${{ always() }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git submodule sync --recursive -- engine
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      - name: Build the distributable
+        run: |
+          set -eu
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build-release" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DKIRPICH_DEV_ASSET_ROOT=OFF -DBUILD_TESTING=OFF
+          cmake --build "$GITHUB_WORKSPACE/build-release" --parallel
+
+      - name: Stage and verify
+        run: |
+          set -eu
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          rm -rf "$STAGE"; mkdir -p "$STAGE/assets/gfx/default" "$STAGE/assets/audio/default"
+          touch "$STAGE/assets/gfx/default/.gitkeep" "$STAGE/assets/audio/default/.gitkeep"
+          cp "$GITHUB_WORKSPACE/build-release/Kirpich" "$STAGE/Kirpich"
+          sh "$GITHUB_WORKSPACE/scripts/check-distributable-clean.sh" "$STAGE" "$STAGE/Kirpich"
+          cp "$STAGE/Kirpich" "$GITHUB_WORKSPACE/Kirpich-linux-arm64"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirpich-linux-arm64
+          path: Kirpich-linux-arm64
+          if-no-files-found: error
+
+  # ── Windows ARM64 (WINMACARM64) — last, slowest, on the shared host ──────────
+  windows-arm64:
+    name: Windows ARM64 (WINMACARM64)
+    runs-on: [self-hosted, ARM64, Windows, WINMACARM64]
+    needs: linux-arm64
+    if: ${{ always() }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init engine submodule
+        shell: powershell
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd $env:GITHUB_WORKSPACE
+          git submodule sync --recursive -- engine
+          git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+          if ($LASTEXITCODE -ne 0) {
+            git submodule deinit -f -- engine
+            Remove-Item -Recurse -Force .git\modules\engine -ErrorAction SilentlyContinue
+            git submodule sync --recursive -- engine
+            git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build the distributable
+        shell: powershell
+        run: |
+          cmake -S $env:GITHUB_WORKSPACE -B C:\kirpich-release-build `
+            -G "Visual Studio 17 2022" -A ARM64 -T ClangCL `
+            -DKIRPICH_DEV_ASSET_ROOT=OFF -DBUILD_TESTING=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build C:\kirpich-release-build --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify no development asset root
+        shell: powershell
+        run: |
+          $exe = "C:\kirpich-release-build\Release\Kirpich.exe"
+          $bytes = [System.IO.File]::ReadAllText($exe, [System.Text.Encoding]::ASCII)
+          if ($bytes.Contains($env:GITHUB_WORKSPACE)) {
+            Write-Error "binary carries a development asset root: $env:GITHUB_WORKSPACE"
+            exit 1
+          }
+          Copy-Item $exe "$env:GITHUB_WORKSPACE\Kirpich-windows-arm64.exe"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirpich-windows-arm64
+          path: Kirpich-windows-arm64.exe
+          if-no-files-found: error
