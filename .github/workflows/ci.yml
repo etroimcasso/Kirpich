@@ -50,6 +50,10 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # The credential is supplied per-invocation with -c (git passes it down to the clone it
           # spawns) rather than written to the runner's git config, so it does not persist between
           # runs. A leftover clone from an earlier run can lack the revision this branch records
@@ -58,6 +62,8 @@ jobs:
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
@@ -152,10 +158,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux job for why the credential is per-invocation and why the retry exists.
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
@@ -231,10 +243,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd $env:GITHUB_WORKSPACE
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux job for why the credential is per-invocation and why the retry exists.
           git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
           if ($LASTEXITCODE -ne 0) {
             git submodule deinit -f -- engine
+            Remove-Item -Recurse -Force .git\modules\engine -ErrorAction SilentlyContinue
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -319,10 +337,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux x64 job for why the credential is per-invocation and why the retry exists.
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
@@ -388,10 +412,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd $env:GITHUB_WORKSPACE
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux x64 job for why the credential is per-invocation and why the retry exists.
           git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
           if ($LASTEXITCODE -ne 0) {
             git submodule deinit -f -- engine
+            Remove-Item -Recurse -Force .git\modules\engine -ErrorAction SilentlyContinue
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }

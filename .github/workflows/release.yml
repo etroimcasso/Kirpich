@@ -48,9 +48,15 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
