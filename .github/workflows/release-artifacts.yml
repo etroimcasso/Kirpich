@@ -27,10 +27,38 @@ env:
 
 jobs:
 
+  # ── Version guard ────────────────────────────────────────────────────────────
+  # This branch is single-use: it ships one version. The branch name ends in that version
+  # (ci/release-artifacts-0-9-0 -> 0.9.0), and the project's real version lives in CMakeLists.txt.
+  # If they ever disagree — the classic "ran the old 0.9.0 branch after the version was bumped" —
+  # every build job is blocked, so no mislabeled artifact can escape. Cut a fresh
+  # ci/release-artifacts-<new-version> branch per release instead of reusing this one.
+  guard-version:
+    name: Guard version
+    runs-on: [self-hosted, Linux, X64, beefserve]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Branch version must match the project version
+        run: |
+          set -eu
+          branch_version="$(echo "${GITHUB_REF_NAME##*release-artifacts-}" | tr - .)"
+          project_version="$(sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9.]*\).*/\1/p' \
+            "$GITHUB_WORKSPACE/CMakeLists.txt" | head -1)"
+          echo "branch: $branch_version   project: $project_version"
+          if [ "$branch_version" != "$project_version" ]; then
+            echo "error: this branch ships $branch_version but the project is $project_version." >&2
+            echo "       cut ci/release-artifacts-$(echo "$project_version" | tr . -) instead." >&2
+            exit 1
+          fi
+
   # ── Linux x64 (beefserve) ────────────────────────────────────────────────────
   linux-x64:
     name: Linux x64 (beefserve)
     runs-on: [self-hosted, Linux, X64, beefserve]
+    needs: guard-version
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,6 +108,7 @@ jobs:
   windows-x64:
     name: Windows x64 (WINDOWS-BVDA56O)
     runs-on: [self-hosted, X64, Windows, Windows_X64]
+    needs: guard-version
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -137,6 +166,7 @@ jobs:
   macos-arm64:
     name: macOS ARM64 (ericmacmini)
     runs-on: [self-hosted, macOS, ARM64, ericmacmini]
+    needs: guard-version
     # A step's `if` cannot read the secrets context, so the decision that depends on a secret's
     # presence is made here and read as an ordinary value below.
     env:
@@ -287,8 +317,9 @@ jobs:
   linux-arm64:
     name: Linux ARM64 (linmac-arm64)
     runs-on: [self-hosted, Linux, ARM64, linmac-arm64]
-    needs: macos-arm64
-    if: ${{ always() }}
+    needs: [guard-version, macos-arm64]
+    # Runs after macOS whether it passed or failed (shared host), but never past a failed version guard.
+    if: ${{ always() && needs.guard-version.result == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -338,8 +369,9 @@ jobs:
   windows-arm64:
     name: Windows ARM64 (WINMACARM64)
     runs-on: [self-hosted, ARM64, Windows, WINMACARM64]
-    needs: linux-arm64
-    if: ${{ always() }}
+    needs: [guard-version, linux-arm64]
+    # Same: serialised on the shared host, gated on the version guard.
+    if: ${{ always() && needs.guard-version.result == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
