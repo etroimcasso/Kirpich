@@ -15,7 +15,7 @@ name: Release Artifacts
 on:
   push:
     branches:
-      - 'ci/release-artifacts-0-9-0'
+      - 'ci/release-artifacts-0-9-1'
   workflow_dispatch:
 
 concurrency:
@@ -29,7 +29,7 @@ jobs:
 
   # ── Version guard ────────────────────────────────────────────────────────────
   # This branch is single-use: it ships one version. The branch name ends in that version
-  # (ci/release-artifacts-0-9-0 -> 0.9.0), and the project's real version lives in CMakeLists.txt.
+  # (ci/release-artifacts-0-9-1 -> 0.9.0), and the project's real version lives in CMakeLists.txt.
   # If they ever disagree — the classic "ran the old 0.9.0 branch after the version was bumped" —
   # every build job is blocked, so no mislabeled artifact can escape. Cut a fresh
   # ci/release-artifacts-<new-version> branch per release instead of reusing this one.
