@@ -50,6 +50,10 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # The credential is supplied per-invocation with -c (git passes it down to the clone it
           # spawns) rather than written to the runner's git config, so it does not persist between
           # runs. A leftover clone from an earlier run can lack the revision this branch records
@@ -58,6 +62,8 @@ jobs:
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
@@ -80,7 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-kirpich
-          path: build/kirpich
+          path: build/Kirpich
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
@@ -152,10 +158,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux job for why the credential is per-invocation and why the retry exists.
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
@@ -170,11 +182,26 @@ jobs:
         run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
 
       # See the Linux x64 job for what this artifact is and is not.
+      #
+      # A disk image, the same one the release builds, because that is how a Mac application is
+      # distributed and it is what someone can actually open. Handing upload-artifact the .app
+      # directly would not work: it uploads the FILES UNDER a directory, so the bundle would arrive
+      # as a bare Contents/ tree with no wrapper, and it carries no permissions either, so the
+      # executable inside would lose its executable bit.
+      #
+      # Unsigned here. Signing, notarization and stapling belong to the release workflow, which a
+      # version tag starts — it builds the image with this same script, so the shape is identical.
+      - name: Build the disk image
+        run: |
+          sh "$GITHUB_WORKSPACE/scripts/make-macos-dmg.sh" \
+            "$GITHUB_WORKSPACE/build/Kirpich.app" \
+            "$GITHUB_WORKSPACE/build/Kirpich-macos-arm64.dmg"
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: macos-kirpich
-          path: build/kirpich
+          path: build/Kirpich-macos-arm64.dmg
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
@@ -216,10 +243,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd $env:GITHUB_WORKSPACE
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux job for why the credential is per-invocation and why the retry exists.
           git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
           if ($LASTEXITCODE -ne 0) {
             git submodule deinit -f -- engine
+            Remove-Item -Recurse -Force .git\modules\engine -ErrorAction SilentlyContinue
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -253,8 +286,8 @@ jobs:
         with:
           name: windows-kirpich
           path: |
-            C:\kirpich-ci-build\Release\kirpich.exe
-            C:\kirpich-ci-build\src\Release\kirpich.exe
+            C:\kirpich-ci-build\Release\Kirpich.exe
+            C:\kirpich-ci-build\src\Release\Kirpich.exe
           if-no-files-found: error
 
       - name: Test
@@ -304,10 +337,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux x64 job for why the credential is per-invocation and why the retry exists.
           if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
                  submodule update --init --recursive -- engine; then
             git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
               submodule update --init --recursive -- engine
           fi
@@ -326,7 +365,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-arm64-kirpich
-          path: build/kirpich
+          path: build/Kirpich
           if-no-files-found: error
 
       # The whole build directory, never just the binary — a bare binary breaks the moment
@@ -373,10 +412,16 @@ jobs:
           ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
         run: |
           cd $env:GITHUB_WORKSPACE
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
           # See the Linux x64 job for why the credential is per-invocation and why the retry exists.
           git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
           if ($LASTEXITCODE -ne 0) {
             git submodule deinit -f -- engine
+            Remove-Item -Recurse -Force .git\modules\engine -ErrorAction SilentlyContinue
+            git submodule sync --recursive -- engine
             git -c "url.https://x-access-token:${env:ENGINE_PAT}@github.com/.insteadOf=https://github.com/" submodule update --init --recursive -- engine
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -404,8 +449,8 @@ jobs:
         with:
           name: windows-arm64-kirpich
           path: |
-            C:\kirpich-ci-build\Release\kirpich.exe
-            C:\kirpich-ci-build\src\Release\kirpich.exe
+            C:\kirpich-ci-build\Release\Kirpich.exe
+            C:\kirpich-ci-build\src\Release\Kirpich.exe
           if-no-files-found: error
 
       - name: Test

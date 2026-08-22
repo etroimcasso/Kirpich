@@ -41,8 +41,8 @@ renderer, audio chain, persistence, and a ROM-less SM83 virtual-machine host.
 - `cmake/Dependencies.cmake`: the port's own SDL3 fetch removed; spdlog and GoogleTest remain.
 - `src/CMakeLists.txt`: `kirpich-lib` links `retropp::engine` publicly, plus spdlog.
 - `src/platform/` deleted.
-- `src/main.cpp`: logs the port and engine versions, runs the first-start asset flow, then
-  constructs `kirpich::Engine`.
+- `src/main.cpp`: logs the port and engine versions, runs the first-start asset flow, then composes
+  the dispatcher, the systems and the render bridge and hands the loop to `WindowedHost`.
 - Verified on macOS: clean build with no port-source warnings, smoke suite green, binary runs and
   exits 0.
 

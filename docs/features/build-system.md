@@ -36,15 +36,26 @@ An unconfigured CMake build leaves `CMAKE_BUILD_TYPE` empty, which produces an u
 with no optimization flags at all. The project forces `Release` when neither a build type nor a
 multi-config generator has set one, so the default build a contributor gets is optimized rather
 than an accidental debug build. A debug build is an explicit, temporary opt-in
-(`-DCMAKE_BUILD_TYPE=Debug`), never the default. The extra steps a *shipped* artifact needs on top
-of `Release` are a separate concern — see [`distributable-build.md`](distributable-build.md).
+(`-DCMAKE_BUILD_TYPE=Debug`), never the default. Optimization is only half of a lean artifact: a
+non-Debug build also dead-strips at link and strips its symbol table, which
+[`distributable-build.md`](distributable-build.md) owns and measures.
 
 ### Executables land at the build root
 
 Targets are defined in `src/`, and left alone CMake mirrors that subdirectory into the build tree,
-so the game would build to `build/src/kirpich` — a surprising place to look for it. Setting
+so the game would build to `build/src/Kirpich` — a surprising place to look for it. Setting
 `CMAKE_RUNTIME_OUTPUT_DIRECTORY` to the build root puts the executable where anyone running a
-normal build expects it: `build/kirpich`.
+normal build expects it: `build/Kirpich`, and `build/Kirpich.app` on macOS.
+
+### The artifact is a game, not a terminal program
+
+The CMake target is `kirpich`; what it produces is `Kirpich`. On macOS it is an application bundle
+(`MACOSX_BUNDLE`, identifier `com.kirpich.kirpich`, `cmake/KirpichBundleInfo.plist.in`), and on
+Windows it links against the windows subsystem (`WIN32_EXECUTABLE` with `/ENTRY:mainCRTStartup`,
+since the engine handles SDL's entry point and the game keeps a plain `main()`). Both exist for the
+same reason: each platform decides from the build what kind of program this is, and the default on
+each is a terminal program — one gets handed to Terminal.app when double-clicked, the other is given
+a console window. Linux needs neither; an ELF executable launched from a desktop opens no terminal.
 
 ### Compiler floors fail at configure time, with a reason
 
@@ -112,8 +123,9 @@ behavior belongs to the asset story; see [`asset-acquisition.md`](asset-acquisit
   platform detection, compiler floors, warning flags, ccache, `compile_commands.json`, the engine
   submodule guard and `SDL_DIALOG` opt-in, then `src/` and `tests/`.
 - `cmake/Dependencies.cmake` — spdlog and GoogleTest via `FetchContent`; SDL3 deliberately absent.
-- `src/CMakeLists.txt` — `kirpich-lib` (static, `main.cpp` excluded), the `kirpich` executable, and
-  the `KIRPICH_DEV_ASSET_ROOT` option.
+- `src/CMakeLists.txt` — `kirpich-lib` (static, `main.cpp` excluded), the `kirpich` executable, the
+  `KIRPICH_DEV_ASSET_ROOT` option, and the dead-strip and symbol-strip configuration a non-Debug
+  build carries.
 - `tests/CMakeLists.txt` — globbed GoogleTest runner registered with CTest.
 
 **Targets:** `kirpich-lib` (static library), `kirpich` (executable), `kirpich-tests` (test runner).
@@ -124,7 +136,8 @@ macOS ARM64, Linux ARM64, Windows x64, and Windows ARM64. See [`ci.md`](ci.md).
 ## Open questions
 
 - **A packaging / install target.** The build produces a runnable binary in the build tree but has
-  no `install` or packaging step yet, and no lean-shipping configuration on top of `Release`. That
-  is the subject of [`distributable-build.md`](distributable-build.md).
+  no `install` or packaging step yet. That is the subject of
+  [`distributable-build.md`](distributable-build.md), which also owns the dead-strip and symbol-strip
+  configuration every non-Debug build now carries.
 - **A sanitizer configuration.** A `Debug` build with address and undefined-behavior sanitizers is
   worth adding once there is meaningful game code to exercise. Noted in [`ci.md`](ci.md) as well.

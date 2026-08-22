@@ -1,0 +1,225 @@
+name: Release (macOS)
+
+# Builds, signs, notarizes and publishes the macOS distributable.
+#
+# Trigger is a version tag, plus manual dispatch. Deliberately NO pull_request family and no push
+# trigger on a branch — this repo is public and the runner is a personal machine holding a signing
+# identity, so a run must only ever be startable by someone who can push here. Same adjudication as
+# ci.yml, and it matters more on this workflow, not less: a fork PR that could reach this job could
+# reach the certificate.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Publishing a release needs to write one.
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+
+  macos:
+    name: macOS distributable (ericmacmini, ARM64)
+    runs-on: [self-hosted, macOS, ARM64, ericmacmini]
+
+    # A step's `if` cannot read the secrets context, so the one decision that depends on a secret's
+    # presence is made here, where it can, and read as an ordinary value below.
+    env:
+      HAS_IMPORTED_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The release builds into its own directory, so the CI build tree beside it is left alone
+          # rather than having its cache reconfigured under a different asset-root setting.
+          clean: false
+
+      - name: Init engine submodule
+        env:
+          ENGINE_PAT: ${{ secrets.ENGINE_PAT }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # The submodule's remote is recorded in .git/modules/engine/config, NOT read from
+          # .gitmodules, so a workspace cloned before the engine moved keeps fetching the old
+          # remote and reports the pinned commit as a ref it does not own. sync rewrites it.
+          git submodule sync --recursive -- engine
+          if ! git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+                 submodule update --init --recursive -- engine; then
+            git submodule deinit -f -- engine
+            rm -rf "$GITHUB_WORKSPACE/.git/modules/engine"
+            git submodule sync --recursive -- engine
+            git -c "url.https://x-access-token:${ENGINE_PAT}@github.com/.insteadOf=https://github.com/" \
+              submodule update --init --recursive -- engine
+          fi
+
+      # KIRPICH_DEV_ASSET_ROOT=OFF is what keeps the build machine's own path out of the binary. It
+      # is asserted below rather than trusted here.
+      - name: Configure
+        run: |
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build-release" \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DKIRPICH_DEV_ASSET_ROOT=OFF \
+            -DBUILD_TESTING=OFF
+
+      - name: Build
+        run: cmake --build "$GITHUB_WORKSPACE/build-release" --parallel
+
+      # The staging tree is what gets checked: the app, plus the empty asset structure a
+      # distributable ships. Nothing ROM-derived may be in it, and the binary must not be carrying a
+      # development asset root — the failure that once left an artifact unable to start on any
+      # machine but the one that built it.
+      - name: Stage and check
+        run: |
+          set -eu
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/assets/gfx/default" "$STAGE/assets/audio/default"
+          touch "$STAGE/assets/gfx/default/.gitkeep" "$STAGE/assets/audio/default/.gitkeep"
+          cp -R "$GITHUB_WORKSPACE/build-release/Kirpich.app" "$STAGE/Kirpich.app"
+          sh "$GITHUB_WORKSPACE/scripts/check-distributable-clean.sh" "$STAGE" "$STAGE/Kirpich.app"
+
+      # Two ways to have the identity on this machine, and the workflow takes whichever is set up.
+      #
+      # A Developer ID private key is issued once, to the Mac that asked for it. A team may hold two
+      # such certificates, so the ordinary answer is to create a second one directly on this machine
+      # and let it live in the login keychain — nothing to import, no copy of a key anywhere else.
+      # That is the path taken when MACOS_CERTIFICATE_P12 is unset.
+      #
+      # When the secret IS set, the identity travels as an exported .p12 and is imported into a
+      # keychain made for this run and deleted after it. That covers a team already holding two
+      # certificates, and a runner that gets rebuilt.
+      #
+      # The partition list is what lets codesign use an imported key without a UI prompt; without it
+      # the tool blocks forever on a machine with nobody in front of it.
+      - name: Import the signing identity
+        if: env.HAS_IMPORTED_IDENTITY == 'true'
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${CERTIFICATE_PASSWORD:-}" ]; then
+            echo "error: MACOS_CERTIFICATE_P12 is set but MACOS_CERTIFICATE_PASSWORD is not." >&2
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/kirpich-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "KIRPICH_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/identity.p12"
+          security import "$RUNNER_TEMP/identity.p12" -k "$KEYCHAIN" \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/identity.p12"
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # Put it ahead of the login keychain for this run's lookups, without dropping the others.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+      # Hardened runtime is required for notarization; the timestamp is what keeps the signature
+      # valid after the certificate itself expires. The identity is named from a secret because this
+      # workflow file is public and the string carries a name and a team id.
+      - name: Sign
+        env:
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          set -eu
+          if [ -z "${SIGN_IDENTITY:-}" ]; then
+            echo "error: MACOS_SIGN_IDENTITY is unset. Refusing to publish an unsigned build." >&2
+            exit 1
+          fi
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          # --keychain only when an identity was imported for this run; otherwise the machine's own
+          # keychains answer, which is the create-the-cert-here path.
+          if [ -n "${KIRPICH_KEYCHAIN:-}" ]; then
+            codesign --force --timestamp --options runtime --keychain "$KIRPICH_KEYCHAIN" \
+                     --sign "$SIGN_IDENTITY" "$STAGE/Kirpich.app"
+          else
+            codesign --force --timestamp --options runtime \
+                     --sign "$SIGN_IDENTITY" "$STAGE/Kirpich.app"
+          fi
+          codesign --verify --strict --verbose=2 "$STAGE/Kirpich.app"
+
+      # Notarization takes an archive, not a bundle. The ticket comes back attached to the app's
+      # identity, and stapling writes it into the bundle so a player's machine can check it without
+      # asking Apple at launch time.
+      # Credentials are passed per call rather than stored on the machine, for the same reason the
+      # identity is: nothing has to be set up over there, and nothing is left behind.
+      - name: Notarize and staple
+        env:
+          APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+          TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+          APP_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${TEAM_ID:-}" ] || [ -z "${APP_PASSWORD:-}" ]; then
+            echo "error: the MACOS_NOTARY_* secrets are unset." >&2
+            echo "       Refusing to publish an un-notarized build." >&2
+            exit 1
+          fi
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          ditto -c -k --keepParent "$STAGE/Kirpich.app" "$STAGE/Kirpich-notarize.zip"
+          xcrun notarytool submit "$STAGE/Kirpich-notarize.zip" \
+            --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
+          xcrun stapler staple "$STAGE/Kirpich.app"
+          rm -f "$STAGE/Kirpich-notarize.zip"
+
+      # The disk image is signed and notarized in its own right, so the download itself opens
+      # without a warning rather than only the app inside it.
+      - name: Build the disk image
+        env:
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
+        run: |
+          set -eu
+          STAGE="$GITHUB_WORKSPACE/build-release/stage"
+          OUT="$GITHUB_WORKSPACE/build-release/out"
+          rm -rf "$OUT" && mkdir -p "$OUT"
+
+          # The same script the CI job uses, so a tested image and a shipped one differ only by the
+          # signature and the ticket. The app inside is already signed and stapled.
+          DMG="$OUT/Kirpich-${GITHUB_REF_NAME}-macOS-arm64.dmg"
+          sh "$GITHUB_WORKSPACE/scripts/make-macos-dmg.sh" "$STAGE/Kirpich.app" "$DMG"
+
+          if [ -n "${KIRPICH_KEYCHAIN:-}" ]; then
+            codesign --force --timestamp --keychain "$KIRPICH_KEYCHAIN" \
+                     --sign "$SIGN_IDENTITY" "$DMG"
+          else
+            codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"
+          fi
+          xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+          xcrun stapler staple "$DMG"
+
+          # The zip is for people who would rather not mount an image. It carries the stapled app.
+          ditto -c -k --keepParent "$STAGE/Kirpich.app" \
+            "$OUT/Kirpich-${GITHUB_REF_NAME}-macOS-arm64.zip"
+
+      # The check a player's machine will make, made here first. This is the one that would catch a
+      # signature or a ticket that did not actually take.
+      - name: Verify as Gatekeeper will
+        run: |
+          set -eu
+          spctl --assess --type execute -vv "$GITHUB_WORKSPACE/build-release/stage/Kirpich.app"
+          xcrun stapler validate "$GITHUB_WORKSPACE/build-release/stage/Kirpich.app"
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          OUT="$GITHUB_WORKSPACE/build-release/out"
+          gh release upload "${GITHUB_REF_NAME}" "$OUT"/* --clobber --repo "${GITHUB_REPOSITORY}"

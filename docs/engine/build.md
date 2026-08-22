@@ -30,7 +30,7 @@ To run the game you also need its graphics, which do not come with the source �
 
 ```sh
 scripts/setup-dev-assets.sh
-./build/kirpich
+./build/Kirpich                             # macOS: open build/Kirpich.app
 ```
 
 ## Targets
@@ -65,12 +65,6 @@ way the executable does for exactly that reason — a suite linked differently c
 linkage defect in the program.
 
 This is a workaround for engine behaviour and is expected to come out; both call sites say so.
-
-### `kirpich::Engine`
-
-A skeleton in `src/engine.{h,cpp}` — non-copyable, non-movable, holding nothing and doing nothing.
-Nothing constructs it: `main()` composes the dispatcher, the systems, and the render bridge
-directly. It is a placeholder for a top-level owner that has not been needed yet.
 
 Test sources are globbed with `CONFIGURE_DEPENDS`, so **adding a `.cpp` under `tests/`
 requires no CMake edit** — it is picked up on the next build. Cases register with CTest

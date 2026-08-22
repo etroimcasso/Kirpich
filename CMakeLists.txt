@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.28)
+
+# ── Apple target ──────────────────────────────────────────────────────────────
+# Both are set before project() because that is when the compiler is probed, and a deployment
+# target or architecture list arriving afterwards is only half-applied.
+#
+# arm64 only. Apple silicon is the whole of the current Mac line, there is no Intel machine here to
+# test a x86_64 slice on, and shipping a slice nobody has run is worse than not shipping it.
+# Big Sur is where arm64 starts, so it is the floor.
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "macOS architectures")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "macOS deployment target")
+endif()
+
 project(kirpich
-    VERSION 0.1.0
+    VERSION 0.9.0
     DESCRIPTION "C++ port of kaspermeerts/tetris (Game Boy DMG)"
     LANGUAGES CXX
 )

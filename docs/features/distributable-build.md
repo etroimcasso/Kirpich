@@ -1,7 +1,8 @@
 # Distributable Build
 
 **Date:** 2026-08-04
-**Status:** In design — the shipping gate exists; the packaging target does not yet
+**Status:** Partially implemented — the binary is lean and the shipping gate checks it; the
+packaging target does not exist yet
 
 How a shippable Kirpich artifact is produced: a lean binary, empty asset directories, and no
 copyrighted or ROM-derived byte anywhere in it. This document records the design; the build itself
@@ -18,9 +19,9 @@ ROM. Two properties define it and both are non-negotiable:
 - **Lean.** The binary is optimized and stripped of what nothing needs at runtime. An unoptimized
   or unstripped shipped binary is a defect, not a neutral default.
 
-The pieces that enforce the first property are built and in use. The packaging step that assembles
-an artifact, and the lean-shipping configuration layered on top of `Release`, are designed here and
-not yet implemented.
+Both properties are enforced by things that exist: the binary is built lean, and the gate checks
+both the asset directories and the binary itself. What is missing is the packaging step that
+assembles the pieces into a platform artifact.
 
 ## Design decisions
 
@@ -29,11 +30,13 @@ not yet implemented.
 The asset directories carry only their `.gitkeep` placeholder in a shipped build. A packaging gate
 refuses any artifact that carries more:
 
-`scripts/check-distributable-clean.sh` exits non-zero if `assets/gfx/default/` holds anything but
-`.gitkeep`. It runs against a staging tree:
+`scripts/check-distributable-clean.sh` exits non-zero if either `assets/gfx/default/` or
+`assets/audio/default/` holds anything but `.gitkeep`. It runs against a staging tree, and takes the
+binary to check as an optional second argument:
 
 ```sh
 scripts/check-distributable-clean.sh /path/to/staged/package
+scripts/check-distributable-clean.sh /path/to/staged/package /path/to/Kirpich.app
 ```
 
 With no argument it checks the working tree, which is *expected to fail* for a developer who has run
@@ -43,6 +46,22 @@ ROM cannot be committed even by accident.
 
 The gate is a script rather than a build step today because there is no packaging target for it to
 sit inside yet. When one lands, the gate runs as part of it, and in CI against the packaged output.
+
+### The gate checks the binary, and does not take the build's word for it
+
+A build configured with `KIRPICH_DEV_ASSET_ROOT` on bakes its own source tree's path into the
+executable, and a binary carrying that path looks for assets in a directory that exists on one
+machine in the world. Turning the option off is what prevents it; the gate is what confirms it
+happened.
+
+It confirms it by reading the paths out of the binary and refusing any that lead to a source tree —
+recognised by holding both `CMakeLists.txt` and `src/main.cpp`. That catches a binary built from any
+checkout, not just the one being packaged, and it reports the offending path rather than a verdict.
+A binary the gate cannot find or cannot read is a failure too, not a step quietly skipped: a package
+whose binary was never checked has not been checked.
+
+This is the one property neither the compiler nor the test suite can observe. A binary that resolves
+its assets against the machine that built it passes every test, on that machine.
 
 ### The asset root flips to the player's own data directory
 
@@ -57,21 +76,67 @@ project tree applies only to a binary still inside it, so even a development bui
 copied elsewhere resolves the per-user directory. There is no development branch in the load path
 itself. Full mechanics in [`asset-acquisition.md`](asset-acquisition.md).
 
-### Lean binary is the shipping target
+### The binary is lean in every build that is not a Debug build
 
-A shipped binary is built optimized and stripped. On top of the `Release` default that every build
-already gets ([`build-system.md`](build-system.md)), a distributable adds dead-code elimination and
-symbol stripping so the artifact carries only what it runs:
+On top of the `Release` default that every build already gets
+([`build-system.md`](build-system.md)), the linker drops what nothing reaches and the symbol table
+comes off:
 
-- **Apple (`ld`):** `-Wl,-dead_strip`, then a symbol strip.
+- **Apple (`ld`):** `-Wl,-dead_strip` at link, then `strip -x`, which keeps the global symbols and
+  drops the local ones.
 - **GNU / LLVM (`ld`):** `-ffunction-sections -fdata-sections` at compile, `-Wl,--gc-sections` at
   link, then a symbol strip.
-- **MSVC:** `/OPT:REF /OPT:ICF`, which the linker applies for a release configuration.
+- **MSVC:** nothing added. Its release link already drops unreferenced code (`/OPT:REF /OPT:ICF`)
+  and puts symbols in a separate `.pdb` rather than in the executable.
 
-Link-time optimization and a size-oriented optimization level are worth measuring once there is a
-real binary to weigh. This configuration is pinned as the target posture and is not in the build
-yet — it lands with the packaging target, and the artifact is measured before and after so the
-reduction is a number, not a claim.
+**This applies to every non-Debug build, not only to a packaged one.** The binary a continuous
+integration job uploads is the binary a player would run, so a leanness that only switched on
+inside a packaging path would leave the artifact people actually get built the fat way and never
+exercised the lean way. A Debug build keeps all of it.
+
+Measured on macOS arm64, `Release`, before and after:
+
+| | Before | After |
+|---|---|---|
+| Size | 4 610 296 B | 3 733 448 B (−19%) |
+| Symbols | 13 816 | 3 443 (−75%) |
+
+**The bundle is signed after the strip, and has to be.** Apple silicon will not run an unsigned
+binary at all, so the linker ad-hoc signs every build — and the strip then edits the binary, which
+invalidates that signature. A bundle's signature also has to cover its `Info.plist` and seal its
+resources, which a linker signature over the executable alone never does. Left that way macOS calls
+the app **damaged** and refuses to open it, which is worse than unsigned: a player can wave an
+unsigned app past Gatekeeper with right-click → Open, and cannot do anything at all with a broken
+signature. So the build signs the bundle last, ad-hoc, and verifies it.
+
+Ad-hoc is a signature with no identity behind it — enough to run, not enough for another machine to
+trust a download. A downloaded ad-hoc-signed app is still refused by Gatekeeper until it is signed
+with a Developer ID and notarized, which is the release's job.
+
+The strip has to coexist with the routine bake, and does. Each baked SM83 routine's registry is
+anchored by an `extern "C"` symbol the engine names undefined at link time, which makes it a root
+the dead strip keeps and a global symbol `strip -x` does not touch; all three anchors are present in
+the stripped binary. `nm` on the built executable piped through `grep retropp_routine_` is the
+check, and `tests/test_embedded_routines.cpp` is the guard that the routines still register.
+
+Link-time optimization and a size-oriented optimization level are worth measuring against these
+numbers, and are not applied today.
+
+### macOS ships a disk image
+
+`scripts/make-macos-dmg.sh` builds it: the app and a symlink to `/Applications`, compressed
+read-only. That is how a Mac application is distributed and it is what someone can actually open.
+
+**Both the continuous-integration job and the release build the image with this same script**, so
+what gets tested and what gets shipped differ only by the signature and the notarization ticket. The
+script signs nothing — a development build has nothing to sign with, and the release signs the image
+after the script has produced it.
+
+An archive was the alternative and is worse in two ways: it arrives as a folder of files rather than
+something to drag, and anything but `ditto` drops the bundle's symlinks and its executable bit on
+the way through. Handing a `.app` to GitHub's upload-artifact action has the same problem for a
+sharper reason — it uploads the *files under* a directory, so the bundle arrives with no wrapper at
+all.
 
 ### The distributable is assembled by a packaging step, not by hand
 
@@ -86,17 +151,21 @@ bundle.
 **Delivered:**
 
 - `scripts/check-distributable-clean.sh` — the packaging gate; POSIX shell, exits non-zero on any
-  ROM-derived content in the asset directories.
-- `KIRPICH_DEV_ASSET_ROOT` (in `src/CMakeLists.txt`) — off for a distributable; flips the asset root
-  to the executable's directory.
+  ROM-derived content in the asset directories and on a binary carrying a development asset root.
+- The lean link and strip configuration (in `src/CMakeLists.txt`), applied to every non-Debug build.
+- `scripts/make-macos-dmg.sh` — the disk image, built identically by CI and by the release.
+- `.github/workflows/release.yml` — a version tag builds, signs, notarizes, staples and publishes
+  the macOS distributable on the trusted runner.
+- `KIRPICH_DEV_ASSET_ROOT` (in `src/CMakeLists.txt`) — off for a distributable; the asset root is
+  then the player's own per-user data directory, beside their save.
 - `.gitignore` ROM-extension bans — the backstop against committing ROM-derived bytes.
 
 **Not yet built:**
 
-- A packaging / install target (CMake `install` rules, CPack, or a staging script — undecided).
-- The lean link configuration above, layered on `Release` for the shipping build.
-- CI wiring: the clean gate run against the packaged artifact, and a distributable build exercised
-  per platform.
+- Linux and Windows distributables. The Linux binary is already self-contained and opens no terminal
+  when launched from a desktop, so what it wants is a `.desktop` entry and an icon rather than a
+  dependency bundle.
+- An icon, on any platform.
 
 ## Open questions
 
@@ -105,9 +174,7 @@ bundle.
   target is built.
 - **Per-platform bundle format.** A macOS `.app`, a Linux tarball or AppImage, a Windows folder or
   installer — each platform's convention, settled with the packaging mechanism.
-- **The runtime ROM extractor is a shipping prerequisite.** A distributable that cannot turn a
-  player's ROM into assets is not shippable. The extractor's design is pinned in
-  [`asset-acquisition.md`](asset-acquisition.md); its implementation gates the first real
-  distributable.
-- **Measured size baseline.** Recorded here once the lean configuration lands and an artifact can be
-  weighed before and after stripping.
+- **Whether the packaging step configures its own build.** The lean configuration applies to every
+  non-Debug build, but `KIRPICH_DEV_ASSET_ROOT=OFF` is a configure-time choice a packaging step has
+  to make deliberately. Whether it configures a build of its own or packages an existing one is
+  settled with the packaging mechanism; either way the gate checks the result.

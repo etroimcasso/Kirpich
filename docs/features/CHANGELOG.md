@@ -10,6 +10,29 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-21
 
+- **Distributable build** ⬜ → 🟡. The game is now built as an application rather than as a
+  command-line program, and the binary is lean.
+
+  **It stops opening a terminal.** Each desktop platform decides what kind of program an executable
+  is from how it was built, and the default on both was "a terminal program" — a bare macOS
+  executable is handed to Terminal.app when double-clicked, and a console-subsystem Windows binary is
+  given a console window whether it wants one or not. macOS now builds `Kirpich.app`
+  (`com.kirpich.kirpich`, arm64, macOS 11+) and Windows links against the windows subsystem. Linux
+  needed neither — an ELF executable launched from a desktop opens no terminal, and it is already
+  self-contained. The game's own log follows: a release build writes it beside the player's save
+  instead of to a console nobody is reading.
+
+  **The artifact is `Kirpich`**, capitalised, on every platform, and the version is 0.9.0.
+
+  **Lean:** every non-Debug build drops what nothing reaches at link and strips its symbol table,
+  taking the macOS artifact from 4 610 296 bytes and 13 816 symbols to 3 733 448 and 3 443.
+
+  **The shipping gate gained the check nothing else can make** — it reads the paths out of the
+  binary and refuses one that would look for its assets in the source tree that built it, the
+  failure that once left an artifact unable to start on any machine but its own.
+
+  Still missing: the packaging step, and signing.
+
 - **Settings screen** ⬜ → ✅. A player can choose how the game is shown and what it is drawn in:
   fullscreen, the window size, one of twelve colour palettes, an erase of the high-score tables, and a
   way to quit. It is reached from a third item on the title screen and from a paused round, and it
