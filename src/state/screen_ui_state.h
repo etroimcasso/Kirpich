@@ -73,9 +73,18 @@ struct ScreenUiState {
     // down to the settings item and back up leaves the player count where the player left it.
     bool titleSettingsSelected = false;
 
-    // Which option row the settings cursor is on, and whether the cursor glyph is currently drawn.
+    // Which option row the settings cursor is on.
     SettingsRow settingsRow = SettingsRow::FULLSCREEN;
-    bool        cursorVisible = true;
+
+    // The blink phase every screen the port draws itself shares: the settings screen's cursor, the
+    // confirm's, and any screen either of them opens. One flag serves all of them because only one is
+    // ever on screen, and they all count the same frame timer.
+    bool cursorVisible = true;
+
+    // Which of the config screen's third-section choices is current: the right-hand one when set.
+    // The section is a port surface with no cartridge byte behind it, so its choice lives here with
+    // the rest of the port's own screen state.
+    bool modeOptionRight = false;
 
     // The confirm's choice, and which of the two actions it is currently guarding. It opens on "no"
     // every time, so a player who reaches it by accident leaves it by pressing anything that acts.

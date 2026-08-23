@@ -21,6 +21,7 @@
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/screen.h"           // loadScreenTilemap, loadTileSheet
+#include "systems/settings_screen.h"  // blinkScreenCursor
 #include "systems/sprite_renderer.h"  // renderCursors
 
 namespace kirpich::systems {
@@ -47,7 +48,59 @@ void setStateAndShowCursor(GameContext& game, GameState next, std::size_t slot) 
     game.spriteRenderer.slots[slot].hidden = false;
 }
 
+// Where the stored config screen keeps the two boxes the section is squeezed between, and a row of
+// its interior with nothing on it but the border.
+constexpr std::size_t kGameBoxFirst  = 2;
+constexpr std::size_t kGameBoxLast   = 6;
+constexpr std::size_t kMusicBoxFirst = 9;
+constexpr std::size_t kMusicBoxLast  = 15;
+constexpr std::size_t kBlankRow      = 7;
+
+// Where those boxes end up, and therefore where the gap between them opens.
+constexpr std::size_t kGapFirst = kGameBoxLast - kConfigSectionShiftRows + 1;
+constexpr std::size_t kGapLast  = kMusicBoxFirst + kConfigSectionShiftRows - 1;
+
+static_assert(kGapFirst == kConfigSectionGapFirstRow && kGapLast - kGapFirst + 1 == kConfigSectionGapRows,
+              "the section is placed against the gap the two boxes open, so the two must agree");
+
+// Which row of the stored config screen a row of the re-laid one holds. The two borders stay where
+// they are; the boxes move a row apart; what opens between them is the screen's own blank interior.
+std::size_t sourceRowFor(std::size_t row) {
+    if (row >= kGameBoxFirst - kConfigSectionShiftRows &&
+        row <= kGameBoxLast - kConfigSectionShiftRows) {
+        return row + kConfigSectionShiftRows;
+    }
+    if (row >= kMusicBoxFirst + kConfigSectionShiftRows &&
+        row <= kMusicBoxLast + kConfigSectionShiftRows) {
+        return row - kConfigSectionShiftRows;
+    }
+    if (row >= kGapFirst && row <= kGapLast) {
+        return kBlankRow;
+    }
+    return row;
+}
+
+// The music-type cursor is placed from the stored coordinate table, which describes the cartridge's
+// screen. When the third section has pushed the music box down, the cursor goes with the box it
+// points into — every time the table is read, not only on the way in.
+void followMusicBox(GameContext& game, bool showSection) {
+    if (!showSection) {
+        return;
+    }
+    SpriteSlot& cursor = game.spriteRenderer.slots[kSlot0];
+    cursor.y = static_cast<std::uint8_t>(cursor.y + kConfigSectionShiftPixels);
+}
+
 }  // namespace
+
+void layOutConfigSection(BackgroundMap& map) {
+    for (std::size_t row = 0; row < kTilemapScreenRows; ++row) {
+        const std::size_t source = sourceRowFor(row);
+        for (std::size_t col = 0; col < kTilemapScreenCols; ++col) {
+            map[row][col] = kConfigScreenTilemap[source][col];
+        }
+    }
+}
 
 void blinkCursor(GameContext& game, std::size_t slot) {
     // ReadJoypadAndBlinkCursor (tetris.asm:3597-3608). The pressed snapshot the original reads here
@@ -132,7 +185,7 @@ void clearOamObjects(GameContext& game) {
     game.oamSources.reset();
 }
 
-void loadConfigScreenBody(GameContext& game) {
+void loadConfigScreenBody(GameContext& game, bool showSection) {
     // GameState_08 .loadTiles (tetris.asm:3121-3148), entered directly by the demo-start and two-player
     // paths as well as by the config-screen state. The LCD-on step is render mechanism; everything else
     // is the art and backdrop loads, the object-buffer clear, the two cursor sprites, placing the
@@ -140,10 +193,18 @@ void loadConfigScreenBody(GameContext& game) {
     // into game-type selection.
     loadTileSheet(game.display, TileSheet::GAMEPLAY);        // LoadGameplayTiles (:3123)
     loadScreenTilemap(game.display, kConfigScreenTilemap);     // (:3124-3125)
+
+    // With the third section shown, the screen is re-laid over the stamp above: its two boxes a row
+    // apart, and the rows between them left blank for the section to be drawn over.
+    if (showSection) {
+        layOutConfigSection(game.display.map);
+    }
+
     clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, configScreenSprites());  // Data_26CF: 2 markers + terminator
 
     positionMusicTypeSprite(game, /*playSfx=*/true);
+    followMusicBox(game, showSection);
 
     // The game-type cursor's X coordinate is the game-type value itself, and its sprite the matching
     // label; the load above supplied the rest of the slot.
@@ -151,20 +212,24 @@ void loadConfigScreenBody(GameContext& game) {
     gameCursor.x = static_cast<std::uint8_t>(game.flow.gameType);
     gameCursor.spriteId =
         (game.flow.gameType == GameType::TYPE_A) ? SpriteId::A_TYPE : SpriteId::B_TYPE;
+    if (showSection) {
+        // Up with the box it points into, as the music cursor goes down with the other one.
+        gameCursor.y = static_cast<std::uint8_t>(gameCursor.y - kConfigSectionShiftPixels);
+    }
 
     renderCursors(game);  // (:3143)
     switchMusic(game);
     game.flow.gameState = GameState::SELECT_GAME_TYPE;
 }
 
-void initConfigScreen(GameContext& game) {
+void initConfigScreen(GameContext& game, bool showSection) {
     // GameState_08 (tetris.asm:3114-3148). The routine opens by resetting the serial hardware registers
     // (interrupt-enable, serial data / control, interrupt-flag) — link-cable mechanism the serial unit
     // owns, with no simulation effect here — then runs the shared screen body.
-    loadConfigScreenBody(game);
+    loadConfigScreenBody(game, showSection);
 }
 
-void selectGameType(GameContext& game) {
+void selectGameType(GameContext& game, bool showSection) {
     // GameState_0E (tetris.asm:3258-3314): the game-type selector (slot 1). The game-type value doubles
     // as the cursor's X coordinate and selects its label sprite. Left picks Type A, Right picks Type B
     // (each cues the menu-move sound). Confirm advances to music selection; Start cues the change-screen
@@ -183,7 +248,9 @@ void selectGameType(GameContext& game) {
         return;
     }
     if (pressed(game, Action::Confirm)) {
-        game.flow.gameState = GameState::SELECT_MUSIC_TYPE;
+        // The next section down, which is the third one when the screen has grown it.
+        game.flow.gameState =
+            showSection ? GameState::SELECT_MODE_OPTION : GameState::SELECT_MUSIC_TYPE;
         cursor.hidden = false;
         return;
     }
@@ -209,7 +276,7 @@ void selectGameType(GameContext& game) {
     renderCursors(game);
 }
 
-void selectMusicType(GameContext& game) {
+void selectMusicType(GameContext& game, bool showSection) {
     // GameState_0F (tetris.asm:3181-3246): the music-type selector (slot 0), a 2x2 grid over cursor
     // tiles $1C-$1F ($1C $1D / $1E $1F). Start and Confirm share the game-type screen's advance path.
     // Back returns to game-type selection in one-player (unhiding this cursor); in two-player it is
@@ -228,7 +295,9 @@ void selectMusicType(GameContext& game) {
         return;
     }
     if (pressed(game, Action::Back) && !game.multiplayer.isMultiplayer) {
-        game.flow.gameState = GameState::SELECT_GAME_TYPE;
+        // One section back, which is the third one when the screen has grown it.
+        game.flow.gameState =
+            showSection ? GameState::SELECT_MODE_OPTION : GameState::SELECT_GAME_TYPE;
         cursor.hidden = false;
         return;
     }
@@ -247,6 +316,7 @@ void selectMusicType(GameContext& game) {
     if (value != before) {
         game.flow.musicType = static_cast<MusicType>(value);
         positionMusicTypeSprite(game, /*playSfx=*/true);
+        followMusicBox(game, showSection);
         switchMusic(game);
     }
 
@@ -414,11 +484,57 @@ void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh) {
     renderCursors(game);  // the shared d-pad exit (:3551)
 }
 
+void selectModeOption(GameContext& game) {
+    // The blink the section's chosen label is drawn by. It is the same law and the same timer the
+    // neighbouring sections blink their cursor sprites on; what differs is that this section has no
+    // cursor of its own — the choice is shown by the label itself coming and going.
+    blinkScreenCursor(game);
+
+    // Every way out leaves the label drawn rather than wherever the blink had got to, which is what
+    // the neighbours do by unhiding their cursor slot as they go.
+    const auto leaveFor = [&game](GameState next) {
+        game.screens.cursorVisible = true;
+        game.flow.gameState        = next;
+    };
+
+    if (pressed(game, Action::Start)) {
+        game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+        leaveFor(game.flow.gameType == GameType::TYPE_A ? GameState::INIT_TYPE_A_DIFFICULTY
+                                                        : GameState::INIT_TYPE_B_DIFFICULTY);
+        return;
+    }
+    if (pressed(game, Action::Confirm)) {
+        leaveFor(GameState::SELECT_MUSIC_TYPE);
+        return;
+    }
+    if (pressed(game, Action::Back)) {
+        leaveFor(GameState::SELECT_GAME_TYPE);
+        return;
+    }
+
+    if (pressed(game, Action::MenuRight) && !game.screens.modeOptionRight) {
+        game.screens.modeOptionRight = true;
+        game.audioCues.square        = SquareSfxId::TINK;
+    } else if (pressed(game, Action::MenuLeft) && game.screens.modeOptionRight) {
+        game.screens.modeOptionRight = false;
+        game.audioCues.square        = SquareSfxId::TINK;
+    }
+}
+
 void installMenuScreenHandlers(GameStateDispatcher& dispatcher, const TopScoresRefresh& typeA,
-                               const TopScoresRefresh& typeB) {
-    dispatcher.setHandler(GameState::INIT_TYPE_SELECTION, initConfigScreen);
-    dispatcher.setHandler(GameState::SELECT_GAME_TYPE, selectGameType);
-    dispatcher.setHandler(GameState::SELECT_MUSIC_TYPE, selectMusicType);
+                               const TopScoresRefresh&      typeB,
+                               const std::function<bool()>& showSection) {
+    // Asked per frame rather than captured once: whatever answers it is a setting a player can change
+    // between one visit to this screen and the next.
+    const auto enabled = [showSection] { return showSection && showSection(); };
+
+    dispatcher.setHandler(GameState::INIT_TYPE_SELECTION,
+                          [enabled](GameContext& g) { initConfigScreen(g, enabled()); });
+    dispatcher.setHandler(GameState::SELECT_GAME_TYPE,
+                          [enabled](GameContext& g) { selectGameType(g, enabled()); });
+    dispatcher.setHandler(GameState::SELECT_MUSIC_TYPE,
+                          [enabled](GameContext& g) { selectMusicType(g, enabled()); });
+    dispatcher.setHandler(GameState::SELECT_MODE_OPTION, selectModeOption);
     dispatcher.setHandler(GameState::INIT_TYPE_A_DIFFICULTY,
                           [typeA](GameContext& g) { initTypeADifficultyScreen(g, typeA); });
     dispatcher.setHandler(GameState::TYPE_A_LEVEL_SELECTION,

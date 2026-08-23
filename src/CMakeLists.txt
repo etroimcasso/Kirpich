@@ -20,6 +20,7 @@ add_library(kirpich-lib STATIC
     systems/line_clear.cpp
     systems/scoring.cpp
     systems/menu_screens.cpp
+    systems/mode_screen.cpp
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp
@@ -35,6 +36,7 @@ add_library(kirpich-lib STATIC
     render/background.cpp
     render/sprites.cpp
     render/settings_overlay.cpp
+    render/config_section.cpp
     render/ghost_piece.cpp
     vm/piece_random.cpp
     vm/garbage_fill.cpp
@@ -66,20 +68,6 @@ target_compile_features(kirpich-lib PUBLIC cxx_std_20)
 # subdirectory, which the engine's own auto-scan (retropp_finalize_assets, top-level only) does not
 # reach.
 retropp_autoembed_routines(kirpich-lib)
-
-# The same explicit call for file assets, and for the same reason.
-#
-# This scans the target's sources for asset loads and bakes the bytes of every one declared
-# AssetPolicy::Embed into the binary. New mode's block tiles are the port's own art rather than a
-# player's extracted file, so they are declared Embed: they must ship inside the executable, since a
-# player has no cartridge to extract them from. Without this call nothing is baked, the load falls
-# back to reading the path from the asset root, and that path exists only inside a source tree.
-#
-# The scan also sees the extracted sheets' loads, which are LoadFromPath, and copies any of those
-# files that exist in the tree beside the library. Nothing reads that copy: the game resolves those
-# assets against the player's own data directory, and the packaged artifact is built from the
-# executable's bundle. scripts/check-distributable-clean.sh verifies the package.
-retropp_autoembed_assets(kirpich-lib)
 
 # Port binary
 #

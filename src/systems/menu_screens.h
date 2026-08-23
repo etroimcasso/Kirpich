@@ -45,24 +45,78 @@ class GameStateDispatcher;
 // refresh, and tests pass a probe to confirm the seam fires at the right point.
 using TopScoresRefresh = std::function<void(GameContext&)>;
 
+// ── Room for a third section ──────────────────────────────────────────────────────────────────────
+//
+// The config screen ships with two sections, game type and music type, and two blank rows between
+// them. Moving the game-type box up a row and the music-type box down a row opens four, which is
+// where a third one goes — a mode a player picks per round, alongside the two the cartridge offers.
+//
+// The section itself is drawn as SPRITES (src/render/config_section.h) and is never written into a
+// map. A box in this screen's style is FIVE rows of art and the gap is four, so it is placed by pixel
+// rather than by cell: half a row high, easing four pixels into the empty space above and below. A
+// cell cannot do that — it sits on the grid and holds one tile.
+//
+// The layout below is the half of it the simulation owns, because moving the boxes moves the cursors
+// that point into them.
+//
+// NOTHING INSTALLS ANY OF THIS TODAY. It is compiled and inert: no caller passes `showSection`, so it
+// reads false everywhere, and nothing writes SELECT_MODE_OPTION, so its handler never runs. The
+// screen a player sees is the cartridge's, cell for cell.
+//
+// A mode that wants the section wires four things:
+//   1. a settings row that opens the mode screen (systems/mode_screen.h), for the master enable;
+//   2. a `showSection` seam passed to installMenuScreenHandlers, answering that enable;
+//   3. three strings — a title and two labels — handed to render::configSectionSprites from the
+//      render loop while the config screen is up;
+//   4. whatever the choice means, read off ScreenUiState::modeOptionRight at the round's init.
+
+// How far each box moves, in cells, and what that is worth in object coordinates — a cursor moves
+// with the box it points into.
+inline constexpr std::size_t  kConfigSectionShiftRows   = 1;
+inline constexpr std::uint8_t kConfigSectionShiftPixels = 8;
+
+// The rows the move opens, and the art that goes in them.
+inline constexpr std::size_t kConfigSectionGapFirstRow = 6;
+inline constexpr std::size_t kConfigSectionGapRows     = 4;
+inline constexpr std::size_t kConfigSectionRows        = 5;
+
+// Where the section's first row of art starts, in viewport pixels. Centred on the gap, which puts it
+// half a row above the first blank row and half a row below the last.
+inline constexpr int kConfigSectionTop =
+    static_cast<int>(kConfigSectionGapFirstRow) * 8 -
+    (static_cast<int>(kConfigSectionRows) - static_cast<int>(kConfigSectionGapRows)) * 8 / 2;
+
+// Re-lay the config screen with room for the section: the game-type box a row up, the music-type box
+// a row down, and the four rows between them left as the screen's own blank interior.
+//
+// The two boxes are copied from the stored screen rather than moved within the map, so the result is
+// the same whether or not the map already held the vanilla layout.
+void layOutConfigSection(BackgroundMap& map);
+
 // ── State handlers ────────────────────────────────────────────────────────────────────────────────
+
+// Three of these take `showSection`, read per frame through the installer's seam. With it false the
+// screen and the walk are the cartridge's, cell for cell and state for state; with it true the screen
+// grows the third section between its two boxes and the walk passes through it. It defaults to false,
+// so a caller that wires nothing gets the cartridge's screen.
 
 // GameState_08 — the config screen. Resets the serial hardware (link-cable mechanism the serial unit
 // owns) and runs the shared body below.
-void initConfigScreen(GameContext& game);
+void initConfigScreen(GameContext& game, bool showSection = false);
 
 // GameState_08 .loadTiles — the config-screen body: clear the object buffer, load the two cursors,
 // place the music-type and game-type cursors, cue the music, and enter game-type selection. Split out
 // because the demo-start and two-player paths enter here directly.
-void loadConfigScreenBody(GameContext& game);
+void loadConfigScreenBody(GameContext& game, bool showSection = false);
 
-// GameState_0E — game-type selection. Left picks Type A, Right picks Type B; Confirm advances to music
-// selection, Start to the chosen difficulty screen.
-void selectGameType(GameContext& game);
+// GameState_0E — game-type selection. Left picks Type A, Right picks Type B; Confirm advances to the
+// third section when there is one and to music selection otherwise, Start to the chosen difficulty
+// screen.
+void selectGameType(GameContext& game, bool showSection = false);
 
 // GameState_0F — music-type selection: a 2x2 grid over the four music choices. Start / Confirm advance
-// like the game-type screen; Back returns to game-type selection (one-player) or is inert (two-player).
-void selectMusicType(GameContext& game);
+// like the game-type screen; Back steps back one section (one-player) or is inert (two-player).
+void selectMusicType(GameContext& game, bool showSection = false);
 
 // GameState_10 — init the Type A difficulty screen: load the level cursor, place it at the current
 // level, refresh the top scores, and enter level selection (or name entry if a top score was earned).
@@ -83,6 +137,13 @@ void selectTypeBLevel(GameContext& game, const TopScoresRefresh& refresh = {});
 // GameState_14 — Type B starting-height selection: a 2x3 grid over heights 0-5. Start / Confirm begin
 // the game; Back returns to level selection.
 void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh = {});
+
+// SELECT_MODE_OPTION — the third section, which sits between the game-type and music-type ones. Left
+// and Right move between its two choices (ScreenUiState::modeOptionRight); Confirm goes on to music
+// selection and Back returns to game-type selection, the sections either side of it; Start begins the
+// game, as it does from either neighbour. The chosen label blinks, which is why nothing here draws —
+// the section is a sprite layer and the blink is a flag the bridge reads.
+void selectModeOption(GameContext& game);
 
 // ── Shared helpers ──────────────────────────────────────────────────────────────────────────────
 
@@ -120,8 +181,12 @@ void clearOamObjects(GameContext& game);
 // call. Each difficulty screen refreshes its own game type's table, the way the original binds them:
 // `typeA` goes to the Type A init and level picker, `typeB` to the Type B init, level picker and
 // height picker. Both default to empty, so a build that installs only the menus still runs.
-void installMenuScreenHandlers(GameStateDispatcher& dispatcher,
-                               const TopScoresRefresh& typeA = {},
-                               const TopScoresRefresh& typeB = {});
+//
+// `showSection` is asked once per frame by the three handlers that change with it. Absent reads as
+// off, which is what leaves the cartridge's screen and its walk in place.
+void installMenuScreenHandlers(GameStateDispatcher&           dispatcher,
+                               const TopScoresRefresh&        typeA = {},
+                               const TopScoresRefresh&        typeB = {},
+                               const std::function<bool()>&   showSection = {});
 
 }  // namespace kirpich::systems

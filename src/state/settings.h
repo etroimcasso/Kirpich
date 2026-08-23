@@ -1,17 +1,18 @@
 #pragma once
 
-// The player's display settings, and the two calls that keep them across launches.
+// The player's own options, and the two calls that keep them across launches: how the window is
+// opened, which shade ramp the game is drawn in, and whether the falling piece casts a shadow.
 //
-// Two values: whether the game runs fullscreen, and how many screen pixels one Game Boy pixel is
-// drawn as. Neither is game state — nothing in a round reads them, and they survive a reset — so
-// they live outside GameContext and travel to the settings screen through its wiring.
+// None of them belongs to the machine's state image. They survive the reset chord and they outlive a
+// launch, so they live outside GameContext and reach the screens through their wiring rather than
+// through the game state.
 //
 // They persist in their own save document, beside the top scores and under the same identity. The
-// document is two bytes: the fullscreen flag, then the scale. An absent document is an ordinary
-// first run and leaves the defaults; a corrupt one is reported, leaves the defaults, and leaves the
-// damaged file where it is.
+// document is one byte per value, in the order they are declared below. An absent document is an
+// ordinary first run and leaves the defaults; a corrupt one is reported, leaves the defaults, and
+// leaves the damaged file where it is.
 //
-// A scale outside the range this build offers is clamped rather than refused. A file written by a
+// A value outside the range this build offers is clamped rather than refused. A file written by a
 // build that offered more sizes should cost the player that one value, not every value beside it.
 
 #include <array>
@@ -50,9 +51,10 @@ struct Settings {
 // The settings save document: schema version and the image size. The name is spelled as a literal at
 // the call sites, as the top-score document's is.
 //
-// Version 2 adds the ghost-piece flag to version 1's three bytes. A version 1 document is migrated on
-// the way in (migrateSettingsV1ToV2), not read short: two formats answering to one version number is
-// what a schema version exists to prevent.
+// One byte per value, so every version appends to the one before it: version 2 adds the ghost-piece
+// flag to version 1's three bytes. An older document is migrated on the way in
+// (migrateSettingsV1ToV2), not read short: two formats answering to one version number is what a
+// schema version exists to prevent.
 //
 // A shorter image is still read as far as it goes and the values it does not carry keep their
 // defaults, which keeps a truncated file costing one setting rather than all of them. A longer image

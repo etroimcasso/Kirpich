@@ -33,7 +33,7 @@ constexpr auto kEmptyCell = static_cast<std::uint8_t>(CharTile::SPACE);
 // physically is. Three quarters of an upright piece sits above the field at spawn, so this is the
 // ordinary case rather than an edge one.
 bool collidesBelow(const systems::GameContext& game,
-                   const BoundedVec<systems::PieceCell, kMaxNewPieceCells>& cells, int rows) {
+                   const BoundedVec<systems::PieceCell, 4>& cells, int rows) {
     for (const systems::PieceCell& cell : cells) {
         const std::size_t row = (static_cast<std::size_t>(cell.row) +
                                  static_cast<std::size_t>(rows)) % kBoardRows;
@@ -46,14 +46,13 @@ bool collidesBelow(const systems::GameContext& game,
 
 // Build the shadow's cell list from a filled prefix. BoundedVec is constructed rather than appended
 // to - it has no mutating operations - the same way the line-clear list is built.
-BoundedVec<systems::PieceCell, kMaxNewPieceCells> makeShadowCells(
-    const std::array<systems::PieceCell, kMaxNewPieceCells>& cells, std::size_t count) {
+BoundedVec<systems::PieceCell, 4> makeShadowCells(const std::array<systems::PieceCell, 4>& cells,
+                                                  std::size_t count) {
     switch (count) {
         case 1: return {cells[0]};
         case 2: return {cells[0], cells[1]};
         case 3: return {cells[0], cells[1], cells[2]};
         case 4: return {cells[0], cells[1], cells[2], cells[3]};
-        case 5: return {cells[0], cells[1], cells[2], cells[3], cells[4]};
         default: return {};
     }
 }
@@ -69,8 +68,8 @@ systems::PieceCell landingOf(const systems::PieceCell& from, int rows) {
     };
 }
 
-// Whether the shadow would fall on the piece casting it: any one of the landing cells sharing a
-// cell with any one of the cells the piece is on now.
+// Whether the shadow would fall on the piece casting it: any one of the four landing cells sharing a
+// cell with any one of the four the piece is on now.
 //
 // It is a question about the whole shadow, not about one part of it: the shadow is drawn entire or
 // not at all, and this is what decides which.
@@ -79,7 +78,7 @@ systems::PieceCell landingOf(const systems::PieceCell& from, int rows) {
 // object's lightest colour is transparency rather than a shade (render/tile_atlas.h) - so a shadow
 // under a block shows through the block's own holes and tints it, whatever order the two are drawn
 // in. Depth decides what draws in front of what; it does not decide what shows through.
-bool shadowWouldTouchThePiece(const BoundedVec<systems::PieceCell, kMaxNewPieceCells>& cells, int rows) {
+bool shadowWouldTouchThePiece(const BoundedVec<systems::PieceCell, 4>& cells, int rows) {
     for (const systems::PieceCell& from : cells) {
         const systems::PieceCell landing = landingOf(from, rows);
         for (const systems::PieceCell& over : cells) {
@@ -104,7 +103,7 @@ systems::PieceCell cellOfEntry(const OamEntry& entry) {
 }  // namespace
 
 int ghostDropRows(const systems::GameContext& game) {
-    const BoundedVec<systems::PieceCell, kMaxNewPieceCells> cells = systems::activePieceCells(game);
+    const BoundedVec<systems::PieceCell, 4> cells = systems::activePieceCells(game);
     if (cells.empty()) {
         return 0;
     }
@@ -144,17 +143,17 @@ bool ghostVisible(const systems::GameContext& game) {
     return !shadowWouldTouchThePiece(systems::activePieceCells(game), ghostDropRows(game));
 }
 
-BoundedVec<systems::PieceCell, kMaxNewPieceCells> ghostShadowCells(const systems::GameContext& game) {
+BoundedVec<systems::PieceCell, 4> ghostShadowCells(const systems::GameContext& game) {
     if (!ghostVisible(game)) {
         return {};
     }
 
     // Visible means the shadow is clear of the piece entirely, so every cell is drawn.
-    const BoundedVec<systems::PieceCell, kMaxNewPieceCells> occupied = systems::activePieceCells(game);
+    const BoundedVec<systems::PieceCell, 4> occupied = systems::activePieceCells(game);
     const int                               rows     = ghostDropRows(game);
 
-    std::array<systems::PieceCell, kMaxNewPieceCells> shadow{};
-    std::size_t                                      count = 0;
+    std::array<systems::PieceCell, 4> shadow{};
+    std::size_t                       count = 0;
     for (const systems::PieceCell& from : occupied) {
         shadow[count++] = landingOf(from, rows);
     }
@@ -176,7 +175,7 @@ std::vector<retropp::Region> ghostPieceRegions(const systems::GameContext& game,
     // The cells the shadow is drawn in - the piece's own, moved down, less the ones the piece has
     // already descended onto. Taken from ghostShadowCells rather than worked out again here, so the
     // rule that is tested is the rule that draws.
-    const BoundedVec<systems::PieceCell, kMaxNewPieceCells> shadow = ghostShadowCells(game);
+    const BoundedVec<systems::PieceCell, 4> shadow = ghostShadowCells(game);
     const auto inShadow = [&shadow](const systems::PieceCell& cell) {
         for (const systems::PieceCell& drawn : shadow) {
             if (drawn.row == cell.row && drawn.col == cell.col) return true;

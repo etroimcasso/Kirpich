@@ -93,36 +93,17 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
 // Place every scroller row's arrows, or take them away. Rows off the current page have none, and
 // neither does a row that is an action rather than a choice.
 void drawValueArrows(GameContext& game, const Settings& settings, std::uint8_t page) {
-    std::size_t entry = kFirstArrowObject;
-    const auto  place = [&](bool present, std::size_t col, std::size_t line, bool flip) {
-        game.engine.oam[entry] =
-            present ? OamEntry{.y     = static_cast<std::uint8_t>(line * 8 + kObjectOriginY),
-                               .x     = static_cast<std::uint8_t>(col * 8 + kObjectOriginX),
-                               .tile  = kSelectorTile,
-                               .xflip = flip}
-                    : OamEntry{};
-        ++entry;
-    };
-
     for (std::uint8_t i = 0; i < kSettingsRowCount; ++i) {
         const auto row = static_cast<SettingsRow>(i);
         const Reach reach =
             settingsPageOf(row) == page ? reachOf(row, settings) : Reach{};
-        const std::size_t line = settingsRowLine(row);
-        place(reach.left, kOptionLeftArrowCol, line, /*flip=*/true);
-        place(reach.right, kOptionRightArrowCol, line, /*flip=*/false);
+        placeScrollerArrows(game, kFirstArrowObject + std::size_t{2} * i, settingsRowLine(row),
+                            reach.left, reach.right);
     }
 }
 
 bool pressed(const GameContext& game, Action action) {
     return game.joypad.pressed.test(retropp::actionId(action));
-}
-
-// The map the display is reading, which is the one these screens paint. Nothing else writes it while
-// they are up: at the title screen the second map is idle, and in a paused round the first map is the
-// one the frame's remaining beats keep writing.
-BackgroundMap& targetMap(DisplayState& display) {
-    return display.displayed == DisplayedMap::SECOND ? display.secondMap : display.map;
 }
 
 // Centre a run of `length` cells across the visible width.
@@ -136,10 +117,6 @@ void clearVisibleRegion(BackgroundMap& map) {
             map[row][col] = kSpace;
         }
     }
-}
-
-Settings settingsOf(const SettingsWiring& wiring) {
-    return wiring.settings != nullptr ? *wiring.settings : Settings{};
 }
 
 // Write one row's value into the field, from its first cell, blanking whatever was there.
@@ -264,21 +241,11 @@ void drawConfirmCursor(BackgroundMap& map, const ScreenUiState& ui) {
     }
 }
 
-// The blink half of the selection screens' cursor law: hold while the frame timer counts, then
-// toggle and reload. The dispatcher decrements the timer after the handler runs.
-void blinkTick(GameContext& game) {
-    if (game.flow.timer1 != 0) {
-        return;
-    }
-    game.flow.timer1 = kBlinkFrames;
-    game.screens.cursorVisible = !game.screens.cursorVisible;
-}
-
 // Put the caller's screen back and hand control to whichever state opened this one.
 void leaveSettings(GameContext& game) {
     ScreenUiState& ui = game.screens;
 
-    targetMap(game.display) = ui.savedMap;
+    game.display.displayedMap() = ui.savedMap;
     game.display.sheet      = ui.savedSheet;
     game.engine.oam         = ui.savedOam;
     // The objects are back where they were, but nothing on screen has been theirs for however long
@@ -287,20 +254,6 @@ void leaveSettings(GameContext& game) {
 
     game.flow.timer1    = ui.savedTimer1;
     game.flow.gameState = ui.settingsReturn;
-    game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-}
-
-// Back to the settings screen from the confirm. It repaints rather than re-entering the init, which
-// would save the confirm's own picture as the caller's screen and lose the real one.
-void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
-    BackgroundMap& map = targetMap(game.display);
-    paintSettings(map, game.screens, settingsOf(wiring));
-    game.screens.cursorVisible = true;
-    drawValueArrows(game, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
-    drawSettingsCursor(map, game.screens);
-
-    game.flow.timer1      = kBlinkFrames;
-    game.flow.gameState   = GameState::SETTINGS;
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
 }
 
@@ -348,7 +301,7 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
 
     *wiring.settings      = next;
     game.audioCues.square = SquareSfxId::TINK;
-    paintSettingsValues(targetMap(game.display), next,
+    paintSettingsValues(game.display.displayedMap(), next,
                         settingsPageOf(game.screens.settingsRow));
     if (wiring.apply) {
         wiring.apply(next);
@@ -360,6 +313,38 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
 
 }  // namespace
 
+void placeScrollerArrows(GameContext& game, std::size_t entry, std::size_t line, bool left,
+                         bool right) {
+    const auto arrow = [line](std::size_t col, bool flip) {
+        return OamEntry{.y     = static_cast<std::uint8_t>(line * 8 + kObjectOriginY),
+                        .x     = static_cast<std::uint8_t>(col * 8 + kObjectOriginX),
+                        .tile  = kSelectorTile,
+                        .xflip = flip};
+    };
+    game.engine.oam[entry] = left ? arrow(kOptionLeftArrowCol, /*flip=*/true) : OamEntry{};
+    game.engine.oam[entry + 1] = right ? arrow(kOptionRightArrowCol, /*flip=*/false) : OamEntry{};
+}
+
+void blinkScreenCursor(GameContext& game) {
+    if (game.flow.timer1 != 0) {
+        return;
+    }
+    game.flow.timer1 = kBlinkFrames;
+    game.screens.cursorVisible = !game.screens.cursorVisible;
+}
+
+void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
+    BackgroundMap& map = game.display.displayedMap();
+    paintSettings(map, game.screens, wiring.current());
+    game.screens.cursorVisible = true;
+    drawValueArrows(game, wiring.current(), settingsPageOf(game.screens.settingsRow));
+    drawSettingsCursor(map, game.screens);
+
+    game.flow.timer1      = kBlinkFrames;
+    game.flow.gameState   = GameState::SETTINGS;
+    game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+}
+
 void openSettings(GameContext& game) {
     game.screens.settingsReturn = game.flow.gameState;
     game.flow.gameState         = GameState::INIT_SETTINGS;
@@ -368,7 +353,7 @@ void openSettings(GameContext& game) {
 
 void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
     ScreenUiState& ui  = game.screens;
-    BackgroundMap& map = targetMap(game.display);
+    BackgroundMap& map = game.display.displayedMap();
 
     ui.savedMap    = map;
     ui.savedOam    = game.engine.oam;
@@ -383,16 +368,16 @@ void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
     ui.settingsRow   = SettingsRow::FULLSCREEN;
     ui.cursorVisible = true;
 
-    paintSettings(map, game.screens, settingsOf(wiring));
+    paintSettings(map, game.screens, wiring.current());
     drawSettingsCursor(map, ui);
-    drawValueArrows(game, settingsOf(wiring), settingsPageOf(ui.settingsRow));
+    drawValueArrows(game, wiring.current(), settingsPageOf(ui.settingsRow));
 
     game.flow.timer1    = kBlinkFrames;
     game.flow.gameState = GameState::SETTINGS;
 }
 
 void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
-    blinkTick(game);
+    blinkScreenCursor(game);
 
     if (pressed(game, Action::Back)) {
         leaveSettings(game);
@@ -426,25 +411,25 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         turnedPage = moveCursor(game, -1);
     }
 
-    BackgroundMap& map = targetMap(game.display);
+    BackgroundMap& map = game.display.displayedMap();
 
     // A page turn changes which labels are on screen, so the whole screen is laid out again rather
     // than only the cursor being moved.
     if (turnedPage) {
-        paintSettings(map, game.screens, settingsOf(wiring));
+        paintSettings(map, game.screens, wiring.current());
     } else {
         // The values are redrawn every frame, not only when this screen changes one: the fullscreen
         // chord sets the same setting from outside, and a row showing what the chord just turned off
         // is the whole point of having the row.
-        paintSettingsValues(map, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
+        paintSettingsValues(map, wiring.current(), settingsPageOf(game.screens.settingsRow));
     }
-    drawValueArrows(game, settingsOf(wiring), settingsPageOf(game.screens.settingsRow));
+    drawValueArrows(game, wiring.current(), settingsPageOf(game.screens.settingsRow));
     drawSettingsCursor(map, game.screens);
 }
 
 void initResetConfirmScreen(GameContext& game) {
     ScreenUiState& ui  = game.screens;
-    BackgroundMap& map = targetMap(game.display);
+    BackgroundMap& map = game.display.displayedMap();
 
     // It opens on "no" every time, so a player who arrives here by accident leaves with their scores
     // by pressing whichever button brought them.
@@ -468,7 +453,7 @@ void initResetConfirmScreen(GameContext& game) {
 void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
     ScreenUiState& ui = game.screens;
 
-    blinkTick(game);
+    blinkScreenCursor(game);
 
     if (pressed(game, Action::Back)) {
         returnToSettings(game, wiring);
@@ -507,7 +492,7 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
         game.audioCues.square = SquareSfxId::TINK;
     }
 
-    drawConfirmCursor(targetMap(game.display), ui);
+    drawConfirmCursor(game.display.displayedMap(), ui);
 }
 
 void installSettingsHandlers(GameStateDispatcher& dispatcher, SettingsWiring wiring) {

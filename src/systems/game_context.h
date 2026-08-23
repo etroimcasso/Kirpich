@@ -20,7 +20,6 @@
 #include "state/game_flow_state.h"
 #include "state/high_score_state.h"
 #include "state/multiplayer_state.h"
-#include "state/new_mode_state.h"
 #include "state/playing_field_state.h"
 #include "state/screen_ui_state.h"
 #include "state/sprite_renderer_state.h"
@@ -40,7 +39,6 @@ struct GameContext {
     HighScoreState      highScores;      // top-score tables + entry bytes
     DisplayState        display;         // which tile art the background draws through
     ScreenUiState       screens;         // the port's own screens (no cartridge counterpart)
-    NewModeState        newMode;         // which piece set is selected, and which one is being played
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)

@@ -3,9 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "data/new_pieces.h"
 #include "data/sprites.h"
-#include "state/new_mode_state.h"
 
 namespace kirpich::systems {
 
@@ -36,88 +34,6 @@ std::uint8_t composeAxis(std::uint8_t base, std::int8_t offset, std::uint8_t par
     const unsigned borrow2 = second < 0 ? 1U : 0U;
     return static_cast<std::uint8_t>(static_cast<int>(static_cast<std::uint8_t>(second)) - 8 -
                                      static_cast<int>(borrow2));
-}
-
-// Compose one New-mode shape's cells into consecutive entries, returning how many were written.
-//
-// A shape is placed a whole tile at a time from the descriptor's position — the same arithmetic the
-// piece system's cell query uses, so what collision reads and what the screen shows cannot drift
-// apart. There is no render offset and no leaked carry, because there is no sprite record to carry
-// them: those are properties of how the cartridge stored its pieces, not of where a piece belongs.
-//
-// The hidden substitution is the renderer's own, unchanged: y goes off-screen, x stays real, so a
-// hidden shape keeps the columns it occupies.
-std::size_t renderNewPieceCells(GameContext& game, std::size_t slotIndex, std::size_t oamStart,
-                                std::size_t window) {
-    EngineState&       engine = game.engine;
-    const SpriteSlot&  slot   = game.spriteRenderer.slots[slotIndex];
-    const auto         raw    = static_cast<std::uint8_t>(slot.spriteId);
-    const NewPieceShape& shape = newPieceShape(raw);
-    const std::uint8_t   tile  = newPieceTile(raw);
-
-    // Bounded by the descriptor's own window as well as by the buffer: a shape with more cells than
-    // the window holds is truncated here rather than running on into the next descriptor's entries.
-    std::size_t written = 0;
-    for (std::size_t i = 0; i < shape.count && i < window; ++i) {
-        const std::size_t entry = oamStart + i;
-        if (entry >= engine.oam.size()) {
-            break;
-        }
-        const NewPieceOffset offset = shape.cells[i];
-        const auto           x      = static_cast<std::uint8_t>(slot.x + offset.dx * 8);
-        const auto           y      = slot.hidden
-                                          ? kHiddenSpriteY
-                                          : static_cast<std::uint8_t>(slot.y + offset.dy * 8);
-
-        engine.oam[entry] = OamEntry{
-            .y        = y,
-            .x        = x,
-            .tile     = tile,
-            .behindBg = slot.behindBg,
-            .yflip    = slot.yflip,
-            .xflip    = slot.xflip,
-            .palette1 = slot.palette1,
-        };
-        // Named the same way a walked part is: the descriptor it came from, the identity it is
-        // drawing, and which cell of that identity this is. The cell index stands in for the part
-        // index, so names stay unique within the frame and change when the shape does.
-        game.oamSources.entries[entry] = OamSource{
-            .drawn  = true,
-            .slot   = static_cast<std::uint8_t>(slotIndex),
-            .sprite = slot.spriteId,
-            .part   = static_cast<std::uint8_t>(i),
-        };
-        ++written;
-    }
-    return written;
-}
-
-// Draw one piece descriptor into its window and blank whatever it did not fill.
-//
-// In a Classic round the window is exactly the four entries a cartridge piece draws, so the blanking
-// loop writes nothing and the buffer holds only what the walk put there.
-void renderPieceSlot(GameContext& game, std::size_t slotIndex, std::size_t oamStart,
-                     std::size_t window) {
-    const SpriteSlot& slot = game.spriteRenderer.slots[slotIndex];
-
-    std::size_t drawn = 0;
-    if (isNewPiece(static_cast<std::uint8_t>(slot.spriteId))) {
-        drawn = renderNewPieceCells(game, slotIndex, oamStart, window);
-    } else {
-        renderSpriteRange(game, slotIndex, 1, oamStart);
-        drawn = getSprite(slot.spriteId).parts.size();
-    }
-
-    // A blanked entry is not merely parked off-screen: its source record is cleared too, so the
-    // bridge leaves it out of the frame entirely and the ghost does not walk it.
-    for (std::size_t i = drawn; i < window; ++i) {
-        const std::size_t entry = oamStart + i;
-        if (entry >= game.engine.oam.size()) {
-            break;
-        }
-        game.engine.oam[entry]         = OamEntry{};
-        game.oamSources.entries[entry] = OamSource{};
-    }
 }
 
 }  // namespace
@@ -193,16 +109,11 @@ void renderCursors(GameContext& game) {
 }
 
 void renderActivePieceSprite(GameContext& game) {
-    const bool newRound = game.newMode.roundPieceType == PieceType::NEW;
-    renderPieceSlot(game, kActivePieceSlot, kActivePieceOamStart,
-                    newRound ? kNewModePieceOamSlots : kPieceOamSlots);
+    renderSpriteRange(game, kActivePieceSlot, 1, kActivePieceOamStart);
 }
 
 void renderPreviewPieceSprite(GameContext& game) {
-    const bool newRound = game.newMode.roundPieceType == PieceType::NEW;
-    renderPieceSlot(game, kPreviewPieceSlot,
-                    newRound ? kNewModePreviewPieceOamStart : kPreviewPieceOamStart,
-                    newRound ? kNewModePieceOamSlots : kPieceOamSlots);
+    renderSpriteRange(game, kPreviewPieceSlot, 1, kPreviewPieceOamStart);
 }
 
 }  // namespace kirpich::systems

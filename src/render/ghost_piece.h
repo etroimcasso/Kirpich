@@ -25,8 +25,7 @@
 #include <retropp/draw_state.h>  // Region
 
 #include "data/bounded_vec.h"
-#include "data/new_pieces.h"   // kMaxNewPieceCells
-#include "render/palettes.h"   // kDefaultShadeRamp
+#include "render/palettes.h"  // kDefaultShadeRamp
 #include "render/tile_atlas.h"
 #include "systems/game_context.h"
 #include "systems/piece.h"  // PieceCell
@@ -45,8 +44,8 @@ inline constexpr float kGhostAlpha = 0.4f;
 // How many rows the active piece would fall before it came to rest. Zero when it is already
 // resting, which is when there is nothing to show - a shadow under the piece's own feet is noise.
 //
-// Every cell must be able to fall the whole way, so this is the smallest free run below any of them.
-// The test is the lock's: a cell may fall onto an empty space and onto nothing else.
+// Every cell must be able to fall the whole way, so this is the smallest free run below any of the
+// four. The test is the lock's: a cell may fall onto an empty space and onto nothing else.
 [[nodiscard]] int ghostDropRows(const systems::GameContext& game);
 
 // Whether a shadow belongs on screen at all this frame: a round is being played, the display is on
@@ -55,16 +54,15 @@ inline constexpr float kGhostAlpha = 0.4f;
 // it. Device-free - it reads game state and nothing else.
 [[nodiscard]] bool ghostVisible(const systems::GameContext& game);
 
-// The board cells the shadow is drawn in: the piece's own, moved down by ghostDropRows.
+// The board cells the shadow is drawn in: the piece's own four, moved down by ghostDropRows.
 //
-// All of them or none. The shadow is withdrawn whole the moment it would touch the piece casting it,
+// Four of them or none. The shadow is withdrawn whole the moment it would touch the piece casting it,
 // which is what ghostVisible answers - the two never share a cell, because a piece block is
 // see-through in its middle (an object's lightest colour is transparency rather than a shade,
 // render/tile_atlas.h) and a shadow under one shows through the block's own holes and tints it
 // whatever order the two are drawn in. Depth decides what draws in front of what; it does not decide
 // what shows through. Device-free.
-[[nodiscard]] BoundedVec<systems::PieceCell, kMaxNewPieceCells> ghostShadowCells(
-    const systems::GameContext& game);
+[[nodiscard]] BoundedVec<systems::PieceCell, 4> ghostShadowCells(const systems::GameContext& game);
 
 // The shadow, as regions belonging to the BACKGROUND layer.
 //

@@ -1,9 +1,7 @@
 #include "systems/piece.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 
@@ -14,7 +12,6 @@
 #include <kirpich/piece.h>
 #include <kirpich/sprite_id.h>
 
-#include "data/new_pieces.h"          // isNewPiece, newPieceShape, newPieceTile
 #include "data/scoring.h"             // softDropAward, kScoreSaturation
 #include "data/sprites.h"             // Sprite, SpritePart, getSprite
 #include "systems/sprite_renderer.h"  // spritePartPosition, renderActivePieceSprite
@@ -48,42 +45,6 @@ PieceCell cellForPart(const SpriteSlot& slot, const Sprite& sprite, const Sprite
     return PieceCell{.row = row, .col = col, .tile = part.tile};
 }
 
-// The board cell one cell of a New-mode shape covers.
-//
-// The same two steps the cartridge path takes, with the sprite record's part of it replaced by the
-// shape's own offset: place the cell relative to the descriptor a whole tile at a time, then remove
-// the hardware's object offsets and divide out the tile size. Eight-bit throughout, exactly as
-// cellForPart is, so a cell above the playing field wraps to row 29, 30 or 31 rather than going
-// negative — the law the ghost's landing walk and the collision reads already handle.
-//
-// A hidden descriptor takes the same off-screen y substitution the renderer makes, which is what
-// keeps a hidden piece colliding on the columns it really occupies.
-PieceCell cellForNewPieceOffset(const SpriteSlot& slot, std::uint8_t tile, NewPieceOffset offset) {
-    const auto x = static_cast<std::uint8_t>(slot.x + offset.dx * 8);
-    const auto y = slot.hidden ? kHiddenSpriteY
-                               : static_cast<std::uint8_t>(slot.y + offset.dy * 8);
-
-    return PieceCell{
-        .row  = static_cast<std::uint8_t>(static_cast<std::uint8_t>(y - 0x10) >> 3),
-        .col  = static_cast<std::uint8_t>(static_cast<std::uint8_t>(x - 0x08) >> 3),
-        .tile = tile,
-    };
-}
-
-// Build the cell list from a filled prefix. BoundedVec is constructed rather than appended to — it
-// has no mutating operations — the same way the line-clear list and the ghost's shadow are built.
-BoundedVec<PieceCell, kMaxNewPieceCells> makePieceCells(
-    const std::array<PieceCell, kMaxNewPieceCells>& cells, std::size_t count) {
-    switch (count) {
-        case 1: return {cells[0]};
-        case 2: return {cells[0], cells[1]};
-        case 3: return {cells[0], cells[1], cells[2]};
-        case 4: return {cells[0], cells[1], cells[2], cells[3]};
-        case 5: return {cells[0], cells[1], cells[2], cells[3], cells[4]};
-        default: return {};
-    }
-}
-
 // The X shift (tetris.asm:5965-6028), shared by the right and left directions. `fired` is the
 // keyRepeatFire verdict for the chosen direction; `dx` is +8 (right) or -8 (left, as an 8-bit
 // wraparound add). Moves the piece, cues the shift sound, and on a collision reverts, cancels the
@@ -108,29 +69,14 @@ void applyShift(GameContext& game, SpriteSlot& slot, std::uint8_t oldX, std::uin
 
 }  // namespace
 
-BoundedVec<PieceCell, kMaxNewPieceCells> activePieceCells(const GameContext& game) {
-    const SpriteSlot&  slot = game.spriteRenderer.slots[kActivePieceSlot];
-    const std::uint8_t raw  = static_cast<std::uint8_t>(slot.spriteId);
-
-    // A New-mode shape has no composed sprite to walk — its cells ARE its definition — so it is
-    // placed from its own offsets and its own block tile. Every cell of it is a board cell like any
-    // other from here on.
-    if (isNewPiece(raw)) {
-        const NewPieceShape& shape = newPieceShape(raw);
-        const std::uint8_t   tile  = newPieceTile(raw);
-        std::array<PieceCell, kMaxNewPieceCells> cells{};
-        for (std::size_t i = 0; i < shape.count; ++i) {
-            cells[i] = cellForNewPieceOffset(slot, tile, shape.cells[i]);
-        }
-        return makePieceCells(cells, shape.count);
-    }
-
+BoundedVec<PieceCell, 4> activePieceCells(const GameContext& game) {
+    const SpriteSlot& slot = game.spriteRenderer.slots[kActivePieceSlot];
     const Sprite& sprite = getSprite(slot.spriteId);
-    // Each of the 28 piece-rotation sprites composes to exactly four parts with no skips, so a
-    // cartridge piece always covers four cells — matching the original's fixed four-slot collision
-    // and lock loops (b = 4). Pinned by the geometry test.
+    // Each of the 28 piece-rotation sprites composes to exactly four parts with no skips, so the
+    // active piece always covers four cells — matching the original's fixed four-slot collision and
+    // lock loops (b = 4). Pinned by the geometry test.
     assert(sprite.parts.size() == 4 && "active piece sprite must compose to exactly four parts");
-    return BoundedVec<PieceCell, kMaxNewPieceCells>{
+    return BoundedVec<PieceCell, 4>{
         cellForPart(slot, sprite, sprite.parts[0]),
         cellForPart(slot, sprite, sprite.parts[1]),
         cellForPart(slot, sprite, sprite.parts[2]),
