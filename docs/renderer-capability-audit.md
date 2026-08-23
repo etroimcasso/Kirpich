@@ -61,7 +61,7 @@ a strict superset of every surface named below, in production.
 | `TransparentIndices::GameBoy` | Color-0 sprite transparency, opt-in per sheet |
 | Indexed atlas + `PaletteId` | Runtime palettes; shade→RGBA resolution happens at palette upload |
 | Integer / letterbox output blit | The integer-scale and free-aspect options |
-| Shader stages | The pixel-art and DMG display shaders |
+| Shader stages | The DMG display shader |
 
 ## Region-by-region mapping
 
@@ -133,7 +133,7 @@ contracts. Either way it is a data and timing choice on shipped surface.
 
 The four-shade output is the palette upload's concern: indexed art plus a four-entry palette whose
 RGBA values realize the chosen shade ramp. The opt-in display options — integer scale, free-aspect
-output, pixel-art upscaling shaders, and the DMG display shader — ride the engine's output blit and
+output and the DMG display shader — ride the engine's output blit and
 shader-stage surfaces. Nothing in the disassembly's PPU usage constrains them.
 
 ### 7. Non-renderer mechanisms — no engine surface required

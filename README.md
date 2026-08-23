@@ -85,7 +85,7 @@ against the author's own cartridge and are included for identification. See
 ## Roadmap
 
 - **Two-player** — the link-cable protocol and its screens, pending the engine's network substrate.
-- **Display filters** — pixel-art upscaling and a DMG display shader.
+- **DMG display shader** — the original LCD's optical character: greenish tint, ghosting, dot grid.
 
 ---
 

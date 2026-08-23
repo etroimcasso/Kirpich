@@ -126,13 +126,16 @@ exception: it is always-on, not a toggle.
 |---|---|
 | Integer scale | Render the 160×144 framebuffer at integer multiples (×1, ×2, ×3, …). Preserves pixel-perfect geometry. |
 | Free-aspect output | Non-integer scaling and stretching to fit arbitrary window sizes. Cohabits with integer scale; one is active at a time. |
-| Pixel-art upscaling shaders | HQ2x/3x/4x, EQ, xBRZ, ScaleNx and equivalent families. Applied after scaling, before the display shader. |
 | DMG display shader | Reproduces the original LCD's optical character — greenish tint, ghosting, dot grid. DMG only, since the ROM is DMG only. |
 
 **CRT shaders are explicitly not offered.** The Game Boy was never displayed on a CRT.
 
-Composition order: render 160×144 → integer or free-aspect scale → pixel-art shader → DMG shader
-→ present.
+**Pixel-art upscaling shaders are not offered either** — the HQ, EQ, xBRZ and ScaleNx families. The
+engine already presents the 160×144 framebuffer at integer multiples with no interpolation, which is
+what keeps the art crisp; those families exist to smooth pixel art, which is the opposite of what
+this game wants.
+
+Composition order: render 160×144 → integer or free-aspect scale → DMG shader → present.
 
 ### Audio
 
@@ -299,7 +302,7 @@ Summary of non-negotiables, each linking back to the section that owns the detai
   routine is forbidden.
 - **Anti-channel-stealing ships as an option**, off by default, operating on the chiptune path
   (§7). It is not covered by the chiptune-only or single-asset-path reductions.
-- **The SDL_GPU backend** — required by the pixel-art and display shaders (§7).
+- **The SDL_GPU backend** — required by the display shader (§7).
 - **All display options compose** — none is mutually exclusive within its category (§7).
 - **No copyrighted content ships** — enforced structurally by emptying assets at packaging time
   and by the ROM-extension bans in `.gitignore` (§9).

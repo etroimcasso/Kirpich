@@ -102,7 +102,6 @@ Game logic.
 | Presentation framework | ⬜ | `features/presentation-framework.md` |
 | Integer-scale output | ⬜ | `features/presentation-integer-scale.md` |
 | Free-aspect output | ⬜ | `features/presentation-free-aspect.md` |
-| Pixel-art upscaling shaders | ⬜ | `features/presentation-pixel-art-shaders.md` |
 | DMG display shader | ⬜ | `features/presentation-dmg-shader.md` |
 
 ## Entry and integration

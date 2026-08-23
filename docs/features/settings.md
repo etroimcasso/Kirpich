@@ -114,7 +114,7 @@ It listens rather than asking every frame, because the state changes a handful o
 - Answering "am I fullscreen?" belongs to the engine's window surface rather than to the game; the
   game currently listens for the platform's event itself. A request is filed upstream, and when it
   lands the listener comes out and the setting reads the engine's answer.
-- Pixel-art and CRT filters are a separate piece of work — they are post-process stages rather than
+- The DMG display shader is a separate piece of work — it is a post-process stage rather than
   anything this screen selects between.
 - The palette applies to everything drawn. A per-screen or per-element palette is not offered and is
   not planned.
