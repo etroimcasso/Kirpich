@@ -30,6 +30,15 @@ namespace kirpich::vm {
 // the returned byte is one of {0, 4, 8, 12, 16, 20, 24}.
 [[nodiscard]] retropp::Routine<std::uint8_t()> registerPieceRandom(retropp::Vm& vm);
 
+// The same, for a New round: the identical fold widened to the thirteen-kind pool, so the returned
+// byte is one of {0, 4, ..., 48} and a value of 28 or more names one of the six New shapes.
+//
+// Register it on the SAME `vm` as registerPieceRandom and registerGarbageFold. All three read the
+// one free-running divider, and a round that draws pieces and then fills garbage in the same frame
+// depends on the earlier reads having advanced it — a machine each would give each its own divider
+// and throw that coupling away. Nothing in the types enforces this; it is said at every header.
+[[nodiscard]] retropp::Routine<std::uint8_t()> registerNewPieceRandom(retropp::Vm& vm);
+
 // Draw a piece via `draw` (up to three tries, rejecting a repeat of the temp-preview kind, with the
 // third draw accepted unconditionally), commit the pipeline stage in `flow`, and return the piece
 // to play next. Mutates flow.nextPreviewPiece (set to the accepted candidate) and

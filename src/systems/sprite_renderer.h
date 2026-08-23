@@ -46,6 +46,20 @@ inline constexpr std::size_t kSceneOamStart        = 0;
 inline constexpr std::size_t kActivePieceOamStart  = 4;
 inline constexpr std::size_t kPreviewPieceOamStart = 8;
 
+// How many entries each piece descriptor owns.
+//
+// A cartridge piece is four tiles, so four entries hold one. A New round can put a five-cell shape
+// in either slot, so both windows are five entries there and the preview's home moves up by one to
+// make room. The width is a property of the ROUND, not of the piece in the slot: a four-tile
+// cartridge piece drawn during a New round still owns five entries and leaves the last one blank,
+// because the piece that follows it may need all five.
+//
+// Entries past the preview window are free during a round: the round init clears the buffer and the
+// two piece descriptors are the only things that draw while a round is being played.
+inline constexpr std::size_t kPieceOamSlots               = 4;
+inline constexpr std::size_t kNewModePieceOamSlots        = 5;
+inline constexpr std::size_t kNewModePreviewPieceOamStart = kActivePieceOamStart + kNewModePieceOamSlots;
+
 // How many descriptors the cursor form draws.
 inline constexpr std::size_t kCursorSpriteCount = 2;
 
@@ -91,9 +105,14 @@ void renderSprites(GameContext& game, std::size_t count);
 void renderCursors(GameContext& game);
 
 // The active piece's descriptor, into its fixed home at entry 4.
+//
+// A New-mode shape carries no composed sprite, so these two compose its entries from its cell list
+// instead of walking one — the only place in the renderer that knows New mode exists. Whichever way
+// the entries are produced, the descriptor's own window is filled to the end: entries the piece does
+// not need are blanked, so a three-cell shape following a five-cell one leaves no block behind.
 void renderActivePieceSprite(GameContext& game);
 
-// The preview piece's descriptor, into its fixed home at entry 8.
+// The preview piece's descriptor, into its fixed home — entry 8, or entry 9 during a New round.
 void renderPreviewPieceSprite(GameContext& game);
 
 }  // namespace kirpich::systems

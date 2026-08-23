@@ -1,10 +1,10 @@
 // The baked routines are actually in the binary — behavioral test against a shipping property.
 //
-// Both virtual-machine routines (src/vm/random.asm, src/vm/garbage.asm) are baked into the binary at
-// build time and registered before main by a generated translation unit. If that registration is
-// missing, registering a routine falls back to reading its .asm from the asset root — which succeeds
-// inside a source tree and fails everywhere else, so the failure is invisible to a suite that runs
-// from the source tree and to a developer who never moves the binary.
+// All three virtual-machine routines (src/vm/random.asm, src/vm/random_new.asm, src/vm/garbage.asm)
+// are baked into the binary at build time and registered before main by a generated translation
+// unit. If that registration is missing, registering a routine falls back to reading its .asm from
+// the asset root — which succeeds inside a source tree and fails everywhere else, so the failure is
+// invisible to a suite that runs from the source tree and to a developer who never moves the binary.
 //
 // These cases close that gap by pointing the asset root at a directory with no source in it. A
 // routine that still registers is coming from the baked copy; one that throws was relying on the
@@ -22,6 +22,7 @@
 #include <retropp/timing.h>
 #include <retropp/vm.h>
 
+#include "data/new_pieces.h"
 #include "vm/garbage_fill.h"
 #include "vm/piece_random.h"
 
@@ -58,7 +59,7 @@ private:
 }  // namespace
 
 // ── Test 1: RoutinesRegisterWithNoSourceOnDisk ──────────────────────────────────────────────────────
-// The property a shipped binary needs: both routines register, and produce values, with nothing to
+// The property a shipped binary needs: every routine registers, and produces values, with nothing to
 // read. Registering is what threw in the field, so the assertion is that it does not.
 TEST(EmbeddedRoutines, RoutinesRegisterWithNoSourceOnDisk) {
     const AssetRootWithoutSources noSources;
@@ -69,17 +70,25 @@ TEST(EmbeddedRoutines, RoutinesRegisterWithNoSourceOnDisk) {
     retropp::Vm vm{retropp::VMPlatform::GameBoy, retropp::TimingProfile::GameBoy};
 
     ASSERT_NO_THROW({
-        const auto draw = kirpich::vm::registerPieceRandom(vm);
-        const auto fold = kirpich::vm::registerGarbageFold(vm);
+        const auto draw    = kirpich::vm::registerPieceRandom(vm);
+        const auto drawNew = kirpich::vm::registerNewPieceRandom(vm);
+        const auto fold    = kirpich::vm::registerGarbageFold(vm);
 
         // Registered is not enough — they have to run. A draw is a piece byte, and a fold is either
         // the empty tile or one of the eight block tiles.
         vm.advanceClock(retropp::TimingProfile::GameBoy.cpuCyclesPerTick());
-        const std::uint8_t piece = draw();
-        const std::uint8_t cell = fold();
+        const std::uint8_t piece    = draw();
+        const std::uint8_t newPiece = drawNew();
+        const std::uint8_t cell     = fold();
 
         EXPECT_EQ(piece % 4, 0) << "a drawn piece is kind * 4, orientation 0";
         EXPECT_LT(piece, 28);
+
+        // The New-mode fold is a separate baked routine with a separate wrap, so it is checked
+        // against its own pool rather than being assumed to ride along with the first.
+        EXPECT_EQ(newPiece % 4, 0) << "a drawn piece is kind * 4, orientation 0";
+        EXPECT_LT(newPiece, kirpich::kNewModeRawEnd);
+
         const bool legalCell =
             cell == kirpich::kGarbageEmptyTile ||
             (cell >= kirpich::kGarbageBlockTileBase &&

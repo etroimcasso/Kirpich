@@ -53,13 +53,24 @@ using InitGarbageHook = std::function<void(GameContext& game, std::uint8_t rows,
 // same chord each tick; the gameplay frame tests it a second time, as the original does.
 using SoftResetHook = std::function<void()>;
 
+// The seam the round init asks whether New mode is switched on at all. It is a saved setting, which
+// lives outside the game's state image, so the handlers reach it through here rather than holding it.
+// An absent hook reads as off, so a caller that installs nothing gets Classic rounds.
+using NewModeEnabledHook = std::function<bool()>;
+
 // ── State handlers ──────────────────────────────────────────────────────────────────────────────────
 
-// GameState_0A — set a round up: clear the entry state, the board, and the score; pick the starting
-// level and line count for the game type; load the gravity period; fill the piece pipeline; lay the
-// Type B starting garbage; and enter play. `draw` supplies the piece randomizer.
+// GameState_0A — set a round up: latch the piece set; clear the entry state, the board, and the
+// score; pick the starting level and line count for the game type; load the gravity period; fill the
+// piece pipeline; lay the Type B starting garbage; and enter play. `draw` supplies the piece
+// randomizer.
+//
+// The latch is first, because the pipeline draws below it are already playing the round: it decides
+// which pool they come from. It is also the ONLY place roundPieceType is written — a round keeps the
+// set it started with however the settings are left while it runs.
 void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
-              const InitGarbageHook& initGarbage = {});
+              const InitGarbageHook& initGarbage = {},
+              const NewModeEnabledHook& newModeEnabled = {});
 
 // GameState_00 — one frame of play: handle Start and Select, then (unless paused) run the demo input
 // substitution, the piece, the line-clear scan and compaction, and the score award, in that order.
@@ -120,6 +131,7 @@ struct GameplayWiring {
     GameplayDemoHooks             demo{};
     InitGarbageHook               initGarbage{};
     SoftResetHook                 softReset{};
+    NewModeEnabledHook            newModeEnabled{};
 };
 
 // Install the seven gameplay handlers into their dispatch slots ($0A, $00, $01, $0D, $04, $0B, $0C).

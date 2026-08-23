@@ -229,6 +229,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // Nothing in the types enforces this, which is why it is said here as well as at both headers.
     retropp::Vm  vm{retropp::VMPlatform::GameBoy, retropp::TimingProfile::GameBoy};
     const auto   drawPiece = kirpich::vm::registerPieceRandom(vm);
+    const auto   drawNewModePiece = kirpich::vm::registerNewPieceRandom(vm);
     const auto   garbageFold = kirpich::vm::registerGarbageFold(vm);
 
     // ── The art ──────────────────────────────────────────────────────────────
@@ -236,6 +237,20 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     // ── The game ─────────────────────────────────────────────────────────────
     kirpich::systems::GameContext game;
+
+    // The round's piece source. Both folds are the same routine on the same machine; they differ
+    // only in how many kinds they wrap at, so a New round draws from thirteen and a Classic round
+    // from the cartridge's seven. The round latched which one it is at its init and does not change
+    // its mind, so this reads that latch rather than the setting.
+    //
+    // It has to be ONE closure used everywhere a piece is drawn. The round init draws through the
+    // gameplay wiring, but the spawn that follows a line clear is driven from the frame's last beat
+    // below — and a round whose clears drew from the wrong pool would quietly stop being a New round
+    // the first time a line came out.
+    const auto drawForRound = [&drawPiece, &drawNewModePiece, &game]() -> std::uint8_t {
+        return game.newMode.roundPieceType == kirpich::PieceType::NEW ? drawNewModePiece()
+                                                                      : drawPiece();
+    };
 
     // Put the display choices into effect. Fullscreen is asked for either way, so leaving it turns
     // the window back on; the size is applied only when windowed, where it is the only thing that
@@ -315,11 +330,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // fill's per-cell pick each own their own logic and only ask the divider for a number.
     kirpich::systems::installGameplayHandlers(
         dispatcher, kirpich::systems::GameplayWiring{
-                        .draw        = [&drawPiece] { return drawPiece(); },
+                        .draw        = drawForRound,
                         .demo        = kirpich::systems::demoHooks(),
                         .initGarbage = kirpich::vm::makeInitGarbageHook(
                             [&garbageFold] { return garbageFold(); }),
                         .softReset = reset,
+                        // No newModeEnabled hook: the round init reads an absent hook as off, so
+                        // every round latches the cartridge's seven pieces.
                     });
 
     // Start the machine: the boot path, then the player's saved top scores read back over the tables
@@ -412,9 +429,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // and the field wipe steps one row per frame. Each one gates itself, so they are called every
         // frame and act only when they have something to do. Without this beat a round stops after its
         // first lock — the piece that landed never clears and the next one never spawns.
-        const auto draw = [&drawPiece] { return drawPiece(); };
-        kirpich::systems::animateLineClear(game, draw);
-        kirpich::systems::playingFieldWipeTick(game, draw);
+        kirpich::systems::animateLineClear(game, drawForRound);
+        kirpich::systems::playingFieldWipeTick(game, drawForRound);
         kirpich::systems::updateScoreboard(game);
         kirpich::systems::redrawScore(game);
         kirpich::systems::drawTopScoresToVram(game);

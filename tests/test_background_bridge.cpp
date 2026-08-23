@@ -87,6 +87,8 @@ TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
     using kirpich::render::kContentTileBase;
     using kirpich::render::kCopyrightTitleTileCount;
     using kirpich::render::kFontTileCount;
+    using kirpich::kNewPieceTileBase;
+    using kirpich::kNewPieceTileCount;
     using kirpich::render::kGameplayTileBase;
     using kirpich::render::kGameplayTileCount;
     using kirpich::render::kMultiplayerBuranTileCount;
@@ -132,12 +134,20 @@ TEST(BackgroundBridge, TileIndexResolvesOverTheWholeDomain) {
                 << "index " << i;
         }
 
-        // Gameplay regime: nine carried-over tiles, then the gameplay art from $30 (:6368-6376).
+        // Gameplay regime: nine carried-over tiles, then the gameplay art from $30 (:6368-6376),
+        // then — at the top of the range, in indices the gameplay art never reaches — New mode's six
+        // block tiles. Those six are gameplay-regime only: the assertions above have already
+        // required them to be the empty cell under the other two regimes, which is what says a New
+        // piece's block cannot be drawn on a title or launch screen.
         {
             TileLocation want;
             if (index < kGameplayTileBase) {
                 want = TileLocation{.source = TileSource::COPYRIGHT_TITLE,
                                     .cell = static_cast<std::uint16_t>(index - kContentTileBase)};
+            } else if (index >= kNewPieceTileBase &&
+                       index < kNewPieceTileBase + kNewPieceTileCount) {
+                want = TileLocation{.source = TileSource::NEW_PIECES,
+                                    .cell = static_cast<std::uint16_t>(index - kNewPieceTileBase)};
             } else {
                 const std::uint16_t cell = static_cast<std::uint16_t>(index - kGameplayTileBase);
                 want = cell < kGameplayTileCount

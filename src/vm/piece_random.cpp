@@ -17,6 +17,17 @@ retropp::Routine<std::uint8_t()> registerPieceRandom(retropp::Vm& vm) {
         retropp::AssetPolicy::Embed);
 }
 
+retropp::Routine<std::uint8_t()> registerNewPieceRandom(retropp::Vm& vm) {
+    // The New-mode fold. Same binding as the Classic draw — output in A, host speed — and the same
+    // Embed policy, so the widened routine ships in the binary alongside it. The path is a literal
+    // at its use site because the build's asset scan reads these out of the source text.
+    return vm.registerRoutine<std::uint8_t()>(
+        "src/vm/random_new.asm",
+        retropp::RoutineBinding{.output = retropp::gb::A,
+                                .throttle = retropp::Throttle::HostSpeed},
+        retropp::AssetPolicy::Embed);
+}
+
 Piece pickRandomPiece(const retropp::Routine<std::uint8_t()>& draw, GameFlowState& flow) {
     // tetris.asm:1565-1606. The reference `c` is the temp-preview kind; the next-preview does not
     // change across the loop, so it is read once (the ROM re-reads it each try — same value).

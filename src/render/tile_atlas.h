@@ -28,6 +28,12 @@
 // garbage - so an index past the real tiles named a picture nobody authored. Those indices resolve
 // to the empty cell here rather than throwing: the original draws whatever the block happens to
 // contain, and a screen the port has not finished should look wrong, not crash.
+//
+// New mode's six block tiles live in that surplus. They take six indices at the very top of the
+// gameplay regime's range ($F5-$FA, src/data/new_pieces.h) - space no art was ever loaded into and
+// nothing shipped writes - so a New piece's block is an ordinary board byte that happens to resolve
+// to a different sheet. Only the gameplay regime maps them; on a title or launch screen those
+// indices go on meaning nothing, because there is no New piece to be drawn there.
 
 #include <array>
 #include <cstdint>
@@ -36,6 +42,7 @@
 #include <retropp/palette.h>   // PaletteId, Rgba8
 #include <retropp/renderer.h>  // Renderer
 
+#include "data/new_pieces.h"      // kNewPieceTileBase, kNewPieceTileCount
 #include "render/palettes.h"      // ShadeRamp, kShadeRampCount
 #include "state/display_state.h"  // TileSheet
 
@@ -48,6 +55,7 @@ enum class TileSource : std::uint8_t {
     COPYRIGHT_TITLE,    // copyrightandtitlescreen.png
     GAMEPLAY,           // configandgameplay.png
     MULTIPLAYER_BURAN,  // multiplayerandburan.png
+    NEW_PIECES,         // newPieces-indexed.png - New mode's six block tiles
 };
 
 // Where a tile index's art sits: which sheet, and which cell of it. The cell index is the tile's
@@ -125,6 +133,10 @@ struct TileAtlas {
     // Selected by the two launch scenes, which load it whole over the base of the tile block. The
     // link-cable screens load the same sheet.
     retropp::AtlasId multiplayerBuran{};
+    // New mode's six block tiles. Not a regime of its own - it is reached from within the gameplay
+    // regime, by the six indices at the top of its range - and it is the one sheet that is not
+    // extracted from a cartridge, so it is baked into the binary rather than read from disk.
+    retropp::AtlasId newPieces{};
 
     // One set per shade ramp, all uploaded at startup. Switching ramps is choosing between them, the
     // same way choosing a tile sheet is: nothing is uploaded or released when a player changes one.

@@ -188,7 +188,23 @@ void fillPlayingFieldAndWipe(GameContext& game, std::uint8_t fill) {
 }
 
 void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
-              const InitGarbageHook& initGarbage) {
+              const InitGarbageHook& initGarbage, const NewModeEnabledHook& newModeEnabled) {
+    // Latch the piece set for this round, before anything that draws a piece.
+    //
+    // Four things must all hold, and each rules out a different way of getting the wrong pieces: the
+    // player has switched the mode on at all; they have selected it for this round on the config
+    // screen; this is not an attract demo (a demo replays a recorded piece list that only makes
+    // sense against the cartridge's seven); and this is not a two-player round (both machines walk a
+    // shared list, and there is no protocol for telling the other side which pool it came from).
+    //
+    // Written here and nowhere else. A round that has begun keeps its set: turning the master off
+    // from a paused round leaves the pieces already falling exactly as they are.
+    game.newMode.roundPieceType =
+        (newModeEnabled && newModeEnabled() && game.newMode.choice == PieceType::NEW &&
+         game.demo.activeDemo == ActiveDemo::NONE && !game.multiplayer.isMultiplayer)
+            ? PieceType::NEW
+            : PieceType::CLASSIC;
+
     // Clear the entry block (tetris.asm:4126-4132). The lock-stage shadow at $FF9B is written by the
     // sprite path and never read, so it has no field here; the line count clears whole because the
     // fork below rewrites it either way.
@@ -479,8 +495,9 @@ void state0CUnknown(GameContext& game) {
 }
 
 void installGameplayHandlers(GameStateDispatcher& dispatcher, GameplayWiring wiring) {
-    dispatcher.setHandler(GameState::INIT_GAME,
-                          [wiring](GameContext& g) { initGame(g, wiring.draw, wiring.initGarbage); });
+    dispatcher.setHandler(GameState::INIT_GAME, [wiring](GameContext& g) {
+        initGame(g, wiring.draw, wiring.initGarbage, wiring.newModeEnabled);
+    });
     dispatcher.setHandler(GameState::NORMAL_GAMEPLAY, [wiring](GameContext& g) {
         normalGameplay(g, wiring.demo, wiring.softReset);
     });

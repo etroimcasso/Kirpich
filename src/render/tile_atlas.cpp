@@ -66,6 +66,13 @@ TileLocation locateTile(std::uint8_t index, TileSheet sheet) noexcept {
                             .cell   = static_cast<std::uint16_t>(index - kContentTileBase)};
     }
 
+    // New mode's blocks, in six of the indices the gameplay art never reaches. Checked before the
+    // gameplay range below, which would otherwise send them to the empty cell as surplus.
+    if (index >= kNewPieceTileBase && index < kNewPieceTileBase + kNewPieceTileCount) {
+        return TileLocation{.source = TileSource::NEW_PIECES,
+                            .cell   = static_cast<std::uint16_t>(index - kNewPieceTileBase)};
+    }
+
     const std::uint16_t cell = static_cast<std::uint16_t>(index - kGameplayTileBase);
     return cell < kGameplayTileCount
                ? TileLocation{.source = TileSource::GAMEPLAY, .cell = cell}
@@ -99,6 +106,20 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
                                             retropp::AssetDimensions::GameBoy8x8,
                                             retropp::ContentKind::Tileset)
                                  .atlasId;
+
+    // New mode's blocks are the one sheet that is NOT a player's own file. They are original art
+    // that ships with the game, so they are baked into the binary (Embed) rather than read from the
+    // asset root — a player has no cartridge to extract them from and there is nothing to extract.
+    // src/assets/gfx/newPieces.png is the drawing; this is the index-format sibling the loader
+    // wants, written by tools/convert_new_piece_tiles.py.
+    atlas.newPieces = renderer
+                          .loadAtlas("src/assets/gfx/newPieces-indexed.png",
+                                     retropp::AssetDimensions::GameBoy8x8,
+                                     retropp::ContentKind::Tileset,
+                                     retropp::ReadOrder::LeftRightThenDown, /*count=*/0,
+                                     retropp::TransparentIndices::None,
+                                     /*framesPerAnimation=*/0, retropp::AssetPolicy::Embed)
+                          .atlasId;
 
     // One set of palettes per shade ramp, all uploaded here. A ramp only changes what the four shades
     // are, so each set is built the same way from its own four colours, and choosing a ramp later is
@@ -150,6 +171,9 @@ ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& a
             return ResolvedTile{.atlas   = atlas.multiplayerBuran,
                                 .cell    = where.cell,
                                 .palette = palettes.content};
+        case TileSource::NEW_PIECES:
+            return ResolvedTile{
+                .atlas = atlas.newPieces, .cell = where.cell, .palette = palettes.content};
         case TileSource::GAMEPLAY:
             break;
     }
@@ -172,6 +196,8 @@ ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette
         source = atlas.copyrightTitle;
     } else if (where.source == TileSource::MULTIPLAYER_BURAN) {
         source = atlas.multiplayerBuran;
+    } else if (where.source == TileSource::NEW_PIECES) {
+        source = atlas.newPieces;
     }
     return ResolvedTile{.atlas = source, .cell = where.cell, .palette = palette};
 }
