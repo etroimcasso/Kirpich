@@ -658,10 +658,10 @@ TEST(SettingsScreen, ConfirmPaintsAndOpensOnNo) {
     const auto  wiring = probe.wiring();
     openFrom(game, wiring, GameState::TITLE_SCREEN);
 
-    game.screens.confirmYes = true;  // a previous visit left it on yes
+    game.screens.confirmRight = true;  // a previous visit left it on yes
     kirpich::systems::initResetConfirmScreen(game);
 
-    EXPECT_FALSE(game.screens.confirmYes) << "the confirm must open on no every time";
+    EXPECT_FALSE(game.screens.confirmRight) << "the confirm must open on no every time";
     EXPECT_EQ(game.flow.gameState, GameState::RESET_CONFIRM);
     EXPECT_EQ(game.flow.timer1, kBlinkFrames);
 
@@ -681,13 +681,13 @@ TEST(SettingsScreen, ConfirmPaintsAndOpensOnNo) {
     // Right moves to yes and the cursor goes with it; left comes back.
     press(game, {Action::MenuRight});
     kirpich::systems::resetConfirmScreen(game, wiring);
-    EXPECT_TRUE(game.screens.confirmYes);
+    EXPECT_TRUE(game.screens.confirmRight);
     EXPECT_EQ(map[kChoiceRow][kYesCol - kCursorGap], kCursor);
     EXPECT_EQ(map[kChoiceRow][kNoCol - kCursorGap], kSpace);
 
     press(game, {Action::MenuLeft});
     kirpich::systems::resetConfirmScreen(game, wiring);
-    EXPECT_FALSE(game.screens.confirmYes);
+    EXPECT_FALSE(game.screens.confirmRight);
     EXPECT_EQ(map[kChoiceRow][kNoCol - kCursorGap], kCursor);
 }
 
@@ -747,9 +747,10 @@ TEST(SettingsScreen, ConfirmActsOnYesAndOnlyOnYes) {
     }
 }
 
-// (10b) Exit is guarded by the same confirm, which asks about whichever row opened it. Yes ends the
-// run; no and Back do not, and neither does merely landing on the row.
-TEST(SettingsScreen, ExitIsGuardedByTheSameConfirm) {
+// (10b) The exit confirm asks a different question depending on where the settings screen was opened
+// from. Mid-round there are two places to go and both answers act; from the title screen there is only
+// one, so it asks the plain question and "no" is an answer again.
+TEST(SettingsScreen, ExitAsksWhereToGoOnlyWhenThereIsSomewhereToGo) {
     using C = CharTile;
 
     const auto openExitConfirm = [](GameContext& game, const SettingsWiring& wiring) {
@@ -757,51 +758,149 @@ TEST(SettingsScreen, ExitIsGuardedByTheSameConfirm) {
         press(game, {Action::Confirm});
         kirpich::systems::settingsScreen(game, wiring);
         EXPECT_EQ(game.flow.gameState, GameState::INIT_RESET_CONFIRM)
-            << "exit must not end the run on a single press";
+            << "exit must not act on a single press";
         kirpich::systems::initResetConfirmScreen(game);
     };
 
-    // The confirm asks about exiting, not about the scores.
+    // From a round: two destinations. The pair is centred as a block, so the columns follow the words.
     {
         GameContext game;
         Probe       probe;
         const auto  wiring = probe.wiring();
-        int         exits  = 0;
-        auto        wired  = wiring;
-        wired.exit         = [&exits] { ++exits; };
+
+        openFrom(game, wiring, GameState::NORMAL_GAMEPLAY);
+        openExitConfirm(game, wiring);
+
+        EXPECT_EQ(game.screens.pendingConfirm, kirpich::ConfirmAction::EXIT_GAME);
+        expectGlyphs(game.display.map, kConfirmRow2, 5,
+                     {C::LETTER_A, C::LETTER_N, C::LETTER_D, C::SPACE, C::LETTER_G, C::LETTER_O});
+        expectGlyphs(game.display.map, 11, 3,
+                     {C::LETTER_T, C::LETTER_I, C::LETTER_T, C::LETTER_L, C::LETTER_E});
+        expectGlyphs(game.display.map, 11, 12,
+                     {C::LETTER_D, C::LETTER_E, C::LETTER_S, C::LETTER_K, C::LETTER_T, C::LETTER_O,
+                      C::LETTER_P});
+        EXPECT_FALSE(game.screens.confirmRight) << "it opens on the answer that does not end the run";
+    }
+
+    // From the title screen: the plain question, and the answers it has always had in the columns it
+    // has always drawn them in.
+    {
+        GameContext game;
+        Probe       probe;
+        const auto  wiring = probe.wiring();
+
+        openFrom(game, wiring, GameState::TITLE_SCREEN);
+        openExitConfirm(game, wiring);
+
+        expectGlyphs(game.display.map, kConfirmRow1, 1,
+                     {C::LETTER_R, C::LETTER_E, C::LETTER_T, C::LETTER_U, C::LETTER_R, C::LETTER_N,
+                      C::SPACE, C::LETTER_T, C::LETTER_O, C::SPACE, C::LETTER_D, C::LETTER_E,
+                      C::LETTER_S, C::LETTER_K, C::LETTER_T, C::LETTER_O, C::LETTER_P});
+        expectGlyphs(game.display.map, 11, 6, {C::LETTER_N, C::LETTER_O});
+        expectGlyphs(game.display.map, 11, 12, {C::LETTER_Y, C::LETTER_E, C::LETTER_S});
+
+        // One line, so the second row is left blank rather than carrying anything.
+        for (std::size_t col = 0; col < 20; ++col) {
+            EXPECT_EQ(game.display.map[kConfirmRow2][col], static_cast<std::uint8_t>(C::SPACE))
+                << "second question row, column " << col;
+        }
+    }
+
+    // From the title screen, "no" refuses - there is no title to go to from the title.
+    {
+        GameContext game;
+        Probe       probe;
+        int         exits = 0;
+        auto        wired = probe.wiring();
+        wired.exit        = [&exits] { ++exits; };
 
         openFrom(game, wired, GameState::TITLE_SCREEN);
         openExitConfirm(game, wired);
-
-        EXPECT_EQ(game.screens.pendingConfirm, kirpich::ConfirmAction::EXIT_GAME);
-        expectGlyphs(game.display.map, kConfirmRow1, 8, {C::LETTER_E, C::LETTER_X, C::LETTER_I,
-                                                          C::LETTER_T});
-        expectGlyphs(game.display.map, kConfirmRow2, 6,
-                     {C::LETTER_T, C::LETTER_H, C::LETTER_E, C::SPACE, C::LETTER_G, C::LETTER_A,
-                      C::LETTER_M, C::LETTER_E});
-
-        // No: the run continues and the screen comes back.
         press(game, {Action::Confirm});
         kirpich::systems::resetConfirmScreen(game, wired);
-        EXPECT_EQ(exits, 0);
-        EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
 
-        // Yes: the run is asked to end, exactly once, and the scores are untouched by it.
+        EXPECT_EQ(exits, 0);
+        EXPECT_EQ(game.flow.gameState, GameState::SETTINGS) << "no goes back to the settings screen";
+    }
+
+    // From a round, the left answer is a soft reset that skips the copyright screen: the machine goes
+    // back to its boot values, the score tables survive, and the title screen comes up next.
+    {
+        GameContext game;
+        Probe       probe;
+        int         exits = 0;
+        auto        wired = probe.wiring();
+        wired.exit        = [&exits] { ++exits; };
+
+        // A paused round: the display is reading the second map, which is the case the title screen
+        // cannot handle for itself.
+        game.display.displayed = kirpich::DisplayedMap::SECOND;
+        openFrom(game, wired, GameState::NORMAL_GAMEPLAY);
+        game.flow.paused = true;
+        game.highScores.typeA[0][0].score = 4242u;  // a reset keeps this
+        openExitConfirm(game, wired);
+
+        press(game, {Action::Confirm});
+        kirpich::systems::resetConfirmScreen(game, wired);
+
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_TITLE_SCREEN)
+            << "straight to the title, not through the copyright screens a reset shows first";
+        EXPECT_EQ(exits, 0) << "the title is not the desktop";
+
+        EXPECT_FALSE(game.flow.paused) << "the round it left was paused";
+        EXPECT_EQ(game.display.displayed, kirpich::DisplayedMap::FIRST)
+            << "the title screen paints into the first map and does not select it itself";
+
+        // The sound driver's WHOLE startup, not the plain initialisation. The initialisation leaves
+        // the driver's pause-tune timer latched, and a driver with that byte set never reaches its
+        // sound routines again - the music and every effect stop for the rest of the session.
+        EXPECT_TRUE(game.audioCues.driverRestartRequested)
+            << "returning to the title must restart the driver, or the run finishes in silence";
+
+        EXPECT_EQ(game.highScores.typeA[0][0].score, 4242u) << "a reset keeps the tables";
+        EXPECT_EQ(probe.savedScores, 0) << "leaving a round must not write them out";
+    }
+
+    // The right answer ends the run, from either entry point, exactly once.
+    for (const GameState from : {GameState::TITLE_SCREEN, GameState::NORMAL_GAMEPLAY}) {
+        GameContext game;
+        Probe       probe;
+        int         exits = 0;
+        auto        wired = probe.wiring();
+        wired.exit        = [&exits] { ++exits; };
+
+        openFrom(game, wired, from);
         openExitConfirm(game, wired);
         press(game, {Action::MenuRight});
         kirpich::systems::resetConfirmScreen(game, wired);
         press(game, {Action::Confirm});
         kirpich::systems::resetConfirmScreen(game, wired);
+
         EXPECT_EQ(exits, 1);
         EXPECT_EQ(probe.savedScores, 0) << "exiting must not touch the score tables";
-        // The confirm stays up until the run ends. Going back to the settings screen first would
-        // show the player a screen they have just left, and then quit out of it.
+        // The confirm stays up until the run ends. Going back to the settings screen first would show
+        // the player a screen they have just left, and then quit out of it.
         EXPECT_EQ(game.flow.gameState, GameState::RESET_CONFIRM);
-        expectGlyphs(game.display.map, kConfirmRow1, 8,
-                     {C::LETTER_E, C::LETTER_X, C::LETTER_I, C::LETTER_T});
     }
 
-    // A build with no exit wired simply has a row that does nothing - it must not crash.
+    // B refuses from either entry point.
+    for (const GameState from : {GameState::TITLE_SCREEN, GameState::NORMAL_GAMEPLAY}) {
+        GameContext game;
+        Probe       probe;
+        int         exits = 0;
+        auto        wired = probe.wiring();
+        wired.exit        = [&exits] { ++exits; };
+
+        openFrom(game, wired, from);
+        openExitConfirm(game, wired);
+        press(game, {Action::Back});
+        kirpich::systems::resetConfirmScreen(game, wired);
+
+        EXPECT_EQ(exits, 0);
+        EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
+    }
+
+    // A build with no exit wired simply has an answer that does nothing - it must not crash.
     {
         GameContext game;
         Probe       probe;
@@ -814,6 +913,25 @@ TEST(SettingsScreen, ExitIsGuardedByTheSameConfirm) {
         kirpich::systems::resetConfirmScreen(game, wiring);
         EXPECT_EQ(game.flow.gameState, GameState::RESET_CONFIRM);
     }
+}
+
+// (10c) The erase confirm keeps the answers it has always had, and the shared layout puts them in the
+// columns they have always been drawn in — the generalization must not have moved them.
+TEST(SettingsScreen, TheEraseConfirmKeepsItsNoAndYes) {
+    using C = CharTile;
+
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+
+    openFrom(game, wiring, GameState::TITLE_SCREEN);
+    game.screens.settingsRow = SettingsRow::RESET_SCORES;
+    press(game, {Action::Confirm});
+    kirpich::systems::settingsScreen(game, wiring);
+    kirpich::systems::initResetConfirmScreen(game);
+
+    expectGlyphs(game.display.map, 11, 6, {C::LETTER_N, C::LETTER_O});
+    expectGlyphs(game.display.map, 11, 12, {C::LETTER_Y, C::LETTER_E, C::LETTER_S});
 }
 
 // ── Leaving ───────────────────────────────────────────────────────────────────────────────────────

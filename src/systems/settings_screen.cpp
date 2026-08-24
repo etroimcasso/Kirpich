@@ -15,6 +15,7 @@
 #include "state/display_state.h"
 #include "render/palettes.h"  // kShadeRampCount, clampShadeRamp
 #include "state/screen_ui_state.h"
+#include "systems/boot.h"  // softReset
 #include "systems/game_state_dispatcher.h"
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/screen.h"        // writeMapText
@@ -43,9 +44,8 @@ constexpr std::size_t kCursorCol      = 1;
 constexpr std::size_t kConfirmRow1      = 5;
 constexpr std::size_t kConfirmRow2      = 7;
 constexpr std::size_t kChoiceRow        = 11;
-constexpr std::size_t kNoCol            = 6;
-constexpr std::size_t kYesCol           = 12;
 constexpr std::size_t kChoiceCursorGap  = 2;  // cells between the cursor and the word it points at
+constexpr std::size_t kChoiceGap        = 2;  // cells between one answer and the next one's cursor
 
 constexpr auto kSpace       = static_cast<std::uint8_t>(CharTile::SPACE);
 constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
@@ -224,24 +224,82 @@ void drawSettingsCursor(BackgroundMap& map, const ScreenUiState& ui) {
 
 // What the confirm asks, for each of the two actions it guards. Two lines apiece, each centred, so
 // both read the same way - and neither needs a question mark, which the font does not carry.
-struct ConfirmQuestion {
+// What a confirm screen says: a heading, two lines of question, and the two answers it offers.
+//
+// The screen itself is general — it draws this, moves a cursor between the two answers, and reports
+// which one the player left it on. What an answer MEANS belongs to the caller: on one confirm the
+// left answer is a cancel, on another both answers act and B is the only way out. Anything that needs
+// confirming adds an enumerator, an entry here, and a branch on the answer; it needs no screen.
+struct ConfirmContent {
+    std::string_view title;
     std::string_view first;
     std::string_view second;
+    std::string_view leftChoice;
+    std::string_view rightChoice;
 };
 
-ConfirmQuestion questionFor(ConfirmAction action) {
+// Whether leaving for the title screen is a thing this confirm can offer. It is not when the settings
+// screen was opened from the title screen itself: there is no round to leave and nowhere to go, so the
+// exit confirm asks the plain question it asks when the game is not being played.
+bool offersReturnToTitle(const ScreenUiState& ui) {
+    return ui.settingsReturn != GameState::TITLE_SCREEN;
+}
+
+ConfirmContent confirmContentFor(ConfirmAction action, bool canReturnToTitle) {
     switch (action) {
-        case ConfirmAction::ERASE_SCORES: return {"erase all", "high scores"};
-        case ConfirmAction::EXIT_GAME:    return {"exit", "the game"};
+        case ConfirmAction::ERASE_SCORES:
+            return {.title       = "reset scores",
+                    .first       = "erase all",
+                    .second      = "high scores",
+                    .leftChoice  = "no",
+                    .rightChoice = "yes"};
+        case ConfirmAction::EXIT_GAME:
+            // Mid-round there are two places to go, and both answers act - leaving without going
+            // anywhere is what B is for, which is why neither answer is a "no". A screen offering
+            // "no" beside two destinations would be asking two questions at once.
+            if (canReturnToTitle) {
+                return {.title       = "exit game",
+                        .first       = "leave the game",
+                        .second      = "and go to",
+                        .leftChoice  = "title",
+                        .rightChoice = "desktop"};
+            }
+            // Opened from the title screen, there is only one place to go. The question names it and
+            // "no" is an answer again; the second line goes unused, which the paint allows for.
+            return {.title       = "exit game",
+                    .first       = "return to desktop",
+                    .second      = {},
+                    .leftChoice  = "no",
+                    .rightChoice = "yes"};
     }
     return {};
 }
 
+// Where the two answers sit, and where each one's cursor goes.
+//
+// The pair is centred as a block — cursor, word, gap, cursor, word — rather than nailed to fixed
+// columns, so a pair of long answers still fits the screen. For "no" and "yes" the arithmetic lands on
+// columns 6 and 12, which is where that pair has always been drawn.
+struct ChoiceColumns {
+    std::size_t left;
+    std::size_t right;
+};
+
+ChoiceColumns choiceColumns(const ConfirmContent& content) {
+    const std::size_t block = kChoiceCursorGap + content.leftChoice.size() + kChoiceGap +
+                              kChoiceCursorGap + content.rightChoice.size();
+    const std::size_t start = block >= kScreenCols ? 0 : (kScreenCols - block) / 2;
+    const std::size_t left  = start + kChoiceCursorGap;
+    return {left, left + content.leftChoice.size() + kChoiceGap + kChoiceCursorGap};
+}
+
 void drawConfirmCursor(BackgroundMap& map, const ScreenUiState& ui) {
-    map[kChoiceRow][kNoCol - kChoiceCursorGap]  = kSpace;
-    map[kChoiceRow][kYesCol - kChoiceCursorGap] = kSpace;
+    const ChoiceColumns cols =
+        choiceColumns(confirmContentFor(ui.pendingConfirm, offersReturnToTitle(ui)));
+    map[kChoiceRow][cols.left - kChoiceCursorGap]  = kSpace;
+    map[kChoiceRow][cols.right - kChoiceCursorGap] = kSpace;
     if (ui.cursorVisible) {
-        const std::size_t col = ui.confirmYes ? kYesCol : kNoCol;
+        const std::size_t col = ui.confirmRight ? cols.right : cols.left;
         map[kChoiceRow][col - kChoiceCursorGap] = kCursorGlyph;
     }
 }
@@ -448,19 +506,27 @@ void initResetConfirmScreen(GameContext& game) {
     ScreenUiState& ui  = game.screens;
     BackgroundMap& map = game.display.displayedMap();
 
-    // It opens on "no" every time, so a player who arrives here by accident leaves with their scores
-    // by pressing whichever button brought them.
-    ui.confirmYes    = false;
+    // It opens on the left answer every time. For the erase that is "no", so a player who arrives here
+    // by accident leaves with their scores by pressing whichever button brought them; for the exit it
+    // is the title, the one of the two that does not end the run.
+    ui.confirmRight  = false;
     ui.cursorVisible = true;
 
-    const ConfirmQuestion question = questionFor(ui.pendingConfirm);
+    const ConfirmContent content =
+        confirmContentFor(ui.pendingConfirm, offersReturnToTitle(ui));
+    const ChoiceColumns cols = choiceColumns(content);
 
     drawValueArrows(game, Settings{}, kSettingsPageCount);  // the confirm has no scrollers
     clearVisibleRegion(map);
-    writeMapText(map, kConfirmRow1, centred(question.first.size()), question.first);
-    writeMapText(map, kConfirmRow2, centred(question.second.size()), question.second);
-    writeMapText(map, kChoiceRow, kNoCol, "no");
-    writeMapText(map, kChoiceRow, kYesCol, "yes");
+    writeMapText(map, kTitleRow, centred(content.title.size()), content.title);
+    // A question can be one line or two; an empty line is a row left blank rather than a row of
+    // nothing written at column ten.
+    writeMapText(map, kConfirmRow1, centred(content.first.size()), content.first);
+    if (!content.second.empty()) {
+        writeMapText(map, kConfirmRow2, centred(content.second.size()), content.second);
+    }
+    writeMapText(map, kChoiceRow, cols.left, content.leftChoice);
+    writeMapText(map, kChoiceRow, cols.right, content.rightChoice);
     drawConfirmCursor(map, ui);
 
     game.flow.timer1    = kBlinkFrames;
@@ -478,17 +544,42 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
     }
 
     if (pressed(game, Action::Confirm) || pressed(game, Action::Start)) {
-        if (ui.confirmYes && ui.pendingConfirm == ConfirmAction::EXIT_GAME) {
-            // The run ends here. The confirm stays on screen for the frames it takes the engine to
-            // resolve the request: going back to the settings screen first would show the player a
-            // screen they have just left, and then quit out of it.
-            if (wiring.exit) {
-                wiring.exit();
+        if (ui.pendingConfirm == ConfirmAction::EXIT_GAME) {
+            // Opened from the title screen the answers are "no" and "yes", so the left one refuses
+            // rather than going anywhere.
+            if (!offersReturnToTitle(ui) && !ui.confirmRight) {
+                returnToSettings(game, wiring);
+                return;
             }
+
+            if (ui.confirmRight) {
+                // Out of the program. The confirm stays on screen for the frames it takes the engine
+                // to resolve the request: going back to the settings screen first would show the
+                // player a screen they have just left, and then quit out of it.
+                if (wiring.exit) {
+                    wiring.exit();
+                }
+                return;
+            }
+
+            // Out of the round instead, which is a soft reset that skips the copyright screen. The
+            // machine goes back where the reset chord leaves it - the score tables kept, everything
+            // else at its boot value - and then straight to the title rather than through the
+            // copyright screens a reset shows first.
+            //
+            // Going through the reset rather than taking the screen down by hand is what makes this
+            // correct rather than nearly correct. It selects the first map, which the title screen's
+            // own init does not do for itself; it clears the pause flag, so a round left paused
+            // cannot hand a paused frame to whatever starts next; and it asks for the sound driver's
+            // whole startup rather than the plain initialisation, which is the only thing that clears
+            // the driver's latched pause-tune timer. A driver left with that byte set never reaches
+            // its sound routines again - the music and every effect stop for the rest of the session.
+            softReset(game);
+            game.flow.gameState = GameState::INIT_TITLE_SCREEN;
             return;
         }
 
-        if (ui.confirmYes) {
+        if (ui.confirmRight) {
             // Both tables, back to the state a machine that has never been played holds. A cleared
             // name is six zero bytes, which is what the top-score printer reads as no name at all.
             game.highScores.typeA = {};
@@ -502,11 +593,11 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
         return;
     }
 
-    if (pressed(game, Action::MenuRight) && !ui.confirmYes) {
-        ui.confirmYes         = true;
+    if (pressed(game, Action::MenuRight) && !ui.confirmRight) {
+        ui.confirmRight       = true;
         game.audioCues.square = SquareSfxId::TINK;
-    } else if (pressed(game, Action::MenuLeft) && ui.confirmYes) {
-        ui.confirmYes         = false;
+    } else if (pressed(game, Action::MenuLeft) && ui.confirmRight) {
+        ui.confirmRight       = false;
         game.audioCues.square = SquareSfxId::TINK;
     }
 

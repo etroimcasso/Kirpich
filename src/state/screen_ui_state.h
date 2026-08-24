@@ -89,7 +89,10 @@ struct ScreenUiState {
 
     // The confirm's choice, and which of the two actions it is currently guarding. It opens on "no"
     // every time, so a player who reaches it by accident leaves it by pressing anything that acts.
-    bool          confirmYes     = false;
+    // Which of the confirm screen's two answers the cursor is on. Not "yes": the answers are the
+    // caller's to name, and one confirm offers "no"/"yes" while another offers two destinations
+    // neither of which is a refusal.
+    bool          confirmRight   = false;
     ConfirmAction pendingConfirm = ConfirmAction::ERASE_SCORES;
 
     // The state to return to when the player leaves: the title screen, or the paused round the
