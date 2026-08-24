@@ -63,6 +63,15 @@ struct GameFlowState {
     uint8_t typeALevel = 0;          // $FFC2: chosen Type A starting level
     uint8_t typeBLevel = 0;          // $FFC3: chosen Type B starting level
     uint8_t typeBStartHeight = 0;    // $FFC4: chosen Type B starting garbage height
+
+    // Type C's chosen starting level. The cartridge keeps one such byte per mode it has; Type C is the
+    // port's own mode, so this field maps to no HRAM byte.
+    uint8_t typeCLevel = 0;
+
+    // Pieces still to lock before the floor rises. The Type C round init arms it, each lock counts it
+    // down, and the rise reloads it; it stays zero in every other mode. Maps to no HRAM byte, as
+    // typeCLevel above.
+    uint8_t riseCounter = 0;
     uint8_t coarseCountdown = 0;     // $FFC6: counts timer1 expiries (demo launch, victory/defeat blink
                                      // cycles). Shared byte: during top-score entry this is the
                                      // name-entry column, carried as HighScoreState::nameEntryColumn

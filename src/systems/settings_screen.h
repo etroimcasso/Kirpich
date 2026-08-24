@@ -88,7 +88,34 @@ struct SettingsWiring {
     // Ends the run. The confirm calls it once the player has answered yes; what ending the run means
     // is the host's business, and a build without one simply has an Exit row that does nothing.
     std::function<void()> exit;
+
+    // The settings as they stand, or the defaults when the host installed none. Every screen reads
+    // them through this, so a build with no settings behind it draws the defaults rather than
+    // needing a null check of its own.
+    [[nodiscard]] Settings current() const {
+        return settings != nullptr ? *settings : Settings{};
+    }
 };
+
+// ── Shared with the screens the settings screen opens ─────────────────────────────────────────────
+
+// Place one scroller row's two arrows into object entries `entry` and `entry + 1`, at the map row
+// `line`. An arrow is placed only where the value can still move that way; the other entry is
+// emptied, so the ends of a range are visible rather than something a player finds by pressing.
+void placeScrollerArrows(GameContext& game, std::size_t entry, std::size_t line, bool left,
+                         bool right);
+
+// Hold the cursor while the frame timer counts, then toggle it and reload the interval the game's own
+// selection screens blink on. The dispatcher decrements the timer after the handler runs.
+//
+// One blink for every screen the port draws itself, because they all count the same timer and only
+// one of them is ever on screen (see ScreenUiState::cursorVisible).
+void blinkScreenCursor(GameContext& game);
+
+// Repaint the settings screen and hand control back to it. Used by the screens it opens — the
+// confirm and the New-mode screen — because re-entering the init would save their own picture as the
+// caller's screen and lose the real one.
+void returnToSettings(GameContext& game, const SettingsWiring& wiring);
 
 // ── Opening ───────────────────────────────────────────────────────────────────────────────────────
 

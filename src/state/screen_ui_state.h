@@ -27,7 +27,7 @@ namespace kirpich {
 
 // The settings screen's option rows, in the order the cursor walks them.
 //
-// They span two pages: the window's own choices on the first, and on the second the one that changes
+// They span two pages: the window's own choices on the first, and on the second the ones that change
 // how the game is played and the one that erases the scores. The walk itself is continuous - going
 // down past the last row of a page turns to the next one, and up past the first row turns back - so
 // a page is where a row is drawn rather than a mode the player has to switch between.
@@ -37,7 +37,8 @@ enum class SettingsRow : std::uint8_t {
     SHADE_RAMP   = 2,
     EXIT_GAME    = 3,
     GHOST_PIECE  = 4,
-    RESET_SCORES = 5,
+    NEW_MODES    = 5,
+    RESET_SCORES = 6,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.
@@ -73,9 +74,18 @@ struct ScreenUiState {
     // down to the settings item and back up leaves the player count where the player left it.
     bool titleSettingsSelected = false;
 
-    // Which option row the settings cursor is on, and whether the cursor glyph is currently drawn.
+    // Which option row the settings cursor is on.
     SettingsRow settingsRow = SettingsRow::FULLSCREEN;
-    bool        cursorVisible = true;
+
+    // The blink phase every screen the port draws itself shares: the settings screen's cursor, the
+    // confirm's, and any screen either of them opens. One flag serves all of them because only one is
+    // ever on screen, and they all count the same frame timer.
+    bool cursorVisible = true;
+
+    // Which of the config screen's third-section choices is current: the right-hand one when set.
+    // The section is a port surface with no cartridge byte behind it, so its choice lives here with
+    // the rest of the port's own screen state.
+    bool modeOptionRight = false;
 
     // The confirm's choice, and which of the two actions it is currently guarding. It opens on "no"
     // every time, so a player who reaches it by accident leaves it by pressing anything that acts.

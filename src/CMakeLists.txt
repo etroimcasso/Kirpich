@@ -20,6 +20,7 @@ add_library(kirpich-lib STATIC
     systems/line_clear.cpp
     systems/scoring.cpp
     systems/menu_screens.cpp
+    systems/mode_screen.cpp
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp
@@ -27,6 +28,7 @@ add_library(kirpich-lib STATIC
     systems/high_scores.cpp
     systems/demo.cpp
     systems/readouts.cpp
+    systems/rising_floor.cpp
     systems/screen.cpp
     systems/settings_screen.cpp
     systems/sound.cpp
@@ -35,6 +37,7 @@ add_library(kirpich-lib STATIC
     render/background.cpp
     render/sprites.cpp
     render/settings_overlay.cpp
+    render/config_section.cpp
     render/ghost_piece.cpp
     vm/piece_random.cpp
     vm/garbage_fill.cpp

@@ -115,6 +115,7 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
         const ShadeRamp& shades = kShadeRamps[i];
 
         const std::array<retropp::Rgba8, 2> font{shades.darkest, shades.lightest};
+        const std::array<retropp::Rgba8, 2> fontDim{shades.light, shades.lightest};
         const std::array<retropp::Rgba8, 4> content{shades.darkest, shades.dark, shades.light,
                                                     shades.lightest};
         const std::array<retropp::Rgba8, 2> fontSprite{shades.darkest, kShadeTransparent};
@@ -126,6 +127,7 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
         atlas.palettes[i] = RampPalettes{
             .font       = renderer.uploadPalette(std::span<const retropp::Rgba8>(font)),
             .content    = renderer.uploadPalette(std::span<const retropp::Rgba8>(content)),
+            .fontDim    = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontDim)),
             .fontSprite = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSprite)),
             .sprite0    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite0)),
             .sprite1    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite1)),

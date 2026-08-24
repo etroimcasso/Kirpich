@@ -18,7 +18,8 @@ std::uint8_t clampWindowScale(int scale) {
 
 std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings) {
     return {static_cast<std::uint8_t>(settings.fullscreen ? 1 : 0), settings.windowScale,
-            settings.shadeRamp, static_cast<std::uint8_t>(settings.ghostPiece ? 1 : 0)};
+            settings.shadeRamp, static_cast<std::uint8_t>(settings.ghostPiece ? 1 : 0),
+            static_cast<std::uint8_t>(settings.newModes ? 1 : 0)};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
@@ -30,6 +31,7 @@ bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
     if (image.size() > 1) settings.windowScale = clampWindowScale(image[1]);
     if (image.size() > 2) settings.shadeRamp = render::clampShadeRamp(image[2]);
     if (image.size() > 3) settings.ghostPiece = image[3] != 0;
+    if (image.size() > 4) settings.newModes = image[4] != 0;
     return true;
 }
 
@@ -37,6 +39,13 @@ std::vector<std::byte> migrateSettingsV1ToV2(std::vector<std::byte> payload) {
     // One byte appended, not a resize to the version 2 length: the step's whole content is that
     // version 2 carries one more value than version 1. A payload of any other length is not this
     // step's to correct - decodeSettings refuses a wrong length downstream.
+    payload.push_back(std::byte{0});
+    return payload;
+}
+
+std::vector<std::byte> migrateSettingsV2ToV3(std::vector<std::byte> payload) {
+    // The same shape as the step before it: version 3 carries the new-modes flag, and a document
+    // written before it existed was written by a player who had never been offered the choice.
     payload.push_back(std::byte{0});
     return payload;
 }
@@ -53,6 +62,7 @@ bool loadSettings(retropp::SaveStore& store, Settings& settings) {
     // loader is about to read has to be the one that last said which version it means.
     store.setCurrentVersion(kSettingsSchemaVersion);
     store.registerMigration(1, migrateSettingsV1ToV2);
+    store.registerMigration(2, migrateSettingsV2ToV3);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

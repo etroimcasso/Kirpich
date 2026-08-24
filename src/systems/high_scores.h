@@ -74,6 +74,9 @@ void updateTypeATopScores(GameContext& game);
 // The Type B equivalent, for the chosen level and starting height.
 void updateTypeBTopScores(GameContext& game);
 
+// The same, for Type C's table: the slice for the level its own difficulty screen has chosen.
+void updateTypeCTopScores(GameContext& game);
+
 // Copy the staged names and scores from the board into the displayed map, then clear the redraw
 // request. The two-cell gap between each name and its score is stepped over, not copied, so whatever
 // the screen's backdrop put there survives. Does nothing unless a redraw was asked for. The frame

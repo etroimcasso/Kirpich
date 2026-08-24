@@ -12,12 +12,15 @@
 //
 // Two of the functions can spawn the next piece (a lock that cleared no rows, and the final wipe
 // step), so they take the randomizer's byte source as `draw` and forward it to nextPiece — the same
-// parameter the piece system uses.
+// parameter the piece system uses. Those same two points are where a Type C round's floor rises, so
+// both also take the rise seam and fire it immediately before the spawn; leave it empty and no floor
+// ever rises.
 
 #include <cstdint>
 #include <functional>
 
 #include "systems/game_context.h"
+#include "systems/rising_floor.h"  // RiseFloorHook
 
 namespace kirpich::systems {
 
@@ -30,9 +33,10 @@ void checkForCompletedRows(GameContext& game);
 
 // Run one frame of the flash-then-spawn step. While rows are flashing it advances the flash phase on
 // its timed cadence and, after the last pass, hands off to the field wipe; the flash pixels
-// themselves are a render effect. A lock that cleared no rows takes the shortcut here — it spawns the
-// next piece and ends the lock. `draw` feeds that spawn.
-void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& draw);
+// themselves are a render effect. A lock that cleared no rows takes the shortcut here — it raises the
+// Type C floor if one is due, spawns the next piece, and ends the lock. `draw` feeds that spawn.
+void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& draw,
+                      const RiseFloorHook& rise = {});
 
 // Compact the field once the flash finishes: drop every row above each cleared row down by one and
 // empty the top row. Then clear the completed-rows list and advance the wipe to its first redraw
@@ -45,8 +49,9 @@ void clearLineClearsList(GameContext& game);
 
 // Run one step of the field wipe. Each call advances the wipe by one row — the row redraw itself is a
 // render effect owned by the presentation pass. Particular steps cue the stack-fall sound and, on the
-// final step, spawn the next piece or finish a Type B round. `draw` feeds that spawn. Does nothing
-// when no wipe is running.
-void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>& draw);
+// final step, raise the Type C floor if one is due and then spawn the next piece, or finish a Type B
+// round. `draw` feeds that spawn. Does nothing when no wipe is running.
+void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>& draw,
+                          const RiseFloorHook& rise = {});
 
 }  // namespace kirpich::systems

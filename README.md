@@ -12,6 +12,12 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   the end-of-round scoreboard, and the ending performance a highest-difficulty B-Type win earns.
 - **Both hidden endings.** Clearing B-Type from beneath five rows of garbage launches the Buran;
   reaching 100,000 points in A-Type launches a rocket, one of three sized by the final score.
+- **A third game type.** C-Type is a marathon played over a rising floor. A count of drops sits on the
+  panel: every drop takes one off it, every line cleared puts one back, and when it reaches zero the
+  whole stack shifts up a row and a fresh line of garbage arrives underneath. One line per drop is
+  breaking even. It has its own screen, its own starting level, and its own table of high scores, and
+  it sits behind a settings switch that is off by default — a new player meets the cartridge's own two
+  modes first.
 - **The original audio.** The cartridge's sound driver runs unmodified on the engine's emulated
   audio unit. Music and sound effects are produced by the original code, not recreated.
 - **Thirty-two color palettes**, selectable in-game with a live preview — the hardware greyscale,
@@ -28,8 +34,8 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   clear duplicates its top row, and the unused stereo panning data remains unused. These are
   reproduced deliberately rather than corrected; see [`docs/DESIGN.md`](docs/DESIGN.md).
 - **A settings screen** for fullscreen (Alt+Enter / Cmd+Enter also toggles it), window scaling, the
-  palette selection, the ghost piece, and a confirmed high-score reset. Settings persist alongside
-  the score tables and apply before the window opens.
+  palette selection, the ghost piece, the extra game types, and a confirmed high-score reset. Settings
+  persist alongside the score tables and apply before the window opens.
 
 <p align="center">
   <img src="docs/media/title-pal-2.png" width="215" alt="Title screen — the original handheld's green">
@@ -85,7 +91,7 @@ against the author's own cartridge and are included for identification. See
 ## Roadmap
 
 - **Two-player** — the link-cable protocol and its screens, pending the engine's network substrate.
-- **Display filters** — pixel-art upscaling and a DMG display shader.
+- **DMG display shader** — the original LCD's optical character: greenish tint, ghosting, dot grid.
 
 ---
 
@@ -114,10 +120,10 @@ exercises most of its surface:
 | Declarative rendering — tile and sprite layers, per-frame submission, shape-confined regions | The two screen buffers, the object layer, the settings screen's drawn overlays, and the ghost piece's silhouette regions |
 | Palette system — indexed atlases, uploaded palettes | All thirty-two color ramps resident at once; switching palettes selects between uploaded handles |
 | Sprite geometry queries | The ghost piece derives its shape from the falling piece's own placed sprites |
-| Emulated SM83 virtual machine, surgical routine hosting | The piece randomizer and the B-Type garbage fill, sharing one machine so the round init's piece draws advance the divider its garbage fill then reads |
+| Emulated SM83 virtual machine, surgical routine hosting | The piece randomizer and the procedural garbage fill — B-Type's starting rows and C-Type's rising floor — sharing one machine so the round init's piece draws advance the divider its garbage fill then reads |
 | Hosted audio driver on an emulated audio unit | The cartridge's sound driver, running at its original addresses |
 | Action-mapped input | Keyboard and gamepad bindings over the game's own press-edge and auto-repeat logic |
-| Versioned save store with schema migration | Settings and high-score persistence, migrated forward across releases |
+| Versioned save store with schema migration | Settings and high-score persistence, each at its own schema version and migrated forward across releases |
 | Per-user file store | Extracted assets live beside the save data, independent of where the binary sits |
 | Run loop at a configurable timing profile | The DMG's 59.7275 Hz simulation rate, decoupled from display refresh |
 | Cross-platform windowing and packaging | One codebase shipping on five platform targets |

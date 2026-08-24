@@ -232,13 +232,13 @@ void dropPiece(GameContext& game) {
     flow.pieceLockStage = 1;
     engine.blockSoftDropAfterLock = true;
 
-    // Soft-drop award (tetris.asm:5237-5260, 5283-5299). Type A adds the points to the score
-    // (saturating at the score ceiling) and flags a redraw; every other mode accumulates them in the
+    // Soft-drop award (tetris.asm:5237-5260, 5283-5299). Type A and Type C add the points to the score
+    // (saturating at the score ceiling) and flag a redraw; every other mode accumulates them in the
     // separate soft-drop total the scoreboard tallies later. The award is one point per soft-dropped
     // row minus one — the original's own off-by-one, held in softDropAward.
     if (flow.softDropCounter != 0) {
         const std::uint8_t counter = flow.softDropCounter;
-        if (flow.gameType == GameType::TYPE_A) {
+        if (flow.gameType != GameType::TYPE_B) {
             engine.score = std::min<std::uint32_t>(engine.score + softDropAward(counter),
                                                    kScoreSaturation);
             flow.scorePrintFlag = 1;  // AddBCD marks the score changed (:187-188, called at :5296)

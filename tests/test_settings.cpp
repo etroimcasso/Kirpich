@@ -40,26 +40,41 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
 }
 
 // (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
-// the scale as itself, then the shade ramp as itself, then the ghost-piece flag as 0 or 1.
-TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheGhost) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 4u);
+// the scale as itself, then the shade ramp as itself, then the ghost-piece flag, then the new-modes
+// flag.
+TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheGhostThenTheModes) {
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 5u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV1, 3u);
-    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 2u)
-        << "the fourth byte is a new format, so it is a new version rather than a longer version 1";
+    EXPECT_EQ(kirpich::kSettingsImageBytesV2, 4u);
+    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 3u)
+        << "the fifth byte is a new format, so it is a new version rather than a longer version 2";
 
-    const auto off = kirpich::encodeSettings(
-        Settings{.fullscreen = false, .windowScale = 3, .shadeRamp = 0, .ghostPiece = false});
+    // Each version's length is one more than the one before it, which is what makes every migration a
+    // single appended byte.
+    EXPECT_EQ(kirpich::kSettingsImageBytesV2, kirpich::kSettingsImageBytesV1 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV2 + 1);
+
+    const auto off = kirpich::encodeSettings(Settings{.fullscreen = false,
+                                                      .windowScale = 3,
+                                                      .shadeRamp = 0,
+                                                      .ghostPiece = false,
+                                                      .newModes = false});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
     EXPECT_EQ(off[2], 0u);
     EXPECT_EQ(off[3], 0u);
+    EXPECT_EQ(off[4], 0u);
 
-    const auto on = kirpich::encodeSettings(
-        Settings{.fullscreen = true, .windowScale = 6, .shadeRamp = 2, .ghostPiece = true});
+    const auto on = kirpich::encodeSettings(Settings{.fullscreen = true,
+                                                     .windowScale = 6,
+                                                     .shadeRamp = 2,
+                                                     .ghostPiece = true,
+                                                     .newModes = true});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
     EXPECT_EQ(on[2], 2u);
     EXPECT_EQ(on[3], 1u);
+    EXPECT_EQ(on[4], 1u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -113,8 +128,8 @@ TEST(SettingsValue, DecodeClampsTheScaleAndKeepsTheFlag) {
 TEST(SettingsValue, EmptyOrOverlongImageIsRefusedAndWritesNothing) {
     const Settings before{.fullscreen = true, .windowScale = 5, .shadeRamp = 1};
 
-    const std::array<std::uint8_t, 5> bytes{1, 2, 3, 1, 9};
-    for (const std::size_t length : {std::size_t{0}, std::size_t{5}}) {
+    const std::array<std::uint8_t, 6> bytes{1, 2, 3, 1, 1, 9};
+    for (const std::size_t length : {std::size_t{0}, kirpich::kSettingsImageBytes + 1}) {
         Settings target = before;
         EXPECT_FALSE(kirpich::decodeSettings(std::span<const std::uint8_t>{bytes.data(), length},
                                              target));
@@ -197,16 +212,27 @@ TEST(SettingsValue, StoreRoundTrip) {
 // (7) The migration step, on its own: version 2 says one more thing than version 1 did, so the step
 // appends exactly one byte and leaves every byte version 1 wrote where it was. Off is what the
 // appended byte says, because a document written before the setting existed cannot say otherwise.
-TEST(SettingsValue, MigrationV1ToV2AppendsTheGhostFlagOff) {
+TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
     const std::vector<std::byte> v1{std::byte{1}, std::byte{6}, std::byte{2}};
     const std::vector<std::byte> v2 = kirpich::migrateSettingsV1ToV2(v1);
 
-    ASSERT_EQ(v2.size(), kirpich::kSettingsImageBytes);
+    ASSERT_EQ(v2.size(), kirpich::kSettingsImageBytesV2);
     EXPECT_EQ(v1.size(), kirpich::kSettingsImageBytesV1);
     EXPECT_EQ(v2[0], v1[0]);
     EXPECT_EQ(v2[1], v1[1]);
     EXPECT_EQ(v2[2], v1[2]);
     EXPECT_EQ(v2[3], std::byte{0});
+
+    // The next step has the same shape, and the two compose: a version 1 document reaches version 3
+    // through both, with everything it did carry surviving and everything it predates coming up off.
+    const std::vector<std::byte> v3 = kirpich::migrateSettingsV2ToV3(v2);
+
+    ASSERT_EQ(v3.size(), kirpich::kSettingsImageBytes);
+    EXPECT_EQ(v3[0], v1[0]);
+    EXPECT_EQ(v3[1], v1[1]);
+    EXPECT_EQ(v3[2], v1[2]);
+    EXPECT_EQ(v3[3], std::byte{0});
+    EXPECT_EQ(v3[4], std::byte{0});
 }
 
 // (8) A settings document written by a released build - Kirpich 0.9.0 and 0.9.1 wrote version 1,

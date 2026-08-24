@@ -178,10 +178,14 @@ TopScoreEntry* namedEntry(GameContext& game) {
     }
     const std::size_t index = kTopScoreRowCount - rank;
 
-    if (game.flow.gameType == GameType::TYPE_B) {
-        return &game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight][index];
+    switch (game.flow.gameType) {
+        case GameType::TYPE_B:
+            return &game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight][index];
+        case GameType::TYPE_C:
+            return &game.highScores.typeC[game.flow.typeCLevel][index];
+        default:
+            return &game.highScores.typeA[game.flow.typeALevel][index];
     }
-    return &game.highScores.typeA[game.flow.typeALevel][index];
 }
 
 // The map row the cursor sits on. The original starts at the bottom of the three staged rows and
@@ -209,9 +213,18 @@ void submitName(GameContext& game, TopScoreEntry& entry, std::size_t row, std::s
         saved(game.highScores);
     }
 
-    game.flow.gameState = game.flow.gameType == GameType::TYPE_A
-                              ? GameState::TYPE_A_LEVEL_SELECTION
-                              : GameState::TYPE_B_LEVEL_SELECTION;
+    // Back to the level picker for the mode just played - each mode has its own.
+    switch (game.flow.gameType) {
+        case GameType::TYPE_B:
+            game.flow.gameState = GameState::TYPE_B_LEVEL_SELECTION;
+            break;
+        case GameType::TYPE_C:
+            game.flow.gameState = GameState::TYPE_C_LEVEL_SELECTION;
+            break;
+        default:
+            game.flow.gameState = GameState::TYPE_A_LEVEL_SELECTION;
+            break;
+    }
 }
 
 }  // namespace
@@ -231,6 +244,12 @@ void updateTypeATopScores(GameContext& game) {
     // UpdateTypeATopScores (tetris.asm:3641-3659): one slice of three entries per level.
     clearTopScoreFields(game);
     updateTopScores(game, game.highScores.typeA[game.flow.typeALevel]);
+}
+
+void updateTypeCTopScores(GameContext& game) {
+    // Type C's own slice, one of three entries per level - the shape Type A's table has.
+    clearTopScoreFields(game);
+    updateTopScores(game, game.highScores.typeC[game.flow.typeCLevel]);
 }
 
 void updateTypeBTopScores(GameContext& game) {

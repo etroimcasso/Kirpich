@@ -3,7 +3,7 @@
 // The main loop's state ID. Every frame, MainLoop reads this byte and jumps through a 55-entry
 // pointer table to the handler for the current state; the handler runs one frame's worth of that
 // state and may write a new value here to transition. The first 54 values below are the labelled
-// handlers (upstream GameState_00..GameState_35, contiguous $00..$35); the four after them are the
+// handlers (upstream GameState_00..GameState_35, contiguous $00..$35); the seven after them are the
 // port's own screens, which the cartridge has no counterpart for.
 //
 // The values are transcribed from the dispatch table; the names are port-authored from the
@@ -79,10 +79,15 @@ enum class GameState : uint8_t {
     // Screens the cartridge never had. The byte holds 0..255 and the cartridge names 54 of them, so
     // the rest are free; these start at $40 rather than at the first unused value so that "from $40
     // up" is all anyone has to remember about where the port's own range begins.
-    INIT_SETTINGS      = 0x40,  // Lay out the settings screen
-    SETTINGS           = 0x41,  // Settings screen
-    INIT_RESET_CONFIRM = 0x42,  // Lay out the erase-scores confirm
-    RESET_CONFIRM      = 0x43,  // Erase-scores confirm
+    INIT_SETTINGS         = 0x40,  // Lay out the settings screen
+    SETTINGS              = 0x41,  // Settings screen
+    INIT_RESET_CONFIRM    = 0x42,  // Lay out the erase-scores confirm
+    RESET_CONFIRM         = 0x43,  // Erase-scores confirm
+    INIT_MODE_SCREEN      = 0x44,  // Lay out a mode's own settings screen
+    MODE_SCREEN           = 0x45,  // A mode's own settings screen
+    SELECT_MODE_OPTION    = 0x46,  // The config screen's third section
+    INIT_TYPE_C_DIFFICULTY = 0x47,  // Lay out the Type C level selection
+    TYPE_C_LEVEL_SELECTION = 0x48,  // Type C level selection
 };
 
 }  // namespace kirpich

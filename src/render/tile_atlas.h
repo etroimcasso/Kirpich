@@ -112,6 +112,11 @@ struct RampPalettes {
     retropp::PaletteId font{};     // two entries: the darkest shade and the lightest
     retropp::PaletteId content{};  // four entries: the whole ramp, darkest first
 
+    // The font again, inked in the light shade rather than the darkest. It is how the config screen
+    // says a choice is not the one selected: both labels are drawn, the selected one in ink and the
+    // other in grey, which is the distinction the screen's own A-TYPE / B-TYPE labels carry.
+    retropp::PaletteId fontDim{};
+
     // The object palettes. Same ramps, last entry see-through.
     retropp::PaletteId fontSprite{};  // font art drawn as an object; serves both object palettes
     retropp::PaletteId sprite0{};     // the plain ramp

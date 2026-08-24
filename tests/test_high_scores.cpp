@@ -690,3 +690,69 @@ TEST(HighScores, SubmitForkAndSave) {
         EXPECT_EQ(game.flow.gameState, GameState::TYPE_A_LEVEL_SELECTION);
     }
 }
+
+// ── Type C ──────────────────────────────────────────────────────────────────────────────────────────
+
+// Type C keeps its own table, indexed by its own chosen level, and the shipped insert law reaches it
+// unchanged: a tie does not displace, one point more takes the best rank and shifts the rest down.
+TEST(HighScores, TypeCUsesItsOwnSliceByItsOwnLevel) {
+    GameContext game;
+    game.flow.gameType  = GameType::TYPE_C;
+    game.flow.typeCLevel = 4;
+    game.flow.typeALevel = 4;  // the same index in Type A's table, which must not be touched
+    seedSlice(game.highScores.typeC[4], 5000, 3000, 1000);
+    seedSlice(game.highScores.typeA[4], 5000, 3000, 1000);
+    game.engine.score = 5001;
+
+    kirpich::systems::updateTypeCTopScores(game);
+
+    EXPECT_EQ(game.highScores.typeC[4][0].score, 5001u) << "it took the best rank in Type C's slice";
+    EXPECT_EQ(game.highScores.typeC[4][1].score, 5000u) << "and the old best shifted down";
+    EXPECT_EQ(game.highScores.typeC[4][2].score, 3000u);
+    EXPECT_TRUE(game.highScores.newTopScore);
+
+    EXPECT_EQ(game.highScores.typeA[4][0].score, 5000u) << "Type A's table at the same level is its own";
+
+    // A tie does not displace, in Type C's slice as in every other.
+    GameContext tie;
+    tie.flow.gameType  = GameType::TYPE_C;
+    tie.flow.typeCLevel = 4;
+    seedSlice(tie.highScores.typeC[4], 9000, 5000, 5000);
+    tie.engine.score = 5000;
+    kirpich::systems::updateTypeCTopScores(tie);
+    EXPECT_FALSE(tie.highScores.newTopScore);
+
+    // And each level keeps its own three entries.
+    GameContext other;
+    other.flow.gameType  = GameType::TYPE_C;
+    other.flow.typeCLevel = 7;
+    other.engine.score = 100;
+    kirpich::systems::updateTypeCTopScores(other);
+    EXPECT_EQ(other.highScores.typeC[7][0].score, 100u);
+    EXPECT_EQ(other.highScores.typeC[4][0].score, 0u) << "level 4's slice was not touched";
+}
+
+// The round's own type is the latch: a Type C round records into Type C's table and returns to Type
+// C's level picker, whatever the settings say. Turning the modes off mid-round cannot strand a score
+// in the wrong table, because nothing on this path reads the setting.
+TEST(HighScores, AFinishedTypeCRoundRecordsToTypeC) {
+    GameContext game;
+    game.flow.gameType   = GameType::TYPE_C;
+    game.flow.typeCLevel = 2;
+    game.engine.score    = 4242;
+
+    kirpich::systems::updateTypeCTopScores(game);
+    ASSERT_TRUE(game.highScores.newTopScore);
+    ASSERT_EQ(game.highScores.newScoreRank, kTopScoreRowCount) << "the best rank";
+
+    // Name entry writes into the entry the rank names, which is Type C's.
+    game.flow.gameState = GameState::ENTER_TOP_SCORE;
+    press(game, {Action::Start});
+    kirpich::systems::enterTopScore(game);
+
+    EXPECT_EQ(game.highScores.typeC[2][0].score, 4242u) << "the score is in Type C's table";
+    EXPECT_EQ(game.highScores.typeA[2][0].score, 0u) << "and in no other";
+    EXPECT_FALSE(game.highScores.newTopScore);
+    EXPECT_EQ(game.flow.gameState, GameState::TYPE_C_LEVEL_SELECTION)
+        << "and it returns to Type C's own level picker";
+}

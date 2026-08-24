@@ -20,18 +20,23 @@ cells they write are on `DisplayState`.
 
 ## The panel
 
-Type A and Type B show different things. Cells are (row, column) in a background map; row 0 is the top
-of the visible screen.
+Each mode shows different things, on its own backdrop. Cells are (row, column) in a background map;
+row 0 is the top of the visible screen.
 
-| Readout | Type A | Type B |
-|---|---|---|
-| Score | row 3, columns 13-18 | not shown |
-| Level | row 7, column 17 (tens at 16) | row 2, column 16 |
-| HIGH | not shown | row 5, column 16 |
-| Lines | row 10, columns 14-17 | row 10, columns 16-17 |
+| Readout | Type A | Type B | Type C |
+|---|---|---|---|
+| Score | row 3, columns 13-18 | not shown | row 2, columns 13-18 |
+| Level | row 7, column 17 (tens at 16) | row 2, column 16 | row 6, column 16 (tens at 15) |
+| HIGH | not shown | row 5, column 16 | not shown |
+| RISE | not shown | not shown | row 8, columns 16-17 |
+| Lines | row 10, columns 14-17 | row 10, columns 16-17 | row 10, columns 14-17 |
 
 `HIGH` is the height of the starting garbage — the value picked on the Type B difficulty screen —
-not a high score.
+not a high score. `RISE` is the number of pieces left before a Type C round's floor comes up; see
+[rising-floor.md](rising-floor.md).
+
+Lines lands on row 10 on every screen, which is why `printLines`, `printLinesSeed` and
+`copyLinesToSecondMap` have no Type C case — they reach it through the Type A arm unchanged.
 
 ## The surface
 
@@ -43,8 +48,9 @@ namespace kirpich::systems {
 void printNumber(BackgroundMap& map, GameFlowState& flow, std::size_t row, std::size_t col,
                  std::uint32_t value, std::uint8_t digitPairs);
 
-// Draw the six-digit score into one map. Does nothing unless the game is in normal gameplay, the game
-// type is Type A, and the score has changed since the last draw.
+// Draw the six-digit score into one map. Does nothing unless the game is in normal gameplay, the mode
+// has score cells (Type A and Type C do; Type B does not), and the score has changed since the last
+// draw.
 void printScore(GameContext& game, BackgroundMap& map);
 
 // Draw the score into both maps. Does nothing unless a redraw is requested and the piece-lock process
@@ -54,7 +60,8 @@ void redrawScore(GameContext& game);
 // Draw the level into its game type's cell in both maps, with a heart beside it in heart mode.
 void printLevel(GameContext& game);
 
-// Redraw the level after it increases, in both maps. Type A cells; the tens digit appears at ten.
+// Redraw the level after it increases, in both maps, in its game type's cell. The tens digit appears
+// in the cell to the left once the level reaches ten.
 void printLevelStep(GameContext& game);
 
 // Draw the round's opening line count into the displayed map.
@@ -66,6 +73,10 @@ void printLines(GameContext& game);
 // Draw the Type B starting height into both maps.
 void printStartHeight(GameContext& game);
 
+// Draw the Type C rise countdown into one map, two digits under the label RISE. Takes the map because
+// the round init draws it into both and each later change draws only the displayed one.
+void printRise(GameContext& game, BackgroundMap& map);
+
 // Copy the four line-count digits from the displayed map into the second one.
 void copyLinesToSecondMap(GameContext& game);
 
@@ -75,7 +86,8 @@ void copyLinesToSecondMap(GameContext& game);
 **Using them.** Every one is already wired. `redrawScore` runs from the frame's last beat in
 `src/main.cpp`; `printScore` and `printLines` from the field-wipe stepper's steps 17, 18 and 19
 ([`line-clear.md`](line-clear.md)); `printLevelStep` from `checkForLevelUp`
-([`scoring-system.md`](scoring-system.md)); and `printLevel`, `printLinesSeed`, `printStartHeight` and
+([`scoring-system.md`](scoring-system.md)); `printRise` from the round init and from the rise itself
+([`rising-floor.md`](rising-floor.md)); and `printLevel`, `printLinesSeed`, `printStartHeight` and
 `copyLinesToSecondMap` from the round init and the pause handler ([`gameplay.md`](gameplay.md)).
 
 To draw a number somewhere of your own:

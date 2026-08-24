@@ -276,18 +276,27 @@ HighScoreState populatedState() {
                                             CharTile::DIGIT_0, CharTile::DIGIT_0}};
     s.typeA[9][2] = {.score = 1000u, .name = {CharTile::SPACE, CharTile::SPACE, CharTile::SPACE,
                                               CharTile::SPACE, CharTile::SPACE, CharTile::SPACE}};
+    s.typeC[0][0] = {.score = 77u, .name = {CharTile::LETTER_C, CharTile::LETTER_E,
+                                            CharTile::LETTER_E, CharTile::SPACE, CharTile::SPACE,
+                                            CharTile::SPACE}};
+    s.typeC[9][2] = {.score = 654321u, .name = {CharTile::LETTER_Z, CharTile::LETTER_Z,
+                                                CharTile::LETTER_Z, CharTile::LETTER_Z,
+                                                CharTile::LETTER_Z, CharTile::LETTER_Z}};
     return s;
 }
 
 // (6) Persistence codec round-trip - encode then decode is identity on the tables; BCD edge scores
-// survive; the image is exactly 1890 bytes with the Type B block first; decode refuses a wrong length.
+// survive; the image is the three blocks in order, Type B first; decode refuses a wrong length.
 TEST(HighScoreState, PersistenceCodecRoundTrip) {
     const HighScoreState original = populatedState();
     const auto image = kirpich::encodeTopScores(original);
 
     // The image is the fixed wire size.
     static_assert(std::tuple_size_v<decltype(image)> == kirpich::kTopScoresImageBytes);
-    EXPECT_EQ(kirpich::kTopScoresImageBytes, 1890u);
+    EXPECT_EQ(kirpich::kTopScoresImageBytes, 2160u);
+    EXPECT_EQ(kirpich::kTopScoresImageBytesV1, 1890u) << "what a version 1 document carried";
+    EXPECT_EQ(kirpich::kTopScoresImageBytes,
+              kirpich::kTopScoresImageBytesV1 + kirpich::kTopScoresTypeCBytes);
 
     // Type B block first: image[0..2] is the BCD of typeB[0][0][0] (123456 -> 0x56 0x34 0x12), and the
     // Type A block starts at 1620 with typeA[0][0] (42 -> 0x42 0x00 0x00).
@@ -298,11 +307,17 @@ TEST(HighScoreState, PersistenceCodecRoundTrip) {
     EXPECT_EQ(image[1621], 0x00);
     EXPECT_EQ(image[1622], 0x00);
 
+    // And the Type C block follows the Type A one, at 1890.
+    EXPECT_EQ(image[1890], 0x77);
+    EXPECT_EQ(image[1891], 0x00);
+    EXPECT_EQ(image[1892], 0x00);
+
     // Round-trip identity on the two tables (HRAM session fields do not persist and are untouched).
     HighScoreState restored{};
     ASSERT_TRUE(kirpich::decodeTopScores(std::span<const std::uint8_t>(image), restored));
     EXPECT_TRUE(restored.typeB == original.typeB);
     EXPECT_TRUE(restored.typeA == original.typeA);
+    EXPECT_TRUE(restored.typeC == original.typeC);
 
     // The short-name $00 delimiter survives the round-trip verbatim.
     EXPECT_EQ(restored.typeA[0][0].name[1], CharTile::DIGIT_0);
@@ -318,13 +333,34 @@ TEST(HighScoreState, PersistenceCodecRoundTrip) {
         EXPECT_EQ(out.typeA[3][1].score, v);
     }
 
-    // Decode refuses a payload that is not exactly 1890 bytes, leaving the target untouched.
+    // Decode refuses any length but the current one, leaving the target untouched - including a
+    // version 1 image, which reaches the decoder only after the migration has lengthened it.
     HighScoreState untouched{};
-    const std::vector<std::uint8_t> tooShort(1889, 0);
-    EXPECT_FALSE(kirpich::decodeTopScores(std::span<const std::uint8_t>(tooShort), untouched));
-    const std::vector<std::uint8_t> tooLong(1891, 0);
-    EXPECT_FALSE(kirpich::decodeTopScores(std::span<const std::uint8_t>(tooLong), untouched));
+    for (const std::size_t length : {kirpich::kTopScoresImageBytes - 1,
+                                     kirpich::kTopScoresImageBytes + 1,
+                                     kirpich::kTopScoresImageBytesV1}) {
+        const std::vector<std::uint8_t> wrong(length, 0);
+        EXPECT_FALSE(kirpich::decodeTopScores(std::span<const std::uint8_t>(wrong), untouched))
+            << "length " << length;
+    }
     EXPECT_TRUE(untouched == HighScoreState{});
+}
+
+// (6b) The migration step, on its own: version 2 carries a third table, so the step appends one empty
+// Type C block and leaves every byte version 1 wrote where it was.
+TEST(HighScoreState, MigrationV1ToV2AppendsAnEmptyTypeCBlock) {
+    std::vector<std::byte> v1(kirpich::kTopScoresImageBytesV1, std::byte{0});
+    v1[0] = std::byte{0x56};
+    v1[1620] = std::byte{0x42};
+
+    const std::vector<std::byte> v2 = kirpich::migrateTopScoresV1ToV2(v1);
+
+    ASSERT_EQ(v2.size(), kirpich::kTopScoresImageBytes);
+    EXPECT_EQ(v2[0], std::byte{0x56}) << "the Type B block is where it was";
+    EXPECT_EQ(v2[1620], std::byte{0x42}) << "and so is the Type A one";
+    for (std::size_t i = kirpich::kTopScoresImageBytesV1; i < v2.size(); ++i) {
+        EXPECT_EQ(v2[i], std::byte{0}) << "the Type C block arrives empty, at " << i;
+    }
 }
 
 // (7) Persistence store round-trip - through a hermetic SaveStore::atPath: save then load returns the

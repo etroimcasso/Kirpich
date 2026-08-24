@@ -16,7 +16,8 @@
 #include "data/playing_field.h"
 #include "data/scene_sprites.h"  // activePieceSprite, previewPieceSprite
 #include "data/scoring.h"    // rocketSpriteForScore
-#include "data/tilemaps.h"   // kGameOverTilemap, kTryAgainTilemap, the two gameplay backdrops
+#include "data/tilemaps.h"        // kGameOverTilemap, kTryAgainTilemap, the stored gameplay backdrops
+#include "data/type_c_tilemap.h"  // kTypeCGameplayTilemap
 #include "retropp/input.h"   // actionId
 #include "state/playing_field_state.h"
 #include "state/sprite_renderer_state.h"
@@ -25,7 +26,8 @@
 #include "systems/line_clear.h"    // checkForCompletedRows, moveBlocksDownAfterLineClear, clearLineClearsList
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/piece.h"         // rotateAndShiftPiece, dropPiece, lockPieceIntoBackground, nextPiece
-#include "systems/readouts.h"      // printLevel, printLinesSeed, printStartHeight, copyLinesToSecondMap
+#include "systems/readouts.h"      // printLevel, printLinesSeed, printStartHeight, printRise, copyLinesToSecondMap
+#include "systems/rising_floor.h"  // armRiseCounter
 #include "systems/screen.h"        // loadScreenTilemap
 #include "systems/scoring.h"          // addLineClearScore, clearScoreAndStats
 #include "systems/settings_screen.h"  // openSettings
@@ -207,8 +209,17 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
 
     clearOamObjects(game);
 
-    const bool typeB = game.flow.gameType == GameType::TYPE_B;
-    game.flow.level = typeB ? game.flow.typeBLevel : game.flow.typeALevel;
+    const GameType type = game.flow.gameType;
+    const bool typeB = type == GameType::TYPE_B;
+
+    // The starting level is whichever one this mode's own difficulty screen chose.
+    switch (type) {
+        case GameType::TYPE_B: game.flow.level = game.flow.typeBLevel; break;
+        case GameType::TYPE_C: game.flow.level = game.flow.typeCLevel; break;
+        default:               game.flow.level = game.flow.typeALevel; break;
+    }
+
+    // Type B counts a fixed set of lines down to zero; the marathons count theirs up from none.
     game.flow.lines = typeB ? kTypeBStartingLines : 0;
 
     // The round's backdrop, chosen by game type in the same fork (tetris.asm:4141/:4148, loaded at
@@ -218,7 +229,9 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     //
     // No art load here: the screen this is entered from loaded the gameplay set already, and the
     // original does not reload it.
-    const ScreenTilemap& backdrop = typeB ? kTypeBGameplayTilemap : kTypeAGameplayTilemap;
+    const ScreenTilemap& backdrop = typeB                    ? kTypeBGameplayTilemap
+                                  : type == GameType::TYPE_C ? kTypeCGameplayTilemap
+                                                             : kTypeAGameplayTilemap;
     loadScreenTilemap(game.display.map, backdrop);
 
     // The same backdrop goes into the second map, with the pause message stamped over it (:4155-4161).
@@ -261,6 +274,17 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
         if (game.flow.typeBStartHeight != 0 && initGarbage) {
             initGarbage(game, game.flow.typeBStartHeight, game.demo.activeDemo != ActiveDemo::NONE);
         }
+    } else if (type == GameType::TYPE_C) {
+        // A Type C round starts on an empty field - the floor comes to the player rather than being
+        // there to begin with - so there is no garbage to lay.
+        //
+        // The counter is armed here, after the three pipeline draws above, so that filling the
+        // pipeline does not spend part of the player's first interval. Both maps get the count: the
+        // paused screen carries the panel too, and an unwritten cell would read as a blank where the
+        // number belongs.
+        armRiseCounter(game);
+        printRise(game, game.display.map);
+        printRise(game, game.display.secondMap);
     }
 
     game.flow.gameState = GameState::NORMAL_GAMEPLAY;
@@ -433,8 +457,9 @@ void gameOverCurtain(GameContext& game) {
     printWindowBlock(game.field, 2, 1, kGameOverTilemap);
     printWindowBlock(game.field, 12, 1, kTryAgainTilemap);
 
-    // Only a Type A round earns a rocket ending (tetris.asm:4943-4945).
-    if (game.flow.gameType == GameType::TYPE_A) {
+    // The scoring modes earn a rocket ending; Type B has its own (tetris.asm:4943-4945). Type C earns
+    // one at the same score boundaries Type A does.
+    if (game.flow.gameType != GameType::TYPE_B) {
         if (const std::optional<SpriteId> rocket = rocketSpriteForScore(game.engine.score)) {
             game.flow.rocketSpriteIndex = *rocket;
             game.flow.timer1 = kBonusEndingFrames;
@@ -456,9 +481,18 @@ void gameOverScreen(GameContext& game) {
         game.flow.gameState = GameState::INIT_2P_DIFFICULTY;
         return;
     }
-    game.flow.gameState = game.flow.gameType == GameType::TYPE_A
-                              ? GameState::INIT_TYPE_A_DIFFICULTY
-                              : GameState::INIT_TYPE_B_DIFFICULTY;
+    // Back to the difficulty screen the round came from, one per mode.
+    switch (game.flow.gameType) {
+        case GameType::TYPE_B:
+            game.flow.gameState = GameState::INIT_TYPE_B_DIFFICULTY;
+            break;
+        case GameType::TYPE_C:
+            game.flow.gameState = GameState::INIT_TYPE_C_DIFFICULTY;
+            break;
+        default:
+            game.flow.gameState = GameState::INIT_TYPE_A_DIFFICULTY;
+            break;
+    }
 }
 
 void initTypeBScoreboard(GameContext& game) {

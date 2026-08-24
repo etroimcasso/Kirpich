@@ -21,6 +21,7 @@
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/screen.h"           // loadScreenTilemap, loadTileSheet
+#include "systems/settings_screen.h"  // blinkScreenCursor
 #include "systems/sprite_renderer.h"  // renderCursors
 
 namespace kirpich::systems {
@@ -36,6 +37,120 @@ constexpr std::size_t kSlot1 = 1;  // $C210 — game-type cursor / second digit 
 // The music-type cursor tiles form a 2x2 grid ($1C $1D / $1E $1F); the middle boundary is $1E.
 constexpr std::uint8_t kMusicGridSecondRow = 0x1E;
 
+// ── The game-type grid ────────────────────────────────────────────────────────────────────────────
+//
+// With the extra modes turned on, the game-type box grows from one row of choices to two, in the
+// music box's own form: A and B on the top row, C on the bottom left, and the fourth cell left empty
+// for whatever comes next. The cursor skips that empty cell, so a player cannot land on nothing.
+//
+// The box grows downward into the two blank rows below it, which is exactly the room the music box's
+// extra two rows take, so the screen still ends where it ended.
+// The stored box puts its bottom rule on row 6 and leaves rows 7 and 8 blank. The grid writes a rule
+// where that bottom was, its second choice row into the first blank, and the bottom rule into the
+// second - so the box ends on row 8 and the music box below it never moves.
+constexpr std::size_t kGameGridDividerRow = 6;
+constexpr std::size_t kGameGridSecondRow  = 7;
+constexpr std::size_t kGameGridBottomRow  = 8;
+
+// The stored screen's own rows the grid is built from: the game box's bottom rule, and the music
+// box's rule and second choice row, plus the columns that row's right-hand choice occupies.
+constexpr std::size_t kStoredGameBoxBottom   = 6;
+constexpr std::size_t kMusicDividerRow       = 13;
+constexpr std::size_t kMusicSecondChoiceRow  = 14;
+constexpr std::size_t kGridRightHalfFirstCol = 11;
+constexpr std::size_t kGridRightHalfLastCol  = 16;
+
+// Where the cursor sits on each cell. The x values are the two the stored screen already uses for the
+// left and right halves of a choice row; the second row is two cells below the first.
+constexpr std::uint8_t kGameCursorLeftX   = 0x37;
+constexpr std::uint8_t kGameCursorRightX  = 0x77;
+constexpr std::uint8_t kGameCursorTopY    = 0x38;
+constexpr std::uint8_t kGameCursorBottomY = kGameCursorTopY + 2 * 8;
+
+// Which cell of the grid a game type occupies. Type C's byte is not a screen coordinate the way the
+// two cartridge values are, so the grid places every cursor itself rather than reading the byte.
+struct GridCell {
+    std::uint8_t x;
+    std::uint8_t y;
+};
+
+GridCell gridCellFor(GameType type) {
+    switch (type) {
+        case GameType::TYPE_B: return {kGameCursorRightX, kGameCursorTopY};
+        case GameType::TYPE_C: return {kGameCursorLeftX, kGameCursorBottomY};
+        default:               return {kGameCursorLeftX, kGameCursorTopY};
+    }
+}
+
+SpriteId labelFor(GameType type) {
+    switch (type) {
+        case GameType::TYPE_B: return SpriteId::B_TYPE;
+        case GameType::TYPE_C: return SpriteId::C_TYPE;
+        default:               return SpriteId::A_TYPE;
+    }
+}
+
+// The difficulty screen a game type begins at — one per mode.
+GameState difficultyScreenFor(GameType type) {
+    switch (type) {
+        case GameType::TYPE_B: return GameState::INIT_TYPE_B_DIFFICULTY;
+        case GameType::TYPE_C: return GameState::INIT_TYPE_C_DIFFICULTY;
+        default:               return GameState::INIT_TYPE_A_DIFFICULTY;
+    }
+}
+
+// Which cell each direction leads to, or the same type when that way is a wall or the empty cell.
+GameType gameTypeAfterMove(GameType from, Action direction) {
+    switch (direction) {
+        case Action::MenuRight:
+            return from == GameType::TYPE_A ? GameType::TYPE_B : from;  // nothing right of C
+        case Action::MenuLeft:
+            return from == GameType::TYPE_B ? GameType::TYPE_A : from;
+        case Action::MenuDown:
+            return from == GameType::TYPE_A ? GameType::TYPE_C : from;  // nothing below B
+        case Action::MenuUp:
+            return from == GameType::TYPE_C ? GameType::TYPE_A : from;
+        default:
+            return from;
+    }
+}
+
+// Grow the game-type box into the two blank rows below it, in the music box's form: the two choice
+// rows separated by a rule, C on the bottom left, and the bottom right cell empty.
+//
+// The rows are copied from the stored screen's own music box rather than composed, so the grid is
+// built out of the art the screen already uses and the two boxes cannot drift apart. The stored map is
+// read, never written.
+void layOutGameTypeGrid(BackgroundMap& map) {
+    // The rule between two choice rows, and the second choice row itself: the music box's, which is
+    // the only other place this screen draws them.
+    for (std::size_t col = 0; col < kTilemapScreenCols; ++col) {
+        map[kGameGridDividerRow][col] = kConfigScreenTilemap[kMusicDividerRow][col];
+        map[kGameGridSecondRow][col]  = kConfigScreenTilemap[kMusicSecondChoiceRow][col];
+        map[kGameGridBottomRow][col]  = kConfigScreenTilemap[kStoredGameBoxBottom][col];
+    }
+
+    // The music box's second row carries its own right-hand choice; the game-type grid's fourth cell
+    // is empty until there is a fourth mode to put in it.
+    for (std::size_t col = kGridRightHalfFirstCol; col <= kGridRightHalfLastCol; ++col) {
+        map[kGameGridSecondRow][col] = static_cast<std::uint8_t>(CharTile::SPACE);
+    }
+}
+
+// Put the game-type cursor on its cell and give it the matching label.
+void placeGameTypeCursor(GameContext& game, bool grid) {
+    SpriteSlot& cursor = game.spriteRenderer.slots[kSlot1];
+    cursor.spriteId    = labelFor(game.flow.gameType);
+    if (grid) {
+        const GridCell cell = gridCellFor(game.flow.gameType);
+        cursor.x = cell.x;
+        cursor.y = cell.y;
+    } else {
+        // The stored screen's own pun: the game-type byte is the cursor's x coordinate.
+        cursor.x = static_cast<std::uint8_t>(game.flow.gameType);
+    }
+}
+
 bool pressed(const GameContext& game, Action action) {
     return game.joypad.pressed.test(retropp::actionId(action));
 }
@@ -47,7 +162,60 @@ void setStateAndShowCursor(GameContext& game, GameState next, std::size_t slot) 
     game.spriteRenderer.slots[slot].hidden = false;
 }
 
+// Where the stored config screen keeps the two boxes the section is squeezed between, and a row of
+// its interior with nothing on it but the border.
+constexpr std::size_t kGameBoxFirst  = 2;
+constexpr std::size_t kGameBoxLast   = 6;
+constexpr std::size_t kMusicBoxFirst = 9;
+constexpr std::size_t kMusicBoxLast  = 15;
+constexpr std::size_t kBlankRow      = 7;
+
+
+// Where those boxes end up, and therefore where the gap between them opens.
+constexpr std::size_t kGapFirst = kGameBoxLast - kConfigSectionShiftRows + 1;
+constexpr std::size_t kGapLast  = kMusicBoxFirst + kConfigSectionShiftRows - 1;
+
+static_assert(kGapFirst == kConfigSectionGapFirstRow && kGapLast - kGapFirst + 1 == kConfigSectionGapRows,
+              "the section is placed against the gap the two boxes open, so the two must agree");
+
+// Which row of the stored config screen a row of the re-laid one holds. The two borders stay where
+// they are; the boxes move a row apart; what opens between them is the screen's own blank interior.
+std::size_t sourceRowFor(std::size_t row) {
+    if (row >= kGameBoxFirst - kConfigSectionShiftRows &&
+        row <= kGameBoxLast - kConfigSectionShiftRows) {
+        return row + kConfigSectionShiftRows;
+    }
+    if (row >= kMusicBoxFirst + kConfigSectionShiftRows &&
+        row <= kMusicBoxLast + kConfigSectionShiftRows) {
+        return row - kConfigSectionShiftRows;
+    }
+    if (row >= kGapFirst && row <= kGapLast) {
+        return kBlankRow;
+    }
+    return row;
+}
+
+// The music-type cursor is placed from the stored coordinate table, which describes the cartridge's
+// screen. When the third section has pushed the music box down, the cursor goes with the box it
+// points into — every time the table is read, not only on the way in.
+void followMusicBox(GameContext& game, bool showSection) {
+    if (!showSection) {
+        return;
+    }
+    SpriteSlot& cursor = game.spriteRenderer.slots[kSlot0];
+    cursor.y = static_cast<std::uint8_t>(cursor.y + kConfigSectionShiftPixels);
+}
+
 }  // namespace
+
+void layOutConfigSection(BackgroundMap& map) {
+    for (std::size_t row = 0; row < kTilemapScreenRows; ++row) {
+        const std::size_t source = sourceRowFor(row);
+        for (std::size_t col = 0; col < kTilemapScreenCols; ++col) {
+            map[row][col] = kConfigScreenTilemap[source][col];
+        }
+    }
+}
 
 void blinkCursor(GameContext& game, std::size_t slot) {
     // ReadJoypadAndBlinkCursor (tetris.asm:3597-3608). The pressed snapshot the original reads here
@@ -132,7 +300,7 @@ void clearOamObjects(GameContext& game) {
     game.oamSources.reset();
 }
 
-void loadConfigScreenBody(GameContext& game) {
+void loadConfigScreenBody(GameContext& game, bool showSection, bool showGrid) {
     // GameState_08 .loadTiles (tetris.asm:3121-3148), entered directly by the demo-start and two-player
     // paths as well as by the config-screen state. The LCD-on step is render mechanism; everything else
     // is the art and backdrop loads, the object-buffer clear, the two cursor sprites, placing the
@@ -140,31 +308,46 @@ void loadConfigScreenBody(GameContext& game) {
     // into game-type selection.
     loadTileSheet(game.display, TileSheet::GAMEPLAY);        // LoadGameplayTiles (:3123)
     loadScreenTilemap(game.display, kConfigScreenTilemap);     // (:3124-3125)
+
+    // With the third section shown, the screen is re-laid over the stamp above: its two boxes a row
+    // apart, and the rows between them left blank for the section to be drawn over.
+    if (showSection) {
+        layOutConfigSection(game.display.map);
+    }
+
     clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, configScreenSprites());  // Data_26CF: 2 markers + terminator
 
     positionMusicTypeSprite(game, /*playSfx=*/true);
+    followMusicBox(game, showSection);
 
-    // The game-type cursor's X coordinate is the game-type value itself, and its sprite the matching
-    // label; the load above supplied the rest of the slot.
+    // With the extra modes on, the game-type box grows a second choice row before the cursor is
+    // placed, because where the cursor goes depends on the box it is pointing into.
+    if (showGrid) {
+        layOutGameTypeGrid(game.display.map);
+    }
+
+    // The cursor's cell and its label; the load above supplied the rest of the slot.
     SpriteSlot& gameCursor = game.spriteRenderer.slots[kSlot1];
-    gameCursor.x = static_cast<std::uint8_t>(game.flow.gameType);
-    gameCursor.spriteId =
-        (game.flow.gameType == GameType::TYPE_A) ? SpriteId::A_TYPE : SpriteId::B_TYPE;
+    placeGameTypeCursor(game, showGrid);
+    if (showSection) {
+        // Up with the box it points into, as the music cursor goes down with the other one.
+        gameCursor.y = static_cast<std::uint8_t>(gameCursor.y - kConfigSectionShiftPixels);
+    }
 
     renderCursors(game);  // (:3143)
     switchMusic(game);
     game.flow.gameState = GameState::SELECT_GAME_TYPE;
 }
 
-void initConfigScreen(GameContext& game) {
+void initConfigScreen(GameContext& game, bool showSection, bool showGrid) {
     // GameState_08 (tetris.asm:3114-3148). The routine opens by resetting the serial hardware registers
     // (interrupt-enable, serial data / control, interrupt-flag) — link-cable mechanism the serial unit
     // owns, with no simulation effect here — then runs the shared screen body.
-    loadConfigScreenBody(game);
+    loadConfigScreenBody(game, showSection, showGrid);
 }
 
-void selectGameType(GameContext& game) {
+void selectGameType(GameContext& game, bool showSection, bool showGrid) {
     // GameState_0E (tetris.asm:3258-3314): the game-type selector (slot 1). The game-type value doubles
     // as the cursor's X coordinate and selects its label sprite. Left picks Type A, Right picks Type B
     // (each cues the menu-move sound). Confirm advances to music selection; Start cues the change-screen
@@ -176,40 +359,45 @@ void selectGameType(GameContext& game) {
 
     if (pressed(game, Action::Start)) {
         game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-        game.flow.gameState = (game.flow.gameType == GameType::TYPE_A)
-                                  ? GameState::INIT_TYPE_A_DIFFICULTY
-                                  : GameState::INIT_TYPE_B_DIFFICULTY;
+        game.flow.gameState   = difficultyScreenFor(game.flow.gameType);
         cursor.hidden = false;
         return;
     }
     if (pressed(game, Action::Confirm)) {
-        game.flow.gameState = GameState::SELECT_MUSIC_TYPE;
+        // The next section down, which is the third one when the screen has grown it.
+        game.flow.gameState =
+            showSection ? GameState::SELECT_MODE_OPTION : GameState::SELECT_MUSIC_TYPE;
         cursor.hidden = false;
         return;
     }
-    // Every d-pad path — including the two end-stops that change nothing — leaves through the shared
-    // exit that redraws the cursors (:3296). The Start and Confirm transitions above do not: they
-    // leave by the state-change path (:3300-3313), which never reaches the redraw.
-    if (pressed(game, Action::MenuRight)) {
-        if (game.flow.gameType != GameType::TYPE_B) {
-            game.flow.gameType = GameType::TYPE_B;
-            game.audioCues.square = SquareSfxId::TINK;
-            cursor.x = static_cast<std::uint8_t>(GameType::TYPE_B);
-            cursor.spriteId = SpriteId::B_TYPE;
+    // Every d-pad path — including the end-stops that change nothing — leaves through the shared exit
+    // that redraws the cursors (:3296). The Start and Confirm transitions above do not: they leave by
+    // the state-change path (:3300-3313), which never reaches the redraw.
+    //
+    // With the grid up the walk is two-dimensional and every direction is answered by the cell map;
+    // without it the screen has one row of two choices, which is the cartridge's own walk.
+    for (const Action direction :
+         {Action::MenuRight, Action::MenuLeft, Action::MenuDown, Action::MenuUp}) {
+        if (!pressed(game, direction)) {
+            continue;
         }
-    } else if (pressed(game, Action::MenuLeft)) {
-        if (game.flow.gameType != GameType::TYPE_A) {
-            game.flow.gameType = GameType::TYPE_A;
+        const GameType next =
+            showGrid ? gameTypeAfterMove(game.flow.gameType, direction)
+                     : (direction == Action::MenuRight  ? GameType::TYPE_B
+                        : direction == Action::MenuLeft ? GameType::TYPE_A
+                                                        : game.flow.gameType);
+        if (next != game.flow.gameType) {
+            game.flow.gameType    = next;
             game.audioCues.square = SquareSfxId::TINK;
-            cursor.x = static_cast<std::uint8_t>(GameType::TYPE_A);
-            cursor.spriteId = SpriteId::A_TYPE;
+            placeGameTypeCursor(game, showGrid);
         }
+        break;
     }
 
     renderCursors(game);
 }
 
-void selectMusicType(GameContext& game) {
+void selectMusicType(GameContext& game, bool showSection) {
     // GameState_0F (tetris.asm:3181-3246): the music-type selector (slot 0), a 2x2 grid over cursor
     // tiles $1C-$1F ($1C $1D / $1E $1F). Start and Confirm share the game-type screen's advance path.
     // Back returns to game-type selection in one-player (unhiding this cursor); in two-player it is
@@ -221,14 +409,14 @@ void selectMusicType(GameContext& game) {
 
     if (pressed(game, Action::Start) || pressed(game, Action::Confirm)) {
         game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-        game.flow.gameState = (game.flow.gameType == GameType::TYPE_A)
-                                  ? GameState::INIT_TYPE_A_DIFFICULTY
-                                  : GameState::INIT_TYPE_B_DIFFICULTY;
+        game.flow.gameState   = difficultyScreenFor(game.flow.gameType);
         cursor.hidden = false;
         return;
     }
     if (pressed(game, Action::Back) && !game.multiplayer.isMultiplayer) {
-        game.flow.gameState = GameState::SELECT_GAME_TYPE;
+        // One section back, which is the third one when the screen has grown it.
+        game.flow.gameState =
+            showSection ? GameState::SELECT_MODE_OPTION : GameState::SELECT_GAME_TYPE;
         cursor.hidden = false;
         return;
     }
@@ -247,6 +435,7 @@ void selectMusicType(GameContext& game) {
     if (value != before) {
         game.flow.musicType = static_cast<MusicType>(value);
         positionMusicTypeSprite(game, /*playSfx=*/true);
+        followMusicBox(game, showSection);
         switchMusic(game);
     }
 
@@ -279,6 +468,62 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     } else {
         switchMusic(game);
     }
+}
+
+void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh) {
+    // The Type A difficulty screen's shape, over Type C's own stored level. The screen the cartridge
+    // draws for Type A is a level picker and nothing more, so the same backdrop, the same single digit
+    // cursor and the same 2x5 grid serve a mode that also picks nothing but a level.
+    loadScreenTilemap(game.display, kTypeADifficultyTilemap);
+    clearOamObjects(game);
+    loadSceneSprites(game.spriteRenderer, typeADifficultySprites());
+
+    updateDigitCursor(game, kSlot0, kTypeALevelCursorCoordinates, game.flow.typeCLevel,
+                      /*playSfx=*/true);
+    if (refresh) refresh(game);
+    renderCursors(game);
+
+    game.flow.gameState = GameState::TYPE_C_LEVEL_SELECTION;
+    if (game.highScores.newTopScore) {
+        game.flow.gameState = GameState::ENTER_TOP_SCORE;
+    } else {
+        switchMusic(game);
+    }
+}
+
+void selectTypeCLevel(GameContext& game, const TopScoresRefresh& refresh) {
+    // The Type A level picker's walk, writing Type C's level: a 2x5 grid over levels 0-9. Start or
+    // Confirm begins the round; Back returns to the config screen. Neither transition unhides the
+    // cursor, which is the Type A screen's own asymmetry and is kept here so the two read alike.
+    blinkCursor(game, kSlot0);
+
+    if (pressed(game, Action::Start) || pressed(game, Action::Confirm)) {
+        game.flow.gameState = GameState::INIT_GAME;
+        return;
+    }
+    if (pressed(game, Action::Back)) {
+        game.flow.gameState = GameState::INIT_TYPE_SELECTION;
+        return;
+    }
+
+    const std::uint8_t before = game.flow.typeCLevel;
+    std::uint8_t value = before;
+    if (pressed(game, Action::MenuRight)) {
+        if (value != 9) ++value;
+    } else if (pressed(game, Action::MenuLeft)) {
+        if (value != 0) --value;
+    } else if (pressed(game, Action::MenuUp)) {
+        if (value >= 5) value -= 5;
+    } else if (pressed(game, Action::MenuDown)) {
+        if (value < 5) value += 5;
+    }
+    if (value != before) {
+        game.flow.typeCLevel = value;
+        updateDigitCursor(game, kSlot0, kTypeALevelCursorCoordinates, value, /*playSfx=*/true);
+        if (refresh) refresh(game);
+    }
+
+    renderCursors(game);
 }
 
 void selectTypeALevel(GameContext& game, const TopScoresRefresh& refresh) {
@@ -414,11 +659,66 @@ void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh) {
     renderCursors(game);  // the shared d-pad exit (:3551)
 }
 
+void selectModeOption(GameContext& game) {
+    // The blink the section's chosen label is drawn by. It is the same law and the same timer the
+    // neighbouring sections blink their cursor sprites on; what differs is that this section has no
+    // cursor of its own — the choice is shown by the label itself coming and going.
+    blinkScreenCursor(game);
+
+    // Every way out leaves the label drawn rather than wherever the blink had got to, which is what
+    // the neighbours do by unhiding their cursor slot as they go.
+    const auto leaveFor = [&game](GameState next) {
+        game.screens.cursorVisible = true;
+        game.flow.gameState        = next;
+    };
+
+    if (pressed(game, Action::Start)) {
+        game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+        leaveFor(game.flow.gameType == GameType::TYPE_A ? GameState::INIT_TYPE_A_DIFFICULTY
+                                                        : GameState::INIT_TYPE_B_DIFFICULTY);
+        return;
+    }
+    if (pressed(game, Action::Confirm)) {
+        leaveFor(GameState::SELECT_MUSIC_TYPE);
+        return;
+    }
+    if (pressed(game, Action::Back)) {
+        leaveFor(GameState::SELECT_GAME_TYPE);
+        return;
+    }
+
+    if (pressed(game, Action::MenuRight) && !game.screens.modeOptionRight) {
+        game.screens.modeOptionRight = true;
+        game.audioCues.square        = SquareSfxId::TINK;
+    } else if (pressed(game, Action::MenuLeft) && game.screens.modeOptionRight) {
+        game.screens.modeOptionRight = false;
+        game.audioCues.square        = SquareSfxId::TINK;
+    }
+}
+
 void installMenuScreenHandlers(GameStateDispatcher& dispatcher, const TopScoresRefresh& typeA,
-                               const TopScoresRefresh& typeB) {
-    dispatcher.setHandler(GameState::INIT_TYPE_SELECTION, initConfigScreen);
-    dispatcher.setHandler(GameState::SELECT_GAME_TYPE, selectGameType);
-    dispatcher.setHandler(GameState::SELECT_MUSIC_TYPE, selectMusicType);
+                               const TopScoresRefresh&      typeB,
+                               const std::function<bool()>& showSection,
+                               const std::function<bool()>& showGrid,
+                               const TopScoresRefresh&      typeC) {
+    // Both are asked per frame rather than captured once: whatever answers them is a setting a player
+    // can change between one visit to this screen and the next.
+    const auto section = [showSection] { return showSection && showSection(); };
+    const auto grid    = [showGrid] { return showGrid && showGrid(); };
+
+    dispatcher.setHandler(GameState::INIT_TYPE_SELECTION, [section, grid](GameContext& g) {
+        initConfigScreen(g, section(), grid());
+    });
+    dispatcher.setHandler(GameState::SELECT_GAME_TYPE, [section, grid](GameContext& g) {
+        selectGameType(g, section(), grid());
+    });
+    dispatcher.setHandler(GameState::SELECT_MUSIC_TYPE,
+                          [section](GameContext& g) { selectMusicType(g, section()); });
+    dispatcher.setHandler(GameState::SELECT_MODE_OPTION, selectModeOption);
+    dispatcher.setHandler(GameState::INIT_TYPE_C_DIFFICULTY,
+                          [typeC](GameContext& g) { initTypeCDifficultyScreen(g, typeC); });
+    dispatcher.setHandler(GameState::TYPE_C_LEVEL_SELECTION,
+                          [typeC](GameContext& g) { selectTypeCLevel(g, typeC); });
     dispatcher.setHandler(GameState::INIT_TYPE_A_DIFFICULTY,
                           [typeA](GameContext& g) { initTypeADifficultyScreen(g, typeA); });
     dispatcher.setHandler(GameState::TYPE_A_LEVEL_SELECTION,

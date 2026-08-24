@@ -107,6 +107,14 @@ struct DisplayState {
         return displayed == DisplayedMap::SECOND ? secondMap : map;
     }
 
+    // The same map, to write. The screens the port draws itself paint through this: whichever map is
+    // being read is the one they must cover, and it is the one nothing else is writing while they are
+    // up — at the title screen the second map is idle, and in a paused round the first map is the one
+    // the frame's remaining beats keep writing.
+    BackgroundMap& displayedMap() {
+        return displayed == DisplayedMap::SECOND ? secondMap : map;
+    }
+
     // Return every field to its boot value.
     void reset() { *this = DisplayState{}; }
 
