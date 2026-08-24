@@ -8,6 +8,35 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-24
+
+- **Palette count** twenty-four → thirty-two → **forty-eight**. The sixteen added keep a real colour
+  in their darkest shade rather than bottoming out at black. That shade is what the playing field's
+  walls, the panel's rules and every locked block are drawn in, so it is most of what a player looks
+  at — and twenty-nine of the ramps that existed before this put something within a rounding error of
+  black there, which made them resemble each other on screen however different their other three
+  shades were.
+
+  **A ramp now declares which kind it is.** `ShadeRamp` carries `mayBottomOutAtBlack`, defaulting to
+  false, and the ramps designed to go black say so. A ramp that says nothing is held to keeping a
+  colour down there, measured by both chroma and luminance because either alone passes for the wrong
+  reason. The check is per ramp rather than by position, so a ramp can be added anywhere in the list
+  and is still asked the right question.
+
+- **Type C — the rising floor** ⬜ → ✅. A third game type, behind a settings switch that is off by
+  default. A count of drops sits on the panel under `RISE`: every drop takes one off it, every line
+  cleared puts one back, ceiling ten, and at zero the whole stack shifts up a row while a fresh line
+  of garbage arrives underneath. One line per drop is breaking even.
+
+  **The rule was settled by playing, over three passes.** A count that never resets is relentless and
+  makes clearing worthless against the floor; a count that fully resets on any clear means the floor
+  never rises at all. Crediting one drop per cleared line puts the two in tension.
+
+  It has a backdrop of its own — the two stored gameplay screens each carry three readouts and have
+  room for exactly three, and Type C carries four. Its scores are kept in a table of its own, and both
+  save documents stepped a schema version forward with a registered migration: settings 2 → 3 for the
+  switch, top scores 1 → 2 for the third table.
+
 ## 2026-08-22
 
 - **Ghost piece** ⬜ → ✅. The falling piece casts a shadow on the row it would land on, off unless a

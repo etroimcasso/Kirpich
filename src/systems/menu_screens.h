@@ -59,16 +59,19 @@ using TopScoresRefresh = std::function<void(GameContext&)>;
 // The layout below is the half of it the simulation owns, because moving the boxes moves the cursors
 // that point into them.
 //
-// NOTHING INSTALLS ANY OF THIS TODAY. It is compiled and inert: no caller passes `showSection`, so it
-// reads false everywhere, and nothing writes SELECT_MODE_OPTION, so its handler never runs. The
-// screen a player sees is the cartridge's, cell for cell.
+// NOTHING INSTALLS THE SECTION TODAY. It is compiled and inert: no caller passes `showSection`, so it
+// reads false everywhere, and nothing writes SELECT_MODE_OPTION, so its handler never runs. This is
+// the SECTION only — the game-type grid below is a different thing and is live; see `showGrid`.
 //
-// A mode that wants the section wires four things:
-//   1. a settings row that opens the mode screen (systems/mode_screen.h), for the master enable;
+// A choice that wants the section wires four things:
+//   1. a settings row that opens a mode screen (systems/mode_screen.h), for the enable;
 //   2. a `showSection` seam passed to installMenuScreenHandlers, answering that enable;
 //   3. three strings — a title and two labels — handed to render::configSectionSprites from the
 //      render loop while the config screen is up;
 //   4. whatever the choice means, read off ScreenUiState::modeOptionRight at the round's init.
+//
+// A choice between more than two game TYPES does not need any of it: that is the grid, which grows the
+// game-type box into the same blank rows using background cells and the screen's own art.
 
 // How far each box moves, in cells, and what that is worth in object coordinates — a cursor moves
 // with the box it points into.
