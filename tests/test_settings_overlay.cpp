@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 
@@ -58,6 +59,49 @@ TEST(ShadeRamps, EveryRampRunsDarkToLight) {
                 << (i + 1);
         }
     }
+}
+
+// (0a) Every ramp is held to what it says about its own darkest shade. A ramp that does not declare
+// `mayBottomOutAtBlack` has to keep a real colour down there — the darkest shade is what the field's
+// walls and every locked block are drawn in, so a ramp that quietly went black there would look like
+// the many ramps that already do, whatever its other three shades were chosen to be.
+//
+// The declaration is what makes this checkable per ramp rather than by position, so a ramp can be
+// added anywhere in the list and is still asked the right question.
+//
+// Two measurements, because either alone passes for the wrong reason: chroma alone accepts a bright
+// colour, luminance alone accepts a dark grey.
+TEST(ShadeRamps, EveryRampHoldsToWhatItSaysAboutItsDarkestShade) {
+    const auto luminance = [](retropp::Rgba8 c) {
+        return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+    };
+    const auto chroma = [](retropp::Rgba8 c) {
+        return std::max({c.r, c.g, c.b}) - std::min({c.r, c.g, c.b});
+    };
+
+    std::size_t colourKeeping = 0;
+    for (std::size_t i = 0; i < kShadeRampCount; ++i) {
+        const kirpich::render::ShadeRamp& ramp = kirpich::render::kShadeRamps[i];
+        if (ramp.mayBottomOutAtBlack) {
+            continue;  // it says so; nothing to hold it to
+        }
+        ++colourKeeping;
+
+        const retropp::Rgba8 darkest = ramp.darkest;
+        EXPECT_GE(chroma(darkest), 30)
+            << "ramp " << (i + 1) << " does not declare mayBottomOutAtBlack, but its darkest shade is "
+            << "very close to grey";
+        EXPECT_GT(luminance(darkest), 35.0)
+            << "ramp " << (i + 1) << " does not declare mayBottomOutAtBlack, but its darkest shade is "
+            << "too near black to read as a colour";
+
+        // Still the darkest of its four, and still leaving the others room to climb away from it.
+        EXPECT_LT(luminance(darkest), 110.0) << "ramp " << (i + 1) << "'s darkest shade is not dark";
+        EXPECT_GT(luminance(ramp.lightest) - luminance(darkest), 100.0)
+            << "ramp " << (i + 1) << " has too little range between its ends";
+    }
+
+    EXPECT_GT(colourKeeping, 0u) << "the check has to be asking something of somebody";
 }
 
 // (0b) The default is the first ramp, and it is the greyscale the hardware's own shades map to — so a

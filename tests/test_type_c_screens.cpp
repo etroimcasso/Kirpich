@@ -15,6 +15,8 @@
 
 #include <retropp/input.h>
 
+#include <kirpich/char_tile.h>
+
 #include "data/tilemaps.h"
 #include "systems/game_context.h"
 #include "systems/menu_screens.h"
@@ -234,4 +236,28 @@ TEST(TypeCScreens, BackFromTypeCLevelReturnsToTheConfigScreen) {
     kirpich::systems::selectTypeCLevel(game);
 
     EXPECT_EQ(game.flow.gameState, GameState::INIT_TYPE_SELECTION);
+}
+
+// 8. The borrowed difficulty screen names Type C, not the mode it was drawn for. The name-entry screen
+// paints over whichever difficulty screen it was entered from and draws no backdrop of its own, so
+// this heading is what a player sees while typing their name too.
+TEST(TypeCScreens, TheDifficultyScreenNamesTypeC) {
+    using C = kirpich::CharTile;
+
+    GameContext game;
+    game.flow.gameType = GameType::TYPE_C;
+    kirpich::systems::initTypeCDifficultyScreen(game);
+
+    constexpr std::size_t kRow = 1;
+    constexpr std::size_t kCol = 2;
+    const C expected[] = {C::LETTER_C, C::HYPHEN, C::LETTER_T, C::LETTER_Y, C::LETTER_P, C::LETTER_E};
+    for (std::size_t i = 0; i < std::size(expected); ++i) {
+        EXPECT_EQ(game.display.map[kRow][kCol + i], static_cast<std::uint8_t>(expected[i]))
+            << "heading cell " << i;
+    }
+
+    // The stored screen it borrows still says what it always said.
+    EXPECT_EQ(kirpich::kTypeADifficultyTilemap[kRow][kCol],
+              static_cast<std::uint8_t>(C::LETTER_A))
+        << "the stored screen is read, never edited";
 }

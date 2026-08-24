@@ -293,7 +293,7 @@ There are two background maps, and the bridge composes whichever `DisplayState::
 Pausing switches to the second — the same stats panel with no playing field and a `PAUSE` label — and
 unpausing switches back. See [`readouts.md`](readouts.md).
 
-The game draws through whichever of the thirty-two shade ramps the player has chosen
+The game draws through whichever of the forty-eight shade ramps the player has chosen
 ([`settings.md`](settings.md)); a ramp changes what the four shades are and never which art a tile
 index names.
 

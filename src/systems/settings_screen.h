@@ -130,8 +130,9 @@ void openSettings(GameContext& game);
 // settings screen over the map the display is reading. Enters SETTINGS.
 void initSettingsScreen(GameContext& game, const SettingsWiring& wiring);
 
-// SETTINGS — one frame of the screen: blink the cursor, move it between the three rows, change the
-// value on the row it is on, open the confirm from the reset row, or leave.
+// SETTINGS — one frame of the screen: blink the cursor, walk it through the rows across both pages,
+// change the value on the row it is on, act on it if it is an action row (the confirm from the two
+// that end something, the mode screen from the one that opens a screen), or leave.
 void settingsScreen(GameContext& game, const SettingsWiring& wiring);
 
 // INIT_RESET_CONFIRM — paint the confirm over the same map, opening on "no". Enters RESET_CONFIRM.

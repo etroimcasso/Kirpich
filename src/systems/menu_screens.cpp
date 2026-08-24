@@ -37,6 +37,12 @@ constexpr std::size_t kSlot1 = 1;  // $C210 — game-type cursor / second digit 
 // The music-type cursor tiles form a 2x2 grid ($1C $1D / $1E $1F); the middle boundary is $1E.
 constexpr std::uint8_t kMusicGridSecondRow = 0x1E;
 
+// Where a difficulty screen names the mode it belongs to, in its top-left corner. Both stored screens
+// put it here - "a-type" and "b-type" occupy the same six cells - so a screen borrowed by another mode
+// rewrites exactly these.
+constexpr std::size_t kDifficultyHeadingRow = 1;
+constexpr std::size_t kDifficultyHeadingCol = 2;
+
 // ── The game-type grid ────────────────────────────────────────────────────────────────────────────
 //
 // With the extra modes turned on, the game-type box grows from one row of choices to two, in the
@@ -475,6 +481,15 @@ void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // draws for Type A is a level picker and nothing more, so the same backdrop, the same single digit
     // cursor and the same 2x5 grid serve a mode that also picks nothing but a level.
     loadScreenTilemap(game.display, kTypeADifficultyTilemap);
+
+    // That backdrop names the mode it was drawn for, in its top-left corner. Type C borrows the screen
+    // but not the name, so the heading is rewritten over it - the stored screen is read, never edited.
+    //
+    // This heading is also what the name-entry screen shows: that screen paints over whichever
+    // difficulty screen it was entered from and draws no backdrop of its own, so leaving this alone
+    // would have a Type C player entering their name under a Type A heading.
+    writeMapText(game.display.map, kDifficultyHeadingRow, kDifficultyHeadingCol, "c-type");
+
     clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, typeADifficultySprites());
 

@@ -31,16 +31,27 @@ struct ShadeRamp {
     retropp::Rgba8 light{};
     retropp::Rgba8 lightest{};
 
+    // Whether this ramp is meant to bottom out at black.
+    //
+    // The darkest shade is what the field's walls, the panel's rules and every locked block are drawn
+    // in, so it is most of what a player looks at; a ramp whose darkest shade is within a rounding
+    // error of black looks like every other such ramp no matter what its other three shades do. Most
+    // ramps here are designed that way on purpose and say so. The rest keep a real colour at the
+    // bottom, and because that is the default, a ramp appended without a thought about it is held to
+    // it — tests/test_settings_overlay.cpp checks every ramp against its own declaration.
+    bool mayBottomOutAtBlack = false;
+
     friend constexpr bool operator==(const ShadeRamp&, const ShadeRamp&) = default;
 };
 
 // The ramps, in the order the settings screen numbers them: the screen shows 1 for the first.
-inline constexpr std::array<ShadeRamp, 32> kShadeRamps{{
+inline constexpr std::array<ShadeRamp, 48> kShadeRamps{{
     // 1 - greyscale. The hardware's four shades as the port has always drawn them.
     {.darkest  = {.r =   0, .g =   0, .b =   0},
      .dark     = {.r =  85, .g =  85, .b =  85},
      .light    = {.r = 170, .g = 170, .b = 170},
-     .lightest = {.r = 255, .g = 255, .b = 255}},
+     .lightest = {.r = 255, .g = 255, .b = 255},
+     .mayBottomOutAtBlack = true},
 
     // 2 - the green of the original handheld's screen.
     {.darkest  = {.r =  15, .g =  56, .b =  15},
@@ -52,133 +63,155 @@ inline constexpr std::array<ShadeRamp, 32> kShadeRamps{{
     {.darkest  = {.r =  26, .g =  13, .b =   0},
      .dark     = {.r = 107, .g =  56, .b =   0},
      .light    = {.r = 200, .g = 122, .b =  10},
-     .lightest = {.r = 255, .g = 199, .b =  74}},
+     .lightest = {.r = 255, .g = 199, .b =  74},
+     .mayBottomOutAtBlack = true},
 
     // 4 - dusk, a cold blue.
     {.darkest  = {.r =  11, .g =  16, .b =  38},
      .dark     = {.r =  42, .g =  58, .b = 107},
      .light    = {.r =  92, .g = 127, .b = 196},
-     .lightest = {.r = 194, .g = 224, .b = 255}},
+     .lightest = {.r = 194, .g = 224, .b = 255},
+     .mayBottomOutAtBlack = true},
 
     // 5 - brick, after the name this port carries.
     {.darkest  = {.r =  43, .g =  12, .b =  10},
      .dark     = {.r = 122, .g =  40, .b =  30},
      .light    = {.r = 192, .g =  91, .b =  60},
-     .lightest = {.r = 242, .g = 201, .b = 168}},
+     .lightest = {.r = 242, .g = 201, .b = 168},
+     .mayBottomOutAtBlack = true},
 
     // 6 - a plum ultraviolet.
     {.darkest  = {.r =  22, .g =   8, .b =  43},
      .dark     = {.r =  75, .g =  29, .b = 119},
      .light    = {.r = 155, .g =  83, .b = 196},
-     .lightest = {.r = 232, .g = 198, .b = 247}},
+     .lightest = {.r = 232, .g = 198, .b = 247},
+     .mayBottomOutAtBlack = true},
 
     // 7 - sea, a blue-green with a pale sand at the top.
     {.darkest  = {.r =   4, .g =  36, .b =  40},
      .dark     = {.r =  17, .g = 100, .b = 102},
      .light    = {.r =  63, .g = 178, .b = 161},
-     .lightest = {.r = 228, .g = 247, .b = 218}},
+     .lightest = {.r = 228, .g = 247, .b = 218},
+     .mayBottomOutAtBlack = true},
 
     // 8 - ink, a near-black blue under a cold white.
     {.darkest  = {.r =   8, .g =  10, .b =  16},
      .dark     = {.r =  44, .g =  51, .b =  68},
      .light    = {.r = 116, .g = 130, .b = 155},
-     .lightest = {.r = 233, .g = 239, .b = 247}},
+     .lightest = {.r = 233, .g = 239, .b = 247},
+     .mayBottomOutAtBlack = true},
 
     // 9 - cherry, a deep red rising to pink.
     {.darkest  = {.r =  43, .g =   5, .b =  18},
      .dark     = {.r = 122, .g =  15, .b =  46},
      .light    = {.r = 196, .g =  58, .b =  91},
-     .lightest = {.r = 247, .g = 201, .b = 212}},
+     .lightest = {.r = 247, .g = 201, .b = 212},
+     .mayBottomOutAtBlack = true},
 
     // 10 - moss, olive under a pale khaki.
     {.darkest  = {.r =  20, .g =  26, .b =  10},
      .dark     = {.r =  62, .g =  74, .b =  28},
      .light    = {.r = 126, .g = 143, .b =  60},
-     .lightest = {.r = 216, .g = 224, .b = 168}},
+     .lightest = {.r = 216, .g = 224, .b = 168},
+     .mayBottomOutAtBlack = true},
 
     // 11 - sepia, brown to cream.
     {.darkest  = {.r =  35, .g =  26, .b =  18},
      .dark     = {.r =  94, .g =  70, .b =  50},
      .light    = {.r = 169, .g = 138, .b =  99},
-     .lightest = {.r = 240, .g = 226, .b = 200}},
+     .lightest = {.r = 240, .g = 226, .b = 200},
+     .mayBottomOutAtBlack = true},
 
     // 12 - sunset, purple through red to a warm gold.
     {.darkest  = {.r =  42, .g =  16, .b =  56},
      .dark     = {.r = 122, .g =  42, .b =  92},
      .light    = {.r = 217, .g =  97, .b =  74},
-     .lightest = {.r = 255, .g = 217, .b = 160}},
+     .lightest = {.r = 255, .g = 217, .b = 160},
+     .mayBottomOutAtBlack = true},
 
     // 13 - ice, deep water under a pale cyan.
     {.darkest  = {.r =   6, .g =  30, .b =  46},
      .dark     = {.r =  23, .g =  84, .b = 119},
      .light    = {.r =  89, .g = 168, .b = 196},
-     .lightest = {.r = 223, .g = 245, .b = 255}},
+     .lightest = {.r = 223, .g = 245, .b = 255},
+     .mayBottomOutAtBlack = true},
 
     // 14 - forest, near-black green to a sunlit leaf.
     {.darkest  = {.r =   8, .g =  28, .b =  16},
      .dark     = {.r =  31, .g =  77, .b =  42},
      .light    = {.r =  84, .g = 150, .b =  79},
-     .lightest = {.r = 203, .g = 232, .b = 166}},
+     .lightest = {.r = 203, .g = 232, .b = 166},
+     .mayBottomOutAtBlack = true},
 
     // 15 - wine, a dark red with the colour drained out of the top.
     {.darkest  = {.r =  30, .g =  10, .b =  14},
      .dark     = {.r =  90, .g =  30, .b =  44},
      .light    = {.r = 158, .g =  90, .b =  98},
-     .lightest = {.r = 228, .g = 207, .b = 203}},
+     .lightest = {.r = 228, .g = 207, .b = 203},
+     .mayBottomOutAtBlack = true},
 
     // 16 - slate, cool greys with a blue cast.
     {.darkest  = {.r =  26, .g =  31, .b =  38},
      .dark     = {.r =  69, .g =  80, .b =  94},
      .light    = {.r = 138, .g = 152, .b = 168},
-     .lightest = {.r = 221, .g = 228, .b = 236}},
+     .lightest = {.r = 221, .g = 228, .b = 236},
+     .mayBottomOutAtBlack = true},
 
     // 17 - lime, an acid green over near-black.
     {.darkest  = {.r =  12, .g =  18, .b =   4},
      .dark     = {.r =  56, .g =  84, .b =  12},
      .light    = {.r = 134, .g = 196, .b =  28},
-     .lightest = {.r = 230, .g = 255, .b = 138}},
+     .lightest = {.r = 230, .g = 255, .b = 138},
+     .mayBottomOutAtBlack = true},
 
     // 18 - copper, dark metal to a bright tarnish.
     {.darkest  = {.r =  32, .g =  15, .b =   8},
      .dark     = {.r = 110, .g =  51, .b =  24},
      .light    = {.r = 194, .g = 107, .b =  46},
-     .lightest = {.r = 248, .g = 210, .b = 154}},
+     .lightest = {.r = 248, .g = 210, .b = 154},
+     .mayBottomOutAtBlack = true},
 
     // 19 - lavender, indigo under a pale lilac.
     {.darkest  = {.r =  28, .g =  22, .b =  52},
      .dark     = {.r =  74, .g =  66, .b = 128},
      .light    = {.r = 146, .g = 138, .b = 200},
-     .lightest = {.r = 230, .g = 224, .b = 248}},
+     .lightest = {.r = 230, .g = 224, .b = 248},
+     .mayBottomOutAtBlack = true},
 
     // 20 - mint, dark green-blue to a pale wash.
     {.darkest  = {.r =   7, .g =  34, .b =  30},
      .dark     = {.r =  29, .g =  94, .b =  80},
      .light    = {.r =  92, .g = 184, .b = 156},
-     .lightest = {.r = 220, .g = 248, .b = 232}},
+     .lightest = {.r = 220, .g = 248, .b = 232},
+     .mayBottomOutAtBlack = true},
 
     // 21 - magenta, a hot pink over deep purple.
     {.darkest  = {.r =  30, .g =   4, .b =  28},
      .dark     = {.r = 110, .g =  18, .b =  94},
      .light    = {.r = 200, .g =  64, .b = 166},
-     .lightest = {.r = 250, .g = 207, .b = 238}},
+     .lightest = {.r = 250, .g = 207, .b = 238},
+     .mayBottomOutAtBlack = true},
 
     // 22 - gold, dark bronze to a bright yellow.
     {.darkest  = {.r =  28, .g =  20, .b =   2},
      .dark     = {.r =  99, .g =  74, .b =  10},
      .light    = {.r = 198, .g = 158, .b =  30},
-     .lightest = {.r = 252, .g = 236, .b = 158}},
+     .lightest = {.r = 252, .g = 236, .b = 158},
+     .mayBottomOutAtBlack = true},
 
     // 23 - storm, a low-contrast blue-grey that barely separates.
     {.darkest  = {.r =  34, .g =  39, .b =  44},
      .dark     = {.r =  78, .g =  87, .b =  96},
      .light    = {.r = 126, .g = 137, .b = 148},
-     .lightest = {.r = 180, .g = 190, .b = 200}},
+     .lightest = {.r = 180, .g = 190, .b = 200},
+     .mayBottomOutAtBlack = true},
 
     // 24 - aurora, indigo through teal to a pale green.
     {.darkest  = {.r =  16, .g =  12, .b =  48},
      .dark     = {.r =  28, .g =  80, .b = 118},
      .light    = {.r =  62, .g = 174, .b = 160},
-     .lightest = {.r = 214, .g = 246, .b = 196}},
+     .lightest = {.r = 214, .g = 246, .b = 196},
+     .mayBottomOutAtBlack = true},
 
     // 25-32 are the colour schemes Windows 3.1 shipped in its Control Panel, named as it named them.
     // They are louder than the twenty-four above and that is the point - they were designed for a
@@ -190,19 +223,22 @@ inline constexpr std::array<ShadeRamp, 32> kShadeRamps{{
     {.darkest  = {.r =   0, .g =   0, .b =   0},
      .dark     = {.r = 255, .g =   0, .b =   0},
      .light    = {.r = 255, .g = 255, .b =   0},
-     .lightest = {.r = 255, .g = 255, .b = 255}},
+     .lightest = {.r = 255, .g = 255, .b = 255},
+     .mayBottomOutAtBlack = true},
 
     // 26 - bordeaux, a wine-dark purple rising to a dusty blush.
     {.darkest  = {.r =  43, .g =  10, .b =  30},
      .dark     = {.r = 122, .g =  18, .b =  71},
      .light    = {.r = 176, .g =  74, .b = 122},
-     .lightest = {.r = 232, .g = 196, .b = 216}},
+     .lightest = {.r = 232, .g = 196, .b = 216},
+     .mayBottomOutAtBlack = true},
 
     // 27 - emerald city, a saturated green with nothing muted about it.
     {.darkest  = {.r =   4, .g =  42, .b =  18},
      .dark     = {.r =  14, .g = 122, .b =  46},
      .light    = {.r =  53, .g = 194, .b =  92},
-     .lightest = {.r = 207, .g = 240, .b = 212}},
+     .lightest = {.r = 207, .g = 240, .b = 212},
+     .mayBottomOutAtBlack = true},
 
     // 28 - arizona, desert browns under the turquoise the scheme is remembered for.
     {.darkest  = {.r =  58, .g =  30, .b =  12},
@@ -214,13 +250,15 @@ inline constexpr std::array<ShadeRamp, 32> kShadeRamps{{
     {.darkest  = {.r =  20, .g =   0, .b =  30},
      .dark     = {.r = 179, .g =   0, .b = 166},
      .light    = {.r =   0, .g = 229, .b = 208},
-     .lightest = {.r = 234, .g = 255, .b = 107}},
+     .lightest = {.r = 234, .g = 255, .b = 107},
+     .mayBottomOutAtBlack = true},
 
     // 30 - plasma power saver, black through magenta to a hot orange.
     {.darkest  = {.r =  16, .g =   0, .b =  16},
      .dark     = {.r = 110, .g =  11, .b =  82},
      .light    = {.r = 214, .g =  59, .b = 107},
-     .lightest = {.r = 255, .g = 184, .b = 107}},
+     .lightest = {.r = 255, .g = 184, .b = 107},
+     .mayBottomOutAtBlack = true},
 
     // 31 - pastel, the one ramp here that never goes near black: mauve to a warm white.
     {.darkest  = {.r = 110, .g =  90, .b = 120},
@@ -232,12 +270,115 @@ inline constexpr std::array<ShadeRamp, 32> kShadeRamps{{
     {.darkest  = {.r =   5, .g =   5, .b =  10},
      .dark     = {.r =  31, .g =  34, .b =  41},
      .light    = {.r =  94, .g = 101, .b = 112},
-     .lightest = {.r = 198, .g = 203, .b = 210}},
+     .lightest = {.r = 198, .g = 203, .b = 210},
+     .mayBottomOutAtBlack = true},
+
+    // 33-48 carry a colour in their darkest shade: dark enough to stay the darkest of their four and
+    // to let the other three read against it, but a colour rather than a near-black. They sit together
+    // because they were authored together, not because position means anything - what holds each of
+    // them to it is its own mayBottomOutAtBlack, which none of them sets.
+
+    // 33 - deep teal.
+    {.darkest  = {.r =  18, .g =  74, .b =  78},
+     .dark     = {.r =  28, .g = 120, .b = 124},
+     .light    = {.r =  86, .g = 180, .b = 170},
+     .lightest = {.r = 198, .g = 240, .b = 228}},
+
+    // 34 - burnt orange.
+    {.darkest  = {.r =  92, .g =  38, .b =  12},
+     .dark     = {.r = 156, .g =  72, .b =  20},
+     .light    = {.r = 214, .g = 124, .b =  52},
+     .lightest = {.r = 250, .g = 206, .b = 150}},
+
+    // 35 - royal indigo.
+    {.darkest  = {.r =  44, .g =  36, .b = 110},
+     .dark     = {.r =  78, .g =  66, .b = 168},
+     .light    = {.r = 130, .g = 120, .b = 214},
+     .lightest = {.r = 214, .g = 210, .b = 246}},
+
+    // 36 - moss.
+    {.darkest  = {.r =  52, .g =  72, .b =  28},
+     .dark     = {.r =  86, .g = 116, .b =  44},
+     .light    = {.r = 140, .g = 172, .b =  84},
+     .lightest = {.r = 218, .g = 232, .b = 180}},
+
+    // 37 - wine.
+    {.darkest  = {.r =  86, .g =  26, .b =  44},
+     .dark     = {.r = 140, .g =  44, .b =  72},
+     .light    = {.r = 196, .g =  90, .b = 120},
+     .lightest = {.r = 240, .g = 196, .b = 208}},
+
+    // 38 - cobalt.
+    {.darkest  = {.r =  16, .g =  60, .b = 116},
+     .dark     = {.r =  30, .g = 100, .b = 180},
+     .light    = {.r =  92, .g = 152, .b = 222},
+     .lightest = {.r = 200, .g = 226, .b = 250}},
+
+    // 39 - rust.
+    {.darkest  = {.r =  96, .g =  44, .b =  28},
+     .dark     = {.r = 152, .g =  78, .b =  44},
+     .light    = {.r = 206, .g = 130, .b =  88},
+     .lightest = {.r = 244, .g = 206, .b = 180}},
+
+    // 40 - violet dusk.
+    {.darkest  = {.r =  72, .g =  40, .b =  96},
+     .dark     = {.r = 116, .g =  70, .b = 150},
+     .light    = {.r = 168, .g = 124, .b = 200},
+     .lightest = {.r = 230, .g = 212, .b = 242}},
+
+    // 41 - jade.
+    {.darkest  = {.r =  20, .g =  80, .b =  56},
+     .dark     = {.r =  36, .g = 126, .b =  90},
+     .light    = {.r =  92, .g = 182, .b = 140},
+     .lightest = {.r = 200, .g = 240, .b = 220}},
+
+    // 42 - ember.
+    {.darkest  = {.r = 104, .g =  32, .b =  20},
+     .dark     = {.r = 168, .g =  60, .b =  28},
+     .light    = {.r = 224, .g = 112, .b =  56},
+     .lightest = {.r = 252, .g = 196, .b = 140}},
+
+    // 43 - slate blue.
+    {.darkest  = {.r =  48, .g =  62, .b =  92},
+     .dark     = {.r =  82, .g = 102, .b = 142},
+     .light    = {.r = 134, .g = 158, .b = 196},
+     .lightest = {.r = 214, .g = 228, .b = 244}},
+
+    // 44 - olive gold.
+    {.darkest  = {.r =  78, .g =  62, .b =  16},
+     .dark     = {.r = 128, .g = 102, .b =  28},
+     .light    = {.r = 186, .g = 156, .b =  64},
+     .lightest = {.r = 238, .g = 222, .b = 160}},
+
+    // 45 - magenta dusk.
+    {.darkest  = {.r =  94, .g =  28, .b =  72},
+     .dark     = {.r = 146, .g =  50, .b = 116},
+     .light    = {.r = 200, .g = 102, .b = 170},
+     .lightest = {.r = 244, .g = 200, .b = 230}},
+
+    // 46 - deep sea.
+    {.darkest  = {.r =  14, .g =  52, .b =  84},
+     .dark     = {.r =  24, .g =  92, .b = 132},
+     .light    = {.r =  72, .g = 148, .b = 180},
+     .lightest = {.r = 192, .g = 230, .b = 240}},
+
+    // 47 - clay.
+    {.darkest  = {.r = 100, .g =  60, .b =  48},
+     .dark     = {.r = 150, .g = 100, .b =  80},
+     .light    = {.r = 200, .g = 152, .b = 124},
+     .lightest = {.r = 242, .g = 218, .b = 200}},
+
+    // 48 - forest.
+    {.darkest  = {.r =  26, .g =  72, .b =  34},
+     .dark     = {.r =  52, .g = 106, .b =  58},
+     .light    = {.r = 104, .g = 162, .b = 104},
+     .lightest = {.r = 206, .g = 234, .b = 206}},
 }};
 
 // How many ramps there are, and which one a build draws in until a player says otherwise.
 inline constexpr std::size_t  kShadeRampCount   = kShadeRamps.size();
 inline constexpr std::uint8_t kDefaultShadeRamp = 0;
+
 
 // Bring a stored ramp number into the range this build offers, the same way the window scale is
 // clamped: a file written by a build that offered more ramps costs the player that one value.

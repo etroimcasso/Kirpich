@@ -142,12 +142,25 @@ punctuation glyphs — **no colon, slash, question mark or arrow**. Check any ne
 ## The colour ramps
 
 ```cpp
-struct ShadeRamp { retropp::Rgba8 darkest, dark, light, lightest; };
-inline constexpr std::array<ShadeRamp, 32> kShadeRamps{ /* ... */ };
+struct ShadeRamp {
+    retropp::Rgba8 darkest{}, dark{}, light{}, lightest{};
+    bool mayBottomOutAtBlack = false;
+};
+inline constexpr std::array<ShadeRamp, 48> kShadeRamps{ /* ... */ };
 ```
 
-Thirty-two of them: twenty-four built for this port, then the eight colour schemes Windows 3.1
-shipped in its Control Panel, named as it named them.
+Forty-eight of them: twenty-four built for this port, the eight colour schemes Windows 3.1 shipped in
+its Control Panel, named as it named them, and sixteen that keep a real colour in their darkest shade.
+
+`mayBottomOutAtBlack` says whether a ramp is meant to go black at the bottom, and the default is that
+it is not. The darkest shade is what the playing field's walls, the panel's rules and every locked
+block are drawn in, so it is most of what a player looks at — and a ramp whose darkest shade is within
+a rounding error of black looks like every other such ramp whatever its other three shades do. Most of
+these ramps are designed that way deliberately and say so; a ramp that says nothing is held to keeping
+a colour there, measured by both chroma and luminance, since either alone passes for the wrong reason:
+chroma alone accepts a bright colour, luminance alone accepts a dark grey.
+
+Adding a ramp therefore means choosing which kind it is. Say nothing and the check applies.
 
 Darkest first, matching the order the extractor's decode produces. `uploadTileAtlas` builds five
 palettes per ramp — background font, background content, and the three object variants — and uploads

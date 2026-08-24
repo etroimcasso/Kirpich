@@ -5,9 +5,10 @@
 ## Concept
 
 A settings screen, drawn with the game's own tiles and operated like the game-selection screen, where
-a player chooses how the game is shown and what it is drawn in. It holds fullscreen, the window size,
-a colour palette, an erase of the high-score tables, and a way to quit. Every choice is the player's
-own rather than the game's, so all of them outlive a round, a reset and the program itself.
+a player chooses how the game is shown, what it is drawn in, and what it offers. It holds fullscreen,
+the window size, a colour palette, the ghost piece, the extra game types, an erase of the high-score
+tables, and a way to quit. Every choice is the player's own rather than the game's, so all of them
+outlive a round, a reset and the program itself.
 
 The Game Boy has no settings screen, so nothing about this comes from the cartridge. It borrows the
 cartridge's manners — the same cursor, the same blink, the same sounds — because the screen has to sit
@@ -33,15 +34,20 @@ arrow at the edge of a page says the other one is there. The header counts: `set
 |---|---|---|
 | 1 | `fullscreen` | `on` / `off` |
 | 1 | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
-| 1 | `palette` | `◄ n ►`, twelve colour ramps, with the chosen one previewed beneath the row |
+| 1 | `palette` | `◄ n ►`, forty-eight colour ramps, with the chosen one previewed beneath the row |
 | 1 | `exit game` | asks first |
+| 2 | `ghost` | `on` / `off` |
+| 2 | `new modes` | `►`, opens a screen of its own |
 | 2 | `reset scores` | asks first |
 
-Erasing the scores sits on its own page deliberately: it is the one thing on the screen a player
-cannot undo, and it should not be one press away from the row above it.
+Three of the rows are actions rather than values. Two of them end something and go through the same
+confirm, which opens on `no` every time — a player who arrives at one by accident leaves it by
+pressing whatever brought them. The third opens the screen that explains the extra game types and
+carries their switch; its arrow points right, toward the screen it leads to, and pressing right opens
+it just as Confirm and Start do.
 
-Both of the rows that end something go through the same confirm, which opens on `no` every time. A
-player who arrives at one by accident leaves it by pressing whatever brought them.
+Erasing the scores sits at the end of the second page deliberately: it is the one thing on the screen
+a player cannot undo, and it should not be one press away from the row above it.
 
 ## Design decisions
 

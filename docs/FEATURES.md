@@ -98,7 +98,7 @@ Game logic.
 | Tilemap loader | ✅ | [`features/background-rendering.md`](features/background-rendering.md) — the backdrop stamp (`loadScreenTilemap`) and the tile-art selection, restored at every solo screen. The window form of the original's loader serves only the second background map and lands with whichever unit models it |
 | Sprite-copy routine | ⬜ | `features/dma.md` |
 | Frame tick handler | ⬜ | `features/vblank.md` |
-| Settings screen | ✅ | [`features/settings.md`](features/settings.md) — fullscreen, window size, thirty-two colour palettes, the ghost piece, a guarded erase of the high scores, and a guarded quit; reached from the title screen and from a paused round, with the choices saved beside the top scores |
+| Settings screen | ✅ | [`features/settings.md`](features/settings.md) — fullscreen, window size, forty-eight colour palettes, the ghost piece, a guarded erase of the high scores, and a guarded quit; reached from the title screen and from a paused round, with the choices saved beside the top scores |
 | Ghost piece | ✅ | [`features/ghost-piece.md`](features/ghost-piece.md) — a shadow of the falling piece on the row it would land on, off unless the player asks for it. The silhouette comes from the piece's own sprites rather than from a description of them, and it is withdrawn whole the moment the piece reaches it |
 | Presentation framework | ⬜ | `features/presentation-framework.md` |
 | Integer-scale output | ⬜ | `features/presentation-integer-scale.md` |

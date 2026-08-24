@@ -20,9 +20,11 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   modes first.
 - **The original audio.** The cartridge's sound driver runs unmodified on the engine's emulated
   audio unit. Music and sound effects are produced by the original code, not recreated.
-- **Thirty-two color palettes**, selectable in-game with a live preview — the hardware greyscale,
-  the original handheld's green, and thirty others, including the eight color schemes Windows 3.1
-  shipped in its Control Panel.
+- **Forty-eight color palettes**, selectable in-game with a live preview — the hardware greyscale,
+  the original handheld's green, the eight color schemes Windows 3.1 shipped in its Control Panel,
+  and sixteen that keep a real color in their darkest shade instead of bottoming out at black. The
+  darkest shade is what the well's walls and every locked block are drawn in, so it is most of what
+  you look at.
 - **An optional ghost piece** showing where the falling piece will land. Disabled by default, so
   the game plays exactly as the cartridge does until the player opts in.
 - **Persistent high scores.** A qualifying round is ranked, named on the original letter-wheel
@@ -43,7 +45,7 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   <img src="docs/media/title-pal-24.png" width="215" alt="Title screen — aurora">
   <img src="docs/media/title-hotdog-palette.png" width="215" alt="Title screen — the Windows 3.1 Hot Dog Stand scheme">
 </p>
-<p align="center"><em>Four of the thirty-two palettes: the original green, sunset, aurora, and Windows 3.1's Hot Dog Stand.</em></p>
+<p align="center"><em>Four of the forty-eight palettes: the original green, sunset, aurora, and Windows 3.1's Hot Dog Stand.</em></p>
 
 <p align="center">
   <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
@@ -118,7 +120,7 @@ exercises most of its surface:
 | Engine capability | How Kirpich uses it |
 |---|---|
 | Declarative rendering — tile and sprite layers, per-frame submission, shape-confined regions | The two screen buffers, the object layer, the settings screen's drawn overlays, and the ghost piece's silhouette regions |
-| Palette system — indexed atlases, uploaded palettes | All thirty-two color ramps resident at once; switching palettes selects between uploaded handles |
+| Palette system — indexed atlases, uploaded palettes | All forty-eight color ramps resident at once; switching palettes selects between uploaded handles |
 | Sprite geometry queries | The ghost piece derives its shape from the falling piece's own placed sprites |
 | Emulated SM83 virtual machine, surgical routine hosting | The piece randomizer and the procedural garbage fill — B-Type's starting rows and C-Type's rising floor — sharing one machine so the round init's piece draws advance the divider its garbage fill then reads |
 | Hosted audio driver on an emulated audio unit | The cartridge's sound driver, running at its original addresses |
