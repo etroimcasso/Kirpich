@@ -20,9 +20,11 @@ score and preview flag on `EngineState`, the timers, level, line count, and sele
 `GameFlowState`, the link-cable buffers on `MultiplayerState`, and the audio cues on the `AudioCues`
 member.
 
-One init serves every mode. A Type A round, a Type B round, and an attract demo all run `initGame` and
-`normalGameplay`, forking internally on the game type; a two-player round runs its own gameplay state
-and shares only the pause family below.
+One init serves every mode. A Type A round, a Type B round, a Type C round and an attract demo all run
+`initGame` and `normalGameplay`, forking internally on the game type — the starting level, the line
+count, the backdrop and the mode's own opening work (Type B's starting garbage, Type C's rise counter)
+all come out of that fork. A two-player round runs its own gameplay state and shares only the pause
+family below.
 
 ## The surface
 
@@ -54,7 +56,8 @@ struct GameplayWiring {
 };
 
 // Set a round up: clear the entry state, board, and score; pick the starting level and line count for
-// the game type; load the gravity period; fill the piece pipeline; lay the Type B starting garbage.
+// the game type; load the gravity period; fill the piece pipeline; lay the Type B starting garbage or
+// arm the Type C rise counter.
 void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
               const InitGarbageHook& initGarbage = {});
 

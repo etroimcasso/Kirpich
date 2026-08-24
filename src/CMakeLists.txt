@@ -28,6 +28,7 @@ add_library(kirpich-lib STATIC
     systems/high_scores.cpp
     systems/demo.cpp
     systems/readouts.cpp
+    systems/rising_floor.cpp
     systems/screen.cpp
     systems/settings_screen.cpp
     systems/sound.cpp

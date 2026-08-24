@@ -3,30 +3,30 @@
 // A settings screen of a mode's own: the screen a settings row opens when a mode needs more than a
 // value in a field.
 //
-// The settings screen's rows hold one value each, in three cells. A mode that wants a sentence about
-// itself, or a picture of what it does, does not fit there — so it gets a row that opens a screen
-// instead, and this is that screen. It carries a title, one enable row in the settings screen's own
-// scroller geometry, two lines of description, and an area the caller draws whatever it likes into.
-// B goes back to the settings screen.
+// The settings screen's rows hold one value each, in three cells. A mode that wants to explain itself
+// does not fit there — so it gets a row that opens a screen instead, and this is that screen. It
+// carries a title, one enable row in the settings screen's own scroller geometry, eleven rows of
+// prose, and an optional drawing area over them. B goes back to the settings screen.
 //
 // It owns no state. The flag the enable row toggles belongs to the caller — it is a saved setting,
 // which outlives a launch — and reaches the handlers through the wiring below. The blink is the one
 // every port screen shares (ScreenUiState::cursorVisible).
 //
-// NOTHING INSTALLS THESE TODAY. The screen is compiled and inert: no caller installs the handlers, so
-// nothing writes INIT_MODE_SCREEN and neither state is reachable. It is machinery, not a feature.
+// The extra game types use it: `SettingsRow::NEW_MODES` opens it, and the flag it turns on is
+// `Settings::newModes`, which the config screen reads to decide whether to offer them.
 //
-// A mode that wants it installs the handlers with its own title, its own flag and its own preview,
-// and adds the settings row that opens it — a row in SettingsRow, a label in labelFor, {} from
-// reachOf and an early return in changeValue (it is an action, not a value), and a branch in
-// settingsScreen's Confirm/Start that writes INIT_MODE_SCREEN. The config screen's matching third
-// section is the other half; see systems/menu_screens.h.
+// The screen is generic, so a second mode can have one of its own. What that takes: a row in
+// SettingsRow, a label in labelFor, a reach in reachOf (an arrow toward the screen rather than a
+// value), an early return in changeValue since it is an action, a branch in settingsScreen that
+// writes INIT_MODE_SCREEN, and a call to installModeScreenHandlers with the mode's own content and
+// flag.
 //
 // Every glyph it draws comes from the font (tile indices $00-$26), which means the same picture under
 // either tile regime — so the screen reads correctly whether it was opened from the title screen or
 // from a paused round, as the settings screen behind it does.
 
 #include <functional>
+#include <span>
 #include <string_view>
 
 #include "state/display_state.h"      // BackgroundMap
@@ -37,12 +37,18 @@ namespace kirpich::systems {
 
 class GameStateDispatcher;
 
-// What the screen says. The title is centred; the two description lines are centred under the enable
-// row. Text wider than the twenty-cell screen is clipped, so a caller wraps it itself.
+// What the screen says. The title is centred at the top; the body runs down the rows below the enable
+// row, one line per row, each centred.
+//
+// The caller wraps its own text: a line wider than the twenty-cell screen is clipped, and there is no
+// word wrapping here. An empty line is a blank row, which is how paragraphs are separated. Lines past
+// the bottom of the screen are not drawn.
+//
+// The font has letters, digits, a period and a hyphen. It has no comma and no apostrophe, so prose
+// written for this screen has to do without them.
 struct ModeScreenContent {
-    std::string_view title;
-    std::string_view firstLine;
-    std::string_view secondLine;
+    std::string_view            title;
+    std::span<const std::string_view> body;
 };
 
 // Everything the screen needs from outside the game state.
@@ -57,12 +63,13 @@ struct ModeScreenWiring {
     std::function<void(BackgroundMap&)> preview;
 };
 
-// Where the screen's parts sit, so a caller's preview knows what rows are left for it.
-inline constexpr std::size_t kModeScreenTitleRow       = 2;
-inline constexpr std::size_t kModeScreenFirstLine      = 7;
-inline constexpr std::size_t kModeScreenSecondLine     = 8;
-inline constexpr std::size_t kModeScreenPreviewFirstRow = 10;
-inline constexpr std::size_t kModeScreenPreviewLastRow  = 17;
+// Where the screen's parts sit. The body starts below the enable row and runs to the bottom of the
+// screen, so a mode has eleven rows to explain itself in.
+inline constexpr std::size_t kModeScreenTitleRow    = 2;
+inline constexpr std::size_t kModeScreenBodyFirstRow = 7;
+inline constexpr std::size_t kModeScreenBodyLastRow  = 17;
+inline constexpr std::size_t kModeScreenBodyRows =
+    kModeScreenBodyLastRow - kModeScreenBodyFirstRow + 1;
 
 // ── State handlers ────────────────────────────────────────────────────────────────────────────────
 

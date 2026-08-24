@@ -69,7 +69,7 @@ retropp::ActionSet chord() {
                       Action::RotateCounterClockwise});
 }
 
-// Distinguishable content for the two top-score tables, so "the tables came back" cannot pass by
+// Distinguishable content for all three top-score tables, so "the tables came back" cannot pass by
 // accident on a table of zeros.
 void fillTopScoreTables(HighScoreState& scores) {
     std::uint32_t n = 1;
@@ -90,6 +90,15 @@ void fillTopScoreTables(HighScoreState& scores) {
                                   .name  = {CharTile::LETTER_B, CharTile::LETTER_B,
                                             CharTile::LETTER_B, CharTile::LETTER_B,
                                             CharTile::LETTER_B, CharTile::LETTER_B}};
+            ++n;
+        }
+    }
+    for (auto& level : scores.typeC) {
+        for (auto& entry : level) {
+            entry = TopScoreEntry{.score = n * 17,
+                                  .name  = {CharTile::LETTER_C, CharTile::LETTER_C,
+                                            CharTile::LETTER_C, CharTile::LETTER_C,
+                                            CharTile::LETTER_C, CharTile::LETTER_C}};
             ++n;
         }
     }
@@ -222,6 +231,7 @@ TEST(Boot, ColdBootClearsTopScores) {
 
     EXPECT_TRUE(game.highScores.typeA == HighScoreState{}.typeA);
     EXPECT_TRUE(game.highScores.typeB == HighScoreState{}.typeB);
+    EXPECT_TRUE(game.highScores.typeC == HighScoreState{}.typeC);
 }
 
 // ── Test 3: SoftResetPreservesTablesAndResetsItsHramBytes ───────────────────────────────────────────
@@ -238,6 +248,8 @@ TEST(Boot, SoftResetPreservesTablesAndResetsItsHramBytes) {
     // The tables survive, byte for byte.
     EXPECT_TRUE(game.highScores.typeA == before.typeA);
     EXPECT_TRUE(game.highScores.typeB == before.typeB);
+    EXPECT_TRUE(game.highScores.typeC == before.typeC)
+        << "Type C's table keeps the same company as the other two";
 
     // The four bytes do not.
     EXPECT_FALSE(game.highScores.newTopScore);
@@ -264,6 +276,7 @@ TEST(Boot, SoftResetMatchesColdBootElsewhere) {
     // Substitute it out and the two are the same machine.
     viaSoft.highScores.typeA = viaCold.highScores.typeA;
     viaSoft.highScores.typeB = viaCold.highScores.typeB;
+    viaSoft.highScores.typeC = viaCold.highScores.typeC;
     EXPECT_TRUE(viaSoft == viaCold);
 }
 
@@ -290,6 +303,7 @@ TEST(Boot, BootOrderKeepsSavedScores) {
     // The saved tables are what the machine ends up holding...
     EXPECT_TRUE(game.highScores.typeA == saved.typeA);
     EXPECT_TRUE(game.highScores.typeB == saved.typeB);
+    EXPECT_TRUE(game.highScores.typeC == saved.typeC);
 
     // ...and the boot still happened around them.
     EXPECT_EQ(game.flow.gameState, GameState::INIT_COPYRIGHT);

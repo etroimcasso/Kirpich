@@ -180,8 +180,9 @@ void addLineClearScore(GameContext& game) {
     GameFlowState& flow = game.flow;
     EngineState& engine = game.engine;
 
-    // Gates in ROM order (tetris.asm:4993-5001): Type A, normal gameplay, wipe step 5.
-    if (flow.gameType != GameType::TYPE_A) {
+    // Gates in ROM order (tetris.asm:4993-5001): a live-scoring mode, normal gameplay, wipe step 5.
+    // Type A and Type C award as the round runs; Type B totals its score on the results screen.
+    if (flow.gameType == GameType::TYPE_B) {
         return;
     }
     if (flow.gameState != GameState::NORMAL_GAMEPLAY) {
@@ -228,11 +229,12 @@ void updateScoreboard(GameContext& game) {
 void checkForLevelUp(GameContext& game) {
     GameFlowState& flow = game.flow;
 
-    // Gates in ROM order (tetris.asm:5826-5835): normal gameplay, Type A, below the level cap.
+    // Gates in ROM order (tetris.asm:5826-5835): normal gameplay, a levelling mode, below the level
+    // cap. Type A and Type C both climb; Type B's level is fixed for the round.
     if (flow.gameState != GameState::NORMAL_GAMEPLAY) {
         return;
     }
-    if (flow.gameType != GameType::TYPE_A) {
+    if (flow.gameType == GameType::TYPE_B) {
         return;
     }
     if (flow.level == kLevelCap) {

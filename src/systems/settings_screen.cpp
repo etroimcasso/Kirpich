@@ -83,6 +83,10 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
                     .right = settings.shadeRamp + 1 < render::kShadeRampCount};
         case SettingsRow::GHOST_PIECE:
             return {.left = settings.ghostPiece, .right = !settings.ghostPiece};
+        case SettingsRow::NEW_MODES:
+            // Not a value, but it does go somewhere: the right arrow says there is another screen
+            // through this row, and pressing that way opens it.
+            return {.left = false, .right = true};
         case SettingsRow::EXIT_GAME:
         case SettingsRow::RESET_SCORES:
             return {};  // an action has nothing to scroll through
@@ -180,6 +184,7 @@ std::string_view labelFor(SettingsRow row) {
         // ten cells is all there is, and the two-word form is eleven. The siblings are terse for the
         // same reason - the size row is "size", not "window scale".
         case SettingsRow::GHOST_PIECE:  return "ghost";
+        case SettingsRow::NEW_MODES:    return "new modes";
         case SettingsRow::RESET_SCORES: return "reset scores";
         // "exit game", not "exit": on its own the word reads as leaving this screen, which is what
         // Back does, and a player reaching for it would be asked to quit instead.
@@ -291,6 +296,7 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
         case SettingsRow::GHOST_PIECE:
             next.ghostPiece = delta > 0;
             break;
+        case SettingsRow::NEW_MODES:
         case SettingsRow::RESET_SCORES:
         case SettingsRow::EXIT_GAME:
             return;  // an action, not a value
@@ -384,8 +390,9 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         return;
     }
 
-    // The two rows that end something both go through the same confirm, which asks about whichever
-    // one opened it. Neither happens on a single press.
+    // The action rows. The two that end something go through the same confirm, which asks about
+    // whichever one opened it — neither happens on a single press. The new-modes row opens a screen of
+    // its own instead, because what it turns on needs more explaining than a value in a field.
     if (pressed(game, Action::Confirm) || pressed(game, Action::Start)) {
         const SettingsRow row = game.screens.settingsRow;
         if (row == SettingsRow::RESET_SCORES || row == SettingsRow::EXIT_GAME) {
@@ -396,6 +403,16 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
             game.flow.gameState         = GameState::INIT_RESET_CONFIRM;
             return;
         }
+    }
+
+    // The new-modes row carries a right arrow rather than a value, so pressing that way opens the
+    // screen it points into - the same thing Confirm and Start do from this row.
+    if (game.screens.settingsRow == SettingsRow::NEW_MODES &&
+        (pressed(game, Action::Confirm) || pressed(game, Action::Start) ||
+         pressed(game, Action::MenuRight))) {
+        game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+        game.flow.gameState   = GameState::INIT_MODE_SCREEN;
+        return;
     }
 
     if (pressed(game, Action::MenuRight)) {
@@ -476,6 +493,7 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
             // name is six zero bytes, which is what the top-score printer reads as no name at all.
             game.highScores.typeA = {};
             game.highScores.typeB = {};
+            game.highScores.typeC = {};
             if (wiring.saveScores) {
                 wiring.saveScores(game.highScores);
             }

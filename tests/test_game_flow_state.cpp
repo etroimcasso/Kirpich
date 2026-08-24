@@ -198,6 +198,8 @@ TEST(GameFlowState, ResetRestoresBootState) {
     s.typeALevel = 9;
     s.typeBLevel = 8;
     s.typeBStartHeight = 5;
+    s.typeCLevel = 8;
+    s.riseCounter = 10;
     s.coarseCountdown = 0x13;
     s.gameState = GameState::GAME_OVER_SCREEN;
     s.frameCounter = 250;
@@ -211,6 +213,25 @@ TEST(GameFlowState, ResetRestoresBootState) {
     EXPECT_FALSE(s == GameFlowState{});   // the mutations actually took
     s.reset();
     EXPECT_TRUE(s == GameFlowState{});    // back to boot state
+}
+
+// The two fields the port added for its own mode. They carry no HRAM byte, so the layout and census
+// guards above cannot see them - what they answer to is boot state and the reset sweep, and that they
+// stay out of the way of every field that does map to a byte.
+TEST(GameFlowState, PortAddedFieldsBootToZero) {
+    const GameFlowState s{};
+    EXPECT_EQ(s.typeCLevel, 0);
+    EXPECT_EQ(s.riseCounter, 0);
+
+    // Each one moves on its own: changing it is visible, and changing it changes nothing else.
+    GameFlowState withLevel{};
+    withLevel.typeCLevel = 9;
+    EXPECT_FALSE(withLevel == s);
+
+    GameFlowState withCounter{};
+    withCounter.riseCounter = 10;
+    EXPECT_FALSE(withCounter == s);
+    EXPECT_FALSE(withCounter == withLevel);
 }
 
 // (5) Typed-member boot pins - the boot (all-zero) values and the shared-byte split.

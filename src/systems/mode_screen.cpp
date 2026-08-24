@@ -80,12 +80,19 @@ void paintModeScreen(BackgroundMap& map, const ModeScreenWiring& wiring) {
     writeMapText(map, kEnableRow, kLabelCol, "enable");
     paintEnableValue(map, enabledOf(wiring));
 
-    writeMapText(map, kModeScreenFirstLine, centred(content.firstLine.size()), content.firstLine);
-    writeMapText(map, kModeScreenSecondLine, centred(content.secondLine.size()),
-                 content.secondLine);
+    // The body, one line per row from kModeScreenBodyFirstRow down. An empty line is simply a row left
+    // blank, which is how a caller separates paragraphs; anything past the bottom of the screen is not
+    // drawn, because there is nowhere to draw it.
+    const std::size_t lines = std::min(content.body.size(), kModeScreenBodyRows);
+    for (std::size_t i = 0; i < lines; ++i) {
+        const std::string_view line = content.body[i];
+        if (!line.empty()) {
+            writeMapText(map, kModeScreenBodyFirstRow + i, centred(line.size()), line);
+        }
+    }
 
-    // Whatever the mode wants to show for itself. The rows below the description are cleared and
-    // otherwise untouched, so a caller draws into them without having to blank them first.
+    // Whatever else the mode wants to show for itself, drawn over the body's rows. The whole screen was
+    // cleared above, so a caller draws without having to blank anything first.
     if (wiring.preview) {
         wiring.preview(map);
     }

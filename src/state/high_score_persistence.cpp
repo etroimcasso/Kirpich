@@ -1,6 +1,7 @@
 #include "state/high_score_persistence.h"
 
 #include <optional>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -61,6 +62,8 @@ std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScores(const HighScoreSt
             writeSlice(height);
     for (const auto& level : state.typeA)      // 10 levels = 10 slices = 270 bytes
         writeSlice(level);
+    for (const auto& level : state.typeC)      // and Type C's own, in the same shape
+        writeSlice(level);
 
     return image;
 }
@@ -84,8 +87,18 @@ bool decodeTopScores(std::span<const std::uint8_t> image, HighScoreState& state)
             readSlice(height);
     for (auto& level : state.typeA)
         readSlice(level);
+    for (auto& level : state.typeC)
+        readSlice(level);
 
     return true;
+}
+
+std::vector<std::byte> migrateTopScoresV1ToV2(std::vector<std::byte> payload) {
+    // One empty Type C block appended, not a resize to the version 2 length: the step's whole content
+    // is that version 2 carries a third table. A payload of any other length is not this step's to
+    // correct - decodeTopScores refuses a wrong length downstream.
+    payload.insert(payload.end(), kTopScoresTypeCBytes, std::byte{0});
+    return payload;
 }
 
 bool saveTopScores(const HighScoreState& state, retropp::SaveStore& store) {
@@ -95,7 +108,11 @@ bool saveTopScores(const HighScoreState& state, retropp::SaveStore& store) {
 }
 
 bool loadTopScores(retropp::SaveStore& store, HighScoreState& state) {
+    // Both of these are the store's, not the document's, so they are declared here rather than once at
+    // startup: the same store also carries the settings at their own version, and whichever loader is
+    // about to read has to be the one that last said which version it means.
     store.setCurrentVersion(kTopScoresSchemaVersion);
+    store.registerMigration(1, migrateTopScoresV1ToV2);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

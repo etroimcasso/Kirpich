@@ -60,19 +60,22 @@ void coldBoot(GameContext& game) {
 
 void softReset(GameContext& game) {
     // The one difference between the two entry points. The cold entry clears the work-RAM bank holding
-    // these two tables (:265-274) and .softReset enters below it, so they are the only game state that
-    // survives a reset.
+    // the cartridge's two tables (:265-274) and .softReset enters below it, so the tables are the only
+    // game state that survives a reset. Type C's table is the port's own and keeps the same company:
+    // a reset that wiped it while sparing the other two would be arbitrary.
     //
     // Saved by member, never by structure: HighScoreState's four high-memory bytes are inside the
     // clear at :347-352, which this path DOES run, so they return to boot with everything else. See the
     // note on this function's declaration.
     auto typeA = game.highScores.typeA;
     auto typeB = game.highScores.typeB;
+    auto typeC = game.highScores.typeC;
 
     coldBoot(game);
 
     game.highScores.typeA = typeA;
     game.highScores.typeB = typeB;
+    game.highScores.typeC = typeC;
 }
 
 void bootGame(GameContext& game, retropp::SaveStore& saves) {

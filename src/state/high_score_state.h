@@ -52,6 +52,11 @@ struct HighScoreState {
     // $D654 wTypeATopScores: 10 levels x 3 ranks (270 wire bytes). Indexed [level][rank].
     std::array<std::array<TopScoreEntry, 3>, 10> typeA{};
 
+    // Type C's own scores, in Type A's shape: 10 levels x 3 ranks. The port's own mode, so this table
+    // answers to no work-RAM address - the cartridge has nowhere to put it. It persists in the same
+    // document as the other two, appended after them.
+    std::array<std::array<TopScoreEntry, 3>, 10> typeC{};
+
     // $FFC7 hNewTopScore: set when the just-finished game earned a top score (routes the menu into
     // name entry), cleared once name entry is submitted or the game starts. Domain {0,1}.
     bool newTopScore = false;

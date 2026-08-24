@@ -86,6 +86,8 @@ enum class GameState : uint8_t {
     INIT_MODE_SCREEN      = 0x44,  // Lay out a mode's own settings screen
     MODE_SCREEN           = 0x45,  // A mode's own settings screen
     SELECT_MODE_OPTION    = 0x46,  // The config screen's third section
+    INIT_TYPE_C_DIFFICULTY = 0x47,  // Lay out the Type C level selection
+    TYPE_C_LEVEL_SELECTION = 0x48,  // Type C level selection
 };
 
 }  // namespace kirpich

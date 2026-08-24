@@ -45,6 +45,10 @@ struct Settings {
     // until they ask for something else.
     bool ghostPiece = false;
 
+    // Whether the game types the cartridge never had are offered. Off by default, so the config screen
+    // shows the two choices it always showed until a player asks for more.
+    bool newModes = false;
+
     friend bool operator==(const Settings&, const Settings&) = default;
 };
 
@@ -52,26 +56,26 @@ struct Settings {
 // the call sites, as the top-score document's is.
 //
 // One byte per value, so every version appends to the one before it: version 2 adds the ghost-piece
-// flag to version 1's three bytes. An older document is migrated on the way in
-// (migrateSettingsV1ToV2), not read short: two formats answering to one version number is what a
-// schema version exists to prevent.
+// flag to version 1's three bytes, and version 3 adds the new-modes flag to version 2's four. An
+// older document is migrated on the way in, a step at a time, not read short: two formats answering
+// to one version number is what a schema version exists to prevent.
 //
 // A shorter image is still read as far as it goes and the values it does not carry keep their
 // defaults, which keeps a truncated file costing one setting rather than all of them. A longer image
 // is refused, since nothing can be said about bytes this build does not understand.
-inline constexpr std::uint32_t kSettingsSchemaVersion = 2;
-inline constexpr std::size_t   kSettingsImageBytes    = 4;
+inline constexpr std::uint32_t kSettingsSchemaVersion = 3;
+inline constexpr std::size_t   kSettingsImageBytes    = 5;
 
-// What version 1 wrote: the flag, the scale, the ramp. Named so the migration and its test say the
-// same number.
-inline constexpr std::size_t kSettingsImageBytesV1 = 3;
+// What each earlier version wrote. Named so each migration and its test say the same number.
+inline constexpr std::size_t kSettingsImageBytesV1 = 3;  // the flag, the scale, the ramp
+inline constexpr std::size_t kSettingsImageBytesV2 = 4;  // and the ghost-piece flag
 
 // Bring a scale into the range this build offers. Values below the floor come up to it and values
 // above the ceiling come down to it; the range itself is what a build changes when it offers more.
 [[nodiscard]] std::uint8_t clampWindowScale(int scale);
 
 // Encode the settings into the image: the fullscreen flag as 0 or 1, then the scale, then the ramp,
-// then the ghost-piece flag.
+// then the ghost-piece flag, then the new-modes flag.
 [[nodiscard]] std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings);
 
 // Decode an image into `settings`. Returns false and leaves `settings` untouched when the image is
@@ -80,11 +84,15 @@ inline constexpr std::size_t kSettingsImageBytesV1 = 3;
 // on the way in.
 [[nodiscard]] bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings);
 
-// Bring a version 1 image up to version 2 by appending the ghost-piece flag, off. A document written
-// before the setting existed cannot say anything about it, and off is what it would have been.
+// Bring a version 1 image up to version 2 by appending the ghost-piece flag, off, and a version 2
+// image up to version 3 by appending the new-modes flag, off. A document written before a setting
+// existed cannot say anything about it, and off is what it would have been.
 //
-// Exposed so the migration can be tested for what it does rather than only through a store.
+// The store runs them in sequence, so a version 1 document reaches version 3 through both.
+//
+// Exposed so each migration can be tested for what it does rather than only through a store.
 [[nodiscard]] std::vector<std::byte> migrateSettingsV1ToV2(std::vector<std::byte> payload);
+[[nodiscard]] std::vector<std::byte> migrateSettingsV2ToV3(std::vector<std::byte> payload);
 
 // Persist the settings as document "settings" at the current schema version. Returns whatever the
 // atomic write reports.

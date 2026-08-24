@@ -102,17 +102,18 @@ void layOutConfigSection(BackgroundMap& map);
 
 // GameState_08 — the config screen. Resets the serial hardware (link-cable mechanism the serial unit
 // owns) and runs the shared body below.
-void initConfigScreen(GameContext& game, bool showSection = false);
+void initConfigScreen(GameContext& game, bool showSection = false, bool showGrid = false);
 
 // GameState_08 .loadTiles — the config-screen body: clear the object buffer, load the two cursors,
 // place the music-type and game-type cursors, cue the music, and enter game-type selection. Split out
 // because the demo-start and two-player paths enter here directly.
-void loadConfigScreenBody(GameContext& game, bool showSection = false);
+void loadConfigScreenBody(GameContext& game, bool showSection = false,
+                          bool showGrid = false);
 
 // GameState_0E — game-type selection. Left picks Type A, Right picks Type B; Confirm advances to the
 // third section when there is one and to music selection otherwise, Start to the chosen difficulty
 // screen.
-void selectGameType(GameContext& game, bool showSection = false);
+void selectGameType(GameContext& game, bool showSection = false, bool showGrid = false);
 
 // GameState_0F — music-type selection: a 2x2 grid over the four music choices. Start / Confirm advance
 // like the game-type screen; Back steps back one section (one-player) or is inert (two-player).
@@ -125,6 +126,14 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
 // GameState_11 — Type A level selection: a 2x5 grid over levels 0-9. Start / Confirm begin the game;
 // Back returns to the config screen (without unhiding the cursor — the Type B pickers differ).
 void selectTypeALevel(GameContext& game, const TopScoresRefresh& refresh = {});
+
+// INIT_TYPE_C_DIFFICULTY — init the Type C difficulty screen. The Type A screen's shape over Type C's
+// own stored level: the same backdrop, the same single digit cursor, the same 2x5 grid.
+void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh = {});
+
+// TYPE_C_LEVEL_SELECTION — Type C level selection: a 2x5 grid over levels 0-9, writing typeCLevel.
+// Start / Confirm begin the round; Back returns to the config screen.
+void selectTypeCLevel(GameContext& game, const TopScoresRefresh& refresh = {});
 
 // GameState_12 — init the Type B difficulty screen: two cursors (level and starting garbage height),
 // each placed at its current value; then enter level selection (or name entry).
@@ -184,9 +193,14 @@ void clearOamObjects(GameContext& game);
 //
 // `showSection` is asked once per frame by the three handlers that change with it. Absent reads as
 // off, which is what leaves the cartridge's screen and its walk in place.
+// `showGrid` is asked the same way, by the config screen and the game-type selector: with it on, the
+// game-type box grows a second row of choices and the walk covers Type C. Absent reads as off, which
+// leaves the cartridge's two-choice box and its left-right walk exactly as they are.
 void installMenuScreenHandlers(GameStateDispatcher&           dispatcher,
                                const TopScoresRefresh&        typeA = {},
                                const TopScoresRefresh&        typeB = {},
-                               const std::function<bool()>&   showSection = {});
+                               const std::function<bool()>&   showSection = {},
+                               const std::function<bool()>&   showGrid = {},
+                               const TopScoresRefresh&        typeC = {});
 
 }  // namespace kirpich::systems

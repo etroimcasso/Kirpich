@@ -20,6 +20,17 @@ constexpr std::size_t kTypeALevelCol = 17;
 constexpr std::size_t kTypeBLevelRow = 2;
 constexpr std::size_t kTypeBLevelCol = 16;
 
+// Type C's panel is the port's own screen (src/data/type_c_tilemap.h), so its cells are its own: the
+// score sits a row higher than Type A's, and the level and the rise countdown share the box below it.
+// The line count is the exception - it lands on the same row and columns every screen puts it on, so
+// printLines, printLinesSeed and copyLinesToSecondMap reach Type C without knowing it exists.
+constexpr std::size_t kTypeCScoreRow = 2;
+constexpr std::size_t kTypeCLevelRow = 6;
+constexpr std::size_t kTypeCLevelCol = 16;
+constexpr std::size_t kTypeCRiseRow = 8;
+constexpr std::size_t kTypeCRiseCol = 16;
+constexpr std::uint8_t kTypeCRiseDigitPairs = 1;
+
 constexpr std::size_t kLinesRow = 10;
 constexpr std::size_t kTypeALinesCol = 14;
 constexpr std::size_t kTypeBLinesCol = 16;
@@ -39,6 +50,26 @@ constexpr std::uint8_t kSpaceTile = static_cast<std::uint8_t>(CharTile::SPACE);
 
 bool typeB(const GameFlowState& flow) {
     return flow.gameType == GameType::TYPE_B;
+}
+
+// A cell in the background map, as a row and a column.
+struct Cell {
+    std::size_t row;
+    std::size_t col;
+};
+
+// Where the level digit goes, per game type. Each mode's panel puts it somewhere different.
+Cell levelCell(const GameFlowState& flow) {
+    switch (flow.gameType) {
+        case GameType::TYPE_B: return {kTypeBLevelRow, kTypeBLevelCol};
+        case GameType::TYPE_C: return {kTypeCLevelRow, kTypeCLevelCol};
+        default:               return {kTypeALevelRow, kTypeALevelCol};
+    }
+}
+
+// Which row the score's six digits land on. Type B has no score cells and never asks.
+std::size_t scoreRow(const GameFlowState& flow) {
+    return flow.gameType == GameType::TYPE_C ? kTypeCScoreRow : kScoreRow;
 }
 
 }  // namespace
@@ -78,14 +109,15 @@ void printScore(GameContext& game, BackgroundMap& map) {
     if (flow.gameState != GameState::NORMAL_GAMEPLAY) {
         return;
     }
-    if (flow.gameType != GameType::TYPE_A) {
+    // Type B's panel has no score cells; Type A's and Type C's do.
+    if (flow.gameType == GameType::TYPE_B) {
         return;
     }
     if (flow.scorePrintFlag == 0) {
         return;
     }
 
-    printNumber(map, flow, kScoreRow, kScoreCol, game.engine.score, kScoreDigitPairs);
+    printNumber(map, flow, scoreRow(flow), kScoreCol, game.engine.score, kScoreDigitPairs);
 }
 
 void redrawScore(GameContext& game) {
@@ -107,9 +139,7 @@ void redrawScore(GameContext& game) {
 
 void printLevel(GameContext& game) {
     GameFlowState& flow = game.flow;
-    const bool b = typeB(flow);
-    const std::size_t row = b ? kTypeBLevelRow : kTypeALevelRow;
-    const std::size_t col = b ? kTypeBLevelCol : kTypeALevelCol;
+    const auto [row, col] = levelCell(flow);
 
     // The level is drawn as a raw value rather than through the printer: a starting level is a single
     // digit, and the font's digit tiles are the digits themselves.
@@ -125,15 +155,21 @@ void printLevel(GameContext& game) {
 
 void printLevelStep(GameContext& game) {
     const std::uint8_t level = game.flow.level;
+    const auto [row, col] = levelCell(game.flow);
 
-    game.display.map[kTypeALevelRow][kTypeALevelCol] = digitTile(level % 10);
-    game.display.secondMap[kTypeALevelRow][kTypeALevelCol] = digitTile(level % 10);
+    game.display.map[row][col] = digitTile(level % 10);
+    game.display.secondMap[row][col] = digitTile(level % 10);
 
     const std::uint8_t tens = static_cast<std::uint8_t>(level / 10);
     if (tens != 0) {
-        game.display.map[kTypeALevelRow][kTypeALevelCol - 1] = digitTile(tens);
-        game.display.secondMap[kTypeALevelRow][kTypeALevelCol - 1] = digitTile(tens);
+        game.display.map[row][col - 1] = digitTile(tens);
+        game.display.secondMap[row][col - 1] = digitTile(tens);
     }
+}
+
+void printRise(GameContext& game, BackgroundMap& map) {
+    printNumber(map, game.flow, kTypeCRiseRow, kTypeCRiseCol, game.flow.riseCounter,
+                kTypeCRiseDigitPairs);
 }
 
 void printLinesSeed(GameContext& game) {

@@ -4,8 +4,9 @@
 // routine that draws all of them.
 //
 // The panel differs by game type. Type A shows a score, a level and a line count; Type B shows a
-// level, the height of its starting garbage under the label HIGH, and the lines still to clear. The
-// stored backdrop leaves those cells blank and the functions here fill them.
+// level, the height of its starting garbage under the label HIGH, and the lines still to clear; Type C
+// shows a score, a level, the pieces left until the floor rises under the label RISE, and a line
+// count. Each backdrop leaves those cells blank and the functions here fill them.
 //
 // Most of them write both background maps. The second map is the paused screen, and it carries the
 // panel too, so a readout that wrote only the live map would leave a stale number visible for as
@@ -72,6 +73,15 @@ void printLines(GameContext& game);
 // Draw the Type B starting garbage height into both maps (tetris.asm:4214-4218). One digit, and it
 // does not change for the rest of the round.
 void printStartHeight(GameContext& game);
+
+// Draw the Type C rise countdown - the pieces still to lock before the floor comes up - into one map,
+// two digits under the label RISE.
+//
+// Unlike its neighbours this one takes the map to write, because it is called at two different times:
+// the round init draws it into both maps, and each later change draws only the live one. The paused
+// screen therefore shows the count as it stood when the player paused, which is how the line count
+// behaves as well.
+void printRise(GameContext& game, BackgroundMap& map);
 
 // Copy the four line-count digits from the live map into the second one (tetris.asm:4464-4476).
 //

@@ -27,7 +27,7 @@ namespace kirpich {
 
 // The settings screen's option rows, in the order the cursor walks them.
 //
-// They span two pages: the window's own choices on the first, and on the second the one that changes
+// They span two pages: the window's own choices on the first, and on the second the ones that change
 // how the game is played and the one that erases the scores. The walk itself is continuous - going
 // down past the last row of a page turns to the next one, and up past the first row turns back - so
 // a page is where a row is drawn rather than a mode the player has to switch between.
@@ -37,7 +37,8 @@ enum class SettingsRow : std::uint8_t {
     SHADE_RAMP   = 2,
     EXIT_GAME    = 3,
     GHOST_PIECE  = 4,
-    RESET_SCORES = 5,
+    NEW_MODES    = 5,
+    RESET_SCORES = 6,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.

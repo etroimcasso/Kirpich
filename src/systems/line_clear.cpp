@@ -14,9 +14,10 @@
 #include "data/music.h"           // MusicId
 #include "data/playing_field.h"   // field extent + wipe-counter domain
 #include "data/sfx.h"             // NoiseSfxId, SquareSfxId
-#include "systems/piece.h"        // nextPiece
-#include "systems/readouts.h"     // printScore / printLines (wipe steps 17-19)
-#include "systems/scoring.h"      // checkForLevelUp (wipe step 16)
+#include "systems/piece.h"          // nextPiece
+#include "systems/readouts.h"       // printScore / printLines (wipe steps 17-19)
+#include "systems/rising_floor.h"   // countDownRise (the Type C lock count)
+#include "systems/scoring.h"        // checkForLevelUp (wipe step 16)
 
 namespace kirpich::systems {
 
@@ -51,7 +52,8 @@ BoundedVec<std::uint8_t, 4> makeLineClears(const std::array<std::uint8_t, 4>& ro
 // The final wipe step (counter 19). Latches out soft drop, ends the wipe, and then either spawns the
 // next piece, finishes a Type B round, or (for a garbage-driven wipe) simply stops.
 // (tetris.asm:5744-5810)
-void wipeTerminal(GameContext& game, const std::function<std::uint8_t()>& draw) {
+void wipeTerminal(GameContext& game, const std::function<std::uint8_t()>& draw,
+                  const RiseFloorHook& rise) {
     GameFlowState& flow = game.flow;
     MultiplayerState& mp = game.multiplayer;
 
@@ -76,10 +78,15 @@ void wipeTerminal(GameContext& game, const std::function<std::uint8_t()>& draw) 
         }
     }
 
-    // Redraw the line count, then spawn: Type A always, Type B while lines remain. (:5760-5777)
+    // Redraw the line count, then spawn: the marathons always, Type B while lines remain.
+    // (:5760-5777)
     printLines(game);
 
-    if (flow.gameType == GameType::TYPE_A) {
+    // Type A and Type C both run until the stack tops out, so neither has a line goal to reach here.
+    if (flow.gameType != GameType::TYPE_B) {
+        if (rise) {
+            rise(game);
+        }
         nextPiece(game, draw);
         return;
     }
@@ -113,6 +120,7 @@ void checkForCompletedRows(GameContext& game) {
     // The lock sound cues on every stage-2 entry, whether or not a row clears. (:5305-5306)
     game.audioCues.noise = NoiseSfxId::LOCK_PIECE;
 
+
     // Scan the field from row kUnclearedTopRows down. A row is complete when none of its ten cells is
     // empty; complete rows are recorded top to bottom by field-row index. (:5307-5337)
     flow.completedRowCount = 0;
@@ -134,6 +142,10 @@ void checkForCompletedRows(GameContext& game) {
     engine.lineClears = makeLineClears(completed, count);
     flow.completedRowCount = count;
 
+    // What this lock did to the Type C rise: one piece off, the rows it cleared back on. Inert in the
+    // other modes.
+    recordLock(game, count);
+
     // Advance to lock stage 3 and arm the flash timer. (:5339-5342)
     flow.pieceLockStage = 3;
     flow.timer1 = 2;
@@ -144,8 +156,8 @@ void checkForCompletedRows(GameContext& game) {
     }
 
     // Line-count update, forked on game type. (:5346-5410)
-    if (flow.gameType == GameType::TYPE_A) {
-        // Type A accumulates lines, saturating at 9999. (:5351-5364)
+    if (flow.gameType != GameType::TYPE_B) {
+        // The marathons - Type A and Type C - accumulate lines, saturating at 9999. (:5351-5364)
         const int total = static_cast<int>(flow.lines) + count;
         flow.lines = static_cast<std::uint16_t>(std::min(total, 9999));
     } else {
@@ -176,7 +188,8 @@ void checkForCompletedRows(GameContext& game) {
     game.audioCues.square = clearSfx;
 }
 
-void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& draw) {
+void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& draw,
+                      const RiseFloorHook& rise) {
     GameFlowState& flow = game.flow;
 
     // Runs in lock stage 3, and only once the flash timer has elapsed. (tetris.asm:5412-5418)
@@ -187,6 +200,9 @@ void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& dr
     // On an even flash phase with no rows to clear, this is a plain lock: spawn the next piece and end
     // the lock. (:5420-5426, :5494-5496)
     if ((flow.blinkCounter & 1) == 0 && game.engine.lineClears.empty()) {
+        if (rise) {
+            rise(game);
+        }
         nextPiece(game, draw);
         flow.pieceLockStage = 0;
         return;
@@ -257,7 +273,8 @@ void clearLineClearsList(GameContext& game) {
     game.engine.lineClears = {};
 }
 
-void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>& draw) {
+void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>& draw,
+                          const RiseFloorHook& rise) {
     GameFlowState& flow = game.flow;
 
     // The wipe runs for counter values kPlayingFieldWipeCounterFirst..Last; outside that range there
@@ -322,7 +339,7 @@ void playingFieldWipeTick(GameContext& game, const std::function<std::uint8_t()>
             break;
 
         case 19:
-            wipeTerminal(game, draw);
+            wipeTerminal(game, draw, rise);
             break;
 
         default:

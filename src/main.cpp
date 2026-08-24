@@ -69,6 +69,8 @@
 #include "systems/input.h"
 #include "systems/launch_scenes.h"
 #include "systems/line_clear.h"
+#include "systems/mode_screen.h"
+#include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
 #include "systems/readouts.h"
 #include "systems/scoring.h"
@@ -231,6 +233,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     const auto   drawPiece = kirpich::vm::registerPieceRandom(vm);
     const auto   garbageFold = kirpich::vm::registerGarbageFold(vm);
 
+    // The rising floor draws its arriving rows from that same fold, so a Type C round's rises are part
+    // of the same divider's history as its piece draws.
+    const auto   riseFloor = kirpich::systems::makeRiseFloorHook(garbageFold);
+
     // ── The art ──────────────────────────────────────────────────────────────
     const kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
 
@@ -270,9 +276,16 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     // Each difficulty screen refreshes its own game type's table on the way in and on every move,
     // which is also where a just-finished round's score is compared against it and inserted.
+    //
+    // The game-type box grows its second row of choices only while the player has the extra modes
+    // turned on. Asked per frame, so turning them off in the settings screen and coming back leaves
+    // the box the cartridge's again.
     kirpich::systems::installMenuScreenHandlers(dispatcher,
                                                 kirpich::systems::updateTypeATopScores,
-                                                kirpich::systems::updateTypeBTopScores);
+                                                kirpich::systems::updateTypeBTopScores,
+                                                /*showSection=*/{},
+                                                [&settings] { return settings.newModes; },
+                                                kirpich::systems::updateTypeCTopScores);
 
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
     kirpich::systems::installHighScoreHandlers(
@@ -297,6 +310,38 @@ int main(int /*argc*/, char* /*argv*/[]) {
         .exit = [&loop] { loop.exitRequest(); },
     };
     kirpich::systems::installSettingsHandlers(dispatcher, settingsWiring);
+
+    // The new-modes screen, opened from the settings row of the same name. It explains what turning
+    // them on does and carries the switch itself, because a sentence does not fit in a settings row's
+    // three cells.
+    //
+    // Wrapped by hand to the screen's twenty columns, and written without commas or apostrophes — the
+    // font has neither. A blank line is a paragraph break.
+    static constexpr std::string_view kNewModesDescription[] = {
+        "type c is a marathon",
+        "over a rising floor.",
+        "",
+        "every ten drops it",
+        "comes up a row and a",
+        "new line of junk",
+        "arrives below.",
+        "",
+        "clearing a line buys",
+        "back one drop.",
+    };
+    //
+    // No preview drawing. The screen draws from the font alone so that it reads the same whichever tile
+    // art is loaded behind it, and a font of letters cannot draw a playing field.
+    const kirpich::systems::ModeScreenWiring modeScreenWiring{
+        .content = {.title = "new modes", .body = kNewModesDescription},
+        .enabled = &settings.newModes,
+        .changed =
+            [&] {
+                applySettings(settings);
+                kirpich::saveSettings(settings, saves);
+            },
+    };
+    kirpich::systems::installModeScreenHandlers(dispatcher, modeScreenWiring, settingsWiring);
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -412,8 +457,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // and the field wipe steps one row per frame. Each one gates itself, so they are called every
         // frame and act only when they have something to do. Without this beat a round stops after its
         // first lock — the piece that landed never clears and the next one never spawns.
-        kirpich::systems::animateLineClear(game, drawPiece);
-        kirpich::systems::playingFieldWipeTick(game, drawPiece);
+        kirpich::systems::animateLineClear(game, drawPiece, riseFloor);
+        kirpich::systems::playingFieldWipeTick(game, drawPiece, riseFloor);
         kirpich::systems::updateScoreboard(game);
         kirpich::systems::redrawScore(game);
         kirpich::systems::drawTopScoresToVram(game);
