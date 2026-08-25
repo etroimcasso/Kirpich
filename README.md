@@ -22,9 +22,9 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   audio unit. Music and sound effects are produced by the original code, not recreated.
 - **Eighty color palettes**, selectable in-game with a live preview — the hardware greyscale,
   the original handheld's green, the eight color schemes Windows 3.1 shipped in its Control Panel,
-  and sixteen that keep a real color in their darkest shade instead of bottoming out at black. The
-  darkest shade is what the well's walls and every locked block are drawn in, so it is most of what
-  you look at.
+  and forty-eight that keep a real color in their darkest shade instead of bottoming out at black,
+  many of them crossing from one hue to another on the way up. The darkest shade is what the well's
+  walls and every locked block are drawn in, so it is most of what you look at.
 - **An optional ghost piece** showing where the falling piece will land. Disabled by default, so
   the game plays exactly as the cartridge does until the player opts in.
 - **Persistent high scores.** A qualifying round is ranked, named on the original letter-wheel
@@ -36,8 +36,9 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   clear duplicates its top row, and the unused stereo panning data remains unused. These are
   reproduced deliberately rather than corrected; see [`docs/DESIGN.md`](docs/DESIGN.md).
 - **A settings screen** for fullscreen (Alt+Enter / Cmd+Enter also toggles it), window scaling, the
-  palette selection, the ghost piece, the extra game types, and a confirmed high-score reset. Settings
-  persist alongside the score tables and apply before the window opens.
+  palette selection, the ghost piece, the extra game types, a fixes screen that offers the
+  cartridge's own quirks back — off by default, fidelity until you ask otherwise — and a confirmed
+  high-score reset. Settings persist alongside the score tables and apply before the window opens.
 
 <p align="center">
   <img src="docs/media/title-pal-2.png" width="270" alt="Title screen — the original handheld's green">
