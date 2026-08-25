@@ -39,10 +39,19 @@
 
 namespace kirpich::systems {
 
-// The count a round starts on, and the ceiling a clear can credit back up to. Flat for the whole round
-// - the gravity ramp supplies the difficulty curve, so this stays constant and the round gets harder
-// because the drops arrive faster, not because the floor does.
+// The count a round starts on. Flat across levels - the gravity ramp supplies the difficulty curve, so
+// this stays constant and the round gets harder because the drops arrive faster, not because the floor
+// does.
+//
+// Not a ceiling. A player who clears faster than they drop banks the difference and keeps it, which is
+// what lets a good stretch pay for a bad one.
 inline constexpr std::uint8_t kTypeCRiseInterval = 10;
+
+// The largest count the panel can show, and therefore the largest the count is allowed to reach: the
+// readout is two digits, and a bigger number would print as its last two. This is what the display can
+// say, not a rule about how the mode plays - the economy keeps the count far below it anyway, since a
+// drop always costs one and no piece can average more than a line.
+inline constexpr std::uint8_t kRiseCountShown = 99;
 
 // The seam the line-clear pipeline fires at each point a lock can spawn the next piece. An empty hook
 // is skipped, which is what every non-Type-C build and every existing test gets.
@@ -57,8 +66,8 @@ void armRiseCounter(GameContext& game);
 //
 // Every drop costs one: left alone, the floor arrives in kTypeCRiseInterval drops. Each row the drop
 // cleared is credited straight back, so a single line holds the count exactly where it was, a double
-// gains one, and a tetris gains three. The credit cannot take the count past a full interval - there
-// is no banking a lead and coasting on it.
+// gains one, and a tetris gains three - and the credit is kept, so a player clearing well builds a
+// buffer to spend later rather than being capped at what they started with.
 //
 // That is the whole difficulty curve of the mode: clearing is not a reprieve from the floor, it is the
 // only thing holding the floor off, and one line a drop is merely breaking even.

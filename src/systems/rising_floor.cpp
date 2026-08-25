@@ -35,10 +35,13 @@ void recordLock(GameContext& game, std::uint8_t clearedRows) {
         return;
     }
 
-    // One off for the piece, the rows it cleared back on, held between zero and a full interval. The
-    // arithmetic is done wide so neither end can wrap on the way.
+    // One off for the drop, the rows it cleared back on. There is no ceiling on what a player can
+    // bank: kTypeCRiseInterval is where a round starts, not a limit it returns to. The count is held
+    // below kRiseCountShown only because the panel has two digits and a larger number would print as
+    // its last two - a readout constraint, not a rule of the mode. The arithmetic is done wide so
+    // neither end can wrap on the way.
     int next = static_cast<int>(game.flow.riseCounter) - 1 + static_cast<int>(clearedRows);
-    next = std::clamp(next, 0, static_cast<int>(kTypeCRiseInterval));
+    next = std::clamp(next, 0, static_cast<int>(kRiseCountShown));
     game.flow.riseCounter = static_cast<std::uint8_t>(next);
 
     // The panel follows the count. Without this the number would only ever be drawn twice - once by the
