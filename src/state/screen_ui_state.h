@@ -20,6 +20,7 @@
 
 #include <kirpich/game_state.h>
 
+#include "state/demo_state.h"     // ActiveDemo
 #include "state/display_state.h"  // BackgroundMap
 #include "state/engine_state.h"   // EngineState::oam
 
@@ -38,7 +39,8 @@ enum class SettingsRow : std::uint8_t {
     EXIT_GAME    = 3,
     GHOST_PIECE  = 4,
     NEW_MODES    = 5,
-    RESET_SCORES = 6,
+    FIXES        = 6,
+    RESET_SCORES = 7,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.
@@ -87,6 +89,11 @@ struct ScreenUiState {
     // the rest of the port's own screen state.
     bool modeOptionRight = false;
 
+    // Which option a carousel screen is showing (systems/carousel_screen.h). One field serves every
+    // carousel instance for the same reason one blink flag serves every screen: only one is ever on
+    // screen, and each instance's init starts it back at the first option.
+    std::uint8_t carouselOption = 0;
+
     // The confirm's choice, and which of the two actions it is currently guarding. It opens on "no"
     // every time, so a player who reaches it by accident leaves it by pressing anything that acts.
     // Which of the confirm screen's two answers the cursor is on. Not "yes": the answers are the
@@ -114,6 +121,22 @@ struct ScreenUiState {
     // index is a solid block under the gameplay art. Its text is unaffected either way: the font and
     // the empty cell mean the same picture under both sets.
     TileSheet savedSheet = TileSheet::COPYRIGHT_TITLE;
+
+    // Which demo the caller had running, taken on the way in and put back on the way out.
+    //
+    // The sound driver reads this byte and blanks all four cue mailboxes before playing while it is
+    // non-zero, so a demo's recorded button presses make no sound (audio.asm:73-80). Nothing clears
+    // it when a demo ends - only starting a round does - which is why the cartridge's title music
+    // does not come back after an attract demo. That suppression is the cartridge's, and it covers
+    // the cartridge's screens. This one is the port's own and is not a demo, so the gate is lifted
+    // while it is up: without that, every sound the screen makes is swallowed for the rest of a
+    // session in which a demo has played once.
+    //
+    // Lifting it changes nothing else. The three gameplay paths that read the demo number
+    // (systems/piece.cpp, systems/gameplay.cpp) do not run while this screen holds the dispatcher,
+    // and the two exits that do not restore it are right not to: leaving the program needs no state,
+    // and returning to the title runs a soft reset, which boots the demo state along with the rest.
+    ActiveDemo savedActiveDemo = ActiveDemo::NONE;
 
     // Return every field to its boot value.
     void reset() { *this = ScreenUiState{}; }

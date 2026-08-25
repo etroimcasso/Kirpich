@@ -29,6 +29,7 @@
 // itself the seam the title screen's attract countdown fires. Both are bound in main().
 
 #include <cstdint>
+#include <functional>
 #include <span>
 
 #include "data/demo.h"  // DemoInputRecord
@@ -77,7 +78,13 @@ void startDemo(GameContext& game);
 
 // CheckForEndOfDemo — end the demo and return to the title screen, either because the player pressed
 // Start or because the recording's last piece has been played.
-void checkForEndOfDemo(GameContext& game);
+//
+// `fixAudio` is the player's audio-fix setting (Settings::fixAudio). Off - the default, and the
+// cartridge's behavior - leaves the demo number set on the way out, which keeps the sound driver's
+// mute gate closed and the title silent for the rest of the session. On, an ending demo clears it,
+// parking its value on DemoState::lastDemo so the next demo's alternation still knows which
+// recording ran; the title music then starts the way a session's first title screen starts it.
+void checkForEndOfDemo(GameContext& game, bool fixAudio = false);
 
 // DemoSimulateJoypad — advance the recording and substitute its input for the player's.
 //
@@ -106,6 +113,8 @@ void startRecordingDemo(GameContext& game);
 // ── Wiring ──────────────────────────────────────────────────────────────────────────────────────────
 
 // The four per-frame seams, bound to the functions above, ready to hand to the gameplay installer.
-[[nodiscard]] GameplayDemoHooks demoHooks();
+// `fixAudio` reports the player's audio-fix setting each time a demo ends; an empty function reads
+// as off, which is the cartridge's behavior.
+[[nodiscard]] GameplayDemoHooks demoHooks(std::function<bool()> fixAudio = {});
 
 }  // namespace kirpich::systems

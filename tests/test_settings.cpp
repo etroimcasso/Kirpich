@@ -41,40 +41,46 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
 
 // (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
 // the scale as itself, then the shade ramp as itself, then the ghost-piece flag, then the new-modes
-// flag.
-TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheGhostThenTheModes) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 5u);
+// flag, then the audio-fix flag.
+TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheGhostThenTheModesThenTheFix) {
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 6u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV1, 3u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, 4u);
-    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 3u)
-        << "the fifth byte is a new format, so it is a new version rather than a longer version 2";
+    EXPECT_EQ(kirpich::kSettingsImageBytesV3, 5u);
+    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 4u)
+        << "the sixth byte is a new format, so it is a new version rather than a longer version 3";
 
     // Each version's length is one more than the one before it, which is what makes every migration a
     // single appended byte.
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, kirpich::kSettingsImageBytesV1 + 1);
-    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV2 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytesV3, kirpich::kSettingsImageBytesV2 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV3 + 1);
 
     const auto off = kirpich::encodeSettings(Settings{.fullscreen = false,
                                                       .windowScale = 3,
                                                       .shadeRamp = 0,
                                                       .ghostPiece = false,
-                                                      .newModes = false});
+                                                      .newModes = false,
+                                                      .fixAudio = false});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
     EXPECT_EQ(off[2], 0u);
     EXPECT_EQ(off[3], 0u);
     EXPECT_EQ(off[4], 0u);
+    EXPECT_EQ(off[5], 0u);
 
     const auto on = kirpich::encodeSettings(Settings{.fullscreen = true,
                                                      .windowScale = 6,
                                                      .shadeRamp = 2,
                                                      .ghostPiece = true,
-                                                     .newModes = true});
+                                                     .newModes = true,
+                                                     .fixAudio = true});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
     EXPECT_EQ(on[2], 2u);
     EXPECT_EQ(on[3], 1u);
     EXPECT_EQ(on[4], 1u);
+    EXPECT_EQ(on[5], 1u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -84,17 +90,20 @@ TEST(SettingsValue, CodecRoundTripsEveryReachableValue) {
              ++scale) {
             for (std::uint8_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
                 for (const bool ghost : {false, true}) {
-                    const Settings source{.fullscreen = fullscreen,
-                                          .windowScale = scale,
-                                          .shadeRamp   = ramp,
-                                          .ghostPiece  = ghost};
-                    const auto image = kirpich::encodeSettings(source);
+                    for (const bool fix : {false, true}) {
+                        const Settings source{.fullscreen = fullscreen,
+                                              .windowScale = scale,
+                                              .shadeRamp   = ramp,
+                                              .ghostPiece  = ghost,
+                                              .fixAudio    = fix};
+                        const auto image = kirpich::encodeSettings(source);
 
-                    Settings decoded{};
-                    ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
-                    EXPECT_TRUE(decoded == source)
-                        << "fullscreen " << fullscreen << " scale " << +scale << " ramp " << +ramp
-                        << " ghost " << ghost;
+                        Settings decoded{};
+                        ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+                        EXPECT_TRUE(decoded == source)
+                            << "fullscreen " << fullscreen << " scale " << +scale << " ramp "
+                            << +ramp << " ghost " << ghost << " fix " << fix;
+                    }
                 }
             }
         }
@@ -128,7 +137,7 @@ TEST(SettingsValue, DecodeClampsTheScaleAndKeepsTheFlag) {
 TEST(SettingsValue, EmptyOrOverlongImageIsRefusedAndWritesNothing) {
     const Settings before{.fullscreen = true, .windowScale = 5, .shadeRamp = 1};
 
-    const std::array<std::uint8_t, 6> bytes{1, 2, 3, 1, 1, 9};
+    const std::array<std::uint8_t, 7> bytes{1, 2, 3, 1, 1, 1, 9};
     for (const std::size_t length : {std::size_t{0}, kirpich::kSettingsImageBytes + 1}) {
         Settings target = before;
         EXPECT_FALSE(kirpich::decodeSettings(std::span<const std::uint8_t>{bytes.data(), length},
@@ -223,16 +232,27 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
     EXPECT_EQ(v2[2], v1[2]);
     EXPECT_EQ(v2[3], std::byte{0});
 
-    // The next step has the same shape, and the two compose: a version 1 document reaches version 3
-    // through both, with everything it did carry surviving and everything it predates coming up off.
+    // The next steps have the same shape, and the three compose: a version 1 document reaches
+    // version 4 through all of them, with everything it did carry surviving and everything it
+    // predates coming up off.
     const std::vector<std::byte> v3 = kirpich::migrateSettingsV2ToV3(v2);
 
-    ASSERT_EQ(v3.size(), kirpich::kSettingsImageBytes);
+    ASSERT_EQ(v3.size(), kirpich::kSettingsImageBytesV3);
     EXPECT_EQ(v3[0], v1[0]);
     EXPECT_EQ(v3[1], v1[1]);
     EXPECT_EQ(v3[2], v1[2]);
     EXPECT_EQ(v3[3], std::byte{0});
     EXPECT_EQ(v3[4], std::byte{0});
+
+    const std::vector<std::byte> v4 = kirpich::migrateSettingsV3ToV4(v3);
+
+    ASSERT_EQ(v4.size(), kirpich::kSettingsImageBytes);
+    EXPECT_EQ(v4[0], v1[0]);
+    EXPECT_EQ(v4[1], v1[1]);
+    EXPECT_EQ(v4[2], v1[2]);
+    EXPECT_EQ(v4[3], std::byte{0});
+    EXPECT_EQ(v4[4], std::byte{0});
+    EXPECT_EQ(v4[5], std::byte{0});
 }
 
 // (8) A settings document written by a released build - Kirpich 0.9.0 and 0.9.1 wrote version 1,

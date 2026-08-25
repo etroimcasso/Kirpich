@@ -54,9 +54,9 @@ constexpr std::uint8_t kObjectOriginX = 8;
 constexpr std::uint8_t kObjectOriginY = 16;
 
 constexpr std::size_t  kSettingsTextCol = 6;  // "settings" - eight cells, centred in twenty
-constexpr std::uint8_t kSettingsTextY   = 121 + kObjectOriginY;
-constexpr std::uint8_t kSettingsLineY   = 128 + kObjectOriginY;
-constexpr std::uint8_t kSettingsCursorY = 121 + kObjectOriginY;
+constexpr std::uint8_t kSettingsTextY   = 123 + kObjectOriginY;
+constexpr std::uint8_t kSettingsLineY   = 130 + kObjectOriginY;
+constexpr std::uint8_t kSettingsCursorY = 123 + kObjectOriginY;
 constexpr std::uint8_t kSettingsCursorX = 0x30;  // one cell left of the word
 
 // The tile the game underlines its own player options with, borrowed for the third item so the two

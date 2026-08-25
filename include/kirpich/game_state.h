@@ -88,6 +88,10 @@ enum class GameState : uint8_t {
     SELECT_MODE_OPTION    = 0x46,  // The config screen's third section
     INIT_TYPE_C_DIFFICULTY = 0x47,  // Lay out the Type C level selection
     TYPE_C_LEVEL_SELECTION = 0x48,  // Type C level selection
+    INIT_FIXES_SCREEN      = 0x49,  // Lay out the fixes carousel
+    FIXES_SCREEN           = 0x4A,  // The fixes carousel
+    INIT_GHOST_SCREEN      = 0x4B,  // Lay out the ghost piece's own screen
+    GHOST_SCREEN           = 0x4C,  // The ghost piece's own screen
 };
 
 }  // namespace kirpich

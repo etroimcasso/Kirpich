@@ -27,24 +27,29 @@ at the settings.
 
 ## The screen
 
-Two pages. Down from the last row of a page turns to the next, up from the first turns back, and an
-arrow at the edge of a page says the other one is there. The header counts: `settings 1`, `settings 2`.
+Two pages, each named for what it holds: the window's own choices are settings, and the screens and
+switches the cartridge never had are enhancements. Down from the last row of a page turns to the
+next, up from the first turns back, and an arrow at the edge of a page says the other one is there.
+Each family's header counts from one: `settings 1`, `enhancements 1`.
 
 | Page | Row | Values |
 |---|---|---|
-| 1 | `fullscreen` | `on` / `off` |
-| 1 | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
-| 1 | `palette` | `◄ n ►`, forty-eight colour ramps, with the chosen one previewed beneath the row |
-| 1 | `exit game` | asks first |
-| 2 | `ghost` | `on` / `off` |
-| 2 | `new modes` | `►`, opens a screen of its own |
-| 2 | `reset scores` | asks first |
+| settings 1 | `fullscreen` | `on` / `off` |
+| settings 1 | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
+| settings 1 | `palette` | `◄ n ►`, eighty colour ramps, with the chosen one previewed beneath the row |
+| settings 1 | `exit game` | asks first |
+| enhancements 1 | `ghost` | `►`, opens the ghost piece's own screen |
+| enhancements 1 | `new modes` | `►`, opens a screen of its own |
+| enhancements 1 | `fixes` | `►`, opens the fixes carousel |
+| enhancements 1 | `reset scores` | asks first |
 
-Three of the rows are actions rather than values. Two of them end something and go through the same
-confirm, which opens on `no` every time — a player who arrives at one by accident leaves it by
-pressing whatever brought them. The third opens the screen that explains the extra game types and
-carries their switch; its arrow points right, toward the screen it leads to, and pressing right opens
-it just as Confirm and Start do.
+Every row on the enhancements page opens a screen or acts; none carries an inline value. Two rows
+end something and go through the same confirm, which opens on `no` every time — a player who
+arrives at one by accident leaves it by pressing whatever brought them. The three openers each lead
+to a screen with the room to say what the switch does: `ghost` and `fixes` run on the carousel
+([`fixes-screen.md`](fixes-screen.md)), `new modes` on the mode screen that preceded it. Each
+opener's arrow points right, toward the screen it leads to, and pressing right opens it just as
+Confirm and Start do.
 
 Erasing the scores sits at the end of the second page deliberately: it is the one thing on the screen
 a player cannot undo, and it should not be one press away from the row above it.
