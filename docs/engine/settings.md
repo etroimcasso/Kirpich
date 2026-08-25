@@ -232,32 +232,50 @@ screen it leads to.
 The ghost and fixes rows open **carousel** instances (`src/systems/carousel_screen.h`): one option
 to a screen — a title, an enable row in this screen's own scroller geometry, and a description —
 with up and down moving between options, left and right toggling the shown one, and B returning
-here. The machine owns nothing per-instance; each install names its own two dispatch slots, options
-and change seam:
+here. The new-modes row opens the mode screen (`src/systems/mode_screen.h`): one option, eleven rows
+of prose, and an optional preview seam that draws into the map below them.
+
+Both are machines, and neither owns a word of what it shows. The options, the flags their switches
+toggle, and the two dispatch slots an instance answers to all arrive through their installers.
+
+**The content is one unit.** `src/systems/enhancement_screens.h` holds what all three screens say,
+which flag each option binds, and the install that puts them on the dispatcher:
 
 ```cpp
-kirpich::systems::installCarouselHandlers(
-    dispatcher, kirpich::GameState::INIT_FIXES_SCREEN, kirpich::GameState::FIXES_SCREEN,
-    kirpich::systems::CarouselWiring{
-        .options = fixOptions,   // a span of CarouselOption {title, body, bool* enabled}
-        .changed = [&] { /* apply and save, as a settings row would */ },
-    },
-    settingsWiring);             // leaving the carousel repaints the settings screen
+kirpich::systems::installEnhancementScreens(
+    dispatcher, settings,
+    [&] { /* apply and save, as a settings row would */ },
+    settingsWiring);             // leaving any of them repaints the settings screen
 ```
 
-**To add an option to an instance,** append a `CarouselOption` to its span and give its flag a home
-on `Settings` (with the schema bump above). **To add an instance,** mint two `GameState` slots and
-install again — the shown-option index on `ScreenUiState` is shared, because only one carousel is
-ever on screen. An option's body is wrapped by hand to the twenty-cell screen, in the font's
-vocabulary (no comma, no apostrophe); an empty line is a paragraph break.
+The host passes only what is genuinely its own: the `Settings` the flags reach into, and the seam a
+change fires. `settings` is held by reference in the installed handlers, so it must outlive the
+dispatcher — the same lifetime the settings wiring's own pointer demands. The seam and the wiring are
+copied.
 
-Its option arrows are `carouselArrows(ui, ramp, atlas, optionCount)`, appended to the composed
-sprites the way the page arrow is. The up arrow sits **above** the shown option's title — the title
-belongs to the option, so an arrow inside what the option owns would read as the description
-scrolling — and the down arrow below the description; with one option neither is drawn.
+**To add an option to an instance,** append a `CarouselOption` to its table in
+`enhancement_screens.cpp` and give its flag a home on `Settings` (with the schema bump above), then
+raise the instance's published count in the header. `kFixesOptionCount` and `kGhostOptionCount` are
+static-asserted against their tables, so the count the render layer reads cannot drift from what the
+table holds — a table that grows without its count fails to compile.
 
-The new-modes row opens the mode screen (`src/systems/mode_screen.h`), the carousel's single-option
-predecessor with an optional preview seam; `installModeScreenHandlers` wires it the same way.
+**To add an instance,** mint two `GameState` slots, add the table and its prose beside the others,
+and install it in the same call. The shown-option index on `ScreenUiState` is shared, because only
+one carousel is ever on screen.
+
+An option's body is wrapped by hand to the twenty-cell screen, in the font's vocabulary (no comma, no
+apostrophe); an empty line is a paragraph break.
+
+**An option table has to outlive the handlers that read it.** `CarouselWiring::options` is a borrowed
+span, and `installCarouselHandlers` copies the wiring into both slots it fills. A table cannot be
+static either, since each option points into one particular `Settings`. So the unit allocates each
+table on install and hands its owner to the installed handlers along with the wiring: the table lives
+as long as a handler that can read it.
+
+Option arrows are `carouselArrows(ui, ramp, atlas, optionCount)`, appended to the composed sprites
+the way the page arrow is. The up arrow sits **above** the shown option's title — the title belongs
+to the option, so an arrow inside what the option owns would read as the description scrolling — and
+the down arrow below the description; with one option neither is drawn.
 
 ## Applying a change
 
