@@ -103,7 +103,12 @@ if(APPLE)
         # Chosen once and never changed: the player's saves and extracted assets are found under
         # this identity, and a notarization ticket is bound to it. Changing it strands both.
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.kirpich.kirpich"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        # Apple wants the short version string to be three integers, and a balance revision carries a
+        # fourth (0.9.3.1). So the short string is the release it revises and the bundle version is the
+        # whole thing — which is also what each field is for: the short one is what a player is shown,
+        # the other is the build identity, and it is the one that has to keep increasing.
+        MACOSX_BUNDLE_SHORT_VERSION_STRING
+            "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_COPYRIGHT "GNU Affero General Public License v3.0")
 elseif(WIN32)
