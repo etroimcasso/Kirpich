@@ -4,6 +4,7 @@
 #include <string>
 
 #include "render/palettes.h"
+#include "systems/carousel_screen.h"  // the carousel's own arrow rows
 #include "systems/settings_screen.h"  // the cell coordinates the drawn parts line up with
 
 namespace kirpich::render {
@@ -63,6 +64,38 @@ std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui
     }
     if (page + 1 < kirpich::kSettingsPageCount) {
         arrow("settings-page-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
+    }
+    return sprites;
+}
+
+std::vector<retropp::Sprite> carouselArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
+                                            const TileAtlas& atlas, std::size_t optionCount) {
+    // The same tile, art selection and stance as the page arrows above: the carousel is drawn over
+    // the settings screen, so the copyright-and-title set is the one on the block.
+    const ResolvedTile art = resolveSpriteTile(kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE,
+                                               /*palette1=*/false, atlas, ramp);
+
+    std::vector<retropp::Sprite> sprites;
+    const auto arrow = [&](std::string key, std::size_t row, retropp::Rotation turn) {
+        sprites.push_back(retropp::Sprite{
+            .key      = retropp::ObjectKey{std::move(key)},
+            .x        = static_cast<int>(kirpich::systems::kPageArrowCol) * kCell,
+            .y        = static_cast<int>(row) * kCell,
+            .z        = kPageArrowZ,
+            .atlas    = art.atlas,
+            .tile     = art.cell,
+            .palette  = art.palette,
+            .rotation = turn,
+        });
+    };
+
+    // Up sits above the shown option's title and down below its body - which option owns the screen
+    // is the systems header's argument. An arrow is drawn only where there is an option to reach.
+    if (ui.carouselOption > 0) {
+        arrow("carousel-up", kirpich::systems::kCarouselUpArrowRow, retropp::Rotation::Rot270);
+    }
+    if (optionCount != 0 && static_cast<std::size_t>(ui.carouselOption) + 1 < optionCount) {
+        arrow("carousel-down", kirpich::systems::kCarouselDownArrowRow, retropp::Rotation::Rot90);
     }
     return sprites;
 }

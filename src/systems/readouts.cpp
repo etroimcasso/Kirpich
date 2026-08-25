@@ -206,6 +206,18 @@ void copyLinesToSecondMap(GameContext& game) {
         game.display.secondMap[kLinesRow][kTypeALinesCol + i] =
             game.display.map[kLinesRow][kTypeALinesCol + i];
     }
+
+    // Type C's RISE readout is the port's own, so the cartridge's copy above does not know it: the
+    // second map's cells still hold what the round init stamped there, and a paused screen showing
+    // the starting count beside a live line count is wrong twice over. Both of the readout's cells
+    // travel - a banked count holds two digits, and a one-digit count blanks the leading cell the
+    // init's two-digit interval wrote.
+    if (game.flow.gameType == GameType::TYPE_C) {
+        for (std::size_t i = 0; i < std::size_t{kTypeCRiseDigitPairs} * 2; ++i) {
+            game.display.secondMap[kTypeCRiseRow][kTypeCRiseCol + i] =
+                game.display.map[kTypeCRiseRow][kTypeCRiseCol + i];
+        }
+    }
 }
 
 }  // namespace kirpich::systems

@@ -24,7 +24,11 @@
 #include "state/demo_state.h"
 #include "state/display_state.h"
 #include "state/engine_state.h"  // OamEntry
+#include "state/sprite_renderer_state.h"  // kPreviewPieceSlot
+#include "systems/boot.h"        // coldBoot
 #include "systems/demo.h"
+#include "systems/line_clear.h"  // the frame's vertical-blank beats
+#include "systems/scoring.h"     // updateScoreboard
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
@@ -470,9 +474,11 @@ TEST(DemoPlayback, RecordingIsDead) {
 // So the driver eats that cue and the title song does not come back after a demo, though it does after
 // a real round.
 //
-// This looks like a defect and is the original's behavior. Clearing the byte on the way back to the
-// title screen would look like tidying up, would restore the music, and would be wrong — so the state
-// it depends on is pinned here.
+// This looks like a defect and is the original's behavior — the DEFAULT behavior, which this test
+// pins. Clearing the byte on the way back to the title screen looks like tidying up and restores
+// the music, and that is exactly what the audio fix does when a player asks for it
+// (Settings::fixAudio, the fixes screen; the test below this one). Off, the quirk stands, and the
+// state it depends on is pinned here.
 TEST(DemoPlayback, DemoGateSurvivesTheReturnToTitle) {
     // A demo ends on its piece count. The state changes; the running-demo byte does not.
     GameContext game = running(ActiveDemo::TYPE_A);
@@ -505,4 +511,179 @@ TEST(DemoPlayback, DemoGateSurvivesTheReturnToTitle) {
     kirpich::systems::initTitleScreen(afterRealGame);
     const auto clear = kirpich::systems::gesturesFor(afterRealGame, /*alreadyPublished=*/std::nullopt);
     EXPECT_EQ(clear.demoGate.demoNumber, std::optional<std::uint8_t>{0});
+}
+
+// ── Test 10b: the whole demo, replayed ──────────────────────────────────────────────────────────────
+// Both recordings, end to end through the installed machine: boot, the copyright chain, the title
+// screen's attract countdown, and every frame of both demos with the real handlers and the frame's
+// vertical-blank beats — the way the shipped host runs them. Three laws, asserted over the whole run:
+// every piece a demo spawns comes from the shared list in order, the randomizer is never consulted
+// while a demo is playing, and each demo ends at its own terminal with the next one alternating.
+//
+// This is the composition test the per-routine cases above cannot substitute for: each seam can be
+// right in isolation while the assembled machine plays a different game than the recordings were
+// made against, and only a test that watches the pieces across a whole demo can say so.
+TEST(DemoPlayback, TheWholeDemoReplaysTheSharedList) {
+    // Both postures: the cartridge's own (fix off) and the audio fix on, whose end-of-demo clear
+    // must not change a single piece of any demo.
+    for (const bool fixAudio : {false, true}) {
+    SCOPED_TRACE(fixAudio ? "audio fix on" : "audio fix off");
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installTitleScreenHandlers(dispatcher, startDemo);
+
+    // The randomizer, poisoned: a demo's pieces come from the shared list, so a single consultation
+    // while a demo is running is itself a failure — and if one slipped through anyway, the constant
+    // piece it returns would desynchronise the piece assertions below.
+    bool drawConsulted = false;
+    kirpich::systems::installGameplayHandlers(
+        dispatcher, kirpich::systems::GameplayWiring{
+                        .draw = [&drawConsulted] {
+                            drawConsulted = true;
+                            return std::uint8_t{0};
+                        },
+                        .demo = demoHooks([fixAudio] { return fixAudio; }),
+                    });
+
+    GameContext game;
+    kirpich::systems::coldBoot(game);
+    ASSERT_EQ(game.flow.gameState, GameState::INIT_COPYRIGHT);
+
+    // One frame, the way the shipped host runs one: the dispatcher's five beats, then the
+    // vertical-blank beats — which a line clear cannot finish without.
+    const auto noDraw = [] { return std::uint8_t{0}; };
+    const auto frame  = [&](retropp::ActionSet held) {
+        dispatcher.tick(game, held);
+        kirpich::systems::animateLineClear(game, noDraw, {});
+        kirpich::systems::playingFieldWipeTick(game, noDraw, {});
+        kirpich::systems::updateScoreboard(game);
+    };
+
+    // Through the copyright chain to the title screen.
+    for (int i = 0; i < 600 && game.flow.gameState != GameState::TITLE_SCREEN; ++i) {
+        frame({});
+    }
+    ASSERT_EQ(game.flow.gameState, GameState::TITLE_SCREEN) << "the boot chain must reach the title";
+
+    // Run one demo to its end, watching every piece it spawns. nextPiece writes the shared list's
+    // entry at the OLD count into the preview slot as it bumps the count, so each bump is checked
+    // against kDemoPieceList at that index.
+    const auto runDemo = [&](ActiveDemo expectDemo, std::uint8_t firstPiece,
+                             std::uint8_t endCount) {
+        // Force the attract countdown's last tick rather than idling through it.
+        game.flow.timer1 = 0;
+        game.flow.coarseCountdown = 1;
+        frame({});
+        ASSERT_EQ(game.demo.activeDemo, expectDemo);
+        ASSERT_EQ(game.flow.gameState, GameState::INIT_GAME);
+        ASSERT_EQ(game.flow.numPiecesPlayed, firstPiece);
+
+        std::uint8_t seen = firstPiece;
+        for (int i = 0; i < 60000 && game.flow.gameState != GameState::INIT_TITLE_SCREEN; ++i) {
+            const std::uint8_t before = game.flow.numPiecesPlayed;
+            frame({});
+            const std::uint8_t after = game.flow.numPiecesPlayed;
+            if (after != before) {
+                // The round-init frame consumes three entries at once (the pipeline fill); every
+                // frame after that consumes one. Either way the preview slot now holds the LAST
+                // entry consumed, which is the shared list at the count just before the bump ended.
+                ASSERT_GT(after, before);
+                ASSERT_LE(static_cast<std::size_t>(after), kirpich::kDemoPieceList.size());
+                const auto preview = static_cast<std::uint8_t>(
+                    game.spriteRenderer.slots[kirpich::kPreviewPieceSlot].spriteId);
+                EXPECT_EQ(preview, kirpich::kDemoPieceList[after - 1].raw)
+                    << "piece " << (after - 1) << " of the "
+                    << (expectDemo == ActiveDemo::TYPE_A ? "Type A" : "Type B") << " demo";
+                seen = after;
+            }
+        }
+        ASSERT_EQ(game.flow.gameState, GameState::INIT_TITLE_SCREEN)
+            << "the demo must reach its terminal";
+        EXPECT_EQ(seen, endCount) << "the demo ends on its own piece count";
+        EXPECT_FALSE(drawConsulted) << "a demo's pieces never come from the randomizer";
+
+        // Back onto the title screen for the next launch.
+        for (int i = 0; i < 600 && game.flow.gameState != GameState::TITLE_SCREEN; ++i) {
+            frame({});
+        }
+        ASSERT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
+    };
+
+    runDemo(ActiveDemo::TYPE_A, 0, kTypeAEndPieceCount);
+    if (::testing::Test::HasFatalFailure()) return;
+    runDemo(ActiveDemo::TYPE_B, kTypeBFirstPiece, kTypeBEndPieceCount);
+    if (::testing::Test::HasFatalFailure()) return;
+    runDemo(ActiveDemo::TYPE_A, 0, kTypeAEndPieceCount);
+    }
+}
+
+// ── Test 11: the audio fix ──────────────────────────────────────────────────────────────────────────
+// With Settings::fixAudio on, a demo that ends stops being one: both terminals clear the running-demo
+// byte, so the title init's music cue reaches a driver whose mute gate is open and the title song
+// comes back. What the byte's second duty needs — which recording ran, for the next launch's
+// alternation — is parked on lastDemo, and the alternation reads it there.
+TEST(DemoPlayback, AudioFixEndsTheDemoAtItsEnd) {
+    // The piece-count terminal, fix on: the byte clears, the value parks, and the title init's cue
+    // is published to the driver rather than gated.
+    {
+        GameContext game = running(ActiveDemo::TYPE_A);
+        game.flow.numPiecesPlayed = kTypeAEndPieceCount;
+        checkForEndOfDemo(game, /*fixAudio=*/true);
+
+        ASSERT_EQ(game.flow.gameState, GameState::INIT_TITLE_SCREEN);
+        EXPECT_EQ(game.demo.activeDemo, ActiveDemo::NONE);
+        EXPECT_EQ(game.demo.lastDemo, ActiveDemo::TYPE_A);
+
+        kirpich::systems::initTitleScreen(game);
+        EXPECT_EQ(game.audioCues.music, kirpich::MusicId::TITLE);
+        const auto gestures = kirpich::systems::gesturesFor(game, /*alreadyPublished=*/std::nullopt);
+        EXPECT_EQ(gestures.demoGate.demoNumber, std::optional<std::uint8_t>{0})
+            << "the driver's gate must be open, or the cue above is blanked before it plays";
+    }
+
+    // The player-Start terminal does the same.
+    {
+        GameContext game = running(ActiveDemo::TYPE_B);
+        game.joypad.pressed = actionSet({Action::Start});
+        checkForEndOfDemo(game, /*fixAudio=*/true);
+        ASSERT_EQ(game.flow.gameState, GameState::INIT_TITLE_SCREEN);
+        EXPECT_EQ(game.demo.activeDemo, ActiveDemo::NONE);
+        EXPECT_EQ(game.demo.lastDemo, ActiveDemo::TYPE_B);
+    }
+
+    // The alternation is not lost with the byte: after a Type A demo ends under the fix, the next
+    // launch runs the Type B recording, and the one after that Type A again - the same 0 -> A -> B
+    // -> A cycle the cartridge keeps in the byte itself.
+    {
+        GameContext game = running(ActiveDemo::TYPE_A);
+        game.flow.numPiecesPlayed = kTypeAEndPieceCount;
+        checkForEndOfDemo(game, /*fixAudio=*/true);
+        ASSERT_EQ(game.demo.activeDemo, ActiveDemo::NONE);
+
+        startDemo(game);
+        EXPECT_EQ(game.demo.activeDemo, ActiveDemo::TYPE_B)
+            << "the alternation must read the parked value, or the fix resets the cycle to Type A";
+
+        game.flow.numPiecesPlayed = kTypeBEndPieceCount;
+        checkForEndOfDemo(game, /*fixAudio=*/true);
+        ASSERT_EQ(game.demo.activeDemo, ActiveDemo::NONE);
+        startDemo(game);
+        EXPECT_EQ(game.demo.activeDemo, ActiveDemo::TYPE_A);
+    }
+
+    // The hook wiring carries the setting: a hooks bundle built over a live query applies the fix,
+    // and the default bundle does not.
+    {
+        GameContext game = running(ActiveDemo::TYPE_A);
+        game.flow.numPiecesPlayed = kTypeAEndPieceCount;
+        bool fix = true;
+        const auto hooks = kirpich::systems::demoHooks([&fix] { return fix; });
+        hooks.checkForEndOfDemo(game);
+        EXPECT_EQ(game.demo.activeDemo, ActiveDemo::NONE);
+
+        GameContext untouched = running(ActiveDemo::TYPE_A);
+        untouched.flow.numPiecesPlayed = kTypeAEndPieceCount;
+        kirpich::systems::demoHooks().checkForEndOfDemo(untouched);
+        EXPECT_EQ(untouched.demo.activeDemo, ActiveDemo::TYPE_A)
+            << "an unwired bundle is the cartridge's behavior";
+    }
 }

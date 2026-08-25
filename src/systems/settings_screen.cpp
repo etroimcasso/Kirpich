@@ -82,8 +82,8 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
             return {.left  = settings.shadeRamp > 0,
                     .right = settings.shadeRamp + 1 < render::kShadeRampCount};
         case SettingsRow::GHOST_PIECE:
-            return {.left = settings.ghostPiece, .right = !settings.ghostPiece};
         case SettingsRow::NEW_MODES:
+        case SettingsRow::FIXES:
             // Not a value, but it does go somewhere: the right arrow says there is another screen
             // through this row, and pressing that way opens it.
             return {.left = false, .right = true};
@@ -162,7 +162,9 @@ void paintSettingsValues(BackgroundMap& map, const Settings& settings, std::uint
         paintRampValue(map, settings.shadeRamp);
         return;
     }
-    paintValue(map, SettingsRow::GHOST_PIECE, settings.ghostPiece ? "on" : "off");
+    // The second page's rows all open screens or act; none carries an inline value. The ghost
+    // switch lives on the ghost row's own screen, where there is room to say what it does.
+    (void)settings;
 }
 
 // Which rows the given page draws, in order.
@@ -185,6 +187,7 @@ std::string_view labelFor(SettingsRow row) {
         // same reason - the size row is "size", not "window scale".
         case SettingsRow::GHOST_PIECE:  return "ghost";
         case SettingsRow::NEW_MODES:    return "new modes";
+        case SettingsRow::FIXES:        return "fixes";
         case SettingsRow::RESET_SCORES: return "reset scores";
         // "exit game", not "exit": on its own the word reads as leaving this screen, which is what
         // Back does, and a player reaching for it would be asked to quit instead.
@@ -198,11 +201,11 @@ void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& 
 
     clearVisibleRegion(map);
 
-    // The header names the page as well as the screen. The font has no slash, so the two sit a cell
-    // apart rather than reading "settings/1".
-    const char header[10] = {'s', 'e', 't', 't', 'i', 'n', 'g', 's', ' ',
-                             static_cast<char>('1' + page)};
-    const std::string_view title{header, sizeof header};
+    // The header names the page for what it holds: the window's own choices are settings, and the
+    // second page - the screens and switches the cartridge never had - is enhancements. Each family
+    // counts from one, so a third page of either keeps its own numbering. The font has no slash, so
+    // the name and the number sit a cell apart rather than reading "settings/1".
+    const std::string_view title = page == 0 ? "settings 1" : "enhancements 1";
     writeMapText(map, kTitleRow, centred(title.size()), title);
 
     for (const SettingsRow row : rowsOnPage(page)) {
@@ -318,6 +321,10 @@ void leaveSettings(GameContext& game) {
     game.flow.timer1    = ui.savedTimer1;
     game.flow.gameState = ui.settingsReturn;
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+
+    // The caller's demo gate, back as it was. This is the only exit that hands control to the caller
+    // with the caller's state intact, which is why it is the only one that restores.
+    game.demo.activeDemo = ui.savedActiveDemo;
 }
 
 // Move the cursor one row. Returns whether that crossed onto the other page, which is the caller's
@@ -352,9 +359,8 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
             next.shadeRamp = render::clampShadeRamp(static_cast<int>(next.shadeRamp) + delta);
             break;
         case SettingsRow::GHOST_PIECE:
-            next.ghostPiece = delta > 0;
-            break;
         case SettingsRow::NEW_MODES:
+        case SettingsRow::FIXES:
         case SettingsRow::RESET_SCORES:
         case SettingsRow::EXIT_GAME:
             return;  // an action, not a value
@@ -425,6 +431,13 @@ void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
     ui.savedSheet  = game.display.sheet;
     clearOamObjects(game);
 
+    // Lift the driver's demo gate for as long as this screen is up. It is still set after an attract
+    // demo has played - nothing clears it until a round starts - and while it is set the driver
+    // blanks every cue before playing, so this screen would be silent for the rest of the session.
+    // See the note on ScreenUiState::savedActiveDemo.
+    ui.savedActiveDemo   = game.demo.activeDemo;
+    game.demo.activeDemo = ActiveDemo::NONE;
+
     // The set the game's own selector arrow is a tile of. Selecting it is an assignment - every set is
     // already uploaded - and the screen's text reads the same either way.
     game.display.sheet = TileSheet::COPYRIGHT_TITLE;
@@ -463,14 +476,27 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         }
     }
 
-    // The new-modes row carries a right arrow rather than a value, so pressing that way opens the
-    // screen it points into - the same thing Confirm and Start do from this row.
-    if (game.screens.settingsRow == SettingsRow::NEW_MODES &&
-        (pressed(game, Action::Confirm) || pressed(game, Action::Start) ||
-         pressed(game, Action::MenuRight))) {
-        game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-        game.flow.gameState   = GameState::INIT_MODE_SCREEN;
-        return;
+    // The screen-opening rows carry a right arrow rather than a value, so pressing that way opens
+    // the screen the row points into - the same thing Confirm and Start do from these rows.
+    if (pressed(game, Action::Confirm) || pressed(game, Action::Start) ||
+        pressed(game, Action::MenuRight)) {
+        const auto openScreen = [&game](GameState init) {
+            game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+            game.flow.gameState   = init;
+        };
+        switch (game.screens.settingsRow) {
+            case SettingsRow::GHOST_PIECE:
+                openScreen(GameState::INIT_GHOST_SCREEN);
+                return;
+            case SettingsRow::NEW_MODES:
+                openScreen(GameState::INIT_MODE_SCREEN);
+                return;
+            case SettingsRow::FIXES:
+                openScreen(GameState::INIT_FIXES_SCREEN);
+                return;
+            default:
+                break;
+        }
     }
 
     if (pressed(game, Action::MenuRight)) {

@@ -8,6 +8,40 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-25
+
+- **Fixes screen** ⬜ → ✅. The cartridge's own quirks offered back behind a `fixes` row on the
+  settings screen's second page, one option to a screen on a general carousel, every option off by
+  default so fidelity is what a player has until they ask otherwise. The first option restores the
+  title music after an attract demo: the sound driver mutes every cue while the running-demo byte is
+  set, nothing clears that byte when a demo ends, and the title re-cues its song into the mute — so
+  one demo silenced the rest of the session, on hardware and here alike. On, an ending demo clears
+  the byte and parks its alternation duty on a port-side field. The settings screen also lifts the
+  gate unconditionally while it is up — the cartridge has no settings screen, so no fidelity is
+  served by ours being silent after a demo. Settings save schema 3 → 4 with a registered migration.
+
+- **The enhancements page.** The settings screen's second page is now named for what it holds —
+  `enhancements 1` — and every row on it opens a screen or acts. The ghost row joins the openers:
+  its switch moved from an inline value to a screen of its own on the same carousel, beside a
+  description. The carousel is general (options, flags and dispatch slots all arrive through its
+  installer), so a future mode screen with more than one mode is another install rather than
+  another screen.
+
+- **Palette count** forty-eight → sixty-four → **eighty**. Both sixteens keep a real colour in
+  their darkest shade; most of the newest sixteen travel across the colour wheel on the way up, two
+  end cooler than they began (rooftops, cornflower), and a second soft ramp (seafoam) joins pastel
+  as the ones that never go near dark. A new guard holds every ramp distinct from every other, so
+  an accidental repeat fails the suite rather than wasting a slot the player pages past.
+
+- **The demos are pinned end to end.** A composition test now boots the machine, runs the copyright
+  chain and the attract countdown, and replays all three demo launches whole — every spawned piece
+  checked against the shared list, the randomizer proven unconsulted, the A→B→A alternation held —
+  under both audio-fix postures. The per-routine demo tests could each be right in isolation while
+  the assembled machine played a different game; this is the test that says the machine plays the
+  recordings.
+
+- **The title screen's `settings` word** sits two pixels lower.
+
 ## 2026-08-24
 
 - **Palette count** twenty-four → thirty-two → **forty-eight**. The sixteen added keep a real colour

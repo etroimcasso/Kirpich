@@ -235,8 +235,8 @@ TEST(TitleScreens, TitleInitVectors) {
         // entries 1-8 and its underline in 9-16, both one object per cell across the same columns.
         // The word sits in the blank band the player options' underline leaves, which is why it is
         // drawn as objects at all - a background cell cannot start on pixel row 122.
-        constexpr std::uint8_t kSettingsWordY = 121 + 16;
-        constexpr std::uint8_t kSettingsLineY = 128 + 16;
+        constexpr std::uint8_t kSettingsWordY = 123 + 16;
+        constexpr std::uint8_t kSettingsLineY = 130 + 16;
         constexpr std::size_t  kSettingsCol   = 6;
         constexpr std::array<CharTile, 8> kSettingsWord{
             CharTile::LETTER_S, CharTile::LETTER_E, CharTile::LETTER_T, CharTile::LETTER_T,

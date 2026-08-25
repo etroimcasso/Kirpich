@@ -73,9 +73,14 @@ void startDemo(GameContext& game) {
     // base address, and here the recording is chosen by which demo is running (demoTimeline).
     demo.nextRecord = 0;
 
-    // The alternation reads the demo that ran last and stores the one about to run (:596-614).
+    // The alternation reads the demo that ran last and stores the one about to run (:596-614). On
+    // the cartridge "the demo that ran last" is still sitting in hDemoNumber; under the audio fix
+    // the end of a demo clears that byte and parks its value on lastDemo instead (checkForEndOfDemo
+    // says why), so the alternation reads whichever of the two carries it.
+    const ActiveDemo previous =
+        demo.activeDemo != ActiveDemo::NONE ? demo.activeDemo : demo.lastDemo;
     ActiveDemo next = ActiveDemo::TYPE_A;
-    if (demo.activeDemo == ActiveDemo::TYPE_A) {
+    if (previous == ActiveDemo::TYPE_A) {
         flow.gameType = GameType::TYPE_B;
         flow.typeBLevel = kDemoLevel;
         flow.typeBStartHeight = kTypeBDemoStartHeight;
@@ -97,16 +102,32 @@ void startDemo(GameContext& game) {
     game.display.displayed = DisplayedMap::FIRST;
 }
 
-void checkForEndOfDemo(GameContext& game) {
+void checkForEndOfDemo(GameContext& game, bool fixAudio) {
     if (game.demo.activeDemo == ActiveDemo::NONE) {  // (:735-737)
         return;
     }
+
+    // Under the audio fix, a demo that ends stops being one. The cartridge leaves hDemoNumber set
+    // on the way back to the title - nothing clears it until a round starts - and the sound driver
+    // mutes every cue while it is set, so the title screen re-cues its song into silence and the
+    // session stays silent from the first demo on (audio.asm:73-80; the title init's cue is
+    // initTitleScreen's). Clearing the byte here is the whole fix. Its second duty - the memory the
+    // NEXT StartDemo's alternation reads - moves to lastDemo, which startDemo consults when the
+    // byte is clear. With the fix off both stores are skipped and the quirk stands, as the
+    // cartridge has it.
+    const auto endDemo = [&game, fixAudio] {
+        if (fixAudio) {
+            game.demo.lastDemo   = game.demo.activeDemo;
+            game.demo.activeDemo = ActiveDemo::NONE;
+        }
+        game.flow.gameState = GameState::INIT_TITLE_SCREEN;
+    };
 
     // This runs before the input substitution, so Start here is the player's own press (:743-745).
     // The link-cable writes that bracket it announce the exit to a connected second console; they
     // have no effect on this machine's simulation and belong to the serial system.
     if (pressed(game, Action::Start)) {
-        game.flow.gameState = GameState::INIT_TITLE_SCREEN;  // (:750-751)
+        endDemo();  // (:750-751)
         return;
     }
 
@@ -118,7 +139,7 @@ void checkForEndOfDemo(GameContext& game) {
     if (game.flow.numPiecesPlayed != target) {
         return;
     }
-    game.flow.gameState = GameState::INIT_TITLE_SCREEN;
+    endDemo();
 }
 
 void demoSimulateJoypad(GameContext& game) {
@@ -198,9 +219,12 @@ void startRecordingDemo(GameContext& game) {
     game.demo.recording = kDemoRecordingEnabledMagic;  // (:628-629)
 }
 
-GameplayDemoHooks demoHooks() {
+GameplayDemoHooks demoHooks(std::function<bool()> fixAudio) {
     return GameplayDemoHooks{
-        .checkForEndOfDemo = checkForEndOfDemo,
+        .checkForEndOfDemo =
+            [fixAudio = std::move(fixAudio)](GameContext& game) {
+                checkForEndOfDemo(game, fixAudio && fixAudio());
+            },
         .simulateJoypad = demoSimulateJoypad,
         .recordDemo = recordDemo,
         .restoreSavedJoypad = restoreDemoSavedJoypad,

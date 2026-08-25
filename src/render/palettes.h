@@ -45,7 +45,7 @@ struct ShadeRamp {
 };
 
 // The ramps, in the order the settings screen numbers them: the screen shows 1 for the first.
-inline constexpr std::array<ShadeRamp, 64> kShadeRamps{{
+inline constexpr std::array<ShadeRamp, 80> kShadeRamps{{
     // 1 - greyscale. The hardware's four shades as the port has always drawn them.
     {.darkest  = {.r =   0, .g =   0, .b =   0},
      .dark     = {.r =  85, .g =  85, .b =  85},
@@ -473,6 +473,110 @@ inline constexpr std::array<ShadeRamp, 64> kShadeRamps{{
      .dark     = {.r = 150, .g = 114, .b =  64},
      .light    = {.r = 204, .g = 172, .b = 124},
      .lightest = {.r = 246, .g = 232, .b = 204}},
+
+    // 65-80 keep their colour at the bottom like the thirty-two before them, and most of them travel:
+    // the ramp changes hue on the way up rather than lightening the one it started with, and two of
+    // them end somewhere COOLER than they began, which no earlier ramp does.
+
+    // 65 - peacock. deep blue through teal to a green-gold eye.
+    {.darkest  = {.r =  14, .g =  44, .b =  96},
+     .dark     = {.r =  16, .g =  96, .b = 122},
+     .light    = {.r =  52, .g = 164, .b = 128},
+     .lightest = {.r = 196, .g = 232, .b = 148}},
+
+    // 66 - kingfisher. petrol blue, a cyan flash, and the orange chest at the top.
+    {.darkest  = {.r =  10, .g =  58, .b =  84},
+     .dark     = {.r =  18, .g = 112, .b = 148},
+     .light    = {.r =  66, .g = 190, .b = 214},
+     .lightest = {.r = 255, .g = 196, .b = 120}},
+
+    // 67 - melon. the rind, then the flesh.
+    {.darkest  = {.r =  36, .g =  90, .b =  42},
+     .dark     = {.r = 108, .g = 158, .b =  74},
+     .light    = {.r = 238, .g = 150, .b =  96},
+     .lightest = {.r = 255, .g = 214, .b = 170}},
+
+    // 68 - firefly. a blue-green night with a warm light in it.
+    {.darkest  = {.r =  22, .g =  52, .b =  58},
+     .dark     = {.r =  58, .g =  96, .b =  76},
+     .light    = {.r = 150, .g = 172, .b =  88},
+     .lightest = {.r = 255, .g = 242, .b = 150}},
+
+    // 69 - rose gold. mauve metal up to champagne.
+    {.darkest  = {.r =  98, .g =  56, .b =  62},
+     .dark     = {.r = 152, .g =  96, .b = 100},
+     .light    = {.r = 216, .g = 152, .b = 140},
+     .lightest = {.r = 250, .g = 226, .b = 202}},
+
+    // 70 - tidepool. wet violet rock, then the water and the foam standing on it.
+    {.darkest  = {.r =  70, .g =  42, .b =  76},
+     .dark     = {.r =  74, .g = 104, .b = 108},
+     .light    = {.r = 104, .g = 178, .b = 152},
+     .lightest = {.r = 210, .g = 244, .b = 222}},
+
+    // 71 - poison. a murky purple turning a green nothing should drink.
+    {.darkest  = {.r =  74, .g =  30, .b =  92},
+     .dark     = {.r = 110, .g =  74, .b = 128},
+     .light    = {.r = 140, .g = 180, .b =  92},
+     .lightest = {.r = 216, .g = 246, .b = 128}},
+
+    // 72 - bruise. violet through mauve to the yellow a week later.
+    {.darkest  = {.r =  62, .g =  40, .b = 110},
+     .dark     = {.r = 128, .g =  84, .b = 128},
+     .light    = {.r = 190, .g = 148, .b = 110},
+     .lightest = {.r = 240, .g = 226, .b = 148}},
+
+    // 73 - harbor dawn. navy and grey steel under a vermilion sky.
+    {.darkest  = {.r =  24, .g =  46, .b =  92},
+     .dark     = {.r =  72, .g =  88, .b = 124},
+     .light    = {.r = 150, .g = 128, .b = 132},
+     .lightest = {.r = 252, .g = 176, .b = 130}},
+
+    // 74 - raspberry. the fruit crushed into cream.
+    {.darkest  = {.r = 122, .g =  16, .b =  58},
+     .dark     = {.r = 178, .g =  48, .b =  92},
+     .light    = {.r = 226, .g = 110, .b = 138},
+     .lightest = {.r = 252, .g = 198, .b = 206}},
+
+    // 75 - rooftops. terracotta fading into a pale sky - one of the two ramps that end cooler than
+    // they start.
+    {.darkest  = {.r = 126, .g =  50, .b =  34},
+     .dark     = {.r = 188, .g = 100, .b =  70},
+     .light    = {.r = 206, .g = 164, .b = 148},
+     .lightest = {.r = 188, .g = 226, .b = 248}},
+
+    // 76 - lagoon. deep teal water warming to a peach dawn.
+    {.darkest  = {.r =  10, .g =  72, .b = 100},
+     .dark     = {.r =  30, .g = 130, .b = 138},
+     .light    = {.r = 120, .g = 194, .b = 176},
+     .lightest = {.r = 255, .g = 216, .b = 186}},
+
+    // 77 - cactus flower. dusty sage, then the bloom.
+    {.darkest  = {.r =  60, .g =  94, .b =  62},
+     .dark     = {.r = 110, .g = 134, .b =  96},
+     .light    = {.r = 204, .g = 140, .b = 168},
+     .lightest = {.r = 250, .g = 210, .b = 226}},
+
+    // 78 - clover. a green with nothing muted about it that keeps its colour at the bottom, where
+    // the emerald above goes black.
+    {.darkest  = {.r =  20, .g = 104, .b =  44},
+     .dark     = {.r =  56, .g = 150, .b =  70},
+     .light    = {.r = 120, .g = 200, .b = 110},
+     .lightest = {.r = 220, .g = 250, .b = 190}},
+
+    // 79 - seafoam. the second ramp that never goes near dark at all: a soft aqua to keep the pastel
+    // above company.
+    {.darkest  = {.r =  70, .g = 122, .b = 108},
+     .dark     = {.r = 122, .g = 172, .b = 152},
+     .light    = {.r = 180, .g = 216, .b = 192},
+     .lightest = {.r = 236, .g = 252, .b = 240}},
+
+    // 80 - cornflower. a blue field under a butter-cream sky - the other ramp that crosses from cool
+    // to warm.
+    {.darkest  = {.r =  46, .g =  64, .b = 138},
+     .dark     = {.r =  92, .g = 116, .b = 190},
+     .light    = {.r = 158, .g = 176, .b = 224},
+     .lightest = {.r = 252, .g = 244, .b = 210}},
 }};
 
 // How many ramps there are, and which one a build draws in until a player says otherwise.

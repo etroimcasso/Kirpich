@@ -52,4 +52,13 @@ inline constexpr int kArrowInset = 2;
                                                               std::uint8_t ramp,
                                                               const TileAtlas& atlas);
 
+// A carousel screen's two option arrows, the same sprite the page arrows are: up above the title
+// when an option precedes the shown one, down below the body when one follows it
+// (src/systems/carousel_screen.h says why the up arrow must sit above the title). With one option
+// neither is drawn - the ends of a range are visible rather than something a player finds by
+// pressing.
+[[nodiscard]] std::vector<retropp::Sprite> carouselArrows(const kirpich::ScreenUiState& ui,
+                                                          std::uint8_t ramp, const TileAtlas& atlas,
+                                                          std::size_t optionCount);
+
 }  // namespace kirpich::render

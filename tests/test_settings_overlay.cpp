@@ -104,6 +104,19 @@ TEST(ShadeRamps, EveryRampHoldsToWhatItSaysAboutItsDarkestShade) {
     EXPECT_GT(colourKeeping, 0u) << "the check has to be asking something of somebody";
 }
 
+// (0c) No two ramps are the same ramp. The list has grown four times and three names already appear
+// twice with different colours (moss, wine, forest), so sameness is asked of the values, not the
+// comments — a ramp authored as an accidental repeat of one that exists is a wasted slot the player
+// pages past, and nothing but this would ever notice it.
+TEST(ShadeRamps, NoTwoRampsAreTheSame) {
+    for (std::size_t a = 0; a < kShadeRampCount; ++a) {
+        for (std::size_t b = a + 1; b < kShadeRampCount; ++b) {
+            EXPECT_FALSE(kirpich::render::kShadeRamps[a] == kirpich::render::kShadeRamps[b])
+                << "ramps " << (a + 1) << " and " << (b + 1) << " are identical";
+        }
+    }
+}
+
 // (0b) The default is the first ramp, and it is the greyscale the hardware's own shades map to — so a
 // player who never opens the settings screen sees what the game always looked like.
 TEST(ShadeRamps, DefaultIsTheHardwareGreyscale) {

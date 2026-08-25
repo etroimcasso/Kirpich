@@ -111,8 +111,9 @@ Wired in `src/main.cpp`'s render loop, onto the background layer, behind the pla
 
 ### The setting
 
-`Settings::ghostPiece`, off by default. It is the first row of the settings screen's second page,
-directly above the erase-high-scores row, and it scrolls on and off like every other choice row.
+`Settings::ghostPiece`, off by default. Its row is the first of the enhancements page (the settings
+screen's second) and opens a screen of its own: the switch sits there beside a description of what
+the shadow is (`docs/features/fixes-screen.md` describes the carousel machinery the screen runs on).
 
 Adding it grew the settings save document from three bytes to four, which **bumped its schema version
 from 1 to 2** with a registered `1 → 2` migration that appends the flag as off. Documents written by

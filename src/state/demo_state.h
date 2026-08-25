@@ -78,6 +78,14 @@ struct DemoState {
     // and restored by RestoreDemoSavedJoypad. Same action-based surface as demoHeld.
     retropp::ActionSet savedHeld;
 
+    // The demo that ran last. Port-only - no HRAM byte behind it - and written only by the audio fix
+    // (Settings::fixAudio): on the cartridge, hDemoNumber does double duty after a demo ends, as the
+    // sound driver's mute gate AND as the memory StartDemo's alternation reads. The fix clears
+    // activeDemo at the demo's end so the title music can start, which splits those two duties - this
+    // member is where the alternation's half goes. StartDemo reads it only when activeDemo is NONE,
+    // so with the fix off (or on hardware-faithful ground) it is dead weight that costs one byte.
+    ActiveDemo lastDemo = ActiveDemo::NONE;
+
     // Return every field to its boot (all-zero) value.
     void reset() { *this = DemoState{}; }
 

@@ -18,6 +18,7 @@
 
 #include "render/palettes.h"
 #include "retropp/input.h"
+#include "state/demo_state.h"
 #include "state/display_state.h"
 #include "state/high_score_state.h"
 #include "state/screen_ui_state.h"
@@ -51,7 +52,8 @@ constexpr std::size_t kPaletteRow = 11;
 constexpr std::size_t kExitRow  = 14;  // the last row of the first page
 constexpr std::size_t kGhostRow    = 5;   // the second page's first row
 constexpr std::size_t kNewModesRow = 8;   // its second
-constexpr std::size_t kResetRow    = 11;  // and its third
+constexpr std::size_t kFixesRow    = 11;  // its third
+constexpr std::size_t kResetRow    = 14;  // and its fourth
 constexpr std::size_t kLabelCol = 3;
 constexpr std::size_t kValueStart = kirpich::systems::kOptionValueCol;  // values start here
 constexpr std::size_t kValueEnd   = kirpich::systems::kOptionValueEnd;
@@ -276,9 +278,9 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
     EXPECT_EQ(game.display.map[kExitRow][kCursorCol], kCursor);
 
-    // Down again crosses onto the second page: all three of its labels are laid out, the first page's
+    // Down again crosses onto the second page: all four of its labels are laid out, the first page's
     // are gone, and the header counts up. The ghost row is the one the cursor lands on, above the new
-    // modes and the reset.
+    // modes, the fixes and the reset.
     step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::GHOST_PIECE);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
@@ -290,27 +292,40 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
         expectGlyphs(map, kNewModesRow, kLabelCol,
                      {C::LETTER_N, C::LETTER_E, C::LETTER_W, C::SPACE, C::LETTER_M, C::LETTER_O,
                       C::LETTER_D, C::LETTER_E, C::LETTER_S});
+        expectGlyphs(map, kFixesRow, kLabelCol,
+                     {C::LETTER_F, C::LETTER_I, C::LETTER_X, C::LETTER_E, C::LETTER_S});
         expectGlyphs(map, kResetRow, kLabelCol,
                      {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
                       C::LETTER_S, C::LETTER_C, C::LETTER_O, C::LETTER_R, C::LETTER_E, C::LETTER_S});
         EXPECT_EQ(map[kGhostRow][kCursorCol], kCursor);
         EXPECT_EQ(map[kNewModesRow][kCursorCol], kSpace);
+        EXPECT_EQ(map[kFixesRow][kCursorCol], kSpace);
         EXPECT_EQ(map[kResetRow][kCursorCol], kSpace);
-        EXPECT_EQ(map[kTitleRow][kTitleCol + 9], static_cast<std::uint8_t>(C::DIGIT_2));
-        // The ghost row is a choice, so it carries a value where the two action rows carry none.
-        expectGlyphs(map, kGhostRow, kValueStart, {C::LETTER_O, C::LETTER_F, C::LETTER_F});
+        // The second page is named for what it holds, and its own family counts from one.
+        expectGlyphs(map, kTitleRow, 3,
+                     {C::LETTER_E, C::LETTER_N, C::LETTER_H, C::LETTER_A, C::LETTER_N, C::LETTER_C,
+                      C::LETTER_E, C::LETTER_M, C::LETTER_E, C::LETTER_N, C::LETTER_T, C::LETTER_S,
+                      C::SPACE, C::DIGIT_1});
+        // Every row on this page opens a screen or acts; none carries an inline value - the ghost
+        // switch lives on the ghost row's own screen now.
+        EXPECT_EQ(map[kGhostRow][kValueStart], kSpace);
         EXPECT_EQ(map[kNewModesRow][kValueStart], kSpace);
+        EXPECT_EQ(map[kFixesRow][kValueStart], kSpace);
         EXPECT_EQ(map[kResetRow][kValueStart], kSpace);
-        // The first page's rows are not on this one. Only its fourth line can say so by being empty:
-        // the second page now holds three rows, so it covers the first three of the first page's
-        // lines, and what proves those are gone is the labels asserted above standing on them.
-        EXPECT_EQ(map[kExitRow][kLabelCol], kSpace);
+        // The first page's rows are not on this one. Both pages now hold four rows on the same
+        // lines, so nothing can say so by being empty; what proves the first page's labels are gone
+        // is the second page's labels asserted above standing on every one of their lines.
     }
 
     step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::NEW_MODES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
     EXPECT_EQ(game.display.map[kNewModesRow][kCursorCol], kCursor);
+
+    step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::FIXES);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+    EXPECT_EQ(game.display.map[kFixesRow][kCursorCol], kCursor);
 
     step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
@@ -322,7 +337,7 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
 
     // Back up, across the page boundary again, to the top.
-    for (int i = 0; i < 6; ++i) step(Action::MenuUp);
+    for (int i = 0; i < 7; ++i) step(Action::MenuUp);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::FULLSCREEN);
     {
         using C = CharTile;
@@ -1008,6 +1023,31 @@ TEST(SettingsScreen, LeavingRestoresTheCallerExactly) {
         EXPECT_TRUE(game.display.secondMap == pausedBefore);
         EXPECT_TRUE(game.display.map == liveBefore);
     }
+}
+
+// (11b) The screen lifts the sound driver's demo gate while it is up, and puts it back on the way
+// out. After an attract demo the running-demo byte is still set - the cartridge's quirk, pinned in
+// test_demo_playback.cpp - and the driver blanks every cue while it is; this screen is the port's
+// own and not a demo, so without the lift every sound it makes would be swallowed for the rest of
+// the session. The restore matters equally: the byte is the alternation's memory, and a settings
+// visit must not reset which demo plays next.
+TEST(SettingsScreen, TheScreenLiftsTheDemoGateWhileItIsUp) {
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+
+    game.demo.activeDemo = kirpich::ActiveDemo::TYPE_A;  // an attract demo has played
+    openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+    EXPECT_EQ(game.demo.activeDemo, kirpich::ActiveDemo::NONE)
+        << "the gate is lifted for as long as the screen is up";
+
+    press(game, {Action::Back});
+    kirpich::systems::settingsScreen(game, wiring);
+
+    EXPECT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
+    EXPECT_EQ(game.demo.activeDemo, kirpich::ActiveDemo::TYPE_A)
+        << "the caller's gate comes back with the caller's screen";
 }
 
 // ── The two entries ───────────────────────────────────────────────────────────────────────────────

@@ -39,14 +39,16 @@ offers. Both are applied on the way in from disk, so a stored value can never na
 
 ### The save document
 
-`"settings"`, **version 2**, four bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
-the ghost-piece flag as 0 or 1.
+`"settings"`, **version 4**, six bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
+then the ghost-piece, new-modes and audio-fix flags, each as 0 or 1.
 
-Version 1 was three bytes, without the ghost-piece flag. `migrateSettingsV1ToV2` appends that flag as
-off, and `loadSettings` registers it on the store before reading, so a version 1 document reaches the
-decoder at version 2's length.
+Each earlier version was one byte shorter — version 1 stopped after the ramp, version 2 added the
+ghost-piece flag, version 3 the new-modes flag — and each step's migration
+(`migrateSettingsV1ToV2` / `V2ToV3` / `V3ToV4`) appends its flag as off. `loadSettings` registers
+all three on the store before reading, so a document written at any released version reaches the
+decoder at version 4's length.
 
-`decodeSettings` accepts an image **shorter** than four bytes and leaves every value the image does not
+`decodeSettings` accepts an image **shorter** than six bytes and leaves every value the image does not
 carry at its default, which keeps a truncated file costing one setting rather than all of them. It
 refuses an empty image and one longer than this build writes.
 
@@ -66,12 +68,13 @@ keeps a *damaged* file cheap, not what carries a format change.
 ### One version and one migration chain per store, not per document
 
 `SaveStore::setCurrentVersion` and `registerMigration` are properties of the **store**, and this port
-keeps the settings and the top scores in the same store. Declaring version 2 therefore changes the
+keeps the settings and the top scores in the same store. Declaring version 4 therefore changes the
 terms every document in that store is read under.
 
 What keeps them apart is that each loader names its own version immediately before its own read —
-`loadSettings` sets 2 and registers its step, `loadTopScores` sets 1 — so a document is never read
-under another document's version. Any new document type in this store follows the same rule.
+`loadSettings` sets 4 and registers its chain, `loadTopScores` sets 2 and registers its own — so a
+document is never read under another document's version. Any new document type in this store follows
+the same rule.
 
 ## The screens
 
@@ -109,20 +112,25 @@ at the title screen that is the first map, and in a paused round it is the secon
 
 ```cpp
 enum class SettingsRow : std::uint8_t {
-    FULLSCREEN, WINDOW_SCALE, SHADE_RAMP, EXIT_GAME,   // page 1
-    GHOST_PIECE, RESET_SCORES                          // page 2
+    FULLSCREEN, WINDOW_SCALE, SHADE_RAMP, EXIT_GAME,     // settings 1
+    GHOST_PIECE, NEW_MODES, FIXES, RESET_SCORES          // enhancements 1
 };
 ```
 
-`kSettingsFirstPageRows` is 4, so the first four enumerators draw on page 1 and the rest on page 2.
-`paintSettingsValues` takes the page and paints only that page's values.
+`kSettingsFirstPageRows` is 4, so the first four enumerators draw on the first page and the rest on
+the second. The header names each page for what it holds — `settings 1` for the window's own
+choices, `enhancements 1` for the screens and switches the cartridge never had — and each family
+counts from one. `paintSettingsValues` takes the page and paints only that page's values; the
+enhancements page has none, because every row on it opens a screen or acts.
 
 **To add a row:** add an enumerator in the position it should be walked, give it a label in
-`labelFor`, and handle it in `changeValue` (a value) or in the Confirm/Start branch of
-`settingsScreen` (an action). A value row also needs an entry in `reachOf`, which is what decides
-whether it draws a scroll arrow on each side, and a line in `paintSettingsValues` under its page.
-Raising `kSettingsFirstPageRows` moves the page boundary; the page a row lands on and the arrow that
-advertises the other page both follow from it.
+`labelFor`, and handle it in `changeValue` (a value), in the Confirm/Start branch of
+`settingsScreen` (an action), or in that branch's `openScreen` switch (a row that opens a screen —
+the ghost, new-modes and fixes rows are these; each also returns a right-only `reachOf`, the arrow
+that points at the screen it leads to). A value row needs an entry in `reachOf`, which is what
+decides whether it draws a scroll arrow on each side, and a line in `paintSettingsValues` under its
+page. Raising `kSettingsFirstPageRows` moves the page boundary; the page a row lands on and the
+arrow that advertises the other page both follow from it.
 
 A label runs from `kLabelCol` (3) to the left scroll arrow at `kOptionLeftArrowCol` (13), so **ten
 cells is the most a label can be**. The existing labels are terse for that reason — the window-size
@@ -216,7 +224,40 @@ it has nothing for.
 
 An arrow is emitted only where there is somewhere to go: none to the left of the first ramp, none to
 the right of the last, none above the first page or below the last. A row that is an action rather
-than a choice has neither.
+than a choice has neither; a row that opens a screen carries the right arrow alone, pointing at the
+screen it leads to.
+
+## The screens the opener rows lead to
+
+The ghost and fixes rows open **carousel** instances (`src/systems/carousel_screen.h`): one option
+to a screen — a title, an enable row in this screen's own scroller geometry, and a description —
+with up and down moving between options, left and right toggling the shown one, and B returning
+here. The machine owns nothing per-instance; each install names its own two dispatch slots, options
+and change seam:
+
+```cpp
+kirpich::systems::installCarouselHandlers(
+    dispatcher, kirpich::GameState::INIT_FIXES_SCREEN, kirpich::GameState::FIXES_SCREEN,
+    kirpich::systems::CarouselWiring{
+        .options = fixOptions,   // a span of CarouselOption {title, body, bool* enabled}
+        .changed = [&] { /* apply and save, as a settings row would */ },
+    },
+    settingsWiring);             // leaving the carousel repaints the settings screen
+```
+
+**To add an option to an instance,** append a `CarouselOption` to its span and give its flag a home
+on `Settings` (with the schema bump above). **To add an instance,** mint two `GameState` slots and
+install again — the shown-option index on `ScreenUiState` is shared, because only one carousel is
+ever on screen. An option's body is wrapped by hand to the twenty-cell screen, in the font's
+vocabulary (no comma, no apostrophe); an empty line is a paragraph break.
+
+Its option arrows are `carouselArrows(ui, ramp, atlas, optionCount)`, appended to the composed
+sprites the way the page arrow is. The up arrow sits **above** the shown option's title — the title
+belongs to the option, so an arrow inside what the option owns would read as the description
+scrolling — and the down arrow below the description; with one option neither is drawn.
+
+The new-modes row opens the mode screen (`src/systems/mode_screen.h`), the carousel's single-option
+predecessor with an optional preview seam; `installModeScreenHandlers` wires it the same way.
 
 ## Applying a change
 

@@ -19,7 +19,8 @@ std::uint8_t clampWindowScale(int scale) {
 std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings) {
     return {static_cast<std::uint8_t>(settings.fullscreen ? 1 : 0), settings.windowScale,
             settings.shadeRamp, static_cast<std::uint8_t>(settings.ghostPiece ? 1 : 0),
-            static_cast<std::uint8_t>(settings.newModes ? 1 : 0)};
+            static_cast<std::uint8_t>(settings.newModes ? 1 : 0),
+            static_cast<std::uint8_t>(settings.fixAudio ? 1 : 0)};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
@@ -32,6 +33,7 @@ bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
     if (image.size() > 2) settings.shadeRamp = render::clampShadeRamp(image[2]);
     if (image.size() > 3) settings.ghostPiece = image[3] != 0;
     if (image.size() > 4) settings.newModes = image[4] != 0;
+    if (image.size() > 5) settings.fixAudio = image[5] != 0;
     return true;
 }
 
@@ -50,6 +52,13 @@ std::vector<std::byte> migrateSettingsV2ToV3(std::vector<std::byte> payload) {
     return payload;
 }
 
+std::vector<std::byte> migrateSettingsV3ToV4(std::vector<std::byte> payload) {
+    // And again: version 4 carries the audio-fix flag, off for a document that predates the fix
+    // being offered - the quirk is the cartridge's own behavior, so off is what such a player had.
+    payload.push_back(std::byte{0});
+    return payload;
+}
+
 bool saveSettings(const Settings& settings, retropp::SaveStore& store) {
     const auto image = encodeSettings(settings);
     return store.write("settings", kSettingsSchemaVersion,
@@ -63,6 +72,7 @@ bool loadSettings(retropp::SaveStore& store, Settings& settings) {
     store.setCurrentVersion(kSettingsSchemaVersion);
     store.registerMigration(1, migrateSettingsV1ToV2);
     store.registerMigration(2, migrateSettingsV2ToV3);
+    store.registerMigration(3, migrateSettingsV3ToV4);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

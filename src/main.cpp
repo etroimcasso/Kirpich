@@ -17,6 +17,7 @@
 // engine's run loop, so those writes have nothing to reach. docs/contracts/boot.md §4 accounts for
 // every line of the original's startup routine and what became of it.
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -69,6 +70,7 @@
 #include "systems/input.h"
 #include "systems/launch_scenes.h"
 #include "systems/line_clear.h"
+#include "systems/carousel_screen.h"
 #include "systems/mode_screen.h"
 #include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
@@ -343,6 +345,71 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
     kirpich::systems::installModeScreenHandlers(dispatcher, modeScreenWiring, settingsWiring);
 
+    // The fixes screen, opened from the settings row of the same name: the cartridge's own defects
+    // offered back, one option to a screen, every one off by default so fidelity is what a player
+    // has until they ask otherwise. The carousel behind it is general — a future option is another
+    // entry here, nothing more.
+    //
+    // Wrapped by hand to the screen's twenty columns, and written without commas or apostrophes —
+    // the font has neither. A blank line is a paragraph break.
+    static constexpr std::string_view kAudioFixDescription[] = {
+        "after a demo plays",
+        "the title screen",
+        "stays silent. this",
+        "is the original",
+        "behavior.",
+        "",
+        "turn this on and",
+        "the music returns",
+        "when a demo ends.",
+    };
+    // Not static: the enabled pointer reaches into this function's `settings`, and the wiring's span
+    // reaches into this array, so both live exactly as long as the dispatcher that uses them.
+    const std::array<kirpich::systems::CarouselOption, 1> kFixOptions{
+        kirpich::systems::CarouselOption{.title   = "audio",
+                                         .body    = kAudioFixDescription,
+                                         .enabled = &settings.fixAudio},
+    };
+    kirpich::systems::installCarouselHandlers(
+        dispatcher, kirpich::GameState::INIT_FIXES_SCREEN, kirpich::GameState::FIXES_SCREEN,
+        kirpich::systems::CarouselWiring{
+            .options = kFixOptions,
+            .changed =
+                [&] {
+                    applySettings(settings);
+                    kirpich::saveSettings(settings, saves);
+                },
+        },
+        settingsWiring);
+
+    // The ghost piece's own screen, opened from its row: the second carousel instance, carrying the
+    // switch beside the room to say what it does.
+    static constexpr std::string_view kGhostDescription[] = {
+        "the falling piece",
+        "casts a shadow on",
+        "the row where it",
+        "will land.",
+        "",
+        "off is the",
+        "original behavior.",
+    };
+    const std::array<kirpich::systems::CarouselOption, 1> kGhostOptions{
+        kirpich::systems::CarouselOption{.title   = "ghost",
+                                         .body    = kGhostDescription,
+                                         .enabled = &settings.ghostPiece},
+    };
+    kirpich::systems::installCarouselHandlers(
+        dispatcher, kirpich::GameState::INIT_GHOST_SCREEN, kirpich::GameState::GHOST_SCREEN,
+        kirpich::systems::CarouselWiring{
+            .options = kGhostOptions,
+            .changed =
+                [&] {
+                    applySettings(settings);
+                    kirpich::saveSettings(settings, saves);
+                },
+        },
+        settingsWiring);
+
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
 
@@ -361,7 +428,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installGameplayHandlers(
         dispatcher, kirpich::systems::GameplayWiring{
                         .draw        = drawPiece,
-                        .demo        = kirpich::systems::demoHooks(),
+                        // The demo hooks read the audio-fix setting when a demo ends: on, the end
+                        // of a demo opens the sound driver's mute gate so the title music returns.
+                        .demo        = kirpich::systems::demoHooks(
+                            [&settings] { return settings.fixAudio; }),
                         .initGarbage = kirpich::vm::makeInitGarbageHook(
                             [&garbageFold] { return garbageFold(); }),
                         .softReset   = reset,
@@ -489,6 +559,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
             const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
                                                                   kViewport.width);
             frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
+        }
+
+        // A carousel's option arrows are the same stood-up selector, drawn under the same rule:
+        // only where there is an option in that direction. Each instance reports its own count.
+        if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN ||
+            game.flow.gameState == kirpich::GameState::GHOST_SCREEN) {
+            const std::size_t count = game.flow.gameState == kirpich::GameState::FIXES_SCREEN
+                                          ? kFixOptions.size()
+                                          : kGhostOptions.size();
+            const auto arrows = kirpich::render::carouselArrows(game.screens, settings.shadeRamp,
+                                                                tiles, count);
+            sprites.insert(sprites.end(), arrows.begin(), arrows.end());
         }
 
         retropp::DrawLayer background = kirpich::render::backgroundLayer(cells, kViewport);

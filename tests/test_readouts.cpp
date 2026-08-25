@@ -553,6 +553,32 @@ TEST(Readouts, PauseShowsTheSecondMap) {
     EXPECT_EQ(&game.display.displayedMap(), &game.display.map);
 }
 
+// ── Test 8b: PauseCarriesTheRiseCount ─────────────────────────────────────────────────────────────
+// Type C's RISE readout follows the count on the live map, and the paused screen has to show the
+// same number: the second map's panel was stamped at the round init with the starting count, so
+// without a pause-time copy the paused screen reads 10 whatever the round has done since — the same
+// staleness the line-count copy exists to prevent, on the readout the cartridge never had.
+TEST(Readouts, PauseCarriesTheRiseCount) {
+    GameContext game;
+    inGameplay(game, GameType::TYPE_C);
+
+    // A count the round has moved off its starting value, drawn during play: live map only. The
+    // readout is two cells from column 16; a single digit blanks its leading cell.
+    game.flow.riseCounter = 7;
+    kirpich::systems::printRise(game, game.display.map);
+    EXPECT_EQ(game.display.map[8][17], 7) << "the live RISE cell follows the count";
+
+    press(game, {Action::Start});
+    EXPECT_TRUE(kirpich::systems::handleStartSelect(game));
+
+    ASSERT_TRUE(game.flow.paused);
+    EXPECT_EQ(game.display.secondMap[8][17], 7)
+        << "the paused screen must show the count as it stands, not as the init stamped it";
+    // The leading cell travels too: a banked count holds two digits, and a one-digit count blanks
+    // the cell the init's two-digit 10 wrote.
+    EXPECT_EQ(game.display.secondMap[8][16], game.display.map[8][16]);
+}
+
 // ── Test 9: SelectStillTogglesThePreviewWhilePaused ───────────────────────────────────────────────
 // A preserved quirk. Nothing between HandleStartSelect and handleSelect checks whether the game is
 // paused (tetris.asm:4448-4450), so Select keeps working while the paused screen is up: it toggles the
