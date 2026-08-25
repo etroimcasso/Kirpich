@@ -45,7 +45,7 @@ struct ShadeRamp {
 };
 
 // The ramps, in the order the settings screen numbers them: the screen shows 1 for the first.
-inline constexpr std::array<ShadeRamp, 48> kShadeRamps{{
+inline constexpr std::array<ShadeRamp, 64> kShadeRamps{{
     // 1 - greyscale. The hardware's four shades as the port has always drawn them.
     {.darkest  = {.r =   0, .g =   0, .b =   0},
      .dark     = {.r =  85, .g =  85, .b =  85},
@@ -373,6 +373,106 @@ inline constexpr std::array<ShadeRamp, 48> kShadeRamps{{
      .dark     = {.r =  52, .g = 106, .b =  58},
      .light    = {.r = 104, .g = 162, .b = 104},
      .lightest = {.r = 206, .g = 234, .b = 206}},
+
+    // 49-64 keep their colour at the bottom too, and reach further for what the colour is: several
+    // of them change hue across the ramp rather than lightening one, which the four shades have room
+    // for and which the earlier ramps mostly do not do.
+
+    // 49 - synthwave. deep violet through hot magenta to an electric sky.
+    {.darkest  = {.r =  58, .g =  26, .b =  92},
+     .dark     = {.r = 140, .g =  40, .b = 140},
+     .light    = {.r = 232, .g =  80, .b = 160},
+     .lightest = {.r = 150, .g = 246, .b = 255}},
+
+    // 50 - verdigris. copper left out in the weather, brown turning green.
+    {.darkest  = {.r =  74, .g =  52, .b =  30},
+     .dark     = {.r =  96, .g = 116, .b =  72},
+     .light    = {.r = 120, .g = 186, .b = 150},
+     .lightest = {.r = 214, .g = 242, .b = 228}},
+
+    // 51 - blood orange. a dark red rind opening to the fruit.
+    {.darkest  = {.r =  88, .g =  24, .b =  36},
+     .dark     = {.r = 166, .g =  52, .b =  32},
+     .light    = {.r = 232, .g = 112, .b =  48},
+     .lightest = {.r = 252, .g = 214, .b = 168}},
+
+    // 52 - abyssal. deep water where the only light is made by what lives in it.
+    {.darkest  = {.r =  16, .g =  58, .b =  66},
+     .dark     = {.r =  24, .g = 100, .b = 110},
+     .light    = {.r =  60, .g = 176, .b = 180},
+     .lightest = {.r = 186, .g = 246, .b = 240}},
+
+    // 53 - amethyst. crystal held up to a lamp.
+    {.darkest  = {.r =  66, .g =  38, .b = 104},
+     .dark     = {.r = 110, .g =  68, .b = 164},
+     .light    = {.r = 162, .g = 122, .b = 214},
+     .lightest = {.r = 226, .g = 210, .b = 246}},
+
+    // 54 - marigold. deep gold to the petal's edge.
+    {.darkest  = {.r =  84, .g =  54, .b =  14},
+     .dark     = {.r = 140, .g =  98, .b =  22},
+     .light    = {.r = 206, .g = 158, .b =  44},
+     .lightest = {.r = 250, .g = 228, .b = 150}},
+
+    // 55 - coral. a reef in shallow sun.
+    {.darkest  = {.r = 104, .g =  40, .b =  52},
+     .dark     = {.r = 170, .g =  72, .b =  80},
+     .light    = {.r = 224, .g = 124, .b = 116},
+     .lightest = {.r = 252, .g = 208, .b = 190}},
+
+    // 56 - absinthe. herbal dark to a bright acid green.
+    {.darkest  = {.r =  44, .g =  68, .b =  26},
+     .dark     = {.r =  80, .g = 116, .b =  38},
+     .light    = {.r = 140, .g = 186, .b =  70},
+     .lightest = {.r = 224, .g = 242, .b = 170}},
+
+    // 57 - tempest. storm light, slate cloud with the break behind it.
+    {.darkest  = {.r =  38, .g =  54, .b =  82},
+     .dark     = {.r =  76, .g =  96, .b = 124},
+     .light    = {.r = 140, .g = 158, .b = 170},
+     .lightest = {.r = 246, .g = 240, .b = 196}},
+
+    // 58 - mulberry. stained fingers, dark berry to soft pink.
+    {.darkest  = {.r =  78, .g =  30, .b =  66},
+     .dark     = {.r = 128, .g =  54, .b = 110},
+     .light    = {.r = 186, .g = 106, .b = 164},
+     .lightest = {.r = 238, .g = 202, .b = 230}},
+
+    // 59 - brass. tarnish to polish.
+    {.darkest  = {.r =  82, .g =  66, .b =  34},
+     .dark     = {.r = 132, .g = 110, .b =  58},
+     .light    = {.r = 188, .g = 166, .b = 104},
+     .lightest = {.r = 244, .g = 230, .b = 190}},
+
+    // 60 - ultramarine. the expensive blue, ground and lifted.
+    {.darkest  = {.r =  30, .g =  42, .b = 116},
+     .dark     = {.r =  52, .g =  74, .b = 186},
+     .light    = {.r = 104, .g = 132, .b = 228},
+     .lightest = {.r = 200, .g = 216, .b = 250}},
+
+    // 61 - lichen. stone that has been damp a long time.
+    {.darkest  = {.r =  42, .g =  80, .b =  48},
+     .dark     = {.r =  84, .g = 124, .b =  84},
+     .light    = {.r = 140, .g = 174, .b = 132},
+     .lightest = {.r = 222, .g = 238, .b = 214}},
+
+    // 62 - oxblood. old leather to dust.
+    {.darkest  = {.r =  92, .g =  34, .b =  30},
+     .dark     = {.r = 146, .g =  60, .b =  50},
+     .light    = {.r = 198, .g = 116, .b = 102},
+     .lightest = {.r = 240, .g = 200, .b = 188}},
+
+    // 63 - neon noir. a wet street under a sign that is still on.
+    {.darkest  = {.r =  40, .g =  36, .b =  84},
+     .dark     = {.r =  96, .g =  52, .b = 150},
+     .light    = {.r = 196, .g =  86, .b = 196},
+     .lightest = {.r = 206, .g = 236, .b = 252}},
+
+    // 64 - sandstorm. ochre with the sun somewhere behind it.
+    {.darkest  = {.r =  96, .g =  66, .b =  32},
+     .dark     = {.r = 150, .g = 114, .b =  64},
+     .light    = {.r = 204, .g = 172, .b = 124},
+     .lightest = {.r = 246, .g = 232, .b = 204}},
 }};
 
 // How many ramps there are, and which one a build draws in until a player says otherwise.
