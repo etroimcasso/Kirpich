@@ -35,7 +35,11 @@ The screen machinery (`src/systems/carousel_screen.h`) owns nothing per-instance
 flags their switches toggle, and the two dispatch slots an instance answers to all arrive through
 its installer, so a second carousel is a second install rather than a second screen. A future mode
 screen with more than one mode to offer would be one. A new fix is an entry in the options table in
-`src/main.cpp` and a flag on `Settings` — nothing more.
+`src/systems/enhancement_screens.cpp` and a flag on `Settings` — nothing more.
+
+That file is where every enhancement screen's content lives: the option tables, and the prose under
+each enable row. The machine owns no words and the host owns no content, so a new fix or a reworded
+description is an edit in one place.
 
 ## Where the pieces live
 
@@ -46,10 +50,12 @@ screen with more than one mode to offer would be one. A new fix is an entry in t
 | The `fixes` row | `src/systems/settings_screen.cpp`, `SettingsRow::FIXES` |
 | The audio fix itself | `src/systems/demo.cpp` — `checkForEndOfDemo`, `startDemo` |
 | The saved flag | `Settings::fixAudio`, settings save schema version 4 |
-| The options table | `src/main.cpp` |
+| The options table and the prose | `src/systems/enhancement_screens.h` / `.cpp` |
 
 ## Tested by
 
+`tests/test_enhancement_screens.cpp` — each screen's enable row moving its own flag and no other,
+driven through the dispatcher, with the option tables' lifetime exercised past the install call.
 `tests/test_carousel_screen.cpp` — the init's first-option paint, the toggle with its end stops, the
 walk with whole-screen repaints, the toggle following the walk, the arrows under the range-end law
 with up above the title, B's return, and the `fixes` row opening the screen with `new modes`

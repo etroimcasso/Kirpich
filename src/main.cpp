@@ -17,7 +17,6 @@
 // engine's run loop, so those writes have nothing to reach. docs/contracts/boot.md §4 accounts for
 // every line of the original's startup routine and what became of it.
 
-#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -63,6 +62,7 @@
 #include "state/settings.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
+#include "systems/enhancement_screens.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
@@ -70,8 +70,6 @@
 #include "systems/input.h"
 #include "systems/launch_scenes.h"
 #include "systems/line_clear.h"
-#include "systems/carousel_screen.h"
-#include "systems/mode_screen.h"
 #include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
 #include "systems/readouts.h"
@@ -313,102 +311,16 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
     kirpich::systems::installSettingsHandlers(dispatcher, settingsWiring);
 
-    // The new-modes screen, opened from the settings row of the same name. It explains what turning
-    // them on does and carries the switch itself, because a sentence does not fit in a settings row's
-    // three cells.
-    //
-    // Wrapped by hand to the screen's twenty columns, and written without commas or apostrophes — the
-    // font has neither. A blank line is a paragraph break.
-    static constexpr std::string_view kNewModesDescription[] = {
-        "type c is a marathon",
-        "over a rising floor.",
-        "",
-        "every ten drops it",
-        "comes up a row and a",
-        "new line of junk",
-        "arrives below.",
-        "",
-        "clearing a line buys",
-        "back one drop.",
-    };
-    //
-    // No preview drawing. The screen draws from the font alone so that it reads the same whichever tile
-    // art is loaded behind it, and a font of letters cannot draw a playing field.
-    const kirpich::systems::ModeScreenWiring modeScreenWiring{
-        .content = {.title = "new modes", .body = kNewModesDescription},
-        .enabled = &settings.newModes,
-        .changed =
-            [&] {
-                applySettings(settings);
-                kirpich::saveSettings(settings, saves);
-            },
-    };
-    kirpich::systems::installModeScreenHandlers(dispatcher, modeScreenWiring, settingsWiring);
-
-    // The fixes screen, opened from the settings row of the same name: the cartridge's own defects
-    // offered back, one option to a screen, every one off by default so fidelity is what a player
-    // has until they ask otherwise. The carousel behind it is general — a future option is another
-    // entry here, nothing more.
-    //
-    // Wrapped by hand to the screen's twenty columns, and written without commas or apostrophes —
-    // the font has neither. A blank line is a paragraph break.
-    static constexpr std::string_view kAudioFixDescription[] = {
-        "after a demo plays",
-        "the title screen",
-        "stays silent. this",
-        "is the original",
-        "behavior.",
-        "",
-        "turn this on and",
-        "the music returns",
-        "when a demo ends.",
-    };
-    // Not static: the enabled pointer reaches into this function's `settings`, and the wiring's span
-    // reaches into this array, so both live exactly as long as the dispatcher that uses them.
-    const std::array<kirpich::systems::CarouselOption, 1> kFixOptions{
-        kirpich::systems::CarouselOption{.title   = "audio",
-                                         .body    = kAudioFixDescription,
-                                         .enabled = &settings.fixAudio},
-    };
-    kirpich::systems::installCarouselHandlers(
-        dispatcher, kirpich::GameState::INIT_FIXES_SCREEN, kirpich::GameState::FIXES_SCREEN,
-        kirpich::systems::CarouselWiring{
-            .options = kFixOptions,
-            .changed =
-                [&] {
-                    applySettings(settings);
-                    kirpich::saveSettings(settings, saves);
-                },
-        },
-        settingsWiring);
-
-    // The ghost piece's own screen, opened from its row: the second carousel instance, carrying the
-    // switch beside the room to say what it does.
-    static constexpr std::string_view kGhostDescription[] = {
-        "the falling piece",
-        "casts a shadow on",
-        "the row where it",
-        "will land.",
-        "",
-        "off is the",
-        "original behavior.",
-    };
-    const std::array<kirpich::systems::CarouselOption, 1> kGhostOptions{
-        kirpich::systems::CarouselOption{.title   = "ghost",
-                                         .body    = kGhostDescription,
-                                         .enabled = &settings.ghostPiece},
-    };
-    kirpich::systems::installCarouselHandlers(
-        dispatcher, kirpich::GameState::INIT_GHOST_SCREEN, kirpich::GameState::GHOST_SCREEN,
-        kirpich::systems::CarouselWiring{
-            .options = kGhostOptions,
-            .changed =
-                [&] {
-                    applySettings(settings);
-                    kirpich::saveSettings(settings, saves);
-                },
-        },
-        settingsWiring);
+    // The screens a settings row opens: the ghost piece's, the fixes carousel, and the new-modes
+    // screen. What each one says and which flag it binds belong to the unit
+    // (systems/enhancement_screens.h); what arrives from here is the settings they edit and the
+    // seam a change fires, which is the same one every settings row already uses.
+    kirpich::systems::installEnhancementScreens(dispatcher, settings,
+                                                [&] {
+                                                    applySettings(settings);
+                                                    kirpich::saveSettings(settings, saves);
+                                                },
+                                                settingsWiring);
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -566,8 +478,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
         if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN ||
             game.flow.gameState == kirpich::GameState::GHOST_SCREEN) {
             const std::size_t count = game.flow.gameState == kirpich::GameState::FIXES_SCREEN
-                                          ? kFixOptions.size()
-                                          : kGhostOptions.size();
+                                          ? kirpich::systems::kFixesOptionCount
+                                          : kirpich::systems::kGhostOptionCount;
             const auto arrows = kirpich::render::carouselArrows(game.screens, settings.shadeRamp,
                                                                 tiles, count);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
