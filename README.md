@@ -40,12 +40,21 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   persist alongside the score tables and apply before the window opens.
 
 <p align="center">
-  <img src="docs/media/title-pal-2.png" width="215" alt="Title screen — the original handheld's green">
-  <img src="docs/media/title-pal-12.png" width="215" alt="Title screen — sunset">
-  <img src="docs/media/title-pal-24.png" width="215" alt="Title screen — aurora">
-  <img src="docs/media/title-hotdog-palette.png" width="215" alt="Title screen — the Windows 3.1 Hot Dog Stand scheme">
+  <img src="docs/media/title-pal-2.png" width="270" alt="Title screen — the original handheld's green">
+  <img src="docs/media/title-pal-67.png" width="270" alt="Title screen — melon">
+  <img src="docs/media/title-pal-12.png" width="270" alt="Title screen — sunset">
 </p>
-<p align="center"><em>Four of the eighty palettes: the original green, sunset, aurora, and Windows 3.1's Hot Dog Stand.</em></p>
+<p align="center">
+  <img src="docs/media/title-pal-73.png" width="270" alt="Title screen — harbor dawn">
+  <img src="docs/media/title-pal-24.png" width="270" alt="Title screen — aurora">
+  <img src="docs/media/title-pal-66.png" width="270" alt="Title screen — kingfisher">
+</p>
+<p align="center">
+  <img src="docs/media/title-pal-71.png" width="270" alt="Title screen — poison">
+  <img src="docs/media/title-pal-49.png" width="270" alt="Title screen — synthwave">
+  <img src="docs/media/title-hotdog-palette.png" width="270" alt="Title screen — the Windows 3.1 Hot Dog Stand scheme">
+</p>
+<p align="center"><em>Nine of the eighty palettes: the original green, melon, sunset, harbor dawn, aurora, kingfisher, poison, synthwave, and Windows 3.1's Hot Dog Stand.</em></p>
 
 <p align="center">
   <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
