@@ -50,6 +50,7 @@ using kirpich::systems::armRiseCounter;
 using kirpich::systems::checkForCompletedRows;
 using kirpich::systems::recordLock;
 using kirpich::systems::GameContext;
+using kirpich::systems::kRiseCountShown;
 using kirpich::systems::kTypeCRiseInterval;
 using kirpich::systems::makeRiseFloorHook;
 using kirpich::systems::moveBlocksDownAfterLineClear;
@@ -269,9 +270,12 @@ TEST(RisingFloor, TheCountLosesOneAndGainsEveryClearedRow) {
              Vector{5, 2, 6, "a double gains one"},
              Vector{5, 3, 7, "a triple gains two"},
              Vector{5, 4, 8, "a tetris gains three"},
-             Vector{kTypeCRiseInterval, 1, kTypeCRiseInterval, "the credit stops at a full interval"},
-             Vector{kTypeCRiseInterval, 4, kTypeCRiseInterval, "however big the clear"},
-             Vector{kTypeCRiseInterval - 1, 4, kTypeCRiseInterval, "and never past it"},
+             // The starting count is not a ceiling: a player who clears faster than they drop banks
+             // the difference and keeps it.
+             Vector{kTypeCRiseInterval, 2, kTypeCRiseInterval + 1, "a double past the start banks one"},
+             Vector{kTypeCRiseInterval, 4, kTypeCRiseInterval + 3, "and a tetris banks three"},
+             Vector{kRiseCountShown, 4, kRiseCountShown, "the panel's two digits are the only limit"},
+             Vector{kRiseCountShown - 1, 4, kRiseCountShown, "and the count stops there, not past it"},
              Vector{0, 0, 0, "the count stops at zero rather than wrapping"},
              Vector{1, 0, 0, "the drop that empties it"},
          }) {
