@@ -23,8 +23,14 @@ bool typeC(const GameFlowState& flow) {
 
 }  // namespace
 
+std::uint8_t riseIntervalFor(const GameFlowState& flow) {
+    const std::size_t index =
+        std::min(static_cast<std::size_t>(flow.typeCRise), kTypeCRiseChoiceCount - 1);
+    return kTypeCRiseValues[index];
+}
+
 void armRiseCounter(GameContext& game) {
-    game.flow.riseCounter = typeC(game.flow) ? kTypeCRiseInterval : 0;
+    game.flow.riseCounter = typeC(game.flow) ? riseIntervalFor(game.flow) : 0;
     if (typeC(game.flow)) {
         printRise(game, game.display.map);
     }
@@ -36,7 +42,7 @@ void recordLock(GameContext& game, std::uint8_t clearedRows) {
     }
 
     // One off for the drop, the rows it cleared back on. There is no ceiling on what a player can
-    // bank: kTypeCRiseInterval is where a round starts, not a limit it returns to. The count is held
+    // bank: the chosen rise is where a round starts, not a limit it returns to. The count is held
     // below kRiseCountShown only because the panel has two digits and a larger number would print as
     // its last two - a readout constraint, not a rule of the mode. The arithmetic is done wide so
     // neither end can wrap on the way.
@@ -99,7 +105,7 @@ RiseFloorHook makeRiseFloorHook(std::function<std::uint8_t()> fold) {
         }
 
         riseFloor(game, fold);
-        game.flow.riseCounter = kTypeCRiseInterval;
+        game.flow.riseCounter = riseIntervalFor(game.flow);
 
         // The live map only. The paused screen keeps the count it had when the player paused, which is
         // how the line count behaves as well.

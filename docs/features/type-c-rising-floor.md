@@ -15,8 +15,10 @@ the field low, because the field is being taken from you at a constant rate what
 
 ## How it plays
 
-The panel counts down. Under the label `RISE` sits the number of drops left before the floor comes
-up. It starts at ten and it can never be credited above ten.
+The panel counts down. Under the label `RISE` sits the number of drops left before the floor comes up.
+Where it starts is the player's: the difficulty screen offers six, from 16 down to 6, beside the
+starting level. What a good stretch earns is banked rather than capped, so a player clearing well
+builds a buffer to spend on a bad one.
 
 Everything else behaves as Type A does. Lines accumulate rather than counting down, the score is
 awarded as the round runs, the level climbs on the same thousand-line law with the same gravity ramp,
@@ -24,6 +26,24 @@ soft drops are worth points, and a high enough score earns the same rocket endin
 on an empty field: the floor comes to the player rather than being there to begin with.
 
 ## Design decisions
+
+**The rise is the player's choice, and it is what the difficulty screen is for.** A fixed rise makes
+one judgement about how much pressure the mode should apply, and that judgement is wrong for most
+people — ten was too much at a medium skill level, which is the finding that opened this. Type C now
+picks a level *and* a rise, the way Type B picks a level and a starting height, and each pair keeps its
+own top scores because a score only means anything against others played at the same settings.
+
+*Rejected:* leaving the rise fixed and tuning the single number until it felt right — it would have
+made the mode easier or harder for everyone to suit one player. *Rejected:* deriving the rise from the
+level, which would have folded two independent choices into one and removed the ability to play a fast
+level with room to breathe.
+
+**The range is narrow and evenly spaced: 16, 14, 12, 10, 8, 6.** Every value in it is a rise a player
+can actually hold off, so the choice is about how much room they want rather than about whether the
+mode is playable at all. *Rejected:* a wide range opening at 25 or above — that much room stops the
+floor mattering, which is the whole mode. *Rejected:* an uneven curve with the gaps closing at the hard
+end; it read well on paper and played as a cluster of near-identical hard settings and two easy ones
+nobody would pick twice.
 
 **The rise is triggered by drops, not by time.** A timed rise can fire while a piece is in flight,
 which means moving the field under a falling piece and invalidating a collision test halfway through

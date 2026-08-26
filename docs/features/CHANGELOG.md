@@ -10,6 +10,18 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-25
 
+- **Type-C gameplay (the rising floor)** 🟡 → ✅. A Type C round is now picked as a level **and** a
+  rise, the way Type B is picked as a level and a starting height. Six values — 16, 14, 12, 10, 8, 6,
+  easiest first — replace the fixed ten, which was too much pressure at a medium skill level. Each
+  Level × Rise pair keeps its own top scores, so the table grows a dimension and the save format goes
+  to schema 3, with existing Type C scores migrated into their level's rise-10 slot.
+
+  The screen is the Type B difficulty screen with two words changed, `c-type` and `rise`; its box is
+  untouched. A rise is two glyphs where a starting height is one, so the six values are placed by pixel
+  on the sprite layer inside the compartments the box already has, drawn through an object palette so
+  the rules between them survive underneath. The current value is marked the way the cartridge marks
+  its own: the small dark font digit laid over the big one, twice as wide because the value is.
+
 - **Fixes screen** ⬜ → ✅. The cartridge's own quirks offered back behind a `fixes` row on the
   settings screen's second page, one option to a screen on a general carousel, every option off by
   default so fidelity is what a player has until they ask otherwise. The first option restores the

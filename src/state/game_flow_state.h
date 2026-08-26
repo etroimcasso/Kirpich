@@ -68,6 +68,12 @@ struct GameFlowState {
     // port's own mode, so this field maps to no HRAM byte.
     uint8_t typeCLevel = 0;
 
+    // Type C's chosen rise, as an index into kTypeCRiseValues (src/systems/rising_floor.h) rather than
+    // as the interval itself - the same shape typeBStartHeight has, and the shape the top-score table
+    // needs, since the index is what selects a Level x Rise slice. Index 0 is the easiest of the six.
+    // Maps to no HRAM byte, as typeCLevel above.
+    uint8_t typeCRise = 0;
+
     // Pieces still to lock before the floor rises. The Type C round init arms it, each lock counts it
     // down, and the rise reloads it; it stays zero in every other mode. Maps to no HRAM byte, as
     // typeCLevel above.

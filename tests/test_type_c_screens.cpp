@@ -1,7 +1,8 @@
 // The doors to Type C — the game-type grid and the Type C difficulty screen.
 //
-// Device-free. The grid is background cells and one cursor slot; the difficulty screen is the Type A
-// screen's walk over Type C's own stored level.
+// Device-free. The grid is background cells and one cursor slot; the difficulty screen is the Type B
+// screen with two words changed, over Type C's own stored level and rise. What the rise values look
+// like is the render layer's (src/render/type_c_difficulty.h); what is here is which one is chosen.
 
 #include <gtest/gtest.h>
 
@@ -18,8 +19,11 @@
 #include <kirpich/char_tile.h>
 
 #include "data/tilemaps.h"
+#include "render/type_c_difficulty.h"        // riseValuesShown
 #include "systems/game_context.h"
+#include "systems/game_state_dispatcher.h"   // kGameStateCount
 #include "systems/menu_screens.h"
+#include "systems/rising_floor.h"            // kTypeCRiseChoiceCount
 
 namespace {
 
@@ -257,7 +261,196 @@ TEST(TypeCScreens, TheDifficultyScreenNamesTypeC) {
     }
 
     // The stored screen it borrows still says what it always said.
-    EXPECT_EQ(kirpich::kTypeADifficultyTilemap[kRow][kCol],
-              static_cast<std::uint8_t>(C::LETTER_A))
+    EXPECT_EQ(kirpich::kTypeBDifficultyTilemap[kRow][kCol],
+              static_cast<std::uint8_t>(C::LETTER_B))
         << "the stored screen is read, never edited";
+}
+
+// 9. The screen is the Type B one with two words changed. Its right-hand box is labelled "rise" in the
+// four cells Type B labels "high", and every other cell of the backdrop is the stored screen's own -
+// the boxes are not rebuilt, because the rise values are drawn over them by the render layer.
+TEST(TypeCScreens, TheDifficultyScreenIsTypeBsWithTwoWordsChanged) {
+    using C = kirpich::CharTile;
+
+    GameContext game;
+    game.flow.gameType = GameType::TYPE_C;
+    kirpich::systems::initTypeCDifficultyScreen(game);
+
+    constexpr std::size_t kLabelRow = 4;
+    constexpr std::size_t kLabelCol = 13;
+    const C label[] = {C::LETTER_R, C::LETTER_I, C::LETTER_S, C::LETTER_E};
+    for (std::size_t i = 0; i < std::size(label); ++i) {
+        EXPECT_EQ(game.display.map[kLabelRow][kLabelCol + i], static_cast<std::uint8_t>(label[i]))
+            << "label cell " << i;
+    }
+
+    // "high" and "rise" are the same four letters wide, so the cell after the label is still the box's
+    // own right edge rather than a leftover glyph.
+    EXPECT_EQ(game.display.map[kLabelRow][kLabelCol + 4],
+              kirpich::kTypeBDifficultyTilemap[kLabelRow][kLabelCol + 4]);
+
+    // The six compartments are emptied. The values that go in them are two glyphs each and are drawn
+    // over the box by the render layer through a see-through palette, so the stored single digit would
+    // otherwise still be readable under them.
+    const auto isCompartment = [](std::size_t row, std::size_t col) {
+        for (const std::size_t r : kirpich::systems::kRiseValueRows) {
+            for (const std::size_t c : kirpich::systems::kRiseValueCols) {
+                if (r == row && c == col) return true;
+            }
+        }
+        return false;
+    };
+    for (const std::size_t row : kirpich::systems::kRiseValueRows) {
+        for (const std::size_t col : kirpich::systems::kRiseValueCols) {
+            EXPECT_EQ(game.display.map[row][col], 0x2F) << "compartment " << row << "," << col;
+            EXPECT_NE(game.display.map[row][col], kirpich::kTypeBDifficultyTilemap[row][col])
+                << "the stored digit is gone";
+        }
+    }
+
+    // Everything the two words and the six compartments did not touch is the stored screen, cell for
+    // cell - including both boxes' frames, every rule between the compartments, and the level grid,
+    // which Type C uses exactly as Type B does.
+    for (std::size_t row = 0; row < kirpich::kTilemapScreenRows; ++row) {
+        for (std::size_t col = 0; col < kirpich::kTilemapScreenCols; ++col) {
+            const bool heading = row == 1 && col >= 2 && col < 8;
+            const bool labelled = row == kLabelRow && col >= kLabelCol && col < kLabelCol + 4;
+            if (heading || labelled || isCompartment(row, col)) {
+                continue;
+            }
+            EXPECT_EQ(game.display.map[row][col], kirpich::kTypeBDifficultyTilemap[row][col])
+                << "row " << row << " col " << col;
+        }
+    }
+}
+
+// 10. The rise picker walks the six values as a grid of three across and two down - the shape the
+// stored box has - with a stop at each edge. The index is what moves; what it means is the rise table's
+// business.
+TEST(TypeCScreens, TheRisePickerWalksThreeAcrossAndTwoDown) {
+    GameContext game;
+    game.flow.gameType = GameType::TYPE_C;
+    kirpich::systems::initTypeCDifficultyScreen(game);
+
+    press(game, Action::Confirm);
+    kirpich::systems::selectTypeCLevel(game);
+    ASSERT_EQ(game.flow.gameState, GameState::TYPE_C_RISE_SELECTION)
+        << "Confirm from the level picker goes on to the rise picker, as Type B's does";
+
+    const auto step = [&](Action action) {
+        press(game, action);
+        kirpich::systems::selectTypeCRise(game);
+    };
+
+    EXPECT_EQ(game.flow.typeCRise, 0);
+
+    step(Action::MenuRight);
+    EXPECT_EQ(game.flow.typeCRise, 1);
+    step(Action::MenuRight);
+    EXPECT_EQ(game.flow.typeCRise, 2);
+    step(Action::MenuRight);
+    EXPECT_EQ(game.flow.typeCRise, 2) << "the right edge of the top row";
+
+    step(Action::MenuDown);
+    EXPECT_EQ(game.flow.typeCRise, 5);
+    step(Action::MenuDown);
+    EXPECT_EQ(game.flow.typeCRise, 5) << "the bottom row";
+
+    step(Action::MenuLeft);
+    EXPECT_EQ(game.flow.typeCRise, 4);
+    step(Action::MenuLeft);
+    EXPECT_EQ(game.flow.typeCRise, 3);
+    step(Action::MenuLeft);
+    EXPECT_EQ(game.flow.typeCRise, 3) << "the left edge of the bottom row";
+
+    step(Action::MenuUp);
+    EXPECT_EQ(game.flow.typeCRise, 0);
+    step(Action::MenuUp);
+    EXPECT_EQ(game.flow.typeCRise, 0) << "the top row";
+
+    // The walk never leaves the table it indexes.
+    EXPECT_LT(game.flow.typeCRise, kirpich::systems::kTypeCRiseChoiceCount);
+}
+
+// 11. The rise picker's two ways out: begin the round, or step back to the level picker. Both leave the
+// current value drawn rather than wherever the blink had got to.
+TEST(TypeCScreens, TheRisePickerLeavesForTheRoundOrTheLevel) {
+    for (const Action action : {Action::Start, Action::Confirm}) {
+        GameContext game;
+        game.flow.gameType  = GameType::TYPE_C;
+        game.flow.gameState = GameState::TYPE_C_RISE_SELECTION;
+        game.screens.cursorVisible = false;
+
+        press(game, action);
+        kirpich::systems::selectTypeCRise(game);
+
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_GAME);
+        EXPECT_TRUE(game.screens.cursorVisible) << "the chosen value is left drawn";
+    }
+
+    GameContext back;
+    back.flow.gameType  = GameType::TYPE_C;
+    back.flow.gameState = GameState::TYPE_C_RISE_SELECTION;
+    back.flow.typeCRise = 4;
+    back.screens.cursorVisible = false;
+
+    press(back, Action::Back);
+    kirpich::systems::selectTypeCRise(back);
+
+    EXPECT_EQ(back.flow.gameState, GameState::TYPE_C_LEVEL_SELECTION);
+    EXPECT_EQ(back.flow.typeCRise, 4) << "stepping back keeps the rise the player had picked";
+    EXPECT_TRUE(back.screens.cursorVisible);
+    EXPECT_FALSE(back.spriteRenderer.slots[0].hidden) << "and the level cursor is drawn again";
+}
+
+// 11b. The values are drawn for as long as the screen is up, which is longer than the picker that
+// walks them: name entry paints over the difficulty screen it was entered from and draws no backdrop of
+// its own, so a Type C round that earns a top score is still looking at this box. The compartments are
+// blank in the map, so a state this gate misses shows six empty boxes.
+TEST(TypeCScreens, TheRiseValuesAreDrawnWhereverTheScreenIsUp) {
+    using kirpich::render::riseValuesShown;
+
+    for (const GameState state : {GameState::INIT_TYPE_C_DIFFICULTY,
+                                  GameState::TYPE_C_LEVEL_SELECTION,
+                                  GameState::TYPE_C_RISE_SELECTION}) {
+        EXPECT_TRUE(riseValuesShown(state, GameType::TYPE_C));
+    }
+
+    // Name entry forks on the round's own type, because the other two modes reach it over their own
+    // difficulty screens.
+    EXPECT_TRUE(riseValuesShown(GameState::ENTER_TOP_SCORE, GameType::TYPE_C));
+    EXPECT_FALSE(riseValuesShown(GameState::ENTER_TOP_SCORE, GameType::TYPE_A));
+    EXPECT_FALSE(riseValuesShown(GameState::ENTER_TOP_SCORE, GameType::TYPE_B));
+
+    // And nowhere else. A sweep rather than a handful of cases: the screen is one of very few states,
+    // and drawing its values over a round or another mode's picker would be plain wrong.
+    for (std::size_t raw = 0; raw < kirpich::systems::kGameStateCount; ++raw) {
+        const auto state = static_cast<GameState>(raw);
+        const bool expected = state == GameState::INIT_TYPE_C_DIFFICULTY ||
+                              state == GameState::TYPE_C_LEVEL_SELECTION ||
+                              state == GameState::TYPE_C_RISE_SELECTION ||
+                              state == GameState::ENTER_TOP_SCORE;
+        EXPECT_EQ(riseValuesShown(state, GameType::TYPE_C), expected) << "state " << raw;
+    }
+}
+
+// 12. A move on either picker refreshes the top scores, which is what puts the table for the pair the
+// player is now looking at on screen. The rise picker earns this the same way the level picker does.
+TEST(TypeCScreens, MovingEitherPickerRefreshesTheTopScores) {
+    int refreshes = 0;
+    const auto refresh = [&refreshes](GameContext&) { ++refreshes; };
+
+    GameContext game;
+    game.flow.gameType  = GameType::TYPE_C;
+    game.flow.gameState = GameState::TYPE_C_RISE_SELECTION;
+
+    press(game, Action::MenuRight);
+    kirpich::systems::selectTypeCRise(game, refresh);
+    EXPECT_EQ(refreshes, 1) << "a move refreshes";
+
+    // A move that lands nowhere - the end stop - refreshes nothing, because the pair has not changed.
+    game.flow.typeCRise = 2;
+    press(game, Action::MenuRight);
+    kirpich::systems::selectTypeCRise(game, refresh);
+    EXPECT_EQ(refreshes, 1) << "an end stop is not a move";
 }

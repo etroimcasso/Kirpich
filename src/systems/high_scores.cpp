@@ -182,7 +182,7 @@ TopScoreEntry* namedEntry(GameContext& game) {
         case GameType::TYPE_B:
             return &game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight][index];
         case GameType::TYPE_C:
-            return &game.highScores.typeC[game.flow.typeCLevel][index];
+            return &game.highScores.typeC[game.flow.typeCLevel][game.flow.typeCRise][index];
         default:
             return &game.highScores.typeA[game.flow.typeALevel][index];
     }
@@ -247,9 +247,10 @@ void updateTypeATopScores(GameContext& game) {
 }
 
 void updateTypeCTopScores(GameContext& game) {
-    // Type C's own slice, one of three entries per level - the shape Type A's table has.
+    // Type C's own slice, one per level and rise - the shape Type B's table has, for the same reason:
+    // the round is picked as a pair, so a score only stands against others played at that pair.
     clearTopScoreFields(game);
-    updateTopScores(game, game.highScores.typeC[game.flow.typeCLevel]);
+    updateTopScores(game, game.highScores.typeC[game.flow.typeCLevel][game.flow.typeCRise]);
 }
 
 void updateTypeBTopScores(GameContext& game) {

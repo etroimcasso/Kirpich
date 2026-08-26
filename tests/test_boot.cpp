@@ -94,12 +94,14 @@ void fillTopScoreTables(HighScoreState& scores) {
         }
     }
     for (auto& level : scores.typeC) {
-        for (auto& entry : level) {
-            entry = TopScoreEntry{.score = n * 17,
-                                  .name  = {CharTile::LETTER_C, CharTile::LETTER_C,
-                                            CharTile::LETTER_C, CharTile::LETTER_C,
-                                            CharTile::LETTER_C, CharTile::LETTER_C}};
-            ++n;
+        for (auto& rise : level) {
+            for (auto& entry : rise) {
+                entry = TopScoreEntry{.score = n * 17,
+                                      .name  = {CharTile::LETTER_C, CharTile::LETTER_C,
+                                                CharTile::LETTER_C, CharTile::LETTER_C,
+                                                CharTile::LETTER_C, CharTile::LETTER_C}};
+                ++n;
+            }
         }
     }
 }
