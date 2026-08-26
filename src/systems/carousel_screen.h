@@ -60,17 +60,20 @@ struct CarouselWiring {
     std::function<void()>           changed;
 };
 
-// Where the screen's parts sit. The title, enable row and body share the mode screen's rows, so the
+// Where the screen's parts sit. The heading, enable row and body share the mode screen's rows, so the
 // screens a settings row can open read as siblings; the enable row is the settings screen's own
-// first scroller row (settingsRowLine geometry), as the mode screen's is. The up arrow is the
-// carousel's own, above the title; the down arrow sits below the body, and the body stops a row
-// short of the mode screen's so the arrow has a row of its own.
-inline constexpr std::size_t kCarouselTitleRow     = 2;
+// first scroller row (settingsRowLine geometry), as the mode screen's is.
+//
+// The two arrows are the shared page arrows (kPageUpArrowRow / kPageDownArrowRow, settings_screen.h):
+// this screen changes which option is shown, which is the same thing a page arrow says everywhere
+// else. The body stops a row short of the mode screen's so the down arrow has a row of its own.
+inline constexpr std::size_t kCarouselTitleRow     = kScreenTitleRow;
 inline constexpr std::size_t kCarouselBodyFirstRow = 7;
 inline constexpr std::size_t kCarouselBodyLastRow  = 15;
 inline constexpr std::size_t kCarouselBodyRows = kCarouselBodyLastRow - kCarouselBodyFirstRow + 1;
-inline constexpr std::size_t kCarouselUpArrowRow   = 1;
-inline constexpr std::size_t kCarouselDownArrowRow = 16;
+
+static_assert(kCarouselBodyLastRow < kPageDownArrowRow,
+              "the body must stop short of the down arrow's row, or the arrow would sit on prose");
 
 // ── State handlers ────────────────────────────────────────────────────────────────────────────────
 

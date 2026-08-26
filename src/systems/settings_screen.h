@@ -66,11 +66,20 @@ inline constexpr std::size_t kOptionRightArrowCol = 19;
 inline constexpr std::size_t kOptionValueEnd = kOptionValueCol + kOptionValueWidth - 1;
 inline constexpr std::size_t kPaletteSwatchRow     = settingsRowLine(SettingsRow::SHADE_RAMP) + 1;
 
-// The page arrows: one at the foot of a page that has another below it, one at the head of a page
-// that has one above. Centred, so they read as belonging to the page rather than to a row.
-inline constexpr std::size_t kPageArrowCol      = 10;
-inline constexpr std::size_t kPageDownArrowRow  = 16;
-inline constexpr std::size_t kPageUpArrowRow    = 3;
+// Every screen the settings screen owns or opens puts its heading on the same row, and the screens
+// that open from it match, so they read as siblings.
+inline constexpr std::size_t kScreenTitleRow = 2;
+
+// The arrows that say there is another screen in a direction: one above the heading, one below the
+// body. Centred, so they belong to the screen rather than to a row.
+//
+// The up arrow sits ABOVE the heading, and that is the whole point of it. An arrow drawn over a
+// screen's text says the TEXT moves; an arrow above the heading says the SCREEN does. It is derived
+// from the heading's row rather than written as a number of its own, so a screen cannot end up
+// drawing one under its heading without moving the heading itself.
+inline constexpr std::size_t kPageArrowCol     = 10;
+inline constexpr std::size_t kPageUpArrowRow   = kScreenTitleRow - 1;
+inline constexpr std::size_t kPageDownArrowRow = 16;
 
 // Everything the settings screens need from outside the game state.
 //

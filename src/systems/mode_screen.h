@@ -63,9 +63,11 @@ struct ModeScreenWiring {
     std::function<void(BackgroundMap&)> preview;
 };
 
-// Where the screen's parts sit. The body starts below the enable row and runs to the bottom of the
-// screen, so a mode has eleven rows to explain itself in.
-inline constexpr std::size_t kModeScreenTitleRow    = 2;
+// Where the screen's parts sit. The heading is on the row every screen in this family uses, so the
+// screens a settings row opens read as siblings. The body starts below the enable row and runs to the
+// bottom of the screen, so a mode has eleven rows to explain itself in. There are no page arrows:
+// this screen has no sibling to move to.
+inline constexpr std::size_t kModeScreenTitleRow    = kScreenTitleRow;
 inline constexpr std::size_t kModeScreenBodyFirstRow = 7;
 inline constexpr std::size_t kModeScreenBodyLastRow  = 17;
 inline constexpr std::size_t kModeScreenBodyRows =

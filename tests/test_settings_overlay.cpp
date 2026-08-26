@@ -14,6 +14,7 @@
 #include "render/tile_atlas.h"
 #include "render/settings_overlay.h"
 #include "state/screen_ui_state.h"
+#include "systems/settings_screen.h"  // the heading row the arrows are placed against
 
 namespace {
 
@@ -210,6 +211,36 @@ TEST(SettingsOverlay, PageArrowIsTheSelectorTurnedAQuarter) {
         EXPECT_EQ(arrows[0].palette, static_cast<retropp::PaletteId>(70 + ramp))
             << "ramp " << +ramp;
     }
+}
+
+// (3a-ii) Where the page arrows stand, which is what they mean. An arrow drawn over a screen's text
+// says the TEXT moves; an arrow above the heading says the SCREEN does. The up arrow therefore sits
+// above the heading and the down arrow below the body, and both are taken from one place so the
+// settings screen and the screens it opens cannot disagree about it.
+TEST(SettingsOverlay, PageUpArrowStandsAboveTheHeading) {
+    constexpr int kCell = 8;
+
+    TileAtlas atlas;
+    atlas.copyrightTitle = static_cast<retropp::AtlasId>(22);
+
+    const int headingY = static_cast<int>(kirpich::systems::kScreenTitleRow) * kCell;
+
+    // The last page is the one with somewhere above it to go.
+    const auto up = kirpich::render::settingsPageArrows(on(SettingsRow::RESET_SCORES), 0, atlas);
+    ASSERT_EQ(up.size(), 1u);
+    EXPECT_EQ(up[0].rotation, retropp::Rotation::Rot270);
+    EXPECT_LT(up[0].y, headingY)
+        << "the page-up arrow stands above the heading, or it reads as the page's text scrolling";
+
+    // The first page's arrow points down, and stands below the heading rather than over it.
+    const auto down = kirpich::render::settingsPageArrows(on(SettingsRow::FULLSCREEN), 0, atlas);
+    ASSERT_EQ(down.size(), 1u);
+    EXPECT_EQ(down[0].rotation, retropp::Rotation::Rot90);
+    EXPECT_GT(down[0].y, headingY);
+
+    // The up arrow's row is derived from the heading's rather than written as a number of its own,
+    // which is what stops a screen placing one under its heading.
+    EXPECT_EQ(kirpich::systems::kPageUpArrowRow + 1, kirpich::systems::kScreenTitleRow);
 }
 
 // (3b) The second page carries no palette preview, since the row it previews is not on it.

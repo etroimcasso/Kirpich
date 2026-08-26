@@ -269,8 +269,7 @@ TEST(CarouselScreen, OptionArrowsFollowTheRangeEndLaw) {
         ASSERT_EQ(arrows.size(), 1u);
         EXPECT_EQ(arrows[0].tile, expected.cell) << "the game's own selector, not a new shape";
         EXPECT_EQ(arrows[0].rotation, retropp::Rotation::Rot90);
-        EXPECT_EQ(arrows[0].y,
-                  static_cast<int>(kirpich::systems::kCarouselDownArrowRow) * 8);
+        EXPECT_EQ(arrows[0].y, static_cast<int>(kirpich::systems::kPageDownArrowRow) * 8);
     }
 
     // The middle: both, with up standing ABOVE the title row.
@@ -279,7 +278,7 @@ TEST(CarouselScreen, OptionArrowsFollowTheRangeEndLaw) {
         const auto arrows = kirpich::render::carouselArrows(ui, 0, atlas, 3);
         ASSERT_EQ(arrows.size(), 2u);
         EXPECT_EQ(arrows[0].rotation, retropp::Rotation::Rot270);
-        EXPECT_EQ(arrows[0].y, static_cast<int>(kirpich::systems::kCarouselUpArrowRow) * 8);
+        EXPECT_EQ(arrows[0].y, static_cast<int>(kirpich::systems::kPageUpArrowRow) * 8);
         EXPECT_LT(arrows[0].y, static_cast<int>(kTitleRow) * 8)
             << "the up arrow sits above the title, or it reads as the description scrolling";
         EXPECT_EQ(arrows[1].rotation, retropp::Rotation::Rot90);
