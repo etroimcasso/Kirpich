@@ -24,6 +24,7 @@
 
 #include "state/high_score_state.h"
 #include "state/high_score_persistence.h"
+#include "systems/rising_floor.h"  // kTypeCRiseValues — what the migrated rise index means
 #include "fixtures/wram_expected.h"
 #include "fixtures/hram_expected.h"
 
@@ -276,12 +277,12 @@ HighScoreState populatedState() {
                                             CharTile::DIGIT_0, CharTile::DIGIT_0}};
     s.typeA[9][2] = {.score = 1000u, .name = {CharTile::SPACE, CharTile::SPACE, CharTile::SPACE,
                                               CharTile::SPACE, CharTile::SPACE, CharTile::SPACE}};
-    s.typeC[0][0] = {.score = 77u, .name = {CharTile::LETTER_C, CharTile::LETTER_E,
-                                            CharTile::LETTER_E, CharTile::SPACE, CharTile::SPACE,
-                                            CharTile::SPACE}};
-    s.typeC[9][2] = {.score = 654321u, .name = {CharTile::LETTER_Z, CharTile::LETTER_Z,
-                                                CharTile::LETTER_Z, CharTile::LETTER_Z,
-                                                CharTile::LETTER_Z, CharTile::LETTER_Z}};
+    s.typeC[0][0][0] = {.score = 77u, .name = {CharTile::LETTER_C, CharTile::LETTER_E,
+                                               CharTile::LETTER_E, CharTile::SPACE, CharTile::SPACE,
+                                               CharTile::SPACE}};
+    s.typeC[9][5][2] = {.score = 654321u, .name = {CharTile::LETTER_Z, CharTile::LETTER_Z,
+                                                   CharTile::LETTER_Z, CharTile::LETTER_Z,
+                                                   CharTile::LETTER_Z, CharTile::LETTER_Z}};
     return s;
 }
 
@@ -293,8 +294,9 @@ TEST(HighScoreState, PersistenceCodecRoundTrip) {
 
     // The image is the fixed wire size.
     static_assert(std::tuple_size_v<decltype(image)> == kirpich::kTopScoresImageBytes);
-    EXPECT_EQ(kirpich::kTopScoresImageBytes, 2160u);
+    EXPECT_EQ(kirpich::kTopScoresImageBytes, 3510u);
     EXPECT_EQ(kirpich::kTopScoresImageBytesV1, 1890u) << "what a version 1 document carried";
+    EXPECT_EQ(kirpich::kTopScoresImageBytesV2, 2160u) << "and a version 2 one";
     EXPECT_EQ(kirpich::kTopScoresImageBytes,
               kirpich::kTopScoresImageBytesV1 + kirpich::kTopScoresTypeCBytes);
 
@@ -338,7 +340,8 @@ TEST(HighScoreState, PersistenceCodecRoundTrip) {
     HighScoreState untouched{};
     for (const std::size_t length : {kirpich::kTopScoresImageBytes - 1,
                                      kirpich::kTopScoresImageBytes + 1,
-                                     kirpich::kTopScoresImageBytesV1}) {
+                                     kirpich::kTopScoresImageBytesV1,
+                                     kirpich::kTopScoresImageBytesV2}) {
         const std::vector<std::uint8_t> wrong(length, 0);
         EXPECT_FALSE(kirpich::decodeTopScores(std::span<const std::uint8_t>(wrong), untouched))
             << "length " << length;
@@ -355,11 +358,70 @@ TEST(HighScoreState, MigrationV1ToV2AppendsAnEmptyTypeCBlock) {
 
     const std::vector<std::byte> v2 = kirpich::migrateTopScoresV1ToV2(v1);
 
-    ASSERT_EQ(v2.size(), kirpich::kTopScoresImageBytes);
+    ASSERT_EQ(v2.size(), kirpich::kTopScoresImageBytesV2);
     EXPECT_EQ(v2[0], std::byte{0x56}) << "the Type B block is where it was";
     EXPECT_EQ(v2[1620], std::byte{0x42}) << "and so is the Type A one";
     for (std::size_t i = kirpich::kTopScoresImageBytesV1; i < v2.size(); ++i) {
         EXPECT_EQ(v2[i], std::byte{0}) << "the Type C block arrives empty, at " << i;
+    }
+}
+
+// (6c) The second migration step, on its own: version 3 gives Type C a rise dimension, so each level's
+// one slice moves to the rise every round before this version was played at - a rise of 10, the last
+// of the six - and the level's other five arrive empty. The two cartridge blocks are carried through.
+TEST(HighScoreState, MigrationV2ToV3PlacesEachLevelAtRiseTen) {
+    // The slot the migration writes to is named by an index, and what that index means lives in the
+    // rise table. Assert the tie here, where both headers can be included: a reordered table would
+    // otherwise silently change which rise every existing score migrates to.
+    ASSERT_LT(kirpich::kTopScoresMigratedRiseIndex, kirpich::systems::kTypeCRiseChoiceCount);
+    EXPECT_EQ(kirpich::systems::kTypeCRiseValues[kirpich::kTopScoresMigratedRiseIndex], 10u)
+        << "existing Type C scores were all played at a rise of 10";
+
+    std::vector<std::byte> v2(kirpich::kTopScoresImageBytesV2, std::byte{0});
+    v2[0]    = std::byte{0x56};  // the Type B block
+    v2[1620] = std::byte{0x42};  // the Type A block
+
+    // A distinct first byte in each level's Type C slice, so where each one lands is identifiable.
+    for (std::size_t level = 0; level < kirpich::kTopScoresTypeCLevels; ++level) {
+        v2[kirpich::kTopScoresImageBytesV1 + level * kirpich::kTopScoresSliceBytes] =
+            std::byte{static_cast<unsigned char>(0x10 + level)};
+    }
+
+    const std::vector<std::byte> v3 = kirpich::migrateTopScoresV2ToV3(v2);
+
+    ASSERT_EQ(v3.size(), kirpich::kTopScoresImageBytes);
+    EXPECT_EQ(v3[0], std::byte{0x56}) << "the Type B block is where it was";
+    EXPECT_EQ(v3[1620], std::byte{0x42}) << "and so is the Type A one";
+
+    for (std::size_t level = 0; level < kirpich::kTopScoresTypeCLevels; ++level) {
+        for (std::size_t rise = 0; rise < kirpich::kTopScoresTypeCRises; ++rise) {
+            const std::size_t at =
+                kirpich::kTopScoresImageBytesV1 +
+                (level * kirpich::kTopScoresTypeCRises + rise) * kirpich::kTopScoresSliceBytes;
+            const std::byte expected = rise == kirpich::kTopScoresMigratedRiseIndex
+                                           ? std::byte{static_cast<unsigned char>(0x10 + level)}
+                                           : std::byte{0};
+            EXPECT_EQ(v3[at], expected)
+                << "level " << level << " rise " << rise;
+        }
+    }
+}
+
+// (6d) The two steps compose. A document written before Type C existed reaches the current version
+// through both, and arrives at the right length with its cartridge blocks intact and no Type C score.
+TEST(HighScoreState, MigrationsComposeV1ToV3) {
+    std::vector<std::byte> v1(kirpich::kTopScoresImageBytesV1, std::byte{0});
+    v1[0]    = std::byte{0x56};
+    v1[1620] = std::byte{0x42};
+
+    const std::vector<std::byte> v3 =
+        kirpich::migrateTopScoresV2ToV3(kirpich::migrateTopScoresV1ToV2(v1));
+
+    ASSERT_EQ(v3.size(), kirpich::kTopScoresImageBytes);
+    EXPECT_EQ(v3[0], std::byte{0x56});
+    EXPECT_EQ(v3[1620], std::byte{0x42});
+    for (std::size_t i = kirpich::kTopScoresImageBytesV1; i < v3.size(); ++i) {
+        EXPECT_EQ(v3[i], std::byte{0}) << "a document from before the mode has no score in it, at " << i;
     }
 }
 

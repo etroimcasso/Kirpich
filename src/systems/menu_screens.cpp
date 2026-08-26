@@ -43,6 +43,18 @@ constexpr std::uint8_t kMusicGridSecondRow = 0x1E;
 constexpr std::size_t kDifficultyHeadingRow = 1;
 constexpr std::size_t kDifficultyHeadingCol = 2;
 
+// Where the two-box difficulty screen labels its right-hand box. Type B writes "high" here and Type C
+// writes "rise" over it; both are four letters, so the four cells serve either word.
+constexpr std::size_t kSecondBoxLabelRow = 4;
+constexpr std::size_t kSecondBoxLabelCol = 13;
+
+// The rise grid's shape, which is the start-height grid's: three choices a row, two rows.
+constexpr std::uint8_t kTypeCRiseGridCols = 3;
+
+// The empty cell inside one of these boxes - the tile the screens use wherever a box has nothing in
+// it. The config screen's third section draws its own interior from the same one.
+constexpr std::uint8_t kBoxInteriorTile = 0x2F;
+
 // ── The game-type grid ────────────────────────────────────────────────────────────────────────────
 //
 // With the extra modes turned on, the game-type box grows from one row of choices to two, in the
@@ -477,24 +489,42 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
 }
 
 void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh) {
-    // The Type A difficulty screen's shape, over Type C's own stored level. The screen the cartridge
-    // draws for Type A is a level picker and nothing more, so the same backdrop, the same single digit
-    // cursor and the same 2x5 grid serve a mode that also picks nothing but a level.
-    loadScreenTilemap(game.display, kTypeADifficultyTilemap);
+    // The Type B difficulty screen with two words changed. Type C picks two things, as Type B does, so
+    // it takes the screen built for two: the same frame, the same level box, the same right-hand box
+    // with three compartments a row.
+    loadScreenTilemap(game.display, kTypeBDifficultyTilemap);
 
-    // That backdrop names the mode it was drawn for, in its top-left corner. Type C borrows the screen
-    // but not the name, so the heading is rewritten over it - the stored screen is read, never edited.
+    // The backdrop names the mode it was drawn for, in its top-left corner, and labels its right-hand
+    // box for what Type B puts there. Type C borrows the screen but neither word, so both are written
+    // over it - the stored screen is read, never edited. "high" and "rise" are both four letters and
+    // land in the same four cells.
     //
-    // This heading is also what the name-entry screen shows: that screen paints over whichever
-    // difficulty screen it was entered from and draws no backdrop of its own, so leaving this alone
-    // would have a Type C player entering their name under a Type A heading.
+    // The heading is also what the name-entry screen shows: that screen paints over whichever
+    // difficulty screen it was entered from and draws no backdrop of its own, so leaving it alone would
+    // have a Type C player entering their name under a Type B heading.
     writeMapText(game.display.map, kDifficultyHeadingRow, kDifficultyHeadingCol, "c-type");
+    writeMapText(game.display.map, kSecondBoxLabelRow, kSecondBoxLabelCol, "rise");
+
+    // The stored box holds a single digit in each compartment. Type C's values are two glyphs each and
+    // are drawn over the box by the render layer, through a palette that leaves everything but the ink
+    // see-through - so the box's rules survive the pair reaching across them, and the digit that was
+    // there would too. These six cells are emptied so what the player reads is only what is drawn.
+    for (const std::size_t row : kRiseValueRows) {
+        for (const std::size_t col : kRiseValueCols) {
+            game.display.map[row][col] = kBoxInteriorTile;
+        }
+    }
 
     clearOamObjects(game);
+
+    // One cursor, not Type B's two: the level box keeps the cartridge's blinking digit, and the rise
+    // box is walked by a highlight the render layer draws over the value itself, because a rise is two
+    // glyphs wide and a cursor slot carries one (src/render/type_c_difficulty.h).
     loadSceneSprites(game.spriteRenderer, typeADifficultySprites());
 
-    updateDigitCursor(game, kSlot0, kTypeALevelCursorCoordinates, game.flow.typeCLevel,
+    updateDigitCursor(game, kSlot0, kTypeBLevelCursorCoordinates, game.flow.typeCLevel,
                       /*playSfx=*/true);
+    game.screens.cursorVisible = true;
     if (refresh) refresh(game);
     renderCursors(game);
 
@@ -507,17 +537,22 @@ void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
 }
 
 void selectTypeCLevel(GameContext& game, const TopScoresRefresh& refresh) {
-    // The Type A level picker's walk, writing Type C's level: a 2x5 grid over levels 0-9. Start or
-    // Confirm begins the round; Back returns to the config screen. Neither transition unhides the
-    // cursor, which is the Type A screen's own asymmetry and is kept here so the two read alike.
+    // Type B's level picker, writing Type C's level: a 2x5 grid over levels 0-9. Start begins the
+    // round, Confirm goes on to the rise picker, Back returns to the config screen; each transition
+    // unhides the cursor, as Type B's do.
     blinkCursor(game, kSlot0);
 
-    if (pressed(game, Action::Start) || pressed(game, Action::Confirm)) {
-        game.flow.gameState = GameState::INIT_GAME;
+    if (pressed(game, Action::Start)) {
+        setStateAndShowCursor(game, GameState::INIT_GAME, kSlot0);
+        return;
+    }
+    if (pressed(game, Action::Confirm)) {
+        setStateAndShowCursor(game, GameState::TYPE_C_RISE_SELECTION, kSlot0);
+        game.screens.cursorVisible = true;
         return;
     }
     if (pressed(game, Action::Back)) {
-        game.flow.gameState = GameState::INIT_TYPE_SELECTION;
+        setStateAndShowCursor(game, GameState::INIT_TYPE_SELECTION, kSlot0);
         return;
     }
 
@@ -534,7 +569,48 @@ void selectTypeCLevel(GameContext& game, const TopScoresRefresh& refresh) {
     }
     if (value != before) {
         game.flow.typeCLevel = value;
-        updateDigitCursor(game, kSlot0, kTypeALevelCursorCoordinates, value, /*playSfx=*/true);
+        updateDigitCursor(game, kSlot0, kTypeBLevelCursorCoordinates, value, /*playSfx=*/true);
+        if (refresh) refresh(game);
+    }
+
+    renderCursors(game);
+}
+
+void selectTypeCRise(GameContext& game, const TopScoresRefresh& refresh) {
+    // Type B's start-height picker, writing Type C's rise: a 2x3 grid over the six values. Start or
+    // Confirm begins the round; Back returns to the level picker.
+    //
+    // The blink is the port's own screen flag rather than a cursor slot's visibility, because what
+    // blinks here is the highlight the render layer draws over the two-glyph value. The level cursor
+    // is left alone and stays drawn, the way Type B leaves whichever cursor is not being walked.
+    blinkScreenCursor(game);
+
+    if (pressed(game, Action::Start) || pressed(game, Action::Confirm)) {
+        game.screens.cursorVisible = true;
+        game.flow.gameState        = GameState::INIT_GAME;
+        return;
+    }
+    if (pressed(game, Action::Back)) {
+        game.screens.cursorVisible = true;
+        setStateAndShowCursor(game, GameState::TYPE_C_LEVEL_SELECTION, kSlot0);
+        return;
+    }
+
+    const std::uint8_t before = game.flow.typeCRise;
+    std::uint8_t value = before;
+    if (pressed(game, Action::MenuRight)) {
+        if (value % kTypeCRiseGridCols != kTypeCRiseGridCols - 1) ++value;
+    } else if (pressed(game, Action::MenuLeft)) {
+        if (value % kTypeCRiseGridCols != 0) --value;
+    } else if (pressed(game, Action::MenuUp)) {
+        if (value >= kTypeCRiseGridCols) value -= kTypeCRiseGridCols;
+    } else if (pressed(game, Action::MenuDown)) {
+        if (value < kTypeCRiseGridCols) value += kTypeCRiseGridCols;
+    }
+    if (value != before) {
+        game.flow.typeCRise        = value;
+        game.screens.cursorVisible = true;  // a move shows the value it lands on, then blinks on
+        game.audioCues.square      = SquareSfxId::TINK;
         if (refresh) refresh(game);
     }
 
@@ -734,6 +810,8 @@ void installMenuScreenHandlers(GameStateDispatcher& dispatcher, const TopScoresR
                           [typeC](GameContext& g) { initTypeCDifficultyScreen(g, typeC); });
     dispatcher.setHandler(GameState::TYPE_C_LEVEL_SELECTION,
                           [typeC](GameContext& g) { selectTypeCLevel(g, typeC); });
+    dispatcher.setHandler(GameState::TYPE_C_RISE_SELECTION,
+                          [typeC](GameContext& g) { selectTypeCRise(g, typeC); });
     dispatcher.setHandler(GameState::INIT_TYPE_A_DIFFICULTY,
                           [typeA](GameContext& g) { initTypeADifficultyScreen(g, typeA); });
     dispatcher.setHandler(GameState::TYPE_A_LEVEL_SELECTION,

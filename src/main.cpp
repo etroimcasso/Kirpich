@@ -56,6 +56,7 @@
 #include "render/background.h"
 #include "render/ghost_piece.h"
 #include "render/settings_overlay.h"
+#include "render/type_c_difficulty.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
@@ -471,6 +472,23 @@ int main(int /*argc*/, char* /*argv*/[]) {
             const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
                                                                   kViewport.width);
             frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
+        }
+
+        // The Type C difficulty screen's rise values. They are two glyphs each where the stored box
+        // holds one, so they are placed by pixel inside the compartments the box already has rather
+        // than written into cells.
+        if (kirpich::render::riseValuesShown(game.flow.gameState, game.flow.gameType)) {
+            // The chosen rise is marked wherever the screen is up, the way Type B leaves both its
+            // cursors on screen. It blinks only while the rise box is the one being walked; everywhere
+            // else it holds, so the value the round is set to is always readable.
+            const kirpich::render::RiseSelection selection{
+                .rise            = game.flow.typeCRise,
+                .selectedVisible = game.flow.gameState != kirpich::GameState::TYPE_C_RISE_SELECTION ||
+                                   game.screens.cursorVisible,
+            };
+            const auto values =
+                kirpich::render::riseValueSprites(selection, tiles, settings.shadeRamp);
+            sprites.insert(sprites.end(), values.begin(), values.end());
         }
 
         // A carousel's option arrows are the same stood-up selector, drawn under the same rule:

@@ -1,5 +1,6 @@
 #include "state/high_score_persistence.h"
 
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -62,8 +63,9 @@ std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScores(const HighScoreSt
             writeSlice(height);
     for (const auto& level : state.typeA)      // 10 levels = 10 slices = 270 bytes
         writeSlice(level);
-    for (const auto& level : state.typeC)      // and Type C's own, in the same shape
-        writeSlice(level);
+    for (const auto& level : state.typeC)      // 10 levels x 6 rises, Type B's shape
+        for (const auto& rise : level)
+            writeSlice(rise);
 
     return image;
 }
@@ -88,7 +90,8 @@ bool decodeTopScores(std::span<const std::uint8_t> image, HighScoreState& state)
     for (auto& level : state.typeA)
         readSlice(level);
     for (auto& level : state.typeC)
-        readSlice(level);
+        for (auto& rise : level)
+            readSlice(rise);
 
     return true;
 }
@@ -97,8 +100,35 @@ std::vector<std::byte> migrateTopScoresV1ToV2(std::vector<std::byte> payload) {
     // One empty Type C block appended, not a resize to the version 2 length: the step's whole content
     // is that version 2 carries a third table. A payload of any other length is not this step's to
     // correct - decodeTopScores refuses a wrong length downstream.
-    payload.insert(payload.end(), kTopScoresTypeCBytes, std::byte{0});
+    payload.insert(payload.end(), kTopScoresTypeCBytesV2, std::byte{0});
     return payload;
+}
+
+std::vector<std::byte> migrateTopScoresV2ToV3(std::vector<std::byte> payload) {
+    // The Type C block goes from one slice per level to six. Each level's existing slice is the one
+    // that level's rounds were played at - a rise of 10, the only one there was - so it lands at that
+    // rise and the level's other five start empty.
+    //
+    // The two cartridge blocks in front of it are carried through byte for byte: this step widens one
+    // table and touches nothing else. A payload that is not a version 2 image is left as it is, the
+    // shape the step before this one has - decodeTopScores refuses a wrong length downstream.
+    if (payload.size() != kTopScoresImageBytesV2) {
+        return payload;
+    }
+
+    std::vector<std::byte> widened(kTopScoresImageBytes, std::byte{0});
+    std::copy(payload.begin(), payload.begin() + kTopScoresImageBytesV1, widened.begin());
+
+    for (std::size_t level = 0; level < kTopScoresTypeCLevels; ++level) {
+        const std::size_t from = kTopScoresImageBytesV1 + level * kTopScoresSliceBytes;
+        const std::size_t to   = kTopScoresImageBytesV1 +
+                                 (level * kTopScoresTypeCRises + kTopScoresMigratedRiseIndex) *
+                                     kTopScoresSliceBytes;
+        std::copy(payload.begin() + from, payload.begin() + from + kTopScoresSliceBytes,
+                  widened.begin() + to);
+    }
+
+    return widened;
 }
 
 bool saveTopScores(const HighScoreState& state, retropp::SaveStore& store) {
@@ -113,6 +143,7 @@ bool loadTopScores(retropp::SaveStore& store, HighScoreState& state) {
     // about to read has to be the one that last said which version it means.
     store.setCurrentVersion(kTopScoresSchemaVersion);
     store.registerMigration(1, migrateTopScoresV1ToV2);
+    store.registerMigration(2, migrateTopScoresV2ToV3);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

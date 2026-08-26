@@ -51,12 +51,19 @@ using kirpich::systems::checkForCompletedRows;
 using kirpich::systems::recordLock;
 using kirpich::systems::GameContext;
 using kirpich::systems::kRiseCountShown;
-using kirpich::systems::kTypeCRiseInterval;
+using kirpich::systems::kTypeCRiseChoiceCount;
+using kirpich::systems::kTypeCRiseValues;
 using kirpich::systems::makeRiseFloorHook;
+using kirpich::systems::riseIntervalFor;
 using kirpich::systems::moveBlocksDownAfterLineClear;
 using kirpich::systems::playingFieldWipeTick;
 using kirpich::systems::riseFloor;
 using kirpich::systems::RiseFloorHook;
+
+// The interval a round runs at when nothing has picked one: a boot-zero rise index, which is the
+// easiest of the six. The cases below that predate the choice were written against a fixed interval
+// and hold the same laws at whichever one the default is.
+constexpr std::uint8_t kDefaultRiseInterval = kTypeCRiseValues[0];
 
 constexpr std::uint8_t kSpace = static_cast<std::uint8_t>(CharTile::SPACE);
 constexpr std::uint8_t kBrick = 0x28;   // any non-space fills a cell
@@ -248,8 +255,35 @@ TEST(RisingFloor, CounterArming) {
         game.flow.riseCounter = 99;
         armRiseCounter(game);
 
-        EXPECT_EQ(game.flow.riseCounter, type == GameType::TYPE_C ? kTypeCRiseInterval : 0);
+        EXPECT_EQ(game.flow.riseCounter, type == GameType::TYPE_C ? kDefaultRiseInterval : 0);
     }
+}
+
+// 4b. TheArmedCountIsTheOnePicked — the round init arms whatever the difficulty screen chose, swept
+// over every rise there is. The values themselves are the table's; what is asserted here is that the
+// arm reads the player's index rather than a constant, which is the whole point of the choice.
+TEST(RisingFloor, TheArmedCountIsTheOnePicked) {
+    for (std::uint8_t index = 0; index < kTypeCRiseChoiceCount; ++index) {
+        GameContext game;
+        game.flow.gameType  = GameType::TYPE_C;
+        game.flow.typeCRise = index;
+        armRiseCounter(game);
+
+        EXPECT_EQ(game.flow.riseCounter, kTypeCRiseValues[index]) << "rise index " << int{index};
+    }
+
+    // The six run easiest to hardest, which is the order the picker walks them in - a round at a later
+    // index has less room before the floor arrives than one at an earlier index.
+    for (std::size_t i = 1; i < kTypeCRiseChoiceCount; ++i) {
+        EXPECT_LT(kTypeCRiseValues[i], kTypeCRiseValues[i - 1])
+            << "the values descend, so the walk goes easiest to hardest";
+    }
+
+    // An index outside the table resolves to the last value rather than reading past the end.
+    GameContext corrupt;
+    corrupt.flow.gameType  = GameType::TYPE_C;
+    corrupt.flow.typeCRise = 200;
+    EXPECT_EQ(riseIntervalFor(corrupt.flow), kTypeCRiseValues[kTypeCRiseChoiceCount - 1]);
 }
 
 // 5. TheCountLosesOneAndGainsEveryClearedRow — the mode's whole difficulty curve, in one law. A lock
@@ -272,8 +306,8 @@ TEST(RisingFloor, TheCountLosesOneAndGainsEveryClearedRow) {
              Vector{5, 4, 8, "a tetris gains three"},
              // The starting count is not a ceiling: a player who clears faster than they drop banks
              // the difference and keeps it.
-             Vector{kTypeCRiseInterval, 2, kTypeCRiseInterval + 1, "a double past the start banks one"},
-             Vector{kTypeCRiseInterval, 4, kTypeCRiseInterval + 3, "and a tetris banks three"},
+             Vector{kDefaultRiseInterval, 2, kDefaultRiseInterval + 1, "a double past the start banks one"},
+             Vector{kDefaultRiseInterval, 4, kDefaultRiseInterval + 3, "and a tetris banks three"},
              Vector{kRiseCountShown, 4, kRiseCountShown, "the panel's two digits are the only limit"},
              Vector{kRiseCountShown - 1, 4, kRiseCountShown, "and the count stops there, not past it"},
              Vector{0, 0, 0, "the count stops at zero rather than wrapping"},
@@ -330,8 +364,26 @@ TEST(RisingFloor, RiseFiresAtTheSpawnPointAndReloads) {
     runOutTheLock(game, rise);
 
     EXPECT_EQ(game.field.fieldCell(9, 3), kMarker) << "the stack moved up a row";
-    EXPECT_EQ(game.flow.riseCounter, kTypeCRiseInterval) << "the counter reloaded";
+    EXPECT_EQ(game.flow.riseCounter, kDefaultRiseInterval) << "the counter reloaded";
     EXPECT_NE(game.field.fieldCell(kBottomRow, 0), kSpace) << "a row arrived at the bottom";
+}
+
+// 6b. TheReloadIsTheOnePicked — the rise puts back the interval this round is being played at, not the
+// one another round would use. Swept over every rise, so the reload cannot be reading a constant that
+// happens to match one of them.
+TEST(RisingFloor, TheReloadIsTheOnePicked) {
+    for (std::uint8_t index = 0; index < kTypeCRiseChoiceCount; ++index) {
+        GameContext game;
+        typeCRound(game);
+        game.flow.typeCRise      = index;
+        game.flow.riseCounter    = 1;  // this lock empties it
+        game.flow.pieceLockStage = 2;
+
+        const auto rise = makeRiseFloorHook(constantFold(kGarbageBlockTileBase));
+        runOutTheLock(game, rise);
+
+        EXPECT_EQ(game.flow.riseCounter, kTypeCRiseValues[index]) << "rise index " << int{index};
+    }
 }
 
 // 7. ASingleLineOnlyBreaksEven — the correction to a rule that made the floor unreachable. A lock that
@@ -368,7 +420,7 @@ TEST(RisingFloor, TheCountReachesZeroThroughEmptyDrops) {
     const auto rise = makeRiseFloorHook(constantFold(kGarbageBlockTileBase));
 
     // One drop short of the interval: the floor has not moved.
-    for (std::uint8_t i = 0; i < kTypeCRiseInterval - 1; ++i) {
+    for (std::uint8_t i = 0; i < kDefaultRiseInterval - 1; ++i) {
         game.flow.pieceLockStage = 2;
         runOutTheLock(game, rise, 4);
     }
@@ -380,7 +432,7 @@ TEST(RisingFloor, TheCountReachesZeroThroughEmptyDrops) {
 
     EXPECT_EQ(game.field.fieldCell(4, 0), kMarker) << "the stack moved up a row";
     EXPECT_NE(game.field.fieldCell(kBottomRow, 0), kSpace) << "and a row arrived below";
-    EXPECT_EQ(game.flow.riseCounter, kTypeCRiseInterval);
+    EXPECT_EQ(game.flow.riseCounter, kDefaultRiseInterval);
 }
 
 // 8. NoSeamNoRise — the seam defaults to empty, and an empty seam raises no floor. This is what every
@@ -460,10 +512,10 @@ TEST(RisingFloor, ReadoutCountsDown) {
     typeCRound(game);
 
     // The interval, as two digits.
-    game.flow.riseCounter = kTypeCRiseInterval;
+    game.flow.riseCounter = kDefaultRiseInterval;
     kirpich::systems::printRise(game, game.display.map);
-    EXPECT_EQ(game.display.map[8][16], kTypeCRiseInterval / 10);
-    EXPECT_EQ(game.display.map[8][17], kTypeCRiseInterval % 10);
+    EXPECT_EQ(game.display.map[8][16], kDefaultRiseInterval / 10);
+    EXPECT_EQ(game.display.map[8][17], kDefaultRiseInterval % 10);
 
     // A single digit blanks its leading cell rather than printing a zero there.
     game.flow.riseCounter = 7;
@@ -480,8 +532,8 @@ TEST(RisingFloor, ReadoutCountsDown) {
     // The rise itself puts a full interval back on the panel.
     game.flow.riseCounter = 0;
     makeRiseFloorHook(constantFold(kGarbageBlockTileBase))(game);
-    EXPECT_EQ(game.display.map[8][16], kTypeCRiseInterval / 10);
-    EXPECT_EQ(game.display.map[8][17], kTypeCRiseInterval % 10);
+    EXPECT_EQ(game.display.map[8][16], kDefaultRiseInterval / 10);
+    EXPECT_EQ(game.display.map[8][17], kDefaultRiseInterval % 10);
 }
 
 // 11b. ThePanelFollowsTheCountDown — every lock that moves the counter moves the number on the panel.
@@ -500,10 +552,10 @@ TEST(RisingFloor, ThePanelFollowsTheCountDown) {
         const std::uint8_t ones = game.display.map[8][17];
         return tens == kSpace ? ones : static_cast<std::uint8_t>(tens * 10 + ones);
     };
-    ASSERT_EQ(shown(), kTypeCRiseInterval);
+    ASSERT_EQ(shown(), kDefaultRiseInterval);
 
     // Lock by lock, all the way down to the last piece before the floor comes up.
-    for (std::uint8_t remaining = kTypeCRiseInterval; remaining > 0; --remaining) {
+    for (std::uint8_t remaining = kDefaultRiseInterval; remaining > 0; --remaining) {
         game.flow.pieceLockStage = 2;
         checkForCompletedRows(game);
 
@@ -540,11 +592,11 @@ TEST(RisingFloor, RoundInit) {
 
     // The counter is armed, and to a whole interval — the three pipeline draws above did not spend any
     // of the player's first one.
-    EXPECT_EQ(game.flow.riseCounter, kTypeCRiseInterval);
+    EXPECT_EQ(game.flow.riseCounter, kDefaultRiseInterval);
 
     // And it is on the panel in both maps.
-    EXPECT_EQ(game.display.map[8][17], kTypeCRiseInterval % 10);
-    EXPECT_EQ(game.display.secondMap[8][17], kTypeCRiseInterval % 10);
+    EXPECT_EQ(game.display.map[8][17], kDefaultRiseInterval % 10);
+    EXPECT_EQ(game.display.secondMap[8][17], kDefaultRiseInterval % 10);
 
     // The field is empty: the floor comes to the player rather than being there to begin with.
     for (std::size_t row = 0; row < kPlayingFieldRows; ++row) {

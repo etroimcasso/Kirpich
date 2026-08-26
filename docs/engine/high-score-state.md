@@ -1,11 +1,15 @@
 # High-score state
 
-The top-score surface: the two tables the game keeps its high scores in — one for Type B (indexed by
-level, starting height, and rank) and one for Type A (level and rank) — plus the four high-RAM bytes
-the score-entry flow reads and writes between frames, held in one `HighScoreState` struct with a
-`TopScoreEntry` cell type. A single instance carries every top-score byte; the menu, game-over, and
-name-entry systems take a reference to it. Alongside it is a small persistence surface that saves the
-tables to disk and loads them back, so top scores survive across launches.
+The top-score surface: the three tables the game keeps its high scores in — Type B indexed by level,
+starting height and rank; Type A by level and rank; Type C by level, rise and rank — plus the four
+high-RAM bytes the score-entry flow reads and writes between frames, held in one `HighScoreState`
+struct with a `TopScoreEntry` cell type. A single instance carries every top-score byte; the menu,
+game-over, and name-entry systems take a reference to it. Alongside it is a small persistence surface
+that saves the tables to disk and loads them back, so top scores survive across launches.
+
+A mode's table has one dimension per thing its difficulty screen picks. Type A picks a level; Type B a
+level and a starting height; Type C a level and a rise. A score only means anything against others
+played at the same settings, which is why the shape follows the picker rather than the mode.
 
 It is an idiomatic C++ surface, not a byte image of the original's RAM. Each score is a decimal
 integer (the original stores it as three packed-decimal bytes); each name is six character-map glyphs;
@@ -42,12 +46,13 @@ struct TopScoreEntry {
 };
 ```
 
-`HighScoreState` is the top-score block — the two tables and four session bytes:
+`HighScoreState` is the top-score block — the three tables and four session bytes:
 
 ```cpp
 struct HighScoreState {
     std::array<std::array<std::array<TopScoreEntry, 3>, 6>, 10> typeB{};  // [level][height][rank]
     std::array<std::array<TopScoreEntry, 3>, 10>                typeA{};  // [level][rank]
+    std::array<std::array<std::array<TopScoreEntry, 3>, 6>, 10> typeC{};  // [level][rise][rank]
 
     bool    newTopScore = false;              // a game just earned a top score (routes into name entry)
     bool    topScoresRedrawRequested = false; // the staged rows need flushing to VRAM next frame
@@ -78,6 +83,9 @@ kirpich::TopScoreEntry& slot = scores.typeB[level][height][rank];
 slot.score = 99999;
 slot.name  = { kirpich::CharTile::LETTER_A, kirpich::CharTile::LETTER_B, /* ... */ };
 
+// A Type C slot by level and rise — where the rise is an index into kTypeCRiseValues, not the interval:
+kirpich::TopScoreEntry& c = scores.typeC[level][riseIndex][rank];
+
 // After a game earns a top score, newTopScore routes the menu into name entry; clear it on submit.
 if (scores.newTopScore) { /* enter name at newScoreRank, walk nameEntryColumn 0..5 */ }
 
@@ -86,8 +94,9 @@ scores.reset();   // return everything to the boot state
 
 ## Persistence
 
-The two tables can be saved to and loaded from the engine's durable store. The save is one named,
-versioned document; the payload is the exact 1890-byte table image.
+The three tables can be saved to and loaded from the engine's durable store. The save is one named,
+versioned document; the payload is the exact 3510-byte table image — the Type B block (1620 bytes),
+then Type A's (270), then Type C's (1620).
 
 ```cpp
 #include "state/high_score_persistence.h"
@@ -95,7 +104,7 @@ versioned document; the payload is the exact 1890-byte table image.
 
 retropp::SaveStore store;   // resolves the per-user save directory from the app identity
 
-kirpich::saveTopScores(scores, store);   // write the two tables to the "topscores" document
+kirpich::saveTopScores(scores, store);   // write the three tables to the "topscores" document
 
 kirpich::HighScoreState loaded;
 kirpich::loadTopScores(store, loaded);   // fill the tables from disk, or leave them at boot
@@ -106,11 +115,17 @@ kirpich::loadTopScores(store, loaded);   // fill the tables from disk, or leave 
   first run (no document yet) it returns false and leaves the tables at boot. If the document is
   present but corrupt or the wrong length, it logs an error, leaves the tables at boot, and leaves the
   file in place — it never treats a damaged save as absent and never overwrites it.
-- Only the two tables persist. The four session bytes (`newTopScore`, `topScoresRedrawRequested`,
+- Only the three tables persist. The four session bytes (`newTopScore`, `topScoresRedrawRequested`,
   `newScoreRank`, `nameEntryColumn`) are never written or read.
-- The codec is also usable directly: `encodeTopScores(state)` returns the 1890-byte image,
+- The codec is also usable directly: `encodeTopScores(state)` returns the 3510-byte image,
   `decodeTopScores(image, state)` fills the tables from one (returning false, and leaving the state
-  untouched, if the image is not exactly 1890 bytes).
+  untouched, if the image is not exactly 3510 bytes).
+- **Older documents are migrated on the way in, never read short.** A version 1 image predates Type C
+  and gains an empty block; a version 2 image has one Type C slice per level, from when the rise was
+  fixed at 10, and each level's slice moves to the rise-10 slot of its new row. The steps chain, so a
+  version 1 document reaches the current format through both. `kTopScoresMigratedRiseIndex` names that
+  slot, and `tests/test_high_score_state.cpp` asserts it still resolves to a rise of 10 — reordering
+  `kTypeCRiseValues` would otherwise change what every migrated score means.
 
 The save directory is `<platform data dir>/Kirpich/Kirpich/`. The organization and application names
 are `kSaveOrganization` / `kSaveApplication` in `high_score_persistence.h`; **do not change them** — a
@@ -138,8 +153,8 @@ different identity is a different directory, and existing players' saves stay un
 
 ## The layout + census fixtures
 
-`HighScoreState` shares the work-RAM and high-RAM layout+census fixtures with the other state units;
-this unit adds nothing to them. Regenerate them after repinning the upstream source:
+`HighScoreState` shares the work-RAM and high-RAM layout+census fixtures with the other state surfaces
+and contributes nothing of its own to them. Regenerate them after repinning the upstream source:
 
 ```sh
 python3 tools/asm_parser/parse_wram.py --source-root ../tetris --all \
@@ -155,7 +170,7 @@ needed to build or test Kirpich.
 ## Changing it
 
 To add or reshape a field, edit `src/state/high_score_state.h` and give the new member a zero default
-so `reset()` and the default constructor stay correct. The two tables and the labelled bytes have
+so `reset()` and the default constructor stay correct. The three tables and the labelled bytes have
 widths pinned against the generated fixtures; a field for a byte the original reaches by a raw numeric
 address requires the contract to name its owner — add the mapping to
 [`../contracts/high-score-state.md`](../contracts/high-score-state.md) and the owned-byte table in the
@@ -211,7 +226,7 @@ zeros, the staged layout and its name delimiter, the flush geometry and the gap 
 letter wheel swept over its whole domain in both directions and both modes, the cursor moves, the
 blink and key-repeat timelines, and the submit fork with its save call.
 
-`tests/test_high_score_state.cpp` pins the two tables and the four owned bytes against the layout
+`tests/test_high_score_state.cpp` pins the three tables and the four owned bytes against the layout
 fixtures, resolves every owned byte to exactly one field (with a negative guard on the derivable
 name-cursor pointer bytes), checks `reset()` returns a fully-mutated instance to boot, pins the wire
 values (the name-entry glyphs, the `$00` delimiter, the rank domain), and round-trips the persistence

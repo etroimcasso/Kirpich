@@ -92,6 +92,7 @@ enum class GameState : uint8_t {
     FIXES_SCREEN           = 0x4A,  // The fixes carousel
     INIT_GHOST_SCREEN      = 0x4B,  // Lay out the ghost piece's own screen
     GHOST_SCREEN           = 0x4C,  // The ghost piece's own screen
+    TYPE_C_RISE_SELECTION  = 0x4D,  // Type C rise selection
 };
 
 }  // namespace kirpich

@@ -3,8 +3,8 @@
 // The rising floor: what makes a Type C round different from a Type A one.
 //
 // A count of drops sits on the panel. Every drop takes one off it and every row cleared puts one back,
-// so the floor arrives in kTypeCRiseInterval drops if the player clears nothing and is held off only
-// for as long as they keep clearing faster than that. When the count reaches zero the whole stack
+// so the floor arrives in the round's chosen number of drops if the player clears nothing and is held
+// off only for as long as they keep clearing faster than that. When the count reaches zero the whole stack
 // shifts up one row and a fresh garbage row arrives at the bottom of the field. Anything pushed past
 // the top of the field is gone, and the round ends the way it always does - the next piece spawns into
 // an occupied cell and the top-out count runs out.
@@ -32,6 +32,8 @@
 //
 // Leave the seam empty and no floor ever rises: every other mode passes nothing and is unaffected.
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 
@@ -39,13 +41,29 @@
 
 namespace kirpich::systems {
 
-// The count a round starts on. Flat across levels - the gravity ramp supplies the difficulty curve, so
-// this stays constant and the round gets harder because the drops arrive faster, not because the floor
-// does.
+// The six counts a round can start on, easiest first: at 16 the floor is a distant thing a careless
+// stretch brings closer, at 6 it is most of what the player is playing against. The difficulty screen
+// picks one and GameFlowState::typeCRise carries the index.
+//
+// Two drops between one and the next, the whole way down. The range is narrow on purpose - every value
+// in it is a rise a player can actually hold off, so the choice is about how much room they want rather
+// than about whether the mode is playable at all.
+//
+// Flat across levels, whichever is chosen - the gravity ramp supplies the curve within a round, so the
+// round gets harder because the drops arrive faster, not because the floor does. The choice sets how
+// much room that curve is played in.
 //
 // Not a ceiling. A player who clears faster than they drop banks the difference and keeps it, which is
 // what lets a good stretch pay for a bad one.
-inline constexpr std::uint8_t kTypeCRiseInterval = 10;
+inline constexpr std::array<std::uint8_t, 6> kTypeCRiseValues{16, 14, 12, 10, 8, 6};
+
+// How many rises there are to pick from: the picker's grid, the top-score table's middle dimension and
+// this array are all this wide, and each states it in terms of this name.
+inline constexpr std::size_t kTypeCRiseChoiceCount = kTypeCRiseValues.size();
+
+// The interval this round runs at. Both the arm and the reload go through here so they cannot disagree,
+// and an index past the end resolves to the last value rather than reading off the end of the table.
+[[nodiscard]] std::uint8_t riseIntervalFor(const GameFlowState& flow);
 
 // The largest count the panel can show, and therefore the largest the count is allowed to reach: the
 // readout is two digits, and a bigger number would print as its last two. This is what the display can
@@ -64,8 +82,8 @@ void armRiseCounter(GameContext& game);
 
 // Settle the counter for a drop that has just locked, and follow it on the panel.
 //
-// Every drop costs one: left alone, the floor arrives in kTypeCRiseInterval drops. Each row the drop
-// cleared is credited straight back, so a single line holds the count exactly where it was, a double
+// Every drop costs one: left alone, the floor arrives in the round's chosen number of drops. Each row
+// the drop cleared is credited straight back, so a single line holds the count exactly where it was, a double
 // gains one, and a tetris gains three - and the credit is kept, so a player clearing well builds a
 // buffer to spend later rather than being capped at what they started with.
 //

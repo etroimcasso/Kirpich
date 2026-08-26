@@ -39,10 +39,10 @@ namespace kirpich::systems {
 
 class GameStateDispatcher;
 
-// The seam each difficulty screen calls where the original refreshes the on-screen top-score table
-// (Update{TypeA,TypeB}TopScores). It has no simulation effect in this unit — the rows it stages are
-// consumed by the renderer — so the default is a no-op; the top-score-entry unit installs the real
-// refresh, and tests pass a probe to confirm the seam fires at the right point.
+// The seam each difficulty screen calls to restage the on-screen top-score table
+// (Update{TypeA,TypeB}TopScores). The rows it stages are consumed by the renderer, so a screen that
+// leaves it empty still runs correctly; the top-score system installs the real refresh, one per game
+// type, through installMenuScreenHandlers. Tests pass a probe to confirm it fires at the right point.
 using TopScoresRefresh = std::function<void(GameContext&)>;
 
 // ── Room for a third section ──────────────────────────────────────────────────────────────────────
@@ -130,13 +130,27 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
 // Back returns to the config screen (without unhiding the cursor — the Type B pickers differ).
 void selectTypeALevel(GameContext& game, const TopScoresRefresh& refresh = {});
 
-// INIT_TYPE_C_DIFFICULTY — init the Type C difficulty screen. The Type A screen's shape over Type C's
-// own stored level: the same backdrop, the same single digit cursor, the same 2x5 grid.
+// INIT_TYPE_C_DIFFICULTY — init the Type C difficulty screen. The Type B screen with two words
+// changed: it names Type C, and its right-hand box is labelled "rise". One digit cursor is loaded, for
+// the level box; the rise box is walked by a render-layer highlight instead, because a rise is a
+// two-glyph value and a cursor slot carries one glyph (src/render/type_c_difficulty.h).
 void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh = {});
 
 // TYPE_C_LEVEL_SELECTION — Type C level selection: a 2x5 grid over levels 0-9, writing typeCLevel.
-// Start / Confirm begin the round; Back returns to the config screen.
+// Start begins the round, Confirm goes on to the rise picker, Back returns to the config screen.
 void selectTypeCLevel(GameContext& game, const TopScoresRefresh& refresh = {});
+
+// TYPE_C_RISE_SELECTION — Type C rise selection: a 2x3 grid over the six rise values, writing
+// typeCRise as an index. Start / Confirm begin the round; Back returns to level selection.
+void selectTypeCRise(GameContext& game, const TopScoresRefresh& refresh = {});
+
+// ── Where the rise values go ──────────────────────────────────────────────────────────────────────
+//
+// The stored box's own compartments, in background cells: three across, two down. The Type C init
+// blanks them, because the values that go there are two glyphs each and are drawn over the box by the
+// render layer (src/render/type_c_difficulty.h), which reads these to place them.
+inline constexpr std::size_t kRiseValueRows[] = {6, 8};
+inline constexpr std::size_t kRiseValueCols[] = {13, 15, 17};
 
 // GameState_12 — init the Type B difficulty screen: two cursors (level and starting garbage height),
 // each placed at its current value; then enter level selection (or name entry).

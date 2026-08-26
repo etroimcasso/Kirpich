@@ -1,9 +1,9 @@
 # Pre-game screens
 
 The whole pre-game flow, from power-on to the start of a round: the copyright screens, the title
-screen, the config screen, the game-type and music-type selectors, and the Type A / Type B difficulty
-pickers. Two units make it up — the **selection screens** (config through the difficulty pickers) and
-the **title and copyright screens** — sharing one dispatcher, one helper set, and this page.
+screen, the config screen, the game-type and music-type selectors, and the difficulty pickers for all
+three modes. Two units make it up — the **selection screens** (config through the difficulty pickers)
+and the **title and copyright screens** — sharing one dispatcher, one helper set, and this page.
 
 The behavioral specifications — what the original game does, line by line — are in
 [`../contracts/menu-screens.md`](../contracts/menu-screens.md) and
@@ -42,6 +42,9 @@ void selectTypeALevel(GameContext& game, const TopScoresRefresh& refresh = {}); 
 void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh = {});  // $12
 void selectTypeBLevel(GameContext& game, const TopScoresRefresh& refresh = {});           // $13
 void selectTypeBHeight(GameContext& game, const TopScoresRefresh& refresh = {});          // $14
+void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh = {});  // $47
+void selectTypeCLevel(GameContext& game, const TopScoresRefresh& refresh = {});           // $48
+void selectTypeCRise(GameContext& game, const TopScoresRefresh& refresh = {});            // $4D
 
 // Shared helpers.
 void positionMusicTypeSprite(GameContext& game, bool playSfx);
@@ -74,14 +77,30 @@ steps back. The screens read the menu action vocabulary, which binds to the same
 controls (see [`input.md`](input.md)) — Confirm is the A button, Back is B, the directions move the
 cursor.
 
-The two difficulty screens take an optional `TopScoresRefresh` — a `std::function<void(GameContext&)>`
-called where the original refreshes the on-screen top-score table. It defaults to a no-op (the staged
-rows are consumed by the renderer, so there is no simulation effect), and the top-score-entry screen
-wires the real refresh when it lands:
+Each difficulty screen takes an optional `TopScoresRefresh` — a `std::function<void(GameContext&)>`
+called where the on-screen top-score table is restaged. It defaults to a no-op (the staged rows are
+consumed by the renderer, so there is no simulation effect), and the installer binds one per mode:
 
 ```cpp
 kirpich::systems::initTypeADifficultyScreen(game, [](GameContext& g) { /* refresh Type A top scores */ });
 ```
+
+### The Type C screen picks two things
+
+Type C is picked as a level **and** a rise, so it uses the two-box screen Type B uses, with the heading
+changed to name Type C and the right-hand box labelled `rise` instead of `high`. Both words are four
+letters and land in the same four cells, so the backdrop is otherwise the stored Type B screen, cell
+for cell.
+
+The level box is walked exactly as Type B's is. The rise box is not: a rise is a two-digit number where
+a starting height is one digit, so its six values are drawn over the box by the render layer
+([`rising-floor.md`](rising-floor.md), `src/render/type_c_difficulty.h`) and the current one is
+highlighted rather than pointed at by a cursor sprite. `selectTypeCRise` therefore blinks
+`ScreenUiState::cursorVisible` — the flag the port's own screens share — where the other pickers toggle
+a cursor slot's visibility.
+
+`GameFlowState::typeCRise` holds an index into `kTypeCRiseValues`, not the interval. Start or Confirm
+from the rise picker begins the round; Back returns to the level picker.
 
 ## Gotchas
 

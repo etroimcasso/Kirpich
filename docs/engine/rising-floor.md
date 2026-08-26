@@ -4,19 +4,26 @@ What makes a Type C round different from a Type A one. A count of drops sits on 
 label `RISE`: every drop takes one off it, every row cleared puts one back, and when it reaches zero
 the whole stack shifts up a row and a fresh garbage row arrives at the bottom of the field.
 
+How many drops that count starts at is the player's, picked on the difficulty screen beside the level.
+
 ## Where it lives
 
 | File | Holds |
 |---|---|
-| `src/systems/rising_floor.h` | The interval, the seam type, and the four functions below |
+| `src/systems/rising_floor.h` | The six intervals, the seam type, and the five functions below |
 | `src/systems/rising_floor.cpp` | The counter law, the shift, and the arriving row |
 | `src/data/type_c_tilemap.h` | The Type C gameplay backdrop, including the `RISE` label |
 | `src/systems/readouts.cpp` | `printRise` and Type C's panel cells |
+| `src/systems/menu_screens.h` | The picker that writes the choice (`selectTypeCRise`) |
+| `src/render/type_c_difficulty.h` | How the six values are drawn on that screen |
 
 ## The surface
 
 ```cpp
-inline constexpr std::uint8_t kTypeCRiseInterval = 10;
+inline constexpr std::array<std::uint8_t, 6> kTypeCRiseValues{25, 20, 16, 10, 8, 6};
+inline constexpr std::size_t kTypeCRiseChoiceCount = kTypeCRiseValues.size();
+
+[[nodiscard]] std::uint8_t riseIntervalFor(const GameFlowState& flow);
 
 using RiseFloorHook = std::function<void(GameContext&)>;
 
@@ -27,12 +34,23 @@ void riseFloor(GameContext& game, const std::function<std::uint8_t()>& fold);
 [[nodiscard]] RiseFloorHook makeRiseFloorHook(std::function<std::uint8_t()> fold);
 ```
 
-`armRiseCounter` loads the counter for a fresh round — to a full interval in a Type C round, to zero
-in every other mode. The round init calls it *after* the three draws that fill the piece pipeline, so
-filling the pipeline does not spend part of the player's first interval.
+`kTypeCRiseValues` runs easiest to hardest, and the gaps between them close as the values fall — five,
+four, six, then two and two. The easy end therefore moves in strides a player barely notices and the
+hard end in steps that each cost real ground; an evenly spaced run would have spent most of its range
+where the difference does not register. `GameFlowState::typeCRise` carries an index into the table, not
+the interval itself — the index is what selects a top-score slice, so storing the value would need a
+reverse lookup at every table access.
+
+`riseIntervalFor` turns that index into the interval this round runs at. Both the arm and the reload
+go through it, so they cannot disagree, and an index past the end resolves to the last value rather
+than reading off the end of the table.
+
+`armRiseCounter` loads the counter for a fresh round — to the chosen interval in a Type C round, to
+zero in every other mode. The round init calls it *after* the three draws that fill the piece pipeline,
+so filling the pipeline does not spend part of the player's first interval.
 
 `recordLock` settles the counter for a drop that has just locked. Every drop costs one; every row it
-cleared is credited straight back, and the credit stops at a full interval. So a single line breaks
+cleared is credited straight back, and the credit runs up to what the panel can show. So a single line breaks
 even, a double gains one, and a tetris gains three — clearing is not a reprieve from the floor, it is
 the only thing holding the floor off, and one line a drop is merely staying level. The completed-row
 scan calls it on every lock, passing the count it found. It stops at zero rather than wrapping, so the
@@ -88,10 +106,13 @@ changing what a cleared row is worth cannot disturb it.
 
 | To change | Edit |
 |---|---|
-| The count a round starts on, and the ceiling a clear can credit up to | `kTypeCRiseInterval` in `rising_floor.h` |
+| Which counts a round can start on | `kTypeCRiseValues` in `rising_floor.h` — the picker, the top-score table and the render layer all size themselves from it |
+| The highest count a clear can credit up to | `kRiseCountShown` in `rising_floor.h`, which is what the two-digit panel can say |
 | What a cleared row is worth | the credit in `recordLock` |
 | What the arriving row looks like | the cell source passed to `makeRiseFloorHook` — see `src/vm/garbage_fill.h` |
 | The one-gap-per-row guarantee | the forcing branch in `riseFloor` |
 | Which sound a rise makes | the cue at the end of `riseFloor` |
 | Where the countdown is drawn | `kTypeCRiseRow` / `kTypeCRiseCol` in `readouts.cpp`, and the `RISE` label in `type_c_tilemap.h` |
 | When the counter is armed | the Type C branch at the end of `initGame` in `gameplay.cpp` |
+| Which rise a round is played at | `selectTypeCRise` in `menu_screens.cpp`, which writes `GameFlowState::typeCRise` |
+| How the six values look on the picker | `kRiseDigitPitch` / `kRiseTensOffset` in `render/type_c_difficulty.h` |

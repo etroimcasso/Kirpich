@@ -38,12 +38,18 @@ The modification guide is in [`../engine/high-score-state.md`](../engine/high-sc
   and recomputed. Contract-recorded, no struct field. *Rejected:* carrying the pointer as a field —
   it would store derivable state and duplicate a value the game-flow surface already owns at those
   addresses.
-- **Persistence — ROM-image payload through `SaveStore`.** The payload is the exact 1890-byte ROM wire
-  image (Type B block then Type A block, address order), schema version 1, document `"topscores"`.
-  *Rejected:* a bespoke serialized-struct format — it would mint a second layout for data whose layout
-  is already contract-pinned, and the ROM image is the natural migration baseline. The codec
-  (`encodeTopScores`/`decodeTopScores`) is real port code exercising the BCD and name wire rules both
-  directions; `decode` refuses any payload not exactly 1890 bytes.
+- **Persistence — ROM-image payload through `SaveStore`.** The payload opens with the exact ROM wire
+  image (Type B block then Type A block, address order) and the port's own modes append their blocks
+  after it, document `"topscores"`. *Rejected:* a bespoke serialized-struct format — it would mint a
+  second layout for data whose layout is already contract-pinned, and the ROM image is the natural
+  migration baseline. The codec (`encodeTopScores`/`decodeTopScores`) is real port code exercising the
+  BCD and name wire rules both directions; `decode` refuses any payload that is not exactly the current
+  length.
+- **The format is versioned and migrated forward, never read short.** It has moved twice: version 2
+  appended Type C's table, and version 3 widened that table when a Type C round became a level *and* a
+  rise. Each step is its own function, they chain, and a released build's documents survive both.
+  *Rejected:* tolerating a short payload and defaulting the missing tail — one version number would
+  then mean two formats, which is the trap the settings document has its own migrations to avoid.
 - **Save identity `Kirpich` / `Kirpich` — locked permanently** (user-ruled 2026-08-14, one-way door).
   The per-user save directory is `<platform data dir>/Kirpich/Kirpich/`; changing either string after
   players have saves strands their documents. Named constants in `high_score_persistence.h`;
