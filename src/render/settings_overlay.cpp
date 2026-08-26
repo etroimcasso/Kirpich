@@ -4,7 +4,6 @@
 #include <string>
 
 #include "render/palettes.h"
-#include "systems/carousel_screen.h"  // the carousel's own arrow rows
 #include "systems/settings_screen.h"  // the cell coordinates the drawn parts line up with
 
 namespace kirpich::render {
@@ -89,13 +88,14 @@ std::vector<retropp::Sprite> carouselArrows(const kirpich::ScreenUiState& ui, st
         });
     };
 
-    // Up sits above the shown option's title and down below its body - which option owns the screen
-    // is the systems header's argument. An arrow is drawn only where there is an option to reach.
+    // The same rows the settings screen's page arrows use: up above the heading, down below the
+    // body. Moving between options is moving between screens, so it says what a page arrow says. An
+    // arrow is drawn only where there is an option to reach.
     if (ui.carouselOption > 0) {
-        arrow("carousel-up", kirpich::systems::kCarouselUpArrowRow, retropp::Rotation::Rot270);
+        arrow("carousel-up", kirpich::systems::kPageUpArrowRow, retropp::Rotation::Rot270);
     }
     if (optionCount != 0 && static_cast<std::size_t>(ui.carouselOption) + 1 < optionCount) {
-        arrow("carousel-down", kirpich::systems::kCarouselDownArrowRow, retropp::Rotation::Rot90);
+        arrow("carousel-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
     }
     return sprites;
 }

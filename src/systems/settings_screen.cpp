@@ -33,8 +33,9 @@ constexpr std::size_t kScreenRows = 18;
 constexpr std::size_t kScreenCols = 20;
 
 // The settings screen. The option rows are evenly spaced so the cursor's walk reads as a column; the
-// value field is three cells wide because "off" is the widest thing that goes in it.
-constexpr std::size_t kTitleRow  = 2;
+// value field is three cells wide because "off" is the widest thing that goes in it. The heading sits
+// on the row every screen in this family uses (kScreenTitleRow, settings_screen.h), which is also
+// what places the page-up arrow above it.
 constexpr std::size_t kLabelCol  = 3;
 constexpr std::size_t kCursorCol      = 1;
 
@@ -206,7 +207,7 @@ void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& 
     // counts from one, so a third page of either keeps its own numbering. The font has no slash, so
     // the name and the number sit a cell apart rather than reading "settings/1".
     const std::string_view title = page == 0 ? "settings 1" : "enhancements 1";
-    writeMapText(map, kTitleRow, centred(title.size()), title);
+    writeMapText(map, kScreenTitleRow, centred(title.size()), title);
 
     for (const SettingsRow row : rowsOnPage(page)) {
         writeMapText(map, settingsRowLine(row), kLabelCol, labelFor(row));
@@ -544,7 +545,7 @@ void initResetConfirmScreen(GameContext& game) {
 
     drawValueArrows(game, Settings{}, kSettingsPageCount);  // the confirm has no scrollers
     clearVisibleRegion(map);
-    writeMapText(map, kTitleRow, centred(content.title.size()), content.title);
+    writeMapText(map, kScreenTitleRow, centred(content.title.size()), content.title);
     // A question can be one line or two; an empty line is a row left blank rather than a row of
     // nothing written at column ten.
     writeMapText(map, kConfirmRow1, centred(content.first.size()), content.first);
