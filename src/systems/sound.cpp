@@ -44,7 +44,7 @@ constexpr std::uint32_t kGameStackTop = 0xCFFF;
 // The image ships beside the binary rather than inside it. Its bytes are the player's own cartridge
 // content, extracted on first start, so they are never compiled into Kirpich.
 retropp::DriverId<SoundDriverSlots> registerSoundDriver() {
-    retropp::DriverPathBinding binding{
+    retropp::HostedDriverBinding binding{
         .images = {retropp::DriverImagePath{
                        .base   = static_cast<std::uint32_t>(assets::kSoundDriverImageBase),
                        .path   = "assets/audio/default/sound_driver.bin",
