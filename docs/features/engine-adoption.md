@@ -1,12 +1,12 @@
-# Retro++ Engine Adoption
+# Polyrhythm Engine Adoption
 
 **Date:** 2026-08-03
 **Status:** Complete
 
 ## Concept
 
-The port consumes the [Retro++ engine](https://github.com/RetroPlusPlus/Engine) as its platform
-boundary, replacing the port-local infrastructure built earlier. Retro++ is a shared native engine
+The port consumes the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm) as its platform
+boundary, replacing the port-local infrastructure built earlier. Polyrhythm is a shared native engine
 for 8- and 16-bit tile-based ports, supplying the run loop, platform and windowing, input,
 renderer, audio chain, persistence, and a ROM-less SM83 virtual-machine host.
 

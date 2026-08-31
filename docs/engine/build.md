@@ -87,7 +87,7 @@ one, so an unconfigured build is optimized rather than an unoptimized debug buil
 
 | Dependency | How it arrives |
 |---|---|
-| Retro++ engine | `engine/` git submodule, `add_subdirectory` |
+| Polyrhythm engine | `engine/` git submodule, `add_subdirectory` |
 | SDL3 | Transitively, from the engine (`engine/third_party/sdl`) |
 | SameBoy | Transitively, from the engine (`engine/third_party/sameboy`) |
 | spdlog | `FetchContent`, v1.15.3, header-only |
@@ -117,7 +117,7 @@ tests/              GoogleTest cases; fixtures/ holds test assets
 tools/              port-time tooling (parsers, the ROM extractor)
 scripts/            developer and packaging scripts
 assets/gfx/default/ canonical graphics location; contents gitignored
-engine/             Retro++ submodule
+engine/             Polyrhythm submodule
 docs/               these pages, plus features/ and contracts/
 ```
 

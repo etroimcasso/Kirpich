@@ -1,14 +1,14 @@
 # Kirpich — Design Context
 
 Design decisions locked 2026-05-13, with a major revision on 2026-08-03 when the project adopted
-the Retro++ engine as its platform boundary (§12). This document is the authoritative record of
+the Polyrhythm engine as its platform boundary (§12). This document is the authoritative record of
 project intent, the behavior-preservation contract, and the constraints every implementation
 decision is measured against.
 
 ## 1. What this project is
 
 A behavior-preserving native C++ port of the Game Boy (DMG) release of Tetris, built as a consumer
-of the [Retro++ engine](https://github.com/RetroPlusPlus/Engine). The port reads the
+of the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm). The port reads the
 [kaspermeerts/tetris](https://github.com/kaspermeerts/tetris) disassembly for intent, mechanics,
 and data, and writes idiomatic modern C++ against the engine's surface — run loop, renderer, input,
 audio, and CPU virtualization host. SDL3 with the SDL_GPU backend arrives transitively inside the
@@ -169,8 +169,8 @@ file.
 
 | Decision | Value |
 |---|---|
-| Approach | Modern C++ reimplementation consuming the Retro++ engine. Read the disassembly for intent, mechanics, and data; write idiomatic C++ against the `retropp::` surface. Not mechanical translation. |
-| Platform layer | The Retro++ engine, consumed as a git submodule via `add_subdirectory(engine)` + `retropp::engine`. SDL3 with the SDL_GPU backend is engine-internal; the port declares no SDL3 of its own (a second provider of `SDL3::SDL3` is a configure-time error). Direct SDL calls are permitted where the engine has no opinion; the first-start ROM picker (`SDL_ShowOpenFileDialog` in `src/assets/first_start.cpp`) is the only one today. |
+| Approach | Modern C++ reimplementation consuming the Polyrhythm engine. Read the disassembly for intent, mechanics, and data; write idiomatic C++ against the `retropp::` surface. Not mechanical translation. |
+| Platform layer | The Polyrhythm engine, consumed as a git submodule via `add_subdirectory(engine)` + `retropp::engine`. SDL3 with the SDL_GPU backend is engine-internal; the port declares no SDL3 of its own (a second provider of `SDL3::SDL3` is a configure-time error). Direct SDL calls are permitted where the engine has no opinion; the first-start ROM picker (`SDL_ShowOpenFileDialog` in `src/assets/first_start.cpp`) is the only one today. |
 | C++ standard | C++20 |
 | Build | CMake 3.28+ with Ninja |
 | Tests | GoogleTest |
@@ -182,7 +182,7 @@ file.
 | Hardware-register variables | **None in port code.** `rLCDC`, `rSCX`, `rSCY`, `rIE`, `rIF`, `rNR10`–`rNR52` and friends do not exist as variables anywhere under `src/`. Their effects are expressed at engine and renderer level. Registers and addresses appear only inside the engine's VM boundary — in a routine's byte-span registration, never at a call site. |
 | Audio | Chiptune only. The engine's audio system hosts the ROM's sound driver on its internal VM and produces PCM into the engine mixer. No audio-file replacement backend. |
 | Asset posture | Single canonical path. `assets/gfx/default/` for tile graphics; the byte spans the VM needs load from their own fixed path. No swappable packs, no manifest, no discovery or fallback chain. |
-| License posture | AGPL-3.0 (`LICENSE` at the repo root; amended 2026-08-12 from the earlier all-rights-reserved interim posture), matching the Retro++ engine's open-source license — the whole distributed build is one AGPL combined work. The engine itself is dual-licensed (AGPL-3.0 / commercial, per its `LICENSING.md`); the upstream disassembly is published without a license. |
+| License posture | AGPL-3.0 (`LICENSE` at the repo root; amended 2026-08-12 from the earlier all-rights-reserved interim posture), matching the Polyrhythm engine's open-source license — the whole distributed build is one AGPL combined work. The engine itself is dual-licensed (AGPL-3.0 / commercial, per its `LICENSING.md`); the upstream disassembly is published without a license. |
 | Repository posture | Standalone repository. The disassembly is a sibling checkout outside the tree; this is not a fork of it. |
 
 ## 9. Asset posture
@@ -264,7 +264,7 @@ Non-negotiable. Every implementation decision respects these without exception.
 
 ## 12. Engine adoption (2026-08-03)
 
-The port's platform boundary is the Retro++ engine, consumed as a submodule pinned at `5e63115`.
+The port's platform boundary is the Polyrhythm engine, consumed as a submodule pinned at `5e63115`.
 This superseded a direct-SDL3 platform facade, a port-local SameBoy integration, and a hand-built
 presentation pipeline — all of which duplicated, less well, what the engine already ships and
 tests.

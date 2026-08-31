@@ -2,7 +2,7 @@
 
 <p align="center"><img src="docs/media/gameplay-pal-1.png" width="560" alt="Kirpich — a round in progress, in the hardware greyscale"></p>
 
-A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordinary desktop software on Windows, macOS, and Linux. Kirpich is built on the [Retro++ engine](https://github.com/RetroPlusPlus/Engine) and reproduces the original cartridge's observable behavior — the same game, given the same inputs — without emulating the hardware and without translating the assembly. The player's own cartridge supplies the graphics and the sound.
+A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordinary desktop software on Windows, macOS, and Linux. Kirpich is built on the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm) and reproduces the original cartridge's observable behavior — the same game, given the same inputs — without emulating the hardware and without translating the assembly. The player's own cartridge supplies the graphics and the sound.
 
 *Kirpich* (кирпич) is Russian for "brick".
 
@@ -122,9 +122,9 @@ inside the engine:
 - **Audio.** The ROM's sound driver programs the audio hardware on a cycle-driven cadence;
   faithful chiptune output requires running that driver against an emulated audio unit.
 
-### Built on Retro++
+### Built on Polyrhythm
 
-Kirpich is a complete consumer of the [Retro++ engine](https://github.com/RetroPlusPlus/Engine) and
+Kirpich is a complete consumer of the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm) and
 exercises most of its surface:
 
 | Engine capability | How Kirpich uses it |
@@ -146,7 +146,7 @@ exercises most of its surface:
 |---|---|
 | `src/`, `include/kirpich/` | Port source and public headers |
 | `tests/` | GoogleTest suite |
-| `engine/` | [Retro++](https://github.com/RetroPlusPlus/Engine) engine submodule — brings SDL3 and SameBoy with it |
+| `engine/` | [Polyrhythm](https://github.com/RetroPlusPlus/Polyrhythm) engine submodule — brings SDL3 and SameBoy with it |
 | `assets/gfx/default/`, `assets/audio/default/` | Where a development build reads its extracted assets; contents are generated locally and never committed. A player's extraction goes to the per-user data directory beside their save, not here |
 | `docs/` | Design context and feature documentation |
 | `tools/` | Development tooling |
@@ -174,7 +174,7 @@ The build defaults to a lean Release configuration.
 ## License
 
 Kirpich is licensed under the [GNU Affero General Public License v3.0](LICENSE), matching the
-Retro++ engine's open-source license (the engine itself is dual-licensed AGPL-3.0 / commercial).
+Polyrhythm engine's open-source license (the engine itself is dual-licensed AGPL-3.0 / commercial).
 The upstream disassembly is published without a license.
 
 Tetris is a trademark of Tetris Holding, LLC. This project is unaffiliated with and unendorsed by

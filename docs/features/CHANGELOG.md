@@ -735,7 +735,7 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ## 2026-08-03
 
-- **Retro++ engine adoption** (new) ⬜ → ✅. Engine consumed as a submodule at `d4a6091` via
+- **Polyrhythm engine adoption** (new) ⬜ → ✅. Engine consumed as a submodule at `d4a6091` via
   `add_subdirectory(engine)` + `retropp::engine`; build and smoke suite green against it. See
   [`engine-adoption.md`](engine-adoption.md) and `../DESIGN.md` §12.
 - **Platform abstraction facade** ⬜ → ❌. Superseded by engine adoption; the port-local SDL3

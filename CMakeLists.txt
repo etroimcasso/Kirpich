@@ -87,7 +87,7 @@ endif()
 # ── compile_commands.json for clangd / IDE include resolution ─────────────────
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# ── Retro++ engine (git submodule) ────────────────────────────────────────────
+# ── Polyrhythm engine (git submodule) ─────────────────────────────────────────
 # Provides the platform/window/input/run-loop/renderer/audio/VM surface,
 # including SDL3 (engine/third_party/sdl) and SameBoy (engine/third_party/sameboy).
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/engine/CMakeLists.txt")

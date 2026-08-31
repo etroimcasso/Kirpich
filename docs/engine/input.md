@@ -12,7 +12,7 @@ rationale is in [`../features/input-layer.md`](../features/input-layer.md).
 | `include/kirpich/action.h` | The `Action` enum — the game's input vocabulary (the five piece-control actions today). |
 | `tests/test_input.cpp` | The behavioral tests. |
 
-The engine (Retro++) owns physical polling, debounce, and per-tick sampling; it delivers input as
+The engine (Polyrhythm) owns physical polling, debounce, and per-tick sampling; it delivers input as
 action state keyed by the game's own `Action` enum. This layer turns that per-tick state into the
 held/pressed pair the game logic reads and hosts the shared key-repeat core.
 

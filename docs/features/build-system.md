@@ -11,7 +11,7 @@ how-to-modify guide lives in [`../engine/build.md`](../engine/build.md).
 
 One CMake project (`kirpich`, C++20) produces three targets — a static library holding all port
 code except `main()`, the game executable, and a GoogleTest runner — and pulls its dependencies in
-two ways: the Retro++ engine as a git submodule, and spdlog and GoogleTest via `FetchContent`.
+two ways: the Polyrhythm engine as a git submodule, and spdlog and GoogleTest via `FetchContent`.
 Ninja is the generator the project is developed against; CMake 3.28 is the floor.
 
 The build is deliberately plain. It leans on CMake and the engine's own build for everything they

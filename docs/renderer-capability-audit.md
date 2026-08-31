@@ -1,14 +1,14 @@
-# Renderer Capability Audit — Tetris Observables → Retro++ Surface
+# Renderer Capability Audit — Tetris Observables → Polyrhythm Surface
 
 **Date:** 2026-08-03
 **Status:** Complete
 **Inputs:** a full survey of PPU usage in the Tetris disassembly (`kaspermeerts/tetris` @ `b95c668`
 — all PPU-register access lives in `tetris.asm`; `sprites.asm` holds sprite data only, and the audio
-sources touch no video state); Retro++ public headers at engine `d4a6091`.
+sources touch no video state); Polyrhythm public headers at engine `d4a6091`.
 **Feeds:** the rendering design, and engine work-item sequencing — of which there is none, see the
 verdict.
 
-This document maps every renderer-visible behavior in Game Boy Tetris onto the Retro++ engine's
+This document maps every renderer-visible behavior in Game Boy Tetris onto the Polyrhythm engine's
 drawing vocabulary and issues one verdict per behavior region:
 
 - **Covered** — the engine expresses the observable directly.
