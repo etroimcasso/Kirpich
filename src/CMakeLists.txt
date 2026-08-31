@@ -1,5 +1,5 @@
 # Port library — main.cpp excluded so tests can link the lib without
-# pulling in the program entry point. Retro++ (retropp::engine) is the
+# pulling in the program entry point. Polyrhythm (retropp::engine) is the
 # platform boundary; it is linked PUBLIC so the binary and tests see the
 # retropp:: surface transitively.
 add_library(kirpich-lib STATIC

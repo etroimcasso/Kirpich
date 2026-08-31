@@ -14,7 +14,7 @@ handler reads. The behavioral specification — what the original game does, lin
 | `include/kirpich/game_state.h` | The `GameState` enum — the 54 states the table dispatches on. |
 | `tests/test_game_state_dispatcher.cpp` | The behavioral tests. |
 
-The engine (Retro++) run loop calls `tick` once per sim tick; each call is one frame of the game. The
+The engine (Polyrhythm) run loop calls `tick` once per sim tick; each call is one frame of the game. The
 dispatcher itself holds no loop — frame pacing is the engine's.
 
 ## The surface

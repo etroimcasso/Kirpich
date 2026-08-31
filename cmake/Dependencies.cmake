@@ -2,7 +2,7 @@ include(FetchContent)
 
 set(FETCHCONTENT_QUIET OFF)
 
-# SDL3 is NOT declared here. It arrives transitively from the Retro++ engine
+# SDL3 is NOT declared here. It arrives transitively from the Polyrhythm engine
 # (engine/third_party/sdl); a second provider of the SDL3::SDL3 target is a
 # configure-time error.
 

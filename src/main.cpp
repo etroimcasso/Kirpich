@@ -187,7 +187,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                                         .application  = std::string{kirpich::kSaveApplication}};
 
     configureLogging(identity);
-    spdlog::info("Kirpich {} — Retro++ engine {}", KIRPICH_VERSION, retropp::version());
+    spdlog::info("Kirpich {} — Polyrhythm engine {}", KIRPICH_VERSION, retropp::version());
 
     // The player's own store, and the display choices they last made — read first, so the window can
     // be opened the way they left it rather than at the engine's default and then jumping to it. The

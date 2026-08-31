@@ -14,7 +14,7 @@ chronologically; this file holds current state.
 | Repository scaffolding and ignore rules | ✅ | — |
 | Build system | ✅ | [`features/build-system.md`](features/build-system.md) |
 | Test harness | ✅ | — |
-| Retro++ engine adoption | ✅ | [`features/engine-adoption.md`](features/engine-adoption.md) |
+| Polyrhythm engine adoption | ✅ | [`features/engine-adoption.md`](features/engine-adoption.md) |
 | Logging | ✅ | — (spdlog used directly; no wrapper) |
 | Platform abstraction facade | ❌ | — (superseded by engine adoption 2026-08-03) |
 | Asset acquisition | ✅ | [`features/asset-acquisition.md`](features/asset-acquisition.md) — graphics and the sound driver image |

@@ -13,7 +13,8 @@ what the original game does, line by line — is in
 | `src/vm/piece_random.h` / `.cpp` | The `kirpich::vm` surface — `registerPieceRandom` and `pickRandomPiece`. |
 | `tests/test_piece_random.cpp` | The behavioral tests. |
 
-The randomizer runs on the engine's virtual machine (Retro++), which hosts the handful of routines
+The randomizer runs on the engine's virtual machine — Polyrhythm's Conductor layer — which hosts the
+handful of routines
 that need a cycle-executing CPU. The draw core is one of them; everything else is ordinary C++.
 
 ## The surface

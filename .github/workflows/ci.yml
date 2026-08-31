@@ -26,10 +26,12 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# The engine (Retro++) is a PRIVATE repo consumed as a submodule, and a job's GITHUB_TOKEN is scoped
-# to this repo alone — so checkout runs WITHOUT submodules and a following step initializes the
-# engine with the ENGINE_PAT secret. Recursive, because the engine builds SDL3 and SameBoy from its
-# own submodules.
+# The engine (Polyrhythm) is consumed as a submodule. Checkout runs WITHOUT submodules and a
+# following step initializes the engine with the ENGINE_PAT secret. Recursive, because the engine
+# builds SDL3 and SameBoy from its own submodules. The engine repo has been PUBLIC since 2026-08-22,
+# so the PAT is no longer load-bearing — it is kept because it works and removing it is a CI change
+# in its own right, not a rename. The `git submodule sync` below is what carries a changed
+# .gitmodules URL onto a runner whose .git/modules/engine/config still holds the old one.
 
 jobs:
 
