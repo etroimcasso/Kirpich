@@ -61,6 +61,7 @@
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
+#include "state/stats_persistence.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/enhancement_screens.h"
@@ -77,6 +78,7 @@
 #include "systems/scoring.h"
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
+#include "systems/stats.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
 #include "vm/garbage_fill.h"
@@ -224,6 +226,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
     retropp::Renderer    renderer{platform.device(), platform.sdlWindow()};
     retropp::RunLoop     loop{clock};
 
+    // The clock the statistics time a round against. The engine's is monotonic, so it never runs
+    // backwards, and reading it costs nothing on the hot path because nothing reads it per frame -
+    // only a round's start and end, a pause and an unpause, and the close-out below.
+    const auto nowNanos = [&clock] {
+        return static_cast<std::uint64_t>(clock.now().count());
+    };
+
     // ── The machine ──────────────────────────────────────────────────────────
     // ONE virtual machine, shared. The piece randomizer and the garbage fill both read the divider,
     // and a Type B round init draws its pieces and then fills its garbage in the same frame — so the
@@ -266,7 +275,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The dispatcher's own reset goes with it: the original's startup clears the held-buttons byte, so
     // the frame after a reset derives its presses against nothing and every button still down reads as
     // freshly pressed. That is also what makes a chord held down keep resetting until it is released.
-    const auto reset = [&game, &dispatcher] {
+    const auto reset = [&game, &dispatcher, nowNanos] {
+        // A round in progress ends here rather than leaking its time into whatever the player does
+        // after the reset. The statistics themselves survive the reset, as the top scores do.
+        kirpich::systems::endRound(game, nowNanos());
         kirpich::systems::softReset(game);
         dispatcher.reset();
     };
@@ -288,10 +300,20 @@ int main(int /*argc*/, char* /*argv*/[]) {
                                                 [&settings] { return settings.newModes; },
                                                 kirpich::systems::updateTypeCTopScores);
 
+    // Fold the session's time so far into the stored total and write the statistics out. Called
+    // wherever the game already reaches the disk, so a crash costs the play since the last of those
+    // points rather than the whole session.
+    const auto persistStats = [&game, &saves, nowNanos] {
+        kirpich::systems::bankApplicationTime(game, nowNanos());
+        kirpich::saveStats(game.stats, saves);
+    };
+
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
+    // A round has just finished, so the statistics go down with it.
     kirpich::systems::installHighScoreHandlers(
-        dispatcher, [&saves](const kirpich::HighScoreState& scores) {
+        dispatcher, [&saves, persistStats](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
+            persistStats();
         });
 
     // The settings screen, reached from the title screen's third item and from a paused round. It
@@ -329,7 +351,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The dance holds while its jingle plays, so the ending needs to ask the driver. Handing it the
     // real query is what ends the dance on a build that has sound; the default reports silence.
     kirpich::systems::installTypeBEndingHandlers(
-        dispatcher, [&sound] { return sound.currentMusic().has_value(); });
+        dispatcher, [&sound] { return sound.currentMusic().has_value(); }, nowNanos);
 
     // The two bonus endings. Without these the dance's height-5 fork and the game-over chain's
     // 100 000-point fork both write a state nothing implements, and the game stops where it should
@@ -348,6 +370,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                         .initGarbage = kirpich::vm::makeInitGarbageHook(
                             [&garbageFold] { return garbageFold(); }),
                         .softReset   = reset,
+                        .now         = nowNanos,
                     });
 
     // Start the machine: the boot path, then the player's saved top scores read back over the tables
@@ -355,6 +378,21 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // loaded — and it leaves the game at the copyright screen with the two menu selections the
     // following screens read.
     kirpich::systems::bootGame(game, saves);
+
+    // The session's own clock starts once the saved totals are in place, so this run's time is added
+    // to them rather than measured from the clock's origin.
+    kirpich::systems::beginSession(game, nowNanos());
+
+    // Everything that ends the run arrives here: the settings screen's exit row, the window's close
+    // button, and the platform's own quit gesture all raise the same pending exit, and the engine
+    // drives this guard at a frame boundary before tearing down. A round still being played is closed
+    // into its own combination first, so quitting mid-game records the round rather than discarding
+    // it, and the session's time goes down with it.
+    loop.exitAction([&game, nowNanos, persistStats] {
+        kirpich::systems::endRound(game, nowNanos());
+        persistStats();
+        return retropp::ExitVerdict::Proceed;
+    });
 
     // ── Input ────────────────────────────────────────────────────────────────
     retropp::ActionMap actions = kirpich::systems::defaultActionMap();

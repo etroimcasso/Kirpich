@@ -24,6 +24,7 @@
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/line_clear.h"    // checkForCompletedRows, moveBlocksDownAfterLineClear, clearLineClearsList
+#include "systems/stats.h"         // beginRound, endRound, pauseRound, resumeRound
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/piece.h"         // rotateAndShiftPiece, dropPiece, lockPieceIntoBackground, nextPiece
 #include "systems/readouts.h"      // printLevel, printLinesSeed, printStartHeight, printRise, copyLinesToSecondMap
@@ -86,6 +87,10 @@ bool held(const GameContext& game, Action action) {
 
 // The Start+Select+B+A chord (tetris.asm:4441-4444). Held levels, not edges, exactly as the frame
 // dispatcher tests it.
+// The clock, or nothing. A build that wires no clock still records every round; each one is simply
+// zero seconds long.
+std::uint64_t nowFrom(const NowNanos& now) { return now ? now() : 0; }
+
 bool softResetChordHeld(const GameContext& game) {
     return held(game, Action::Start) && held(game, Action::Select) &&
            held(game, Action::RotateCounterClockwise) && held(game, Action::RotateClockwise);
@@ -190,7 +195,12 @@ void fillPlayingFieldAndWipe(GameContext& game, std::uint8_t fill) {
 }
 
 void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
-              const InitGarbageHook& initGarbage) {
+              const InitGarbageHook& initGarbage, const NowNanos& now) {
+    // Before anything is cleared: a round left open by an abandonment closes here, with the score it
+    // actually earned, and this round latches the combination it is being played at. An attract demo
+    // reaches this too, and beginRound is what turns it away.
+    beginRound(game, nowFrom(now));
+
     // Clear the entry block (tetris.asm:4126-4132). The lock-stage shadow at $FF9B is written by the
     // sprite path and never read, so it has no field here; the line count clears whole because the
     // fork below rewrites it either way.
@@ -290,12 +300,13 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     game.flow.gameState = GameState::NORMAL_GAMEPLAY;
 }
 
-void normalGameplay(GameContext& game, const GameplayDemoHooks& demo, const SoftResetHook& softReset) {
+void normalGameplay(GameContext& game, const GameplayDemoHooks& demo, const SoftResetHook& softReset,
+                    const NowNanos& now) {
     // A matched soft-reset chord ends the frame here. The original reaches its reset with a jump
     // (tetris.asm:4444) and that reset falls into the top of the main loop, so the rest of this frame —
     // the demo substitution, the piece, the scan, the lock, the compaction, the award — never runs.
     // Continuing would step a piece across the board the reset has just cleared.
-    if (!handleStartSelect(game, softReset)) {
+    if (!handleStartSelect(game, softReset, now)) {
         return;
     }
     if (game.flow.paused) {
@@ -326,7 +337,7 @@ void normalGameplay(GameContext& game, const GameplayDemoHooks& demo, const Soft
     }
 }
 
-bool handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
+bool handleStartSelect(GameContext& game, const SoftResetHook& softReset, const NowNanos& now) {
     // The frame dispatcher tests this same chord each tick and this tests it again — the original does
     // both (tetris.asm:4441-4444).
     //
@@ -367,9 +378,11 @@ bool handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
         if (!game.flow.paused) {
             // The master jumps straight into the shared unpause, skipping the protocol wait
             // (tetris.asm:4500-4503).
+            resumeRound(game, nowFrom(now));
             unpauseMultiplayer(game);
             return true;
         }
+        pauseRound(game, nowFrom(now));
         game.audioCues.pause = AudioPauseCommand::PAUSE;
         game.multiplayer.savedRx = game.multiplayer.rx;
         game.multiplayer.savedTx = game.multiplayer.tx;
@@ -380,6 +393,9 @@ bool handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
     if (game.flow.paused) {
         // Show the second map: the panel, no field, and the PAUSE message (tetris.asm:4461).
         game.display.displayed = DisplayedMap::SECOND;
+        // Paused time is not played time, and a screen opened from the pause is on the far side of
+        // this too: the round is already banked before that screen can be reached.
+        pauseRound(game, nowFrom(now));
         game.audioCues.pause = AudioPauseCommand::PAUSE;
         // The line count reaches the second map only here, which is why the paused screen shows the
         // count as it stands now rather than as it stood at the last clear (:4464-4476).
@@ -393,6 +409,7 @@ bool handleStartSelect(GameContext& game, const SoftResetHook& softReset) {
     }
 
     game.display.displayed = DisplayedMap::FIRST;  // (:4487)
+    resumeRound(game, nowFrom(now));
     game.audioCues.pause = AudioPauseCommand::UNPAUSE;
     game.spriteRenderer.slots[kActivePieceSlot].hidden = false;
     // The preview comes back only if the player has not hidden it (tetris.asm:4490-4494).
@@ -428,7 +445,11 @@ bool handlePausedMultiplayer(GameContext& game) {
     return false;
 }
 
-void initGameOver(GameContext& game) {
+void initGameOver(GameContext& game, const NowNanos& now) {
+    // Topping out is the end of the round, and the score is still standing here - the curtain and the
+    // screens after it do not change it, but this is the point play stopped.
+    endRound(game, nowFrom(now));
+
     setPieceSpritesHidden(game.spriteRenderer, kHidden);
     renderActivePieceSprite(game);   // (:4581) — the curtain falls over an emptied object layer
     renderPreviewPieceSprite(game);  // (:4582)
@@ -513,12 +534,14 @@ void state0CUnknown(GameContext& game) {
 }
 
 void installGameplayHandlers(GameStateDispatcher& dispatcher, GameplayWiring wiring) {
-    dispatcher.setHandler(GameState::INIT_GAME,
-                          [wiring](GameContext& g) { initGame(g, wiring.draw, wiring.initGarbage); });
-    dispatcher.setHandler(GameState::NORMAL_GAMEPLAY, [wiring](GameContext& g) {
-        normalGameplay(g, wiring.demo, wiring.softReset);
+    dispatcher.setHandler(GameState::INIT_GAME, [wiring](GameContext& g) {
+        initGame(g, wiring.draw, wiring.initGarbage, wiring.now);
     });
-    dispatcher.setHandler(GameState::INIT_GAME_OVER, initGameOver);
+    dispatcher.setHandler(GameState::NORMAL_GAMEPLAY, [wiring](GameContext& g) {
+        normalGameplay(g, wiring.demo, wiring.softReset, wiring.now);
+    });
+    dispatcher.setHandler(GameState::INIT_GAME_OVER,
+                          [wiring](GameContext& g) { initGameOver(g, wiring.now); });
     dispatcher.setHandler(GameState::GAME_OVER_CURTAIN, gameOverCurtain);
     dispatcher.setHandler(GameState::GAME_OVER_SCREEN, gameOverScreen);
     dispatcher.setHandler(GameState::INIT_TYPE_B_SCOREBOARD, initTypeBScoreboard);

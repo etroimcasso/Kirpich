@@ -15,6 +15,7 @@
 #include "data/scoring.h"             // softDropAward, kScoreSaturation
 #include "data/sprites.h"             // Sprite, SpritePart, getSprite
 #include "systems/sprite_renderer.h"  // spritePartPosition, renderActivePieceSprite
+#include "systems/stats.h"            // recordDrop
 
 namespace kirpich::systems {
 
@@ -280,6 +281,9 @@ void lockPieceIntoBackground(GameContext& game) {
     }
     flow.pieceLockStage = 2;
     game.spriteRenderer.slots[kActivePieceSlot].hidden = true;
+
+    // One piece has come to rest, which is what a drop counts as.
+    recordDrop(game);
 }
 
 void nextPiece(GameContext& game, const std::function<std::uint8_t()>& draw) {

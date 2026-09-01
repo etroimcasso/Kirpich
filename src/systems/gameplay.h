@@ -28,6 +28,7 @@
 #include <functional>
 
 #include "systems/game_context.h"
+#include "systems/stats.h"  // NowNanos
 
 namespace kirpich::systems {
 
@@ -58,17 +59,22 @@ using SoftResetHook = std::function<void()>;
 // GameState_0A — set a round up: clear the entry state, the board, and the score; pick the starting
 // level and line count for the game type; load the gravity period; fill the piece pipeline; lay the
 // Type B starting garbage; and enter play. `draw` supplies the piece randomizer.
+//
+// `now` reads the clock the round is timed against; it starts the round's own recording before the
+// score is cleared, so a round left open by an earlier abandonment is closed with the score it
+// earned. Without it the round still counts, at a length of zero.
 void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
-              const InitGarbageHook& initGarbage = {});
+              const InitGarbageHook& initGarbage = {}, const NowNanos& now = {});
 
 // GameState_00 — one frame of play: handle Start and Select, then (unless paused) run the demo input
 // substitution, the piece, the line-clear scan and compaction, and the score award, in that order.
 void normalGameplay(GameContext& game, const GameplayDemoHooks& demo = {},
-                    const SoftResetHook& softReset = {});
+                    const SoftResetHook& softReset = {}, const NowNanos& now = {});
 
 // GameState_01 — start the game-over curtain: hide the piece sprites, clear the line-clear list, fill
-// the field with the curtain tile (which starts the wipe), and arm the curtain timer.
-void initGameOver(GameContext& game);
+// the field with the curtain tile (which starts the wipe), and arm the curtain timer. Topping out is
+// where a round ends, so this is where its counts reach the tables.
+void initGameOver(GameContext& game, const NowNanos& now = {});
 
 // GameState_0D — the game-over curtain: once the timer expires, cue the game-over music and either
 // hand off to the two-player end jingle or paint the solo game-over screen and pick its ending.
@@ -96,7 +102,10 @@ void state0CUnknown(GameContext& game);
 // Returns whether the frame continues. The original reaches its reset with a jump, not a call
 // (tetris.asm:4444), so a matched chord abandons the rest of the frame outright — the caller runs
 // nothing further. Every other path returns true. See docs/contracts/boot.md §10.
-[[nodiscard]] bool handleStartSelect(GameContext& game, const SoftResetHook& softReset = {});
+// `now` banks the round's played time when the player pauses and re-stamps it when they resume, so
+// paused time - and time on a screen opened from a pause - is not counted as play.
+[[nodiscard]] bool handleStartSelect(GameContext& game, const SoftResetHook& softReset = {},
+                                     const NowNanos& now = {});
 
 // HandlePausedMultiplayer — run the two-player unpause protocol: the master sends the unpause command,
 // the slave unpauses when it reads one. Returns true when the caller must return immediately without
@@ -120,6 +129,10 @@ struct GameplayWiring {
     GameplayDemoHooks             demo{};
     InitGarbageHook               initGarbage{};
     SoftResetHook                 softReset{};
+
+    // The clock a round is timed against. Without it every round is recorded at a length of zero;
+    // everything else about the round is still counted.
+    NowNanos now{};
 };
 
 // Install the seven gameplay handlers into their dispatch slots ($0A, $00, $01, $0D, $04, $0B, $0C).

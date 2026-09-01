@@ -13,6 +13,7 @@ add_library(kirpich-lib STATIC
     data/scoring.cpp
     state/high_score_persistence.cpp
     state/settings.cpp
+    state/stats_persistence.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/boot.cpp
@@ -35,6 +36,7 @@ add_library(kirpich-lib STATIC
     systems/settings_screen.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
+    systems/stats.cpp
     render/tile_atlas.cpp
     render/background.cpp
     render/sprites.cpp

@@ -19,6 +19,7 @@
 #include "systems/menu_screens.h"  // clearOamObjects, loadSceneSprites
 #include "systems/scoring.h"          // printLineClearScores
 #include "systems/sprite_renderer.h"  // renderSprites, renderActivePieceSprite, renderPreviewPieceSprite
+#include "systems/stats.h"            // endRound
 
 namespace kirpich::systems {
 
@@ -111,7 +112,11 @@ void toggleDancerFrame(SpriteSlot& slot) {
 
 }  // namespace
 
-void typeBVictoryJingle(GameContext& game) {
+void typeBVictoryJingle(GameContext& game, const NowNanos& now) {
+    // Ahead of the timer gate: play stopped on the frame this state was entered, and endRound does
+    // nothing on the frames after the first.
+    endRound(game, now ? now() : 0);
+
     if (game.flow.timer1 != 0) {
         return;
     }
@@ -138,7 +143,10 @@ void typeBVictoryJingle(GameContext& game) {
     game.flow.gameState = GameState::INIT_TYPE_B_SCOREBOARD;
 }
 
-void initBonusEnding(GameContext& game) {
+void initBonusEnding(GameContext& game, const NowNanos& now) {
+    // A level 9 win comes here rather than to the scoreboard, so the round closes here as well.
+    endRound(game, now ? now() : 0);
+
     if (game.flow.timer1 != 0) {
         return;
     }
@@ -209,9 +217,12 @@ void dancers(GameContext& game, const MusicPlayingQuery& musicPlaying) {
                               : GameState::TYPE_B_VICTORY_JINGLE;
 }
 
-void installTypeBEndingHandlers(GameStateDispatcher& dispatcher, MusicPlayingQuery musicPlaying) {
-    dispatcher.setHandler(GameState::TYPE_B_VICTORY_JINGLE, typeBVictoryJingle);
-    dispatcher.setHandler(GameState::INIT_TYPE_B_BONUS, initBonusEnding);
+void installTypeBEndingHandlers(GameStateDispatcher& dispatcher, MusicPlayingQuery musicPlaying,
+                                NowNanos now) {
+    dispatcher.setHandler(GameState::TYPE_B_VICTORY_JINGLE,
+                          [now](GameContext& g) { typeBVictoryJingle(g, now); });
+    dispatcher.setHandler(GameState::INIT_TYPE_B_BONUS,
+                          [now](GameContext& g) { initBonusEnding(g, now); });
     dispatcher.setHandler(GameState::DANCERS, [musicPlaying = std::move(musicPlaying)](GameContext& g) {
         dancers(g, musicPlaying);
     });

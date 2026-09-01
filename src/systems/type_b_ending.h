@@ -21,6 +21,7 @@
 #include <functional>
 
 #include "systems/game_context.h"
+#include "systems/stats.h"  // NowNanos
 
 namespace kirpich::systems {
 
@@ -41,13 +42,17 @@ using MusicPlayingQuery = std::function<bool()>;
 // field, print each line-clear kind's value for this round's level (levels above 0 only — the drawn
 // screen already carries the level-0 values), zero the score, hide both piece sprites, re-initialise the
 // sound driver, and hand off to the results count-up.
-void typeBVictoryJingle(GameContext& game);
+//
+// Winning is one of the two ways a Type B round ends, so `now` closes the round's record here. It is
+// read on entry, ahead of the timer gate, because that is the frame on which play stopped.
+void typeBVictoryJingle(GameContext& game, const NowNanos& now = {});
 
 // GameState_22 — lay out the dance: once the frame timer expires, draw the dance backdrop into the
 // field, load the ten performers into the first ten sprite slots, seed each with its own animation
 // period, reveal one more than the starting garbage height (all ten at height 5), and cue that height's
-// jingle.
-void initBonusEnding(GameContext& game);
+// jingle. This is the other way a Type B round ends - a level 9 win comes here instead of to the
+// scoreboard - so `now` closes the round's record here too.
+void initBonusEnding(GameContext& game, const NowNanos& now = {});
 
 // GameState_23 — the dance: step each performer's animation counter, flipping its sprite to the other
 // frame when the counter runs out (and moving the jumping cossack up and down with it). Runs until
@@ -58,7 +63,10 @@ void dancers(GameContext& game, const MusicPlayingQuery& musicPlaying = {});
 // ── Installer ───────────────────────────────────────────────────────────────────────────────────────
 
 // Install the three Type B ending handlers into their dispatch slots ($05, $22, $23). `musicPlaying` is
-// the seam the dance exits on; without it the dance ends on its first eligible frame.
-void installTypeBEndingHandlers(GameStateDispatcher& dispatcher, MusicPlayingQuery musicPlaying = {});
+// the seam the dance exits on; without it the dance ends on its first eligible frame. `now` is the
+// clock the two entry states close the round's record against; without it the round is still recorded,
+// at a length of zero.
+void installTypeBEndingHandlers(GameStateDispatcher& dispatcher, MusicPlayingQuery musicPlaying = {},
+                                NowNanos now = {});
 
 }  // namespace kirpich::systems

@@ -18,6 +18,7 @@
 #include "systems/readouts.h"       // printScore / printLines (wipe steps 17-19)
 #include "systems/rising_floor.h"   // countDownRise (the Type C lock count)
 #include "systems/scoring.h"        // checkForLevelUp (wipe step 16)
+#include "systems/stats.h"          // recordLineClear
 
 namespace kirpich::systems {
 
@@ -186,6 +187,10 @@ void checkForCompletedRows(GameContext& game) {
     }
     game.multiplayer.garbageRowsToSend = garbageRows;
     game.audioCues.square = clearSfx;
+
+    // The same clear, counted for the round's own record. The lines are counted here rather than read
+    // from the flow at the end, because Type A counts them up and Type B counts them down.
+    recordLineClear(game, static_cast<std::uint8_t>(count));
 }
 
 void animateLineClear(GameContext& game, const std::function<std::uint8_t()>& draw,
