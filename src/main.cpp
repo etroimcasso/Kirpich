@@ -56,6 +56,7 @@
 #include "render/background.h"
 #include "render/ghost_piece.h"
 #include "render/settings_overlay.h"
+#include "render/stats_pages.h"
 #include "render/type_c_difficulty.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
@@ -559,11 +560,26 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         // A list screen's two end indicators, under the same rule: only where there is more list
         // that way. How long the list is was recorded by the screen as it painted.
-        if (game.flow.gameState == kirpich::GameState::STATS_MENU ||
-            game.flow.gameState == kirpich::GameState::STATS_LIST) {
+        if (game.flow.gameState == kirpich::GameState::STATS_MENU) {
             const auto arrows =
                 kirpich::render::listArrows(game.screens, settings.shadeRamp, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+        }
+
+        // A paged screen's two arrows, under the same rule again: only where there is another page.
+        if (game.flow.gameState == kirpich::GameState::STATS_PAGE) {
+            const auto arrows =
+                kirpich::render::statsPageArrows(game.screens, settings.shadeRamp, tiles);
+            sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+        }
+
+        // The seven shapes on a statistics pieces page. They are the game's own piece art, several
+        // tiles wide and see-through at their lightest shade, so they are placed by pixel beside the
+        // counts the page writes into the map rather than written into cells themselves.
+        if (kirpich::render::statsPieceShapesShown(game.flow.gameState, game.screens)) {
+            const auto shapes =
+                kirpich::render::statsPieceShapeSprites(game.screens, tiles, settings.shadeRamp);
+            sprites.insert(sprites.end(), shapes.begin(), shapes.end());
         }
 
         retropp::DrawLayer background = kirpich::render::backgroundLayer(cells, kViewport);

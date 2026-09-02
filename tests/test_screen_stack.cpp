@@ -30,7 +30,7 @@ TEST(ScreenStack, PushAndPopReturnToWhereTheyCameFrom) {
 
     constexpr std::array<GameState, 4> descent{
         GameState::INIT_STATS_MENU,
-        GameState::INIT_STATS_LIST,
+        GameState::INIT_STATS_PAGE,
         GameState::INIT_TYPE_C_DIFFICULTY,
         GameState::INIT_GHOST_SCREEN,
     };
@@ -38,7 +38,7 @@ TEST(ScreenStack, PushAndPopReturnToWhereTheyCameFrom) {
     constexpr std::array<GameState, 4> from{
         GameState::TITLE_SCREEN,
         GameState::INIT_STATS_MENU,
-        GameState::INIT_STATS_LIST,
+        GameState::INIT_STATS_PAGE,
         GameState::INIT_TYPE_C_DIFFICULTY,
     };
 
@@ -67,7 +67,7 @@ TEST(ScreenStack, PushAtTheCeilingIsRefusedAndKeepsTheWayHome) {
     game.flow.gameState = GameState::TITLE_SCREEN;
 
     for (std::size_t level = 0; level < kirpich::kScreenStackDepth; ++level) {
-        ASSERT_TRUE(pushScreen(game, GameState::STATS_LIST)) << "level " << level;
+        ASSERT_TRUE(pushScreen(game, GameState::STATS_PAGE)) << "level " << level;
     }
     ASSERT_EQ(game.screens.screenStackDepth, kirpich::kScreenStackDepth);
 

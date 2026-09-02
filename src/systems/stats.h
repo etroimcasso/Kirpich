@@ -25,7 +25,8 @@
 
 #include <kirpich/piece_kind.h>
 
-#include "state/game_flow_state.h"  // RoundCombination
+#include "state/game_flow_state.h"   // RoundCombination
+#include "state/screen_ui_state.h"   // kStatAxisAll
 #include "state/stats_state.h"
 #include "systems/game_context.h"
 
@@ -91,6 +92,64 @@ struct LongestRound {
 };
 
 [[nodiscard]] LongestRound longestRound(const StatsState& stats);
+
+// How many rounds one game type has seen. The same fold totalsFor performs, named on its own because
+// the pages that compare the three types want only this one number out of it.
+[[nodiscard]] std::uint32_t roundsFor(const StatsState& stats, GameType type);
+
+// The three answers the all-time favourites page gives, each an argmax over rounds played.
+//
+// A tie goes to the first in walk order, which is the rule longestRound already follows: game types
+// in the order A, B, C; levels from 0 up; music selections from A up. `any` is false when nothing has
+// been played at all, and the page then says so rather than showing a first-slot default that reads
+// as a real answer.
+struct FavouriteMode {
+    GameType      type{};
+    std::uint32_t rounds = 0;
+    bool          any    = false;
+
+    friend constexpr bool operator==(const FavouriteMode&, const FavouriteMode&) = default;
+};
+
+struct FavouriteMusic {
+    MusicType     type{};
+    std::uint32_t rounds = 0;
+    bool          any    = false;
+
+    friend constexpr bool operator==(const FavouriteMusic&, const FavouriteMusic&) = default;
+};
+
+struct PreferredLevel {
+    std::uint8_t  level  = 0;
+    std::uint32_t rounds = 0;
+    bool          any    = false;
+
+    friend constexpr bool operator==(const PreferredLevel&, const PreferredLevel&) = default;
+};
+
+[[nodiscard]] FavouriteMode  favouriteMode(const StatsState& stats);
+[[nodiscard]] FavouriteMusic favouriteMusic(const StatsState& stats);
+
+// Across all three game types: the starting level more rounds have been played at than any other.
+[[nodiscard]] PreferredLevel preferredLevel(const StatsState& stats);
+
+// What a game type's pages are currently reading: one type, and each of its two axes either at one
+// value or folded away.
+//
+// A level of kStatAxisAll folds every level; a variant of kStatAxisAll folds every start height or
+// rise. Both folded is the game type's own total, and totalsForSelection then returns exactly what
+// totalsFor returns - two folds that could disagree would be two answers to one question. Type A has
+// no second axis, so its variant is ignored whatever it holds. A value outside its axis is treated as
+// the fold rather than as an empty slice, so a stale selection shows a total rather than nothing.
+struct StatSelection {
+    GameType     type{};
+    std::uint8_t level   = kStatAxisAll;
+    std::uint8_t variant = kStatAxisAll;
+
+    friend constexpr bool operator==(const StatSelection&, const StatSelection&) = default;
+};
+
+[[nodiscard]] StatSlice totalsForSelection(const StatsState& stats, const StatSelection& selection);
 
 // ── Showing a duration ────────────────────────────────────────────────────────────────────────────
 

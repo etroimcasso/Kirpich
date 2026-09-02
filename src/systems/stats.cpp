@@ -240,6 +240,103 @@ LongestRound longestRound(const StatsState& stats) {
     return best;
 }
 
+std::uint32_t roundsFor(const StatsState& stats, GameType type) {
+    return totalsFor(stats, type).rounds;
+}
+
+FavouriteMode favouriteMode(const StatsState& stats) {
+    FavouriteMode best;
+
+    // Strictly greater again, so the first type in this walk keeps a tie.
+    const auto consider = [&best](GameType type, std::uint32_t rounds) {
+        if (rounds == 0) return;
+        if (best.any && rounds <= best.rounds) return;
+        best = FavouriteMode{.type = type, .rounds = rounds, .any = true};
+    };
+
+    consider(GameType::TYPE_A, roundsFor(stats, GameType::TYPE_A));
+    consider(GameType::TYPE_B, roundsFor(stats, GameType::TYPE_B));
+    consider(GameType::TYPE_C, roundsFor(stats, GameType::TYPE_C));
+    return best;
+}
+
+FavouriteMusic favouriteMusic(const StatsState& stats) {
+    FavouriteMusic best;
+
+    for (std::size_t music = 0; music < kMusicTypeCount; ++music) {
+        const std::uint32_t rounds = stats.musicRounds[music];
+        if (rounds == 0) continue;
+        if (best.any && rounds <= best.rounds) continue;
+
+        // The four selections are contiguous from MUSIC_A, which is the arithmetic musicTypeIndex
+        // performs in the other direction.
+        const auto first = static_cast<std::uint8_t>(MusicType::MUSIC_A);
+        best             = FavouriteMusic{
+                        .type   = static_cast<MusicType>(first + static_cast<std::uint8_t>(music)),
+                        .rounds = rounds,
+                        .any    = true};
+    }
+    return best;
+}
+
+PreferredLevel preferredLevel(const StatsState& stats) {
+    PreferredLevel best;
+
+    for (std::size_t level = 0; level < kStatLevels; ++level) {
+        // A starting level is picked in all three game types, so the count for one is the rounds
+        // played at that level across every one of them.
+        std::uint32_t rounds = 0;
+        addSaturating(rounds, stats.typeA[level].rounds);
+        for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
+            addSaturating(rounds, stats.typeB[level][variant].rounds);
+            addSaturating(rounds, stats.typeC[level][variant].rounds);
+        }
+
+        if (rounds == 0) continue;
+        if (best.any && rounds <= best.rounds) continue;
+        best = PreferredLevel{
+            .level = static_cast<std::uint8_t>(level), .rounds = rounds, .any = true};
+    }
+    return best;
+}
+
+StatSlice totalsForSelection(const StatsState& stats, const StatSelection& selection) {
+    // Anything outside an axis folds that axis, which is what kStatAxisAll is and what a selection
+    // left over from a wider table would otherwise fall off the end of.
+    const bool everyLevel   = selection.level >= kStatLevels;
+    const bool everyVariant = selection.variant >= kStatVariants;
+
+    const auto wantedLevel = [&](std::size_t level) {
+        return everyLevel || level == selection.level;
+    };
+    const auto wantedVariant = [&](std::size_t variant) {
+        return everyVariant || variant == selection.variant;
+    };
+
+    StatSlice total;
+    switch (selection.type) {
+        case GameType::TYPE_B:
+        case GameType::TYPE_C: {
+            const auto& table = selection.type == GameType::TYPE_B ? stats.typeB : stats.typeC;
+            for (std::size_t level = 0; level < kStatLevels; ++level) {
+                if (!wantedLevel(level)) continue;
+                for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
+                    if (wantedVariant(variant)) fold(total, table[level][variant]);
+                }
+            }
+            return total;
+        }
+        case GameType::TYPE_A:
+            break;
+    }
+
+    // Type A is picked by level alone, so its second axis is not consulted at all.
+    for (std::size_t level = 0; level < kStatLevels; ++level) {
+        if (wantedLevel(level)) fold(total, stats.typeA[level]);
+    }
+    return total;
+}
+
 DurationText formatDuration(std::uint32_t seconds) {
     DurationText text;
 

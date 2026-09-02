@@ -310,12 +310,12 @@ TEST(ListScreen, BackWithoutASeamPopsTheStack) {
     ListWiring wiring = probe.wiring();
     wiring.back       = {};
 
-    game.flow.gameState = GameState::STATS_LIST;
+    game.flow.gameState = GameState::STATS_PAGE;
     ASSERT_TRUE(kirpich::systems::pushScreen(game, GameState::STATS_MENU));
     open(game, wiring);
 
     step(game, wiring, {Action::Back});
-    EXPECT_EQ(game.flow.gameState, GameState::STATS_LIST);
+    EXPECT_EQ(game.flow.gameState, GameState::STATS_PAGE);
     EXPECT_EQ(game.screens.screenStackDepth, 0u);
 }
 

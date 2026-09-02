@@ -13,8 +13,10 @@
 #include "systems/carousel_screen.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/list_screen.h"
+#include "systems/page_screen.h"
 #include "systems/screen.h"        // writeMapText
 #include "systems/screen_stack.h"  // pushScreen, popScreen
+#include "systems/stats_pages.h"
 
 namespace kirpich::systems {
 namespace {
@@ -39,33 +41,23 @@ constexpr std::string_view kStatsDescription[] = {
     "screen.",
 };
 
-// ── The stats screen and the branch it opens ──────────────────────────────────────────────────────
+// ── The statistics screen and the branch it opens ─────────────────────────────────────────────────
 //
 // This screen IS the statistics, not a menu on the way to them. Its rows are the five things there
 // are to look at - the whole game's totals, each game type's, and the achievements - so a player
 // reaches figures one press from the title screen rather than three.
 //
 // Each row opens a branch whose own screen is paged, with related figures grouped a page at a time
-// (a page of piece counts, a page of times, and so on). That paging is the branch's business, not
-// this screen's: here a row is a destination, and nothing more.
-
-// Which of the rows the player took. The branch screen titles itself from it, so one instance serves
-// every row rather than each needing a pair of dispatch slots of its own.
-//
-// It cannot be static: it belongs to one install, as the carousel option tables do. It is allocated
-// on install and held by every wiring copy that reads it.
-struct StatsBranch {
-    std::size_t row = 0;
-};
+// under a heading that names the group. That paging is the branch's business, not this screen's:
+// here a row is a destination, and nothing more.
 
 constexpr std::string_view kChooserTitle = "stats";
 constexpr std::string_view kChooserRows[] = {
     "all time", "mode a", "mode b", "mode c", "achievements",
 };
 
-// What the branch says until the trees behind it are built. The rows exist and lead somewhere; what
-// they lead to is honest about being unfinished.
-constexpr std::string_view kNotBuiltYet = "not built yet";
+static_assert(std::size(kChooserRows) == kStatsBranchCount,
+              "every row of this screen opens a branch, and every branch is one of these rows");
 
 using StatsTable = std::array<CarouselOption, kStatsOptionCount>;
 
@@ -79,7 +71,7 @@ std::shared_ptr<const StatsTable> makeStatsOptions(Settings& settings) {
     return std::make_shared<const StatsTable>(options);
 }
 
-ListWiring chooserWiring(std::shared_ptr<StatsBranch> branch) {
+ListWiring chooserWiring() {
     return ListWiring{
         .title = [] { return kChooserTitle; },
         .count = [] { return std::size(kChooserRows); },
@@ -88,30 +80,27 @@ ListWiring chooserWiring(std::shared_ptr<StatsBranch> branch) {
                 writeMapText(map, line, kListTextCol, kChooserRows[row]);
             },
         .chose =
-            [branch](GameContext& game, std::size_t row) {
-                branch->row           = row;
+            [](GameContext& game, std::size_t row) {
+                ScreenUiState& ui = game.screens;
+                ui.statsBranch    = static_cast<std::uint8_t>(row);
+
+                // A branch opens on its own aggregate, at the first of its picker rows. Choosing a
+                // row is what starts a fresh selection; the page screen's own init does not touch the
+                // picker, because turning a page must not reset it.
+                ui.statsLevel     = kStatAxisAll;
+                ui.statsVariant   = kStatAxisAll;
+                ui.statsPickerRow = 0;
+
                 game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-                pushScreen(game, GameState::INIT_STATS_LIST);
+                pushScreen(game, GameState::INIT_STATS_PAGE);
             },
         // B leaves the tree altogether, which means putting the title screen's own picture back -
-        // the chooser is the one screen here that borders something it did not paint over itself.
+        // this is the one screen here that borders something it did not paint over itself.
         .back =
             [](GameContext& game) {
                 restoreCallerScreen(game);
                 popScreen(game);
             },
-    };
-}
-
-ListWiring branchWiring(std::shared_ptr<const StatsBranch> branch) {
-    return ListWiring{
-        .title = [branch] { return kChooserRows[branch->row]; },
-        .count = [] { return std::size_t{1}; },
-        .paintRow =
-            [](BackgroundMap& map, std::size_t /*row*/, std::size_t line) {
-                writeMapText(map, line, kListTextCol, kNotBuiltYet);
-            },
-        // Nothing to act on yet. B pops back to the chooser, which is the default.
     };
 }
 
@@ -147,13 +136,13 @@ void installStatsScreens(GameStateDispatcher& dispatcher, Settings& settings,
                            }},
         std::move(settingsWiring));
 
-    // The chooser and the branch share one record of which row was taken, so the branch can name
-    // itself. It rides in the wirings the same way the option table rides in the seam above.
-    auto branch = std::make_shared<StatsBranch>();
+    // The statistics screen, and the one paged screen every one of its rows opens. Which row was
+    // taken is on ScreenUiState rather than held here, because the render bridge has to read it too
+    // - it is what says whether the page on display is one that draws the seven shapes.
     installListHandlers(dispatcher, GameState::INIT_STATS_MENU, GameState::STATS_MENU,
-                        chooserWiring(branch));
-    installListHandlers(dispatcher, GameState::INIT_STATS_LIST, GameState::STATS_LIST,
-                        branchWiring(std::move(branch)));
+                        chooserWiring());
+    installPageHandlers(dispatcher, GameState::INIT_STATS_PAGE, GameState::STATS_PAGE,
+                        statsPageWiring());
 }
 
 }  // namespace kirpich::systems

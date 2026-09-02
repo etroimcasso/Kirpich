@@ -77,6 +77,14 @@ inline constexpr std::uint8_t kSettingsPageCount =
 // reads it from here for the same reason.
 inline constexpr std::size_t kScreenStackDepth = 6;
 
+// A statistics picker axis folded away: every starting level, or every start height or rise, rather
+// than one of them.
+//
+// It sits outside the ten levels and the six variants rather than at index 0, because 0 is a level a
+// player can actually pick - a picker whose first position meant level 0 could not express "all of
+// them", which is the position a mode's own aggregate is read at.
+inline constexpr std::uint8_t kStatAxisAll = 0xFF;
+
 // What the confirm screen is currently guarding. Both of its actions are ones a player cannot undo,
 // which is why neither happens without it.
 enum class ConfirmAction : std::uint8_t {
@@ -132,6 +140,28 @@ struct ScreenUiState {
     std::uint8_t listRow   = 0;
     std::uint8_t listTop   = 0;
     std::uint8_t listCount = 0;
+
+    // Which of the statistics screen's five rows the player took, which page of that branch is up,
+    // and how many pages it holds (systems/page_screen.h, systems/stats_pages.h).
+    //
+    // They are NOT the list's three fields above. The statistics screen sits under the page screen on
+    // the navigation stack and is returned to without being re-initialised, so its row has to survive
+    // the visit; sharing the fields would put the player back on its first row every time they came
+    // out of a branch.
+    //
+    // The count is here for the same reason the list's is: the two page arrows are drawn by the
+    // render bridge, which has no way to ask the branch how many pages it has, so the screen records
+    // what it drew.
+    std::uint8_t statsBranch    = 0;
+    std::uint8_t statsPage      = 0;
+    std::uint8_t statsPageCount = 0;
+
+    // The picker a game type's pages share, so the figures and the piece counts on them are read for
+    // one selection and change together as it moves. Both axes open on kStatAxisAll - the mode's own
+    // aggregate - and statsPickerRow is which axis the cursor is on.
+    std::uint8_t statsLevel     = kStatAxisAll;
+    std::uint8_t statsVariant   = kStatAxisAll;
+    std::uint8_t statsPickerRow = 0;
 
     // Where the stacking screens came from, deepest last, and how many of them are on it.
     //

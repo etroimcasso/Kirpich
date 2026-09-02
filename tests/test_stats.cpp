@@ -399,3 +399,117 @@ TEST(Stats, DurationTextReadsInHoursOrMinutes) {
     EXPECT_EQ(text(7500), "2h 05m");
     EXPECT_EQ(text(360000), "100h 00m");
 }
+
+// (11) The favourite game type is the one more rounds have been played in than any other, counted
+// over the whole of that type's table, and a tie keeps the earlier type in the walk.
+TEST(Stats, FavouriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
+    StatsState stats;
+    stats.typeA[0].rounds    = 3;
+    stats.typeB[2][1].rounds = 4;
+    stats.typeB[5][0].rounds = 1;
+    stats.typeC[9][5].rounds = 2;
+
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_A), 3u);
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_B), 5u)
+        << "a type's rounds are the sum over its whole table";
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_C), 2u);
+
+    const auto best = kirpich::systems::favouriteMode(stats);
+    ASSERT_TRUE(best.any);
+    EXPECT_EQ(best.type, GameType::TYPE_B);
+    EXPECT_EQ(best.rounds, 5u);
+
+    // A tie keeps the first type the walk reaches.
+    StatsState tied;
+    tied.typeA[0].rounds    = 6;
+    tied.typeC[0][0].rounds = 6;
+    const auto tiedBest = kirpich::systems::favouriteMode(tied);
+    ASSERT_TRUE(tiedBest.any);
+    EXPECT_EQ(tiedBest.type, GameType::TYPE_A) << "a tie goes to the earlier type in the walk";
+}
+
+// (12) The favourite music is an argmax over the per-selection round counts, which sit outside the
+// slice table because a song is not part of a combination. The byte the flow holds before a
+// selection has been made has no slot at all, so it can never win.
+TEST(Stats, FavouriteMusicIsAnArgmaxOverTheSelectionCounts) {
+    StatsState stats;
+    stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_A)] = 2;
+    stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_C)] = 9;
+    stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::OFF)]     = 4;
+
+    const auto best = kirpich::systems::favouriteMusic(stats);
+    ASSERT_TRUE(best.any);
+    EXPECT_EQ(best.type, kirpich::MusicType::MUSIC_C);
+    EXPECT_EQ(best.rounds, 9u);
+
+    // Every count is reachable, and the unset byte has no slot to be counted in.
+    EXPECT_EQ(kirpich::musicTypeIndex(static_cast<kirpich::MusicType>(0x00)),
+              kirpich::kMusicTypeCount);
+
+    StatsState tied;
+    tied.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_B)] = 7;
+    tied.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::OFF)]     = 7;
+    const auto tiedBest = kirpich::systems::favouriteMusic(tied);
+    ASSERT_TRUE(tiedBest.any);
+    EXPECT_EQ(tiedBest.type, kirpich::MusicType::MUSIC_B)
+        << "a tie goes to the earlier selection in the walk";
+}
+
+// (13) The preferred starting level counts a level across all three game types, since a level is
+// picked in every one of them, and a tie keeps the lower level.
+TEST(Stats, PreferredLevelCountsALevelAcrossEveryGameType) {
+    StatsState stats;
+    stats.typeA[6].rounds    = 2;
+    stats.typeB[6][3].rounds = 3;
+    stats.typeC[6][0].rounds = 1;
+    stats.typeA[2].rounds    = 5;
+
+    const auto best = kirpich::systems::preferredLevel(stats);
+    ASSERT_TRUE(best.any);
+    EXPECT_EQ(best.level, 6) << "a level is the rounds played at it in every type";
+    EXPECT_EQ(best.rounds, 6u);
+
+    StatsState tied;
+    tied.typeA[3].rounds    = 4;
+    tied.typeC[8][2].rounds = 4;
+    const auto tiedBest = kirpich::systems::preferredLevel(tied);
+    ASSERT_TRUE(tiedBest.any);
+    EXPECT_EQ(tiedBest.level, 3) << "a tie goes to the lower level";
+}
+
+// (14) Over a table where nothing has been played, all four folds report that rather than a first
+// slot that reads as a real answer - and a selection with both axes folded is the game type's own
+// total, which is the equality the picker's own aggregate rests on.
+TEST(Stats, TheFoldsReportNothingPlayedAndFoldBothAxesToTheTypeTotal) {
+    const StatsState empty;
+
+    EXPECT_FALSE(kirpich::systems::favouriteMode(empty).any);
+    EXPECT_FALSE(kirpich::systems::favouriteMusic(empty).any);
+    EXPECT_FALSE(kirpich::systems::preferredLevel(empty).any);
+    EXPECT_FALSE(kirpich::systems::longestRound(empty).any);
+    EXPECT_EQ(kirpich::systems::roundsFor(empty, GameType::TYPE_B), 0u);
+
+    const StatsState stats = populated();
+    for (const GameType type : {GameType::TYPE_A, GameType::TYPE_B, GameType::TYPE_C}) {
+        const kirpich::systems::StatSelection everything{.type    = type,
+                                                         .level   = kirpich::kStatAxisAll,
+                                                         .variant = kirpich::kStatAxisAll};
+        EXPECT_EQ(kirpich::systems::totalsForSelection(stats, everything),
+                  kirpich::systems::totalsFor(stats, type));
+    }
+
+    // One level folded across its variants: the six slices of that level and no others. Type A is
+    // picked by level alone, so its second axis is not consulted whatever it holds.
+    std::uint32_t byHand = 0;
+    for (std::size_t variant = 0; variant < kirpich::kStatVariants; ++variant) {
+        byHand += stats.typeC[7][variant].rounds;
+    }
+    const kirpich::systems::StatSelection oneLevel{
+        .type = GameType::TYPE_C, .level = 7, .variant = kirpich::kStatAxisAll};
+    EXPECT_EQ(kirpich::systems::totalsForSelection(stats, oneLevel).rounds, byHand);
+
+    const kirpich::systems::StatSelection typeALevel{
+        .type = GameType::TYPE_A, .level = 4, .variant = 2};
+    EXPECT_EQ(kirpich::systems::totalsForSelection(stats, typeALevel).rounds,
+              stats.typeA[4].rounds);
+}

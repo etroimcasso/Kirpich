@@ -70,4 +70,14 @@ inline constexpr int kArrowInset = 2;
 [[nodiscard]] std::vector<retropp::Sprite> listArrows(const kirpich::ScreenUiState& ui,
                                                       std::uint8_t ramp, const TileAtlas& atlas);
 
+// A paged screen's two page arrows, the same sprite once more: up when there is a page before the one
+// shown, down when there is one after it (src/systems/page_screen.h). A branch with a single page
+// draws neither.
+//
+// How many pages the branch holds comes from ScreenUiState, recorded by the screen as it painted,
+// because an instance's page count is a seam the render bridge cannot reach.
+[[nodiscard]] std::vector<retropp::Sprite> statsPageArrows(const kirpich::ScreenUiState& ui,
+                                                           std::uint8_t     ramp,
+                                                           const TileAtlas& atlas);
+
 }  // namespace kirpich::render

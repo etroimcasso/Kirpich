@@ -97,8 +97,8 @@ enum class GameState : uint8_t {
     STATS_SCREEN           = 0x4F,  // The statistics toggle's own screen
     INIT_STATS_MENU        = 0x50,  // Lay out the statistics and achievements chooser
     STATS_MENU             = 0x51,  // The statistics and achievements chooser
-    INIT_STATS_LIST        = 0x52,  // Lay out a list of statistics
-    STATS_LIST             = 0x53,  // A list of statistics
+    INIT_STATS_PAGE        = 0x52,  // Lay out a page of statistics
+    STATS_PAGE             = 0x53,  // A page of statistics
 };
 
 }  // namespace kirpich

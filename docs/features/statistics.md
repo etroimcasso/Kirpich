@@ -1,7 +1,7 @@
 # Statistics
 
 **Date:** 2026-08-31
-**Status:** Recording complete; the screens that show it are not built yet.
+**Status:** Recording and the screens that show it are complete. Achievements are not built.
 
 ## Concept
 
@@ -70,6 +70,53 @@ untouched game to a player who never opens it and the full history to one who do
 **Rejected: a running round timer on the panel.** There is no counter to show — that is what stamping
 instead of counting means — and displaying one would mean adding the per-frame work the design
 avoids.
+
+## The screens
+
+The statistics item on the title screen opens the statistics themselves, not a menu on the way to
+them: five rows — the whole game's figures, each game type's, and the achievements — so a player is
+one press from a number rather than three. Each row opens a branch whose screen is **paged**: related
+figures a page at a time, under a heading that names what the page holds. All time has six pages
+(play time, rounds, score, clears, pieces, favourites); a game type has two.
+
+**A combination is a position on a picker, not a page of its own.** An earlier design gave every
+combination its own page, which is sixty-four page turns for Type B and the same again for Type C.
+Rejected: *"64 pages is way too many."* Instead a game type's two pages share one picker — a `level`
+row, and a `height` or `rise` row for the two types that have one — and the figures under it change
+as it moves. Each axis opens on `all`, which folds that axis away, so the mode's own aggregate, one
+level across its variants and a single combination are all the same control scheme and none of them
+needs a page. A combination that has never been played shows zeros; nothing is hidden and nothing
+moves, so a figure is always in the same place.
+
+The walk down the picker's rows and the turn to the next page are one motion, which is what the
+settings screen's own walk across its pages does: down past the last picker row turns the page, and
+up past the first row turns back. The top of the first page is an end stop. **B is what leaves a
+screen**, here as everywhere else in the game — an early version backed out of a branch on up, which
+is a thing nothing else in the game does.
+
+**Every value names what the player picked.** A Type C rise reads as its interval — 16, 14, 12, 10,
+8, 6 — and never as the 0-5 index it is stored at, which is a number that appears nowhere else in the
+game. That binds the picker's own row, the longest round's label, and any figure naming a
+combination.
+
+**The longest round's label is spelled with hyphens** — `a-5`, `b-1-3`, `c-7-12` — because the font
+has no slash. It has letters, digits, a period and a hyphen, and text the font cannot spell is not
+drawn at all.
+
+## Layout
+
+A figure's label starts three cells in and its value ends two cells short of the last one, so the
+numbers line up down the page and the page has a margin down both sides. The width is chosen per
+figure, because the two ends share twenty cells: a lifetime score wants ten digits and leaves seven
+cells for its label, where a clear count is happy with six and leaves eleven.
+
+The pieces page draws the seven shapes three to a row, each over its own count, with a clear row
+between one row of shapes and the next. A shape at its spawn orientation is two cells tall, so a
+tighter grid runs them together and the page reads as one shape rather than seven — which is what a
+first attempt at a two-column grid did. The shapes are sprites rather than map cells: they are the
+game's own piece art, several tiles wide and see-through at their lightest shade, and each is placed
+from its own smallest part offsets rather than from the composed origin a falling piece is drawn
+from, so the seven line up with each other instead of hanging at different heights.
 
 ## Implementation details
 

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <string_view>
 
 #include "render/palettes.h"
 #include "systems/list_screen.h"      // the list's window height
@@ -31,14 +32,16 @@ retropp::Region filled(std::string key, retropp::ShapePoints shape, retropp::Rgb
     };
 }
 
-}  // namespace
-
-std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
-                                                const TileAtlas& atlas) {
-    const std::uint8_t page = kirpich::settingsPageOf(ui.settingsRow);
-
-    // The screen selects the copyright-and-title art while it is up, which is the set the selector
-    // tile belongs to.
+// One screen's two page arrows: the game's own selector tile stood on end, at the shared column, one
+// above the heading and one below the body.
+//
+// Every screen that draws these differs in nothing but the two conditions and the name it gives each
+// sprite, so they share one placement rather than each carrying a copy of it. The names are the
+// caller's because a name is what stops the renderer easing one screen's arrow into the next one's.
+std::vector<retropp::Sprite> pageArrows(std::string_view keyStem, bool up, bool down,
+                                        std::uint8_t ramp, const TileAtlas& atlas) {
+    // The screens these are drawn over select the copyright-and-title art while they are up, which is
+    // the set the selector tile belongs to.
     const ResolvedTile art = resolveSpriteTile(kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE,
                                                /*palette1=*/false, atlas, ramp);
 
@@ -58,79 +61,51 @@ std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui
     };
 
     // The selector points right, so a quarter turn stands it up. An arrow is drawn only where there
-    // is a page in that direction.
-    if (page > 0) {
-        arrow("settings-page-up", kirpich::systems::kPageUpArrowRow, retropp::Rotation::Rot270);
+    // is somewhere to go that way.
+    if (up) {
+        arrow(std::string{keyStem} + "-up", kirpich::systems::kPageUpArrowRow,
+              retropp::Rotation::Rot270);
     }
-    if (page + 1 < kirpich::kSettingsPageCount) {
-        arrow("settings-page-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
+    if (down) {
+        arrow(std::string{keyStem} + "-down", kirpich::systems::kPageDownArrowRow,
+              retropp::Rotation::Rot90);
     }
     return sprites;
+}
+
+}  // namespace
+
+std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
+                                                const TileAtlas& atlas) {
+    const std::uint8_t page = kirpich::settingsPageOf(ui.settingsRow);
+    return pageArrows("settings-page", page > 0, page + 1 < kirpich::kSettingsPageCount, ramp,
+                      atlas);
 }
 
 std::vector<retropp::Sprite> carouselArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
                                             const TileAtlas& atlas, std::size_t optionCount) {
-    // The same tile, art selection and stance as the page arrows above: the carousel is drawn over
-    // the settings screen, so the copyright-and-title set is the one on the block.
-    const ResolvedTile art = resolveSpriteTile(kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE,
-                                               /*palette1=*/false, atlas, ramp);
-
-    std::vector<retropp::Sprite> sprites;
-    const auto arrow = [&](std::string key, std::size_t row, retropp::Rotation turn) {
-        sprites.push_back(retropp::Sprite{
-            .key      = retropp::ObjectKey{std::move(key)},
-            .x        = static_cast<int>(kirpich::systems::kPageArrowCol) * kCell,
-            .y        = static_cast<int>(row) * kCell,
-            .z        = kPageArrowZ,
-            .atlas    = art.atlas,
-            .tile     = art.cell,
-            .palette  = art.palette,
-            .rotation = turn,
-        });
-    };
-
-    // The same rows the settings screen's page arrows use: up above the heading, down below the
-    // body. Moving between options is moving between screens, so it says what a page arrow says. An
-    // arrow is drawn only where there is an option to reach.
-    if (ui.carouselOption > 0) {
-        arrow("carousel-up", kirpich::systems::kPageUpArrowRow, retropp::Rotation::Rot270);
-    }
-    if (optionCount != 0 && static_cast<std::size_t>(ui.carouselOption) + 1 < optionCount) {
-        arrow("carousel-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
-    }
-    return sprites;
+    // Moving between options is moving between screens, so it says what a page arrow says everywhere
+    // else. An arrow is drawn only where there is an option to reach.
+    const auto shown = static_cast<std::size_t>(ui.carouselOption);
+    return pageArrows("carousel", shown > 0, optionCount != 0 && shown + 1 < optionCount, ramp,
+                      atlas);
 }
 
 std::vector<retropp::Sprite> listArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
                                         const TileAtlas& atlas) {
-    // The same tile, art selection and stance as the page arrows: a list is drawn over the screen
-    // that opened it, and the copyright-and-title set is the one on the block throughout.
-    const ResolvedTile art = resolveSpriteTile(kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE,
-                                               /*palette1=*/false, atlas, ramp);
-
-    std::vector<retropp::Sprite> sprites;
-    const auto arrow = [&](std::string key, std::size_t row, retropp::Rotation turn) {
-        sprites.push_back(retropp::Sprite{
-            .key      = retropp::ObjectKey{std::move(key)},
-            .x        = static_cast<int>(kirpich::systems::kPageArrowCol) * kCell,
-            .y        = static_cast<int>(row) * kCell,
-            .z        = kPageArrowZ,
-            .atlas    = art.atlas,
-            .tile     = art.cell,
-            .palette  = art.palette,
-            .rotation = turn,
-        });
-    };
-
     // The window's own edges: rows above it, and rows below it. Scrolling a list is moving between
-    // screenfuls of it, which is what a page arrow says everywhere else.
-    if (ui.listTop > 0) {
-        arrow("list-up", kirpich::systems::kPageUpArrowRow, retropp::Rotation::Rot270);
-    }
-    if (static_cast<std::size_t>(ui.listTop) + kirpich::systems::kListRows < ui.listCount) {
-        arrow("list-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
-    }
-    return sprites;
+    // screenfuls of it.
+    const auto top = static_cast<std::size_t>(ui.listTop);
+    return pageArrows("list", top > 0, top + kirpich::systems::kListRows < ui.listCount, ramp,
+                      atlas);
+}
+
+std::vector<retropp::Sprite> statsPageArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
+                                             const TileAtlas& atlas) {
+    // How many pages the branch holds was recorded by the screen as it painted, because the branch's
+    // own count is a seam the render bridge cannot reach.
+    const auto page = static_cast<std::size_t>(ui.statsPage);
+    return pageArrows("stats-page", page > 0, page + 1 < ui.statsPageCount, ramp, atlas);
 }
 
 std::vector<retropp::Region> settingsOverlay(const kirpich::ScreenUiState& ui, std::uint8_t ramp,

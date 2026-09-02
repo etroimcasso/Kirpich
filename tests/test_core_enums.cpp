@@ -176,7 +176,7 @@ constexpr std::array<GameState, 20> kAllPortGameStates{{
     GameState::GHOST_SCREEN,           GameState::TYPE_C_RISE_SELECTION,
     GameState::INIT_STATS_SCREEN,      GameState::STATS_SCREEN,
     GameState::INIT_STATS_MENU,        GameState::STATS_MENU,
-    GameState::INIT_STATS_LIST,        GameState::STATS_LIST,
+    GameState::INIT_STATS_PAGE,        GameState::STATS_PAGE,
 }};
 
 TEST(CoreEnums, PortGameStatesSitAboveTheCartridgeRange) {

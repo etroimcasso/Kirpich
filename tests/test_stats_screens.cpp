@@ -26,6 +26,7 @@
 #include "systems/game_state_dispatcher.h"
 #include "systems/list_screen.h"
 #include "systems/settings_screen.h"
+#include "systems/stats_pages.h"
 #include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 
@@ -183,19 +184,23 @@ TEST(StatsScreens, EveryRowOfTheStatsScreenLeadsSomewhere) {
 
         dispatcher.tick(game, retropp::ActionSet{});
         dispatcher.tick(game, actionSet({Action::Confirm}));
-        EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_LIST)
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_PAGE)
             << kRows[row] << " did not open its branch";
+        EXPECT_EQ(game.screens.statsBranch, row) << "the branch that opened is not the row taken";
 
-        // The branch titles itself from the row that opened it, and says what it is.
+        // The branch opens on its own first page, headed by what that page holds, and on its own
+        // aggregate rather than on whatever the last branch was left showing.
         dispatcher.tick(game, retropp::ActionSet{});
-        ASSERT_EQ(game.flow.gameState, GameState::STATS_LIST);
-        const std::size_t titleCol = (20 - kRows[row].size()) / 2;
-        EXPECT_EQ(rowText(game.display.map, kirpich::systems::kScreenTitleRow, titleCol, 20,
-                          kRows[row]),
-                  kRows[row])
-            << "the branch is not named for the row that opened it";
-        EXPECT_EQ(rowText(game.display.map, kListFirstRow, kTextCol, 16, "not built yet"),
-                  "not built yet");
+        ASSERT_EQ(game.flow.gameState, GameState::STATS_PAGE);
+        EXPECT_EQ(game.screens.statsLevel, kirpich::kStatAxisAll);
+        EXPECT_EQ(game.screens.statsVariant, kirpich::kStatAxisAll);
+
+        const auto branch = kirpich::systems::statsBranchOf(static_cast<std::uint8_t>(row));
+        const std::string_view heading = kirpich::systems::statsPageTitle(branch, 0);
+        const std::size_t      titleCol = (20 - heading.size()) / 2;
+        EXPECT_EQ(rowText(game.display.map, kirpich::systems::kScreenTitleRow, titleCol, 20, heading),
+                  heading)
+            << "the branch's first page is not headed by what it holds";
 
         // And B comes back to the screen that opened it rather than leaving the tree.
         dispatcher.tick(game, retropp::ActionSet{});
@@ -204,7 +209,50 @@ TEST(StatsScreens, EveryRowOfTheStatsScreenLeadsSomewhere) {
     }
 }
 
-// (3) With the statistics off, the title screen's bottom row is the settings item alone, in the place
+// (3) The statistics screen is still on the row the player left it on when they come back from a
+// branch. The branch sits on top of it and is returned to without being re-initialised, so the two
+// screens cannot share the fields that say where each of them is - a page turn inside a branch would
+// otherwise walk the screen underneath it.
+TEST(StatsScreens, TheScreenKeepsItsRowWhileABranchTurnsItsPages) {
+    Settings            settings;
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installStatsScreens(dispatcher, settings, {}, SettingsWiring{});
+
+    GameContext game;
+    game.flow.gameState = GameState::INIT_STATS_MENU;
+    dispatcher.tick(game, retropp::ActionSet{});
+
+    // Down to "mode c", which is the fourth row.
+    for (std::size_t i = 0; i < 3; ++i) {
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));
+    }
+    ASSERT_EQ(game.screens.listRow, 3u);
+
+    dispatcher.tick(game, retropp::ActionSet{});
+    dispatcher.tick(game, actionSet({Action::Confirm}));
+    dispatcher.tick(game, retropp::ActionSet{});
+    ASSERT_EQ(game.flow.gameState, GameState::STATS_PAGE);
+
+    // Walk the branch: down through its picker rows and on to its second page.
+    for (std::size_t i = 0; i < 3; ++i) {
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));
+    }
+    ASSERT_EQ(game.screens.statsPage, 1u);
+
+    dispatcher.tick(game, retropp::ActionSet{});
+    dispatcher.tick(game, actionSet({Action::Back}));
+    ASSERT_EQ(game.flow.gameState, GameState::STATS_MENU);
+    EXPECT_EQ(game.screens.listRow, 3u) << "the branch walked the screen underneath it";
+
+    // And the screen is drawn with its cursor still on that row.
+    dispatcher.tick(game, retropp::ActionSet{});
+    EXPECT_EQ(game.display.map[kListFirstRow + 3][1],
+              static_cast<std::uint8_t>(kirpich::CharTile::HYPHEN));
+}
+
+// (4) With the statistics off, the title screen's bottom row is the settings item alone, in the place
 // it has always occupied - centred, with its cursor one cell to its left. A player who never asks for
 // the statistics gets the screen they have always had.
 TEST(StatsScreens, TheBottomRowIsTheSettingsItemAloneWhileTheStatisticsAreOff) {

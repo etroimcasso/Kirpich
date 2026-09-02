@@ -13,11 +13,12 @@
 //   - the toggle's own screen, a carousel instance with one option, opened from the settings screen's
 //     stats row. It carries Settings::showStats, which governs only whether the statistics are
 //     OFFERED - the tables fill either way (systems/stats.h).
-//   - the chooser, a list instance with two rows, opened from the title screen's stats item once the
-//     toggle is on. It is where statistics and achievements meet, which is what the two share.
-//   - the branch each chooser row opens, a second list instance. Its content is what the trees will
-//     replace; until they do it says so, because a row that leads nowhere is worse than a row that
-//     says it is not built.
+//   - the statistics screen itself, a list instance whose five rows are the whole game's figures,
+//     each game type's, and the achievements. It is opened from the title screen's stats item once
+//     the toggle is on, and it is where statistics and achievements meet.
+//   - the branch each row opens, a paged screen (systems/page_screen.h) whose pages are the content
+//     in systems/stats_pages.h. One instance serves all five: which row was taken is recorded on
+//     ScreenUiState, and the pages fork on it.
 //
 // The option count is published for the render layer, whose arrow rule needs to know how many options
 // the shown carousel holds (render/settings_overlay.h, carouselArrows). It is static-asserted against
@@ -46,9 +47,9 @@ inline constexpr std::size_t kStatsOptionCount = 1;
 void openStatsMenu(GameContext& game);
 
 // Install all three statistics screens - the toggle's carousel on INIT_STATS_SCREEN/STATS_SCREEN, the
-// chooser on INIT_STATS_MENU/STATS_MENU, and the branch on INIT_STATS_LIST/STATS_LIST - with the
-// toggle bound to `settings`' flag. `changed` fires on every toggle, which is where the host applies
-// and saves; the settings wiring is what leaving the toggle's screen repaints.
+// statistics screen on INIT_STATS_MENU/STATS_MENU, and the branch on INIT_STATS_PAGE/STATS_PAGE -
+// with the toggle bound to `settings`' flag. `changed` fires on every toggle, which is where the host
+// applies and saves; the settings wiring is what leaving the toggle's screen repaints.
 //
 // `settings` is held by reference in the installed handlers, so it must outlive the dispatcher - the
 // same lifetime the settings wiring's own pointer already demands.
