@@ -8,6 +8,7 @@
 // no "no piece" value - every valid piece byte decodes to one of these seven. The derivation and
 // its source anchors are recorded in docs/contracts/sprites.md.
 
+#include <cstddef>
 #include <cstdint>
 
 namespace kirpich {
@@ -21,5 +22,9 @@ enum class PieceKind : std::uint8_t {
     Z = 5,
     T = 6,
 };
+
+// How many shapes there are. Tied to the last enumerator so a table indexed by kind cannot drift from
+// the enum it is indexed by.
+inline constexpr std::size_t kPieceKindCount = static_cast<std::size_t>(PieceKind::T) + 1;
 
 }  // namespace kirpich

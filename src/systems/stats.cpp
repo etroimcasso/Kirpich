@@ -57,6 +57,9 @@ void fold(StatSlice& into, const StatSlice& from) {
     addSaturating(into.doubles, from.doubles);
     addSaturating(into.triples, from.triples);
     addSaturating(into.tetrises, from.tetrises);
+    for (std::size_t kind = 0; kind < kPieceKindCount; ++kind) {
+        addSaturating(into.pieces[kind], from.pieces[kind]);
+    }
 }
 
 }  // namespace
@@ -79,6 +82,14 @@ void beginRound(GameContext& game, std::uint64_t nowNanos) {
     round.hasVariant  = at.hasVariant;
     round.stampNanos  = nowNanos;
     round.bankedNanos = 0;
+
+    // The song this round is being played under. Counted at the start rather than at the end because
+    // it is a property of the round as it was set up, exactly as the combination above is - and
+    // counted here rather than in a slice because music is not part of a combination.
+    const std::size_t music = musicTypeIndex(game.flow.musicType);
+    if (music < kMusicTypeCount) {
+        addSaturating(game.stats.musicRounds[music], 1);
+    }
 }
 
 void endRound(GameContext& game, std::uint64_t nowNanos) {
@@ -115,6 +126,15 @@ void resumeRound(GameContext& game, std::uint64_t nowNanos) {
 void recordDrop(GameContext& game) {
     if (!game.stats.round.active) return;
     addSaturating(sliceFor(game.stats, game.stats.round).drops, 1);
+}
+
+void recordPiece(GameContext& game, PieceKind kind) {
+    if (!game.stats.round.active) return;
+
+    const auto index = static_cast<std::size_t>(kind);
+    if (index >= kPieceKindCount) return;  // not one of the seven; nowhere to put it
+
+    addSaturating(sliceFor(game.stats, game.stats.round).pieces[index], 1);
 }
 
 void recordLineClear(GameContext& game, std::uint8_t rows) {

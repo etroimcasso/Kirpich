@@ -38,6 +38,7 @@ void putSlice(std::array<std::uint8_t, kStatsImageBytes>& image, std::size_t& at
     putU32(image, at, slice.doubles);
     putU32(image, at, slice.triples);
     putU32(image, at, slice.tetrises);
+    for (const std::uint32_t count : slice.pieces) putU32(image, at, count);
 }
 
 StatSlice takeSlice(std::span<const std::uint8_t> image, std::size_t& at) {
@@ -52,6 +53,7 @@ StatSlice takeSlice(std::span<const std::uint8_t> image, std::size_t& at) {
     slice.doubles             = takeU32(image, at);
     slice.triples             = takeU32(image, at);
     slice.tetrises            = takeU32(image, at);
+    for (std::uint32_t& count : slice.pieces) count = takeU32(image, at);
     return slice;
 }
 
@@ -69,6 +71,7 @@ std::array<std::uint8_t, kStatsImageBytes> encodeStats(const StatsState& state) 
         for (const auto& slice : level) putSlice(image, at, slice);
     }
     putU32(image, at, state.applicationSeconds);
+    for (const std::uint32_t count : state.musicRounds) putU32(image, at, count);
 
     return image;
 }
@@ -85,8 +88,32 @@ bool decodeStats(std::span<const std::uint8_t> image, StatsState& state) {
         for (auto& slice : level) slice = takeSlice(image, at);
     }
     state.applicationSeconds = takeU32(image, at);
+    for (std::uint32_t& count : state.musicRounds) count = takeU32(image, at);
 
     return true;
+}
+
+std::vector<std::byte> migrateStatsV1ToV2(std::vector<std::byte> payload) {
+    if (payload.size() != kStatsImageBytesV1) return payload;
+
+    std::vector<std::byte> grown;
+    grown.reserve(kStatsImageBytes);
+
+    // Every slice in place: its ten counts, then the seven that version 2 added, at zero.
+    constexpr std::size_t kSlices = kStatLevels * kStatVariants * 2 + kStatLevels;
+    std::size_t           at      = 0;
+    for (std::size_t slice = 0; slice < kSlices; ++slice) {
+        grown.insert(grown.end(), payload.begin() + static_cast<std::ptrdiff_t>(at),
+                     payload.begin() + static_cast<std::ptrdiff_t>(at + kStatSliceBytesV1));
+        at += kStatSliceBytesV1;
+        grown.insert(grown.end(), kStatSliceBytes - kStatSliceBytesV1, std::byte{0});
+    }
+
+    // The application total, which version 1 already carried, and then the music block behind it.
+    grown.insert(grown.end(), payload.begin() + static_cast<std::ptrdiff_t>(at), payload.end());
+    grown.insert(grown.end(), kStatsMusicBytes, std::byte{0});
+
+    return grown;
 }
 
 bool saveStats(const StatsState& state, retropp::SaveStore& store) {
@@ -100,6 +127,7 @@ bool loadStats(retropp::SaveStore& store, StatsState& state) {
     // the same store also carries the settings and the top scores at versions of their own, and
     // whichever loader is about to read has to be the one that last said which version it means.
     store.setCurrentVersion(kStatsSchemaVersion);
+    store.registerMigration(1, migrateStatsV1ToV2);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

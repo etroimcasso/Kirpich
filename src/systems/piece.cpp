@@ -282,8 +282,18 @@ void lockPieceIntoBackground(GameContext& game) {
     flow.pieceLockStage = 2;
     game.spriteRenderer.slots[kActivePieceSlot].hidden = true;
 
-    // One piece has come to rest, which is what a drop counts as.
+    // One piece has come to rest, which is what a drop counts as - and which shape it was.
+    //
+    // The kind is the high bits of the slot's own piece byte, the same derivation the rejection test
+    // above uses: a piece byte is kind * 4 + rotation. Counting here rather than where a piece is
+    // promoted into the slot is what keeps the seven per-kind counts summing to the drop count: the
+    // round init promotes several pieces to prime the preview pipeline, and those are not pieces
+    // anyone has played.
     recordDrop(game);
+    recordPiece(game, static_cast<PieceKind>(
+                          static_cast<std::uint8_t>(
+                              game.spriteRenderer.slots[kActivePieceSlot].spriteId) >>
+                          2));
 }
 
 void nextPiece(GameContext& game, const std::function<std::uint8_t()>& draw) {

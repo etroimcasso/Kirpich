@@ -23,6 +23,8 @@
 #include <functional>
 #include <string_view>
 
+#include <kirpich/piece_kind.h>
+
 #include "state/game_flow_state.h"  // RoundCombination
 #include "state/stats_state.h"
 #include "systems/game_context.h"
@@ -52,6 +54,11 @@ void resumeRound(GameContext& game, std::uint64_t nowNanos);
 
 // One piece has come to rest.
 void recordDrop(GameContext& game);
+
+// …and which shape it was. Called from the same place as recordDrop and for the same event, so the
+// seven per-kind counts sum to the drop count exactly. A kind outside the seven is ignored rather
+// than written anywhere.
+void recordPiece(GameContext& game, PieceKind kind);
 
 // `rows` rows have been cleared at once: counts the lines, and the clear under its own kind.
 void recordLineClear(GameContext& game, std::uint8_t rows);

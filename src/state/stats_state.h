@@ -22,6 +22,8 @@
 #include <cstdint>
 
 #include <kirpich/game_type.h>
+#include <kirpich/music_type.h>
+#include <kirpich/piece_kind.h>
 
 namespace kirpich {
 
@@ -39,6 +41,15 @@ struct StatSlice {
     std::uint32_t doubles             = 0;
     std::uint32_t triples             = 0;
     std::uint32_t tetrises            = 0;
+
+    // How many of each shape have come to rest here, indexed by PieceKind. Counted at the same moment
+    // as `drops`, so the seven of them sum to exactly that - two figures a player can see on the same
+    // screen, agreeing by construction rather than by arithmetic that could drift.
+    //
+    // Thirty-two bits each, like every other count in this slice, and for that reason: a narrower
+    // field would stop climbing while `drops` kept going, and the two would visibly disagree on the
+    // screens that show both. Seven more counts cost 28 bytes a slice.
+    std::array<std::uint32_t, kPieceKindCount> pieces{};
 
     friend constexpr bool operator==(const StatSlice&, const StatSlice&) = default;
 };
@@ -80,6 +91,14 @@ struct StatsState {
     // How long the program itself has run, across every launch. The one figure that is not a fold
     // over the tables: it counts the title screen and the menus, which belong to no round.
     std::uint32_t applicationSeconds = 0;
+
+    // How many rounds have been played under each music selection, indexed by musicTypeIndex.
+    //
+    // The second figure that cannot be a fold, and for a different reason: music is not part of a
+    // combination. A round belongs to a game type, a level and a variant, and the song playing over
+    // it is none of those - so there is nowhere in the slice table for this to live, and it is
+    // counted alongside them instead.
+    std::array<std::uint32_t, kMusicTypeCount> musicRounds{};
 
     // The current round, and the current session's own timing. Neither is written to disk.
     RoundInProgress round{};

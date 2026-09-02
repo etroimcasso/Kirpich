@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -27,16 +28,20 @@ namespace {
 // A slice whose every field is distinct and derived from its position, so a codec that transposes two
 // indices or two fields cannot round-trip by accident.
 StatSlice sliceAt(std::uint32_t seed) {
-    return StatSlice{.rounds              = seed + 1,
-                     .seconds             = seed + 2,
-                     .longestRoundSeconds = seed + 3,
-                     .drops               = seed + 4,
-                     .score               = seed + 5,
-                     .lines               = seed + 6,
-                     .singles             = seed + 7,
-                     .doubles             = seed + 8,
-                     .triples             = seed + 9,
-                     .tetrises            = seed + 10};
+    StatSlice slice{.rounds              = seed + 1,
+                    .seconds             = seed + 2,
+                    .longestRoundSeconds = seed + 3,
+                    .drops               = seed + 4,
+                    .score               = seed + 5,
+                    .lines               = seed + 6,
+                    .singles             = seed + 7,
+                    .doubles             = seed + 8,
+                    .triples             = seed + 9,
+                    .tetrises            = seed + 10};
+    for (std::size_t kind = 0; kind < kirpich::kPieceKindCount; ++kind) {
+        slice.pieces[kind] = seed + 11 + static_cast<std::uint32_t>(kind);
+    }
+    return slice;
 }
 
 StatsState populated() {
@@ -53,6 +58,9 @@ StatsState populated() {
         }
     }
     stats.applicationSeconds = 987654;
+    for (std::size_t music = 0; music < kirpich::kMusicTypeCount; ++music) {
+        stats.musicRounds[music] = 4000 + static_cast<std::uint32_t>(music);
+    }
     return stats;
 }
 
@@ -89,22 +97,100 @@ TEST(Stats, CodecRoundTripsEveryField) {
     EXPECT_TRUE(loaded.typeB == saved.typeB);
     EXPECT_TRUE(loaded.typeC == saved.typeC);
     EXPECT_EQ(loaded.applicationSeconds, saved.applicationSeconds);
+    EXPECT_EQ(loaded.musicRounds, saved.musicRounds);
+}
+
+// (2b) A version 1 document - the format that shipped before the piece counts existed - is migrated
+// on the way in rather than read short. Every figure it carried survives in the slice it was in, and
+// the counts it predates arrive at zero.
+//
+// The step is exercised on its own AND through the store, because the two can disagree: a step that
+// produced the right bytes but was never registered would pass the first and fail the second.
+TEST(Stats, AVersionOneDocumentMigratesForward) {
+    // A version 1 image, laid out the way version 1 laid it out: ten counts to a slice, no music
+    // block. Written by hand here rather than by an old encoder, because there is no old encoder any
+    // more and the bytes are the contract.
+    std::vector<std::byte> v1(kirpich::kStatsImageBytesV1, std::byte{0});
+    const auto putU32 = [&v1](std::size_t at, std::uint32_t value) {
+        for (std::size_t i = 0; i < 4; ++i) {
+            v1[at + i] = static_cast<std::byte>((value >> (8 * i)) & 0xFFu);
+        }
+    };
+    // The first Type B slice's rounds, the first Type A slice's rounds, and the application total -
+    // one figure from each block, so a migration that lost a block's alignment shows up.
+    constexpr std::size_t kTypeBBytesV1 =
+        kirpich::kStatLevels * kirpich::kStatVariants * kirpich::kStatSliceBytesV1;
+    constexpr std::size_t kTypeABytesV1 = kirpich::kStatLevels * kirpich::kStatSliceBytesV1;
+    putU32(0, 111u);
+    putU32(kTypeBBytesV1, 222u);
+    putU32(kTypeBBytesV1 + kTypeABytesV1, 333u);
+    putU32(kirpich::kStatsImageBytesV1 - 4, 444u);
+
+    const std::vector<std::byte> v2 = kirpich::migrateStatsV1ToV2(v1);
+    ASSERT_EQ(v2.size(), kirpich::kStatsImageBytes);
+
+    StatsState migrated;
+    const std::span<const std::uint8_t> image(
+        reinterpret_cast<const std::uint8_t*>(v2.data()), v2.size());
+    ASSERT_TRUE(kirpich::decodeStats(image, migrated));
+
+    EXPECT_EQ(migrated.typeB[0][0].rounds, 111u);
+    EXPECT_EQ(migrated.typeA[0].rounds, 222u);
+    EXPECT_EQ(migrated.typeC[0][0].rounds, 333u);
+    EXPECT_EQ(migrated.applicationSeconds, 444u);
+
+    // And everything the format predates is zero, not garbage read out of the bytes beside it.
+    for (const std::uint32_t count : migrated.typeB[0][0].pieces) EXPECT_EQ(count, 0u);
+    for (const std::uint32_t count : migrated.typeA[0].pieces) EXPECT_EQ(count, 0u);
+    for (const std::uint32_t count : migrated.musicRounds) EXPECT_EQ(count, 0u);
+
+    // An image that is not version 1's length is not this step's to correct.
+    const std::vector<std::byte> wrong(7, std::byte{0xAB});
+    EXPECT_EQ(kirpich::migrateStatsV1ToV2(wrong), wrong);
+
+    // Through the store, which is where the registration is proved.
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_stats_v1_migration";
+    std::filesystem::remove_all(root);
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        ASSERT_TRUE(store.write("stats", 1, v1));
+    }
+    {
+        auto       store = retropp::SaveStore::atPath(root);
+        StatsState loaded;
+        ASSERT_TRUE(kirpich::loadStats(store, loaded))
+            << "a document from before the piece counts must still load";
+        EXPECT_EQ(loaded.typeB[0][0].rounds, 111u);
+        EXPECT_EQ(loaded.applicationSeconds, 444u);
+
+        const auto doc = store.read("stats");
+        ASSERT_TRUE(doc.has_value());
+        EXPECT_EQ(doc->schemaVersion, kirpich::kStatsSchemaVersion);
+        EXPECT_EQ(doc->payload.size(), kirpich::kStatsImageBytes)
+            << "a version 1 document must reach the decoder at version 2's length";
+    }
+    std::filesystem::remove_all(root);
 }
 
 // (3) The image is the size the header states, and its blocks are in the top-score document's order:
 // Type B, then Type A, then Type C, then the application total.
 TEST(Stats, WireImageSizeAndBlockOrder) {
-    EXPECT_EQ(kirpich::kStatSliceBytes, 40u);
-    EXPECT_EQ(kirpich::kStatsImageBytes, 5204u);
+    // Seventeen counts to a slice: the ten it started with and the seven per-kind piece counts.
+    EXPECT_EQ(kirpich::kStatSliceBytes, 68u);
+    EXPECT_EQ(kirpich::kStatsImageBytes, 8860u);
     EXPECT_EQ(kirpich::kStatsImageBytes, kirpich::kStatsTypeBBytes + kirpich::kStatsTypeABytes +
                                              kirpich::kStatsTypeCBytes +
-                                             kirpich::kStatsApplicationBytes);
+                                             kirpich::kStatsApplicationBytes +
+                                             kirpich::kStatsMusicBytes);
+    EXPECT_EQ(kirpich::kStatsImageBytesV1, 5204u) << "what the first version wrote";
 
     StatsState stats;
     stats.typeB[0][0].rounds  = 0x11223344;
     stats.typeA[0].rounds     = 0x55667788;
     stats.typeC[0][0].rounds  = 0x99AABBCC;
     stats.applicationSeconds  = 0x0D0C0B0A;
+    stats.musicRounds[kirpich::kMusicTypeCount - 1] = 0x1E1D1C1B;
 
     const auto image = kirpich::encodeStats(stats);
 
@@ -119,8 +205,10 @@ TEST(Stats, WireImageSizeAndBlockOrder) {
     EXPECT_EQ(readAt(kirpich::kStatsTypeBBytes), 0x55667788u) << "then Type A";
     EXPECT_EQ(readAt(kirpich::kStatsTypeBBytes + kirpich::kStatsTypeABytes), 0x99AABBCCu)
         << "then Type C";
-    EXPECT_EQ(readAt(kirpich::kStatsImageBytes - 4), 0x0D0C0B0Au)
-        << "and the application total last";
+    EXPECT_EQ(readAt(kirpich::kStatsImageBytes - kirpich::kStatsMusicBytes - 4), 0x0D0C0B0Au)
+        << "then the application total";
+    EXPECT_EQ(readAt(kirpich::kStatsImageBytes - 4), 0x1E1D1C1Bu)
+        << "and the music counts last, in selection order";
 }
 
 // (4) An image of any other length is refused, and the state it was handed is left alone.
