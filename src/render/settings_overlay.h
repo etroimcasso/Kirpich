@@ -61,4 +61,13 @@ inline constexpr int kArrowInset = 2;
                                                           std::uint8_t ramp, const TileAtlas& atlas,
                                                           std::size_t optionCount);
 
+// A list screen's two end indicators, the same sprite again: up when there is list above the window,
+// down when there is list below it (src/systems/list_screen.h). A list that fits the window draws
+// neither - the ends of a range are visible rather than something a player finds by pressing.
+//
+// How long the list is comes from ScreenUiState, recorded by the screen as it painted, because an
+// instance's row count is a seam the render bridge cannot reach.
+[[nodiscard]] std::vector<retropp::Sprite> listArrows(const kirpich::ScreenUiState& ui,
+                                                      std::uint8_t ramp, const TileAtlas& atlas);
+
 }  // namespace kirpich::render

@@ -33,6 +33,17 @@ class GameStateDispatcher;
 // point.
 using StartDemoHook = std::function<void(GameContext&)>;
 
+// Whether the player has asked for the statistics to be offered (Settings::showStats). Asked per
+// frame rather than read once, so switching it off in the settings screen and coming back leaves the
+// title screen the one item it has always had.
+//
+// The title screen reads a setting through a seam for the same reason the config screen reads the
+// extra-modes flag through one: the settings are the host's, they outlive a reset, and they are not
+// part of the machine's state.
+//
+// A build that binds nothing has the statistics off, which is the shipped default.
+using ShowStatsQuery = std::function<bool()>;
+
 // ── State handlers ──────────────────────────────────────────────────────────────────────────────────
 
 // GameState_24 — init the copyright screen: clear the object buffer, seed the piece ring from the demo
@@ -50,12 +61,20 @@ void copyrightSkippable(GameContext& game);
 // GameState_06 — init the title screen: reset leftover game state from a prior round, clear the score and
 // line-clear tallies, paint the title board (walls and floor), place the one/two-player cursor, cue the
 // title music, and arm the attract countdown.
-void initTitleScreen(GameContext& game);
+//
+// The bottom row is the port's own, and it holds one item or two: the settings item alone, centred, or
+// settings and stats under the one- and two-player columns once the statistics are switched on.
+void initTitleScreen(GameContext& game, const ShowStatsQuery& showStats = {});
 
 // GameState_07 — the title screen: run the attract countdown (firing startDemo when it expires), and the
 // one/two-player cursor. Select toggles the cursor; Left/Right move it; Start in one-player enters the
 // config screen. The two-player serial paths are deferred (see the contract).
-void titleScreen(GameContext& game, const StartDemoHook& startDemo = {});
+//
+// Down and up move between the player-count row and the port's own bottom row. On a bottom row holding
+// two items, left and right move between them; each leaves the other's column where the player left it,
+// exactly as moving down and back up leaves the player count alone.
+void titleScreen(GameContext& game, const StartDemoHook& startDemo = {},
+                 const ShowStatsQuery& showStats = {});
 
 // ── Installer ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -63,7 +82,8 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo = {});
 //
 // The demo seam is bound here because the title-screen handler that fires it is wrapped in this call.
 // It defaults to empty, so a build that installs only these screens still runs — it simply idles at
-// the title instead of playing a demo.
-void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo = {});
+// the title instead of playing a demo. The statistics query defaults the same way, to off.
+void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo = {},
+                                ShowStatsQuery showStats = {});
 
 }  // namespace kirpich::systems

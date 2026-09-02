@@ -149,6 +149,55 @@ TEST(Readouts, PrintNumberDigitLaw) {
     EXPECT_EQ(game.flow.scorePrintFlag, 0);
 }
 
+// ── Test 1b: DrawNumberIsThePrintWithoutTheFlag ───────────────────────────────────────────────────
+// The printer splits in two. The flag clear is a gameplay request, and the screens outside a round -
+// the statistics, whose figures are wider than any panel cell - have no business answering it, so
+// they draw through the half that only draws.
+//
+// The two halves must agree on every glyph. A drawNumber that diverged from printNumber would put a
+// different number on a stats page than on the panel, which is exactly the kind of disagreement the
+// split is supposed to be free of.
+TEST(Readouts, DrawNumberIsThePrintWithoutTheFlag) {
+    // Same picture from both, swept over widths and over the interesting shapes: zero, a leading-zero
+    // run, an interior zero, a full field, and a value past the width.
+    for (const std::uint8_t pairs : {std::uint8_t{1}, std::uint8_t{2}, std::uint8_t{3},
+                                     std::uint8_t{5}}) {
+        for (const std::uint32_t value :
+             {0u, 7u, 90009u, 999999u, 1234567890u}) {
+            GameContext drawn;
+            GameContext printed;
+            const std::size_t width = std::size_t{pairs} * 2;
+
+            kirpich::systems::drawNumber(drawn.display.map, 4, 4, value, pairs);
+            kirpich::systems::printNumber(printed.display.map, printed.flow, 4, 4, value, pairs);
+
+            EXPECT_EQ(cells(drawn.display.map, 4, 4, width),
+                      cells(printed.display.map, 4, 4, width))
+                << "value " << value << " in " << int{pairs} << " pairs";
+        }
+    }
+
+    // Ten digits reach a lifetime figure the panel's three pairs would silently truncate.
+    GameContext wide;
+    kirpich::systems::drawNumber(wide.display.map, 4, 4, 1234567890u, 5);
+    EXPECT_EQ(cells(wide.display.map, 4, 4, 10),
+              (std::vector<std::uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}));
+
+    // And the difference between them: the draw leaves the gameplay flag exactly as it found it,
+    // where the print clears it.
+    GameContext game;
+    game.flow.scorePrintFlag = 1;
+    kirpich::systems::drawNumber(game.display.map, 4, 4, 42, 3);
+    EXPECT_EQ(game.flow.scorePrintFlag, 1) << "a menu screen must not answer a gameplay request";
+
+    // The whole flow state, not only that byte: the draw touches none of it.
+    GameContext untouched;
+    untouched.flow.scorePrintFlag = 1;
+    const kirpich::GameFlowState before = untouched.flow;
+    kirpich::systems::drawNumber(untouched.display.map, 4, 4, 42, 3);
+    EXPECT_EQ(untouched.flow, before);
+}
+
 // ── Test 2: ScorePrintFlagLaw ─────────────────────────────────────────────────────────────────────
 // $FFE0 carries two roles and the second destroys the first: the score is only drawn when the flag is
 // set (:6618-6620), and any print clears it (:6657-6658). Sites that draw both maps therefore set it

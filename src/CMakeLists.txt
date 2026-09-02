@@ -23,7 +23,9 @@ add_library(kirpich-lib STATIC
     systems/menu_screens.cpp
     systems/mode_screen.cpp
     systems/carousel_screen.cpp
+    systems/list_screen.cpp
     systems/enhancement_screens.cpp
+    systems/stats_screens.cpp
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp

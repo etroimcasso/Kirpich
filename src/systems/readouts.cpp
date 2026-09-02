@@ -1,5 +1,6 @@
 #include "systems/readouts.h"
 
+#include <algorithm>
 #include <array>
 
 #include "kirpich/char_tile.h"
@@ -42,7 +43,7 @@ constexpr std::size_t kStartHeightRow = 5;
 constexpr std::size_t kStartHeightCol = 16;
 
 // A digit's tile index is the digit itself: the font puts 0-9 in the first ten slots.
-constexpr std::uint8_t digitTile(std::uint32_t digit) {
+constexpr std::uint8_t digitTile(std::uint64_t digit) {
     return static_cast<std::uint8_t>(digit);
 }
 
@@ -74,22 +75,29 @@ std::size_t scoreRow(const GameFlowState& flow) {
 
 }  // namespace
 
-void printNumber(BackgroundMap& map, GameFlowState& flow, std::size_t row, std::size_t col,
-                 std::uint32_t value, std::uint8_t digitPairs) {
-    const std::size_t digits = std::size_t{digitPairs} * 2;
+void drawNumber(BackgroundMap& map, std::size_t row, std::size_t col, std::uint32_t value,
+                std::uint8_t digitPairs) {
+    // Ten digits is every value a 32-bit count can reach, so a wider field is asked to draw leading
+    // spaces it would draw anyway. Capping here is what keeps the scale below from running away.
+    constexpr std::size_t kMaxDigits = 10;
+    const std::size_t digits = std::min(std::size_t{digitPairs} * 2, kMaxDigits);
 
     // Only the digits that fit are drawn. The original reads `digitPairs` packed-decimal bytes and
     // anything above them is simply not looked at.
-    std::uint32_t scale = 1;
+    //
+    // The scale is 64-bit because the widest field this draws is ten digits, and ten powers of ten
+    // do not fit in the 32 bits the value itself occupies. Computing it in the value's own type
+    // wrapped, which put a different number on the screen rather than a truncated one.
+    std::uint64_t scale = 1;
     for (std::size_t i = 0; i < digits; ++i) {
         scale *= 10;
     }
-    const std::uint32_t shown = value % scale;
+    const std::uint64_t shown = value % scale;
 
     bool started = false;
-    std::uint32_t place = scale / 10;
+    std::uint64_t place = scale / 10;
     for (std::size_t i = 0; i < digits; ++i, place /= 10) {
-        const std::uint32_t digit = (shown / place) % 10;
+        const std::uint64_t digit = (shown / place) % 10;
         const bool last = (i + 1 == digits);
 
         if (digit != 0) {
@@ -99,7 +107,11 @@ void printNumber(BackgroundMap& map, GameFlowState& flow, std::size_t row, std::
         // has - which is what makes a value of zero read as `0` rather than as blanks.
         map[row][col + i] = (started || last) ? digitTile(digit) : kSpaceTile;
     }
+}
 
+void printNumber(BackgroundMap& map, GameFlowState& flow, std::size_t row, std::size_t col,
+                 std::uint32_t value, std::uint8_t digitPairs) {
+    drawNumber(map, row, col, value, digitPairs);
     flow.scorePrintFlag = 0;
 }
 

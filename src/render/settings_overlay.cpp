@@ -4,6 +4,7 @@
 #include <string>
 
 #include "render/palettes.h"
+#include "systems/list_screen.h"      // the list's window height
 #include "systems/settings_screen.h"  // the cell coordinates the drawn parts line up with
 
 namespace kirpich::render {
@@ -96,6 +97,38 @@ std::vector<retropp::Sprite> carouselArrows(const kirpich::ScreenUiState& ui, st
     }
     if (optionCount != 0 && static_cast<std::size_t>(ui.carouselOption) + 1 < optionCount) {
         arrow("carousel-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
+    }
+    return sprites;
+}
+
+std::vector<retropp::Sprite> listArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
+                                        const TileAtlas& atlas) {
+    // The same tile, art selection and stance as the page arrows: a list is drawn over the screen
+    // that opened it, and the copyright-and-title set is the one on the block throughout.
+    const ResolvedTile art = resolveSpriteTile(kSelectorTile, kirpich::TileSheet::COPYRIGHT_TITLE,
+                                               /*palette1=*/false, atlas, ramp);
+
+    std::vector<retropp::Sprite> sprites;
+    const auto arrow = [&](std::string key, std::size_t row, retropp::Rotation turn) {
+        sprites.push_back(retropp::Sprite{
+            .key      = retropp::ObjectKey{std::move(key)},
+            .x        = static_cast<int>(kirpich::systems::kPageArrowCol) * kCell,
+            .y        = static_cast<int>(row) * kCell,
+            .z        = kPageArrowZ,
+            .atlas    = art.atlas,
+            .tile     = art.cell,
+            .palette  = art.palette,
+            .rotation = turn,
+        });
+    };
+
+    // The window's own edges: rows above it, and rows below it. Scrolling a list is moving between
+    // screenfuls of it, which is what a page arrow says everywhere else.
+    if (ui.listTop > 0) {
+        arrow("list-up", kirpich::systems::kPageUpArrowRow, retropp::Rotation::Rot270);
+    }
+    if (static_cast<std::size_t>(ui.listTop) + kirpich::systems::kListRows < ui.listCount) {
+        arrow("list-down", kirpich::systems::kPageDownArrowRow, retropp::Rotation::Rot90);
     }
     return sprites;
 }

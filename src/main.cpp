@@ -79,6 +79,7 @@
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/stats.h"
+#include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
 #include "vm/garbage_fill.h"
@@ -285,7 +286,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     dispatcher.softReset = reset;
 
     // Left alone, the title screen counts down and plays one of the two recorded demos.
-    kirpich::systems::installTitleScreenHandlers(dispatcher, kirpich::systems::startDemo);
+    //
+    // Its bottom row holds a second item once the player has asked for the statistics. Asked per
+    // frame, so switching them off in the settings screen and coming back leaves the title screen
+    // the one item the cartridge's own layout has room for.
+    kirpich::systems::installTitleScreenHandlers(dispatcher, kirpich::systems::startDemo,
+                                                 [&settings] { return settings.showStats; });
 
     // Each difficulty screen refreshes its own game type's table on the way in and on every move,
     // which is also where a just-finished round's score is compared against it and inserted.
@@ -338,12 +344,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // screen. What each one says and which flag it binds belong to the unit
     // (systems/enhancement_screens.h); what arrives from here is the settings they edit and the
     // seam a change fires, which is the same one every settings row already uses.
-    kirpich::systems::installEnhancementScreens(dispatcher, settings,
-                                                [&] {
-                                                    applySettings(settings);
-                                                    kirpich::saveSettings(settings, saves);
-                                                },
+    const auto settingChanged = [&] {
+        applySettings(settings);
+        kirpich::saveSettings(settings, saves);
+    };
+    kirpich::systems::installEnhancementScreens(dispatcher, settings, settingChanged,
                                                 settingsWiring);
+
+    // The statistics: the toggle's own screen behind the settings row of that name, and the chooser
+    // the title screen's stats item opens once the toggle is on. What each says and which flag it
+    // binds belong to the unit (systems/stats_screens.h); what arrives from here is the settings and
+    // the seam a change fires, the same one every settings row uses.
+    kirpich::systems::installStatsScreens(dispatcher, settings, settingChanged, settingsWiring);
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -532,12 +544,25 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // A carousel's option arrows are the same stood-up selector, drawn under the same rule:
         // only where there is an option in that direction. Each instance reports its own count.
         if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN ||
-            game.flow.gameState == kirpich::GameState::GHOST_SCREEN) {
-            const std::size_t count = game.flow.gameState == kirpich::GameState::FIXES_SCREEN
-                                          ? kirpich::systems::kFixesOptionCount
-                                          : kirpich::systems::kGhostOptionCount;
+            game.flow.gameState == kirpich::GameState::GHOST_SCREEN ||
+            game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
+            std::size_t count = kirpich::systems::kGhostOptionCount;
+            if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN) {
+                count = kirpich::systems::kFixesOptionCount;
+            } else if (game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
+                count = kirpich::systems::kStatsOptionCount;
+            }
             const auto arrows = kirpich::render::carouselArrows(game.screens, settings.shadeRamp,
                                                                 tiles, count);
+            sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+        }
+
+        // A list screen's two end indicators, under the same rule: only where there is more list
+        // that way. How long the list is was recorded by the screen as it painted.
+        if (game.flow.gameState == kirpich::GameState::STATS_MENU ||
+            game.flow.gameState == kirpich::GameState::STATS_LIST) {
+            const auto arrows =
+                kirpich::render::listArrows(game.screens, settings.shadeRamp, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
         }
 

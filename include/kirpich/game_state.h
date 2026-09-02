@@ -93,6 +93,12 @@ enum class GameState : uint8_t {
     INIT_GHOST_SCREEN      = 0x4B,  // Lay out the ghost piece's own screen
     GHOST_SCREEN           = 0x4C,  // The ghost piece's own screen
     TYPE_C_RISE_SELECTION  = 0x4D,  // Type C rise selection
+    INIT_STATS_SCREEN      = 0x4E,  // Lay out the statistics toggle's own screen
+    STATS_SCREEN           = 0x4F,  // The statistics toggle's own screen
+    INIT_STATS_MENU        = 0x50,  // Lay out the statistics and achievements chooser
+    STATS_MENU             = 0x51,  // The statistics and achievements chooser
+    INIT_STATS_LIST        = 0x52,  // Lay out a list of statistics
+    STATS_LIST             = 0x53,  // A list of statistics
 };
 
 }  // namespace kirpich
