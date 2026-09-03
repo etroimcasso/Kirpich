@@ -33,11 +33,19 @@ namespace kirpich::systems {
 // `0` preceded by spaces rather than as a blank run.
 //
 // Digits above the printed width are dropped: the original reads a fixed number of packed-decimal
-// bytes and this reads the matching number of digits, so both wrap the same way.
+// bytes and this reads the matching number of digits, so both wrap the same way. A caller drawing a
+// figure that has no fixed width of its own is asking for that width by choosing `digitPairs`, and
+// has to choose one wide enough for what it draws.
 //
-// Clears `flow.scorePrintFlag` on the way out, which is what the original's printer does and what
-// makes a print suppress the *next* score draw. Every drawing routine here goes through this one, so
-// printing the line count clears the score's request as surely as printing the score does.
+// It draws and does nothing else. The screens outside the round - the statistics, which print totals
+// far wider than any panel cell - go through this one, because the print flag below is a gameplay
+// request and a menu screen has no business answering it.
+void drawNumber(BackgroundMap& map, std::size_t row, std::size_t col, std::uint32_t value,
+                std::uint8_t digitPairs);
+
+// The same draw, and then `flow.scorePrintFlag` cleared - which is what the original's printer does
+// and what makes a print suppress the *next* score draw. Every readout below goes through this one,
+// so printing the line count clears the score's request as surely as printing the score does.
 void printNumber(BackgroundMap& map, GameFlowState& flow, std::size_t row, std::size_t col,
                  std::uint32_t value, std::uint8_t digitPairs);
 

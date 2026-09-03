@@ -56,11 +56,13 @@
 #include "render/background.h"
 #include "render/ghost_piece.h"
 #include "render/settings_overlay.h"
+#include "render/stats_pages.h"
 #include "render/type_c_difficulty.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
+#include "state/stats_persistence.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/enhancement_screens.h"
@@ -77,6 +79,8 @@
 #include "systems/scoring.h"
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
+#include "systems/stats.h"
+#include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
 #include "vm/garbage_fill.h"
@@ -224,6 +228,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
     retropp::Renderer    renderer{platform.device(), platform.sdlWindow()};
     retropp::RunLoop     loop{clock};
 
+    // The clock the statistics time a round against. The engine's is monotonic, so it never runs
+    // backwards, and reading it costs nothing on the hot path because nothing reads it per frame -
+    // only a round's start and end, a pause and an unpause, and the close-out below.
+    const auto nowNanos = [&clock] {
+        return static_cast<std::uint64_t>(clock.now().count());
+    };
+
     // ── The machine ──────────────────────────────────────────────────────────
     // ONE virtual machine, shared. The piece randomizer and the garbage fill both read the divider,
     // and a Type B round init draws its pieces and then fills its garbage in the same frame — so the
@@ -266,14 +277,22 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The dispatcher's own reset goes with it: the original's startup clears the held-buttons byte, so
     // the frame after a reset derives its presses against nothing and every button still down reads as
     // freshly pressed. That is also what makes a chord held down keep resetting until it is released.
-    const auto reset = [&game, &dispatcher] {
+    const auto reset = [&game, &dispatcher, nowNanos] {
+        // A round in progress ends here rather than leaking its time into whatever the player does
+        // after the reset. The statistics themselves survive the reset, as the top scores do.
+        kirpich::systems::endRound(game, nowNanos());
         kirpich::systems::softReset(game);
         dispatcher.reset();
     };
     dispatcher.softReset = reset;
 
     // Left alone, the title screen counts down and plays one of the two recorded demos.
-    kirpich::systems::installTitleScreenHandlers(dispatcher, kirpich::systems::startDemo);
+    //
+    // Its bottom row holds a second item once the player has asked for the statistics. Asked per
+    // frame, so switching them off in the settings screen and coming back leaves the title screen
+    // the one item the cartridge's own layout has room for.
+    kirpich::systems::installTitleScreenHandlers(dispatcher, kirpich::systems::startDemo,
+                                                 [&settings] { return settings.showStats; });
 
     // Each difficulty screen refreshes its own game type's table on the way in and on every move,
     // which is also where a just-finished round's score is compared against it and inserted.
@@ -288,10 +307,20 @@ int main(int /*argc*/, char* /*argv*/[]) {
                                                 [&settings] { return settings.newModes; },
                                                 kirpich::systems::updateTypeCTopScores);
 
+    // Fold the session's time so far into the stored total and write the statistics out. Called
+    // wherever the game already reaches the disk, so a crash costs the play since the last of those
+    // points rather than the whole session.
+    const auto persistStats = [&game, &saves, nowNanos] {
+        kirpich::systems::bankApplicationTime(game, nowNanos());
+        kirpich::saveStats(game.stats, saves);
+    };
+
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
+    // A round has just finished, so the statistics go down with it.
     kirpich::systems::installHighScoreHandlers(
-        dispatcher, [&saves](const kirpich::HighScoreState& scores) {
+        dispatcher, [&saves, persistStats](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
+            persistStats();
         });
 
     // The settings screen, reached from the title screen's third item and from a paused round. It
@@ -316,12 +345,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // screen. What each one says and which flag it binds belong to the unit
     // (systems/enhancement_screens.h); what arrives from here is the settings they edit and the
     // seam a change fires, which is the same one every settings row already uses.
-    kirpich::systems::installEnhancementScreens(dispatcher, settings,
-                                                [&] {
-                                                    applySettings(settings);
-                                                    kirpich::saveSettings(settings, saves);
-                                                },
+    const auto settingChanged = [&] {
+        applySettings(settings);
+        kirpich::saveSettings(settings, saves);
+    };
+    kirpich::systems::installEnhancementScreens(dispatcher, settings, settingChanged,
                                                 settingsWiring);
+
+    // The statistics: the toggle's own screen behind the settings row of that name, and the chooser
+    // the title screen's stats item opens once the toggle is on. What each says and which flag it
+    // binds belong to the unit (systems/stats_screens.h); what arrives from here is the settings and
+    // the seam a change fires, the same one every settings row uses.
+    kirpich::systems::installStatsScreens(dispatcher, settings, settingChanged, settingsWiring);
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -329,7 +364,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The dance holds while its jingle plays, so the ending needs to ask the driver. Handing it the
     // real query is what ends the dance on a build that has sound; the default reports silence.
     kirpich::systems::installTypeBEndingHandlers(
-        dispatcher, [&sound] { return sound.currentMusic().has_value(); });
+        dispatcher, [&sound] { return sound.currentMusic().has_value(); }, nowNanos);
 
     // The two bonus endings. Without these the dance's height-5 fork and the game-over chain's
     // 100 000-point fork both write a state nothing implements, and the game stops where it should
@@ -348,6 +383,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                         .initGarbage = kirpich::vm::makeInitGarbageHook(
                             [&garbageFold] { return garbageFold(); }),
                         .softReset   = reset,
+                        .now         = nowNanos,
                     });
 
     // Start the machine: the boot path, then the player's saved top scores read back over the tables
@@ -355,6 +391,21 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // loaded — and it leaves the game at the copyright screen with the two menu selections the
     // following screens read.
     kirpich::systems::bootGame(game, saves);
+
+    // The session's own clock starts once the saved totals are in place, so this run's time is added
+    // to them rather than measured from the clock's origin.
+    kirpich::systems::beginSession(game, nowNanos());
+
+    // Everything that ends the run arrives here: the settings screen's exit row, the window's close
+    // button, and the platform's own quit gesture all raise the same pending exit, and the engine
+    // drives this guard at a frame boundary before tearing down. A round still being played is closed
+    // into its own combination first, so quitting mid-game records the round rather than discarding
+    // it, and the session's time goes down with it.
+    loop.exitAction([&game, nowNanos, persistStats] {
+        kirpich::systems::endRound(game, nowNanos());
+        persistStats();
+        return retropp::ExitVerdict::Proceed;
+    });
 
     // ── Input ────────────────────────────────────────────────────────────────
     retropp::ActionMap actions = kirpich::systems::defaultActionMap();
@@ -494,13 +545,41 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // A carousel's option arrows are the same stood-up selector, drawn under the same rule:
         // only where there is an option in that direction. Each instance reports its own count.
         if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN ||
-            game.flow.gameState == kirpich::GameState::GHOST_SCREEN) {
-            const std::size_t count = game.flow.gameState == kirpich::GameState::FIXES_SCREEN
-                                          ? kirpich::systems::kFixesOptionCount
-                                          : kirpich::systems::kGhostOptionCount;
+            game.flow.gameState == kirpich::GameState::GHOST_SCREEN ||
+            game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
+            std::size_t count = kirpich::systems::kGhostOptionCount;
+            if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN) {
+                count = kirpich::systems::kFixesOptionCount;
+            } else if (game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
+                count = kirpich::systems::kStatsOptionCount;
+            }
             const auto arrows = kirpich::render::carouselArrows(game.screens, settings.shadeRamp,
                                                                 tiles, count);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+        }
+
+        // A list screen's two end indicators, under the same rule: only where there is more list
+        // that way. How long the list is was recorded by the screen as it painted.
+        if (game.flow.gameState == kirpich::GameState::STATS_MENU) {
+            const auto arrows =
+                kirpich::render::listArrows(game.screens, settings.shadeRamp, tiles);
+            sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+        }
+
+        // A paged screen's two arrows, under the same rule again: only where there is another page.
+        if (game.flow.gameState == kirpich::GameState::STATS_PAGE) {
+            const auto arrows =
+                kirpich::render::statsPageArrows(game.screens, settings.shadeRamp, tiles);
+            sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+        }
+
+        // The seven shapes on a statistics pieces page. They are the game's own piece art, several
+        // tiles wide and see-through at their lightest shade, so they are placed by pixel beside the
+        // counts the page writes into the map rather than written into cells themselves.
+        if (kirpich::render::statsPieceShapesShown(game.flow.gameState, game.screens)) {
+            const auto shapes =
+                kirpich::render::statsPieceShapeSprites(game.screens, tiles, settings.shadeRamp);
+            sprites.insert(sprites.end(), shapes.begin(), shapes.end());
         }
 
         retropp::DrawLayer background = kirpich::render::backgroundLayer(cells, kViewport);

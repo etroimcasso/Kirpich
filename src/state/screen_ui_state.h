@@ -16,6 +16,8 @@
 // chord. The player's actual settings do NOT live here - they outlive a reset and are saved to disk,
 // so they live in src/state/settings.h and reach the screen through its wiring.
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include <kirpich/game_state.h>
@@ -28,10 +30,14 @@ namespace kirpich {
 
 // The settings screen's option rows, in the order the cursor walks them.
 //
-// They span two pages: the window's own choices on the first, and on the second the ones that change
-// how the game is played and the one that erases the scores. The walk itself is continuous - going
-// down past the last row of a page turns to the next one, and up past the first row turns back - so
-// a page is where a row is drawn rather than a mode the player has to switch between.
+// They span three pages: the window's own choices on the first, and on the two after them the ones
+// that change how the game is played and the one that erases the scores. The walk itself is
+// continuous - going down past the last row of a page turns to the next one, and up past the first
+// row turns back - so a page is where a row is drawn rather than a mode the player has to switch
+// between.
+//
+// The declaration order IS the layout: a page holds kSettingsRowsPerPage consecutive rows, so moving
+// a row between pages means moving its enumerator rather than editing a table somewhere else.
 enum class SettingsRow : std::uint8_t {
     FULLSCREEN   = 0,
     WINDOW_SCALE = 1,
@@ -40,28 +46,44 @@ enum class SettingsRow : std::uint8_t {
     GHOST_PIECE  = 4,
     NEW_MODES    = 5,
     FIXES        = 6,
-    RESET_SCORES = 7,
+    STATS        = 7,
+    RESET_SCORES = 8,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.
 inline constexpr std::uint8_t kSettingsRowCount =
     static_cast<std::uint8_t>(SettingsRow::RESET_SCORES) + 1;
 
-// How many rows the first page holds; the rest are on the second. Erasing the scores is the one that
-// sits apart, so the first page carries the rest.
-inline constexpr std::uint8_t kSettingsFirstPageRows = 4;
-inline constexpr std::uint8_t kSettingsPageCount     = 2;
+// How many rows a page holds, and how many pages that makes. Every page lays out the same way, so
+// the count is one number rather than a split point per page; the last page carries the remainder.
+inline constexpr std::uint8_t kSettingsRowsPerPage = 4;
+inline constexpr std::uint8_t kSettingsPageCount =
+    static_cast<std::uint8_t>((kSettingsRowCount + kSettingsRowsPerPage - 1) /
+                              kSettingsRowsPerPage);
 
 // Which page a row is drawn on, and where it sits within that page.
 [[nodiscard]] constexpr std::uint8_t settingsPageOf(SettingsRow row) noexcept {
-    return static_cast<std::uint8_t>(row) < kSettingsFirstPageRows ? 0 : 1;
+    return static_cast<std::uint8_t>(static_cast<std::uint8_t>(row) / kSettingsRowsPerPage);
 }
 [[nodiscard]] constexpr std::uint8_t settingsRowWithinPage(SettingsRow row) noexcept {
-    const auto index = static_cast<std::uint8_t>(row);
-    return index < kSettingsFirstPageRows
-               ? index
-               : static_cast<std::uint8_t>(index - kSettingsFirstPageRows);
+    return static_cast<std::uint8_t>(static_cast<std::uint8_t>(row) % kSettingsRowsPerPage);
 }
+
+// How many screens deep the stacking screens can go before a push is refused.
+//
+// The deepest path the game has is four - the title screen, the chooser it opens, the game type and
+// the combination - so six is headroom rather than a limit anything reaches. It is declared here
+// because it is the dimension of the array below; systems/screen_stack.h, which pushes and pops,
+// reads it from here for the same reason.
+inline constexpr std::size_t kScreenStackDepth = 6;
+
+// A statistics picker axis folded away: every starting level, or every start height or rise, rather
+// than one of them.
+//
+// It sits outside the ten levels and the six variants rather than at index 0, because 0 is a level a
+// player can actually pick - a picker whose first position meant level 0 could not express "all of
+// them", which is the position a mode's own aggregate is read at.
+inline constexpr std::uint8_t kStatAxisAll = 0xFF;
 
 // What the confirm screen is currently guarding. Both of its actions are ones a player cannot undo,
 // which is why neither happens without it.
@@ -71,10 +93,16 @@ enum class ConfirmAction : std::uint8_t {
 };
 
 struct ScreenUiState {
-    // Whether the title screen's cursor is on the settings item rather than the player-count pair.
+    // Whether the title screen's cursor is on the bottom row rather than on the player-count pair.
     // The pair's own choice is MultiplayerState::isMultiplayer, which this does not disturb: moving
-    // down to the settings item and back up leaves the player count where the player left it.
+    // down to the bottom row and back up leaves the player count where the player left it.
     bool titleSettingsSelected = false;
+
+    // Which of the bottom row's two cells the cursor is on: the stats item when set, the settings
+    // item when clear. The row holds two items only while the player has the statistics switched on
+    // (Settings::showStats); with one item this is ignored, and moving up and back down leaves it
+    // where the player left it, exactly as the player count above it is left.
+    bool titleStatsColumn = false;
 
     // Which option row the settings cursor is on.
     SettingsRow settingsRow = SettingsRow::FULLSCREEN;
@@ -101,6 +129,51 @@ struct ScreenUiState {
     // neither of which is a refusal.
     bool          confirmRight   = false;
     ConfirmAction pendingConfirm = ConfirmAction::ERASE_SCORES;
+
+    // Which row a list screen's cursor is on, the first row its window shows, and how many rows the
+    // list held when it was last painted (systems/list_screen.h). Three fields serve every list
+    // instance for the same reason one serves every carousel: only one list is ever on screen, and
+    // each instance's init starts them at zero.
+    //
+    // The count is here because the two end indicators are drawn by the render bridge, which has no
+    // way to ask an instance how long its list is; the screen records what it drew.
+    std::uint8_t listRow   = 0;
+    std::uint8_t listTop   = 0;
+    std::uint8_t listCount = 0;
+
+    // Which of the statistics screen's five rows the player took, which page of that branch is up,
+    // and how many pages it holds (systems/page_screen.h, systems/stats_pages.h).
+    //
+    // They are NOT the list's three fields above. The statistics screen sits under the page screen on
+    // the navigation stack and is returned to without being re-initialised, so its row has to survive
+    // the visit; sharing the fields would put the player back on its first row every time they came
+    // out of a branch.
+    //
+    // The count is here for the same reason the list's is: the two page arrows are drawn by the
+    // render bridge, which has no way to ask the branch how many pages it has, so the screen records
+    // what it drew.
+    std::uint8_t statsBranch    = 0;
+    std::uint8_t statsPage      = 0;
+    std::uint8_t statsPageCount = 0;
+
+    // The picker a game type's pages share, so the figures and the piece counts on them are read for
+    // one selection and change together as it moves. Both axes open on kStatAxisAll - the mode's own
+    // aggregate - and statsPickerRow is which axis the cursor is on.
+    std::uint8_t statsLevel     = kStatAxisAll;
+    std::uint8_t statsVariant   = kStatAxisAll;
+    std::uint8_t statsPickerRow = 0;
+
+    // Where the stacking screens came from, deepest last, and how many of them are on it.
+    //
+    // The screens the settings screen opens hard-code their parent, which works because each has
+    // exactly one. The screens reached from the title screen's stats item are four deep and share
+    // their machinery, so each one records where it was entered from and comes back to it -
+    // systems/screen_stack.h holds the two calls.
+    //
+    // An array and a count rather than a BoundedVec: that type is construct-only by design, and a
+    // stack has to be pushed and popped.
+    std::array<GameState, kScreenStackDepth> screenStack{};
+    std::uint8_t                             screenStackDepth = 0;
 
     // The state to return to when the player leaves: the title screen, or the paused round the
     // screen was opened from.

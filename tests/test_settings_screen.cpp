@@ -53,7 +53,8 @@ constexpr std::size_t kExitRow  = 14;  // the last row of the first page
 constexpr std::size_t kGhostRow    = 5;   // the second page's first row
 constexpr std::size_t kNewModesRow = 8;   // its second
 constexpr std::size_t kFixesRow    = 11;  // its third
-constexpr std::size_t kResetRow    = 14;  // and its fourth
+constexpr std::size_t kStatsRow    = 14;  // and its fourth
+constexpr std::size_t kResetRow    = 5;   // the third page's only row
 constexpr std::size_t kLabelCol = 3;
 constexpr std::size_t kValueStart = kirpich::systems::kOptionValueCol;  // values start here
 constexpr std::size_t kValueEnd   = kirpich::systems::kOptionValueEnd;
@@ -280,7 +281,7 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
 
     // Down again crosses onto the second page: all four of its labels are laid out, the first page's
     // are gone, and the header counts up. The ghost row is the one the cursor lands on, above the new
-    // modes, the fixes and the reset.
+    // modes, the fixes and the stats.
     step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::GHOST_PIECE);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
@@ -294,27 +295,26 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
                       C::LETTER_D, C::LETTER_E, C::LETTER_S});
         expectGlyphs(map, kFixesRow, kLabelCol,
                      {C::LETTER_F, C::LETTER_I, C::LETTER_X, C::LETTER_E, C::LETTER_S});
-        expectGlyphs(map, kResetRow, kLabelCol,
-                     {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
-                      C::LETTER_S, C::LETTER_C, C::LETTER_O, C::LETTER_R, C::LETTER_E, C::LETTER_S});
+        expectGlyphs(map, kStatsRow, kLabelCol,
+                     {C::LETTER_S, C::LETTER_T, C::LETTER_A, C::LETTER_T, C::LETTER_S});
         EXPECT_EQ(map[kGhostRow][kCursorCol], kCursor);
         EXPECT_EQ(map[kNewModesRow][kCursorCol], kSpace);
         EXPECT_EQ(map[kFixesRow][kCursorCol], kSpace);
-        EXPECT_EQ(map[kResetRow][kCursorCol], kSpace);
+        EXPECT_EQ(map[kStatsRow][kCursorCol], kSpace);
         // The second page is named for what it holds, and its own family counts from one.
         expectGlyphs(map, kTitleRow, 3,
                      {C::LETTER_E, C::LETTER_N, C::LETTER_H, C::LETTER_A, C::LETTER_N, C::LETTER_C,
                       C::LETTER_E, C::LETTER_M, C::LETTER_E, C::LETTER_N, C::LETTER_T, C::LETTER_S,
                       C::SPACE, C::DIGIT_1});
-        // Every row on this page opens a screen or acts; none carries an inline value - the ghost
-        // switch lives on the ghost row's own screen now.
+        // Every row on this page opens a screen; none carries an inline value - the ghost switch
+        // lives on the ghost row's own screen now, and the stats switch on the stats row's.
         EXPECT_EQ(map[kGhostRow][kValueStart], kSpace);
         EXPECT_EQ(map[kNewModesRow][kValueStart], kSpace);
         EXPECT_EQ(map[kFixesRow][kValueStart], kSpace);
-        EXPECT_EQ(map[kResetRow][kValueStart], kSpace);
-        // The first page's rows are not on this one. Both pages now hold four rows on the same
-        // lines, so nothing can say so by being empty; what proves the first page's labels are gone
-        // is the second page's labels asserted above standing on every one of their lines.
+        EXPECT_EQ(map[kStatsRow][kValueStart], kSpace);
+        // The first page's rows are not on this one. Both pages hold four rows on the same lines, so
+        // nothing can say so by being empty; what proves the first page's labels are gone is the
+        // second page's labels asserted above standing on every one of their lines.
     }
 
     step(Action::MenuDown);
@@ -328,21 +328,48 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.display.map[kFixesRow][kCursorCol], kCursor);
 
     step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::STATS);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+    EXPECT_EQ(game.display.map[kStatsRow][kCursorCol], kCursor);
+
+    // Down again crosses onto the third page, which holds the erase on its own. Its label stands on
+    // the first row of the page rather than on the fourth, and every line the second page used below
+    // it is empty - which is what says the second page's rows are gone, since this page is short
+    // enough for emptiness to prove it.
+    step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
-    EXPECT_EQ(game.display.map[kResetRow][kCursorCol], kCursor);
+    {
+        using C = CharTile;
+        const BackgroundMap& map = game.display.map;
+        expectGlyphs(map, kResetRow, kLabelCol,
+                     {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
+                      C::LETTER_S, C::LETTER_C, C::LETTER_O, C::LETTER_R, C::LETTER_E, C::LETTER_S});
+        EXPECT_EQ(map[kResetRow][kCursorCol], kCursor);
+        for (const std::size_t row : {kNewModesRow, kFixesRow, kStatsRow}) {
+            EXPECT_EQ(map[row][kLabelCol], kSpace) << "row " << row << " belongs to no page";
+            EXPECT_EQ(map[row][kCursorCol], kSpace) << "row " << row;
+        }
+        // The enhancements family counts up; the settings family is untouched by it.
+        expectGlyphs(map, kTitleRow, 3,
+                     {C::LETTER_E, C::LETTER_N, C::LETTER_H, C::LETTER_A, C::LETTER_N, C::LETTER_C,
+                      C::LETTER_E, C::LETTER_M, C::LETTER_E, C::LETTER_N, C::LETTER_T, C::LETTER_S,
+                      C::SPACE, C::DIGIT_2});
+    }
 
     step(Action::MenuDown);  // the bottom end stop
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
 
-    // Back up, across the page boundary again, to the top.
-    for (int i = 0; i < 7; ++i) step(Action::MenuUp);
+    // Back up, across both page boundaries, to the top.
+    for (int i = 0; i < 8; ++i) step(Action::MenuUp);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::FULLSCREEN);
     {
         using C = CharTile;
         const BackgroundMap& map = game.display.map;
-        EXPECT_EQ(map[kTitleRow][kTitleCol + 9], static_cast<std::uint8_t>(C::DIGIT_1));
+        expectGlyphs(map, kTitleRow, kTitleCol,
+                     {C::LETTER_S, C::LETTER_E, C::LETTER_T, C::LETTER_T, C::LETTER_I, C::LETTER_N,
+                      C::LETTER_G, C::LETTER_S, C::SPACE, C::DIGIT_1});
         expectGlyphs(map, kExitRow, kLabelCol,
                      {C::LETTER_E, C::LETTER_X, C::LETTER_I, C::LETTER_T, C::SPACE, C::LETTER_G,
                       C::LETTER_A, C::LETTER_M, C::LETTER_E});

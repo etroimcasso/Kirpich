@@ -9,7 +9,8 @@
 // top-score tables and the reset entry does not, which is the whole reason a player's scores survive a
 // reset. Everything else - the other five clear loops, the sound startup, the tile-map fill, and the
 // three values the following screens read - is shared, so coldBoot is the sequence and softReset is
-// coldBoot with the two tables carried across it.
+// coldBoot with the durable state carried across it: the top-score tables, and the statistics, which
+// outlive a launch for the same reason.
 //
 // Most of that routine has no counterpart here. Roughly a third of it writes the original's display,
 // interrupt, stack and timer registers, and this port draws through a display the engine owns and runs
@@ -38,15 +39,20 @@ void coldBoot(GameContext& game);
 // A soft reset - the original's Init entered at .softReset (tetris.asm:276), which the four-button
 // chord jumps to from both of its detection sites.
 //
-// Identical to coldBoot except that the two top-score tables are carried across it. Note that
-// HighScoreState sits on both sides of that line: its tables live in the work-RAM bank the reset
-// skips, while its four high-memory bytes are inside a clear the reset does run, so those four return
-// to their boot values with everything else. Preserving the whole structure would be as wrong as
-// preserving none of it.
+// Identical to coldBoot except that the durable state is carried across it. Note that HighScoreState
+// sits on both sides of that line: its tables live in the work-RAM bank the reset skips, while its
+// four high-memory bytes are inside a clear the reset does run, so those four return to their boot
+// values with everything else. Preserving the whole structure would be as wrong as preserving none of
+// it.
+//
+// StatsState is carried whole, and the difference is not an inconsistency: it maps to no address in
+// the original, so there is no clear boundary for it to sit across. Its session timing is part of
+// what survives - a zeroed stamp would leave the next reading measuring from the clock's origin
+// instead of from this session.
 void softReset(GameContext& game);
 
-// Start a session: a cold boot, then the player's saved top scores read back over the tables it just
-// cleared.
+// Start a session: a cold boot, then the player's saved top scores and statistics read back over the
+// tables it just cleared.
 //
 // The order is the point. The original has nowhere to keep a score between sessions, so its cold boot
 // simply zeroes the tables; this port writes them to the player's save file, and a launch has to clear

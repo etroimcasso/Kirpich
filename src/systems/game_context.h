@@ -1,6 +1,6 @@
 #pragma once
 
-// The game's whole in-memory image as one aggregate: the nine mutable state structs the port has
+// The game's whole in-memory image as one aggregate: the ten mutable state structs the port has
 // ported so far, plus this tick's joypad snapshot. Every state handler the main loop dispatches to
 // receives a GameContext& and reads or writes through it — it is the single argument that carries
 // the game's state into and out of a frame.
@@ -23,6 +23,7 @@
 #include "state/playing_field_state.h"
 #include "state/screen_ui_state.h"
 #include "state/sprite_renderer_state.h"
+#include "state/stats_state.h"
 #include "systems/audio_cues.h"
 #include "systems/input.h"
 #include "systems/oam_source.h"
@@ -39,6 +40,7 @@ struct GameContext {
     HighScoreState      highScores;      // top-score tables + entry bytes
     DisplayState        display;         // which tile art the background draws through
     ScreenUiState       screens;         // the port's own screens (no cartridge counterpart)
+    StatsState          stats;           // what has been played, per difficulty combination
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)

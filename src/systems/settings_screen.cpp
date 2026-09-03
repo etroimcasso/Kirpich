@@ -85,6 +85,7 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
         case SettingsRow::GHOST_PIECE:
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
+        case SettingsRow::STATS:
             // Not a value, but it does go somewhere: the right arrow says there is another screen
             // through this row, and pressing that way opens it.
             return {.left = false, .right = true};
@@ -189,6 +190,7 @@ std::string_view labelFor(SettingsRow row) {
         case SettingsRow::GHOST_PIECE:  return "ghost";
         case SettingsRow::NEW_MODES:    return "new modes";
         case SettingsRow::FIXES:        return "fixes";
+        case SettingsRow::STATS:        return "stats";
         case SettingsRow::RESET_SCORES: return "reset scores";
         // "exit game", not "exit": on its own the word reads as leaving this screen, which is what
         // Back does, and a player reaching for it would be asked to quit instead.
@@ -197,16 +199,26 @@ std::string_view labelFor(SettingsRow row) {
     return {};
 }
 
+// What each page is called. The name says what the page holds: the window's own choices are
+// settings, and the pages after them - the screens and switches the cartridge never had - are
+// enhancements. Each family counts from one, so a family's pages are numbered within it rather than
+// across the whole screen. The font has no slash, so the name and the number sit a cell apart rather
+// than reading "settings/1".
+std::string_view pageTitle(std::uint8_t page) {
+    switch (page) {
+        case 0:  return "settings 1";
+        case 1:  return "enhancements 1";
+        case 2:  return "enhancements 2";
+        default: return {};
+    }
+}
+
 void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& settings) {
     const std::uint8_t page = settingsPageOf(ui.settingsRow);
 
     clearVisibleRegion(map);
 
-    // The header names the page for what it holds: the window's own choices are settings, and the
-    // second page - the screens and switches the cartridge never had - is enhancements. Each family
-    // counts from one, so a third page of either keeps its own numbering. The font has no slash, so
-    // the name and the number sit a cell apart rather than reading "settings/1".
-    const std::string_view title = page == 0 ? "settings 1" : "enhancements 1";
+    const std::string_view title = pageTitle(page);
     writeMapText(map, kScreenTitleRow, centred(title.size()), title);
 
     for (const SettingsRow row : rowsOnPage(page)) {
@@ -310,22 +322,9 @@ void drawConfirmCursor(BackgroundMap& map, const ScreenUiState& ui) {
 
 // Put the caller's screen back and hand control to whichever state opened this one.
 void leaveSettings(GameContext& game) {
-    ScreenUiState& ui = game.screens;
-
-    game.display.displayedMap() = ui.savedMap;
-    game.display.sheet      = ui.savedSheet;
-    game.engine.oam         = ui.savedOam;
-    // The objects are back where they were, but nothing on screen has been theirs for however long
-    // the screen was up, so none of them has a past for the renderer to ease them from.
-    game.oamSources.reset();
-
-    game.flow.timer1    = ui.savedTimer1;
-    game.flow.gameState = ui.settingsReturn;
+    restoreCallerScreen(game);
+    game.flow.gameState   = game.screens.settingsReturn;
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-
-    // The caller's demo gate, back as it was. This is the only exit that hands control to the caller
-    // with the caller's state intact, which is why it is the only one that restores.
-    game.demo.activeDemo = ui.savedActiveDemo;
 }
 
 // Move the cursor one row. Returns whether that crossed onto the other page, which is the caller's
@@ -362,6 +361,7 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
         case SettingsRow::GHOST_PIECE:
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
+        case SettingsRow::STATS:
         case SettingsRow::RESET_SCORES:
         case SettingsRow::EXIT_GAME:
             return;  // an action, not a value
@@ -404,6 +404,43 @@ void blinkScreenCursor(GameContext& game) {
     game.screens.cursorVisible = !game.screens.cursorVisible;
 }
 
+void saveCallerScreen(GameContext& game) {
+    ScreenUiState& ui = game.screens;
+
+    ui.savedMap    = game.display.displayedMap();
+    ui.savedOam    = game.engine.oam;
+    ui.savedTimer1 = game.flow.timer1;
+    ui.savedSheet  = game.display.sheet;
+    clearOamObjects(game);
+
+    // Lift the driver's demo gate for as long as a port screen is up. It is still set after an
+    // attract demo has played - nothing clears it until a round starts - and while it is set the
+    // driver blanks every cue before playing, so the screen would be silent for the rest of the
+    // session. See the note on ScreenUiState::savedActiveDemo.
+    ui.savedActiveDemo   = game.demo.activeDemo;
+    game.demo.activeDemo = ActiveDemo::NONE;
+
+    // The set the game's own selector arrow is a tile of. Selecting it is an assignment - every set
+    // is already uploaded - and a screen drawn from the font reads the same either way.
+    game.display.sheet = TileSheet::COPYRIGHT_TITLE;
+}
+
+void restoreCallerScreen(GameContext& game) {
+    ScreenUiState& ui = game.screens;
+
+    game.display.displayedMap() = ui.savedMap;
+    game.display.sheet          = ui.savedSheet;
+    game.engine.oam             = ui.savedOam;
+    // The objects are back where they were, but nothing on screen has been theirs for however long
+    // the screen was up, so none of them has a past for the renderer to ease them from.
+    game.oamSources.reset();
+
+    game.flow.timer1 = ui.savedTimer1;
+
+    // The caller's demo gate, back as it was.
+    game.demo.activeDemo = ui.savedActiveDemo;
+}
+
 void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
     BackgroundMap& map = game.display.displayedMap();
     paintSettings(map, game.screens, wiring.current());
@@ -423,25 +460,10 @@ void openSettings(GameContext& game) {
 }
 
 void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
-    ScreenUiState& ui  = game.screens;
+    ScreenUiState& ui = game.screens;
+
+    saveCallerScreen(game);
     BackgroundMap& map = game.display.displayedMap();
-
-    ui.savedMap    = map;
-    ui.savedOam    = game.engine.oam;
-    ui.savedTimer1 = game.flow.timer1;
-    ui.savedSheet  = game.display.sheet;
-    clearOamObjects(game);
-
-    // Lift the driver's demo gate for as long as this screen is up. It is still set after an attract
-    // demo has played - nothing clears it until a round starts - and while it is set the driver
-    // blanks every cue before playing, so this screen would be silent for the rest of the session.
-    // See the note on ScreenUiState::savedActiveDemo.
-    ui.savedActiveDemo   = game.demo.activeDemo;
-    game.demo.activeDemo = ActiveDemo::NONE;
-
-    // The set the game's own selector arrow is a tile of. Selecting it is an assignment - every set is
-    // already uploaded - and the screen's text reads the same either way.
-    game.display.sheet = TileSheet::COPYRIGHT_TITLE;
 
     ui.settingsRow   = SettingsRow::FULLSCREEN;
     ui.cursorVisible = true;
@@ -494,6 +516,9 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
                 return;
             case SettingsRow::FIXES:
                 openScreen(GameState::INIT_FIXES_SCREEN);
+                return;
+            case SettingsRow::STATS:
+                openScreen(GameState::INIT_STATS_SCREEN);
                 return;
             default:
                 break;

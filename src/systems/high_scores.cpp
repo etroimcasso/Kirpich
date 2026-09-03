@@ -178,14 +178,19 @@ TopScoreEntry* namedEntry(GameContext& game) {
     }
     const std::size_t index = kTopScoreRowCount - rank;
 
-    switch (game.flow.gameType) {
+    // Which combination the round was played at is one derivation, shared with the statistics
+    // tables (src/state/game_flow_state.h): a score and the round's counts have to land on the
+    // same slice, and two readings of the same flow state could drift apart.
+    const RoundCombination at = combinationOf(game.flow);
+    switch (at.type) {
         case GameType::TYPE_B:
-            return &game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight][index];
+            return &game.highScores.typeB[at.level][at.variant][index];
         case GameType::TYPE_C:
-            return &game.highScores.typeC[game.flow.typeCLevel][game.flow.typeCRise][index];
-        default:
-            return &game.highScores.typeA[game.flow.typeALevel][index];
+            return &game.highScores.typeC[at.level][at.variant][index];
+        case GameType::TYPE_A:
+            break;
     }
+    return &game.highScores.typeA[at.level][index];
 }
 
 // The map row the cursor sits on. The original starts at the bottom of the three staged rows and

@@ -6,6 +6,7 @@
 #include <kirpich/music_type.h>
 
 #include "state/high_score_persistence.h"
+#include "state/stats_persistence.h"
 
 namespace kirpich::systems {
 
@@ -60,9 +61,9 @@ void coldBoot(GameContext& game) {
 
 void softReset(GameContext& game) {
     // The one difference between the two entry points. The cold entry clears the work-RAM bank holding
-    // the cartridge's two tables (:265-274) and .softReset enters below it, so the tables are the only
-    // game state that survives a reset. Type C's table is the port's own and keeps the same company:
-    // a reset that wiped it while sparing the other two would be arbitrary.
+    // the cartridge's two tables (:265-274) and .softReset enters below it, so those tables survive a
+    // reset where the rest of the game state does not. Type C's table is the port's own and keeps the
+    // same company: a reset that wiped it while sparing the other two would be arbitrary.
     //
     // Saved by member, never by structure: HighScoreState's four high-memory bytes are inside the
     // clear at :347-352, which this path DOES run, so they return to boot with everything else. See the
@@ -71,16 +72,24 @@ void softReset(GameContext& game) {
     auto typeB = game.highScores.typeB;
     auto typeC = game.highScores.typeC;
 
+    // The statistics keep the same company for the same reason: they outlive a launch, so a reset
+    // that emptied them would lose a player's history to a button chord. The whole struct is kept,
+    // the session's own timing included - a zeroed stamp would make the next reading measure from
+    // the clock's origin rather than from this session.
+    auto stats = game.stats;
+
     coldBoot(game);
 
     game.highScores.typeA = typeA;
     game.highScores.typeB = typeB;
     game.highScores.typeC = typeC;
+    game.stats            = stats;
 }
 
 void bootGame(GameContext& game, retropp::SaveStore& saves) {
     coldBoot(game);
     loadTopScores(saves, game.highScores);
+    loadStats(saves, game.stats);
 }
 
 }  // namespace kirpich::systems

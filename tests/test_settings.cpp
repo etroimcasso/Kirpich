@@ -41,46 +41,52 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
 
 // (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
 // the scale as itself, then the shade ramp as itself, then the ghost-piece flag, then the new-modes
-// flag, then the audio-fix flag.
-TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheGhostThenTheModesThenTheFix) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 6u);
+// flag, then the audio-fix flag, then the show-stats flag.
+TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFourSwitches) {
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 7u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV1, 3u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, 4u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV3, 5u);
-    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 4u)
-        << "the sixth byte is a new format, so it is a new version rather than a longer version 3";
+    EXPECT_EQ(kirpich::kSettingsImageBytesV4, 6u);
+    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 5u)
+        << "the seventh byte is a new format, so it is a new version rather than a longer version 4";
 
     // Each version's length is one more than the one before it, which is what makes every migration a
     // single appended byte.
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, kirpich::kSettingsImageBytesV1 + 1);
     EXPECT_EQ(kirpich::kSettingsImageBytesV3, kirpich::kSettingsImageBytesV2 + 1);
-    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV3 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytesV4, kirpich::kSettingsImageBytesV3 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV4 + 1);
 
     const auto off = kirpich::encodeSettings(Settings{.fullscreen = false,
                                                       .windowScale = 3,
                                                       .shadeRamp = 0,
                                                       .ghostPiece = false,
                                                       .newModes = false,
-                                                      .fixAudio = false});
+                                                      .fixAudio = false,
+                                                      .showStats = false});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
     EXPECT_EQ(off[2], 0u);
     EXPECT_EQ(off[3], 0u);
     EXPECT_EQ(off[4], 0u);
     EXPECT_EQ(off[5], 0u);
+    EXPECT_EQ(off[6], 0u);
 
     const auto on = kirpich::encodeSettings(Settings{.fullscreen = true,
                                                      .windowScale = 6,
                                                      .shadeRamp = 2,
                                                      .ghostPiece = true,
                                                      .newModes = true,
-                                                     .fixAudio = true});
+                                                     .fixAudio = true,
+                                                     .showStats = true});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
     EXPECT_EQ(on[2], 2u);
     EXPECT_EQ(on[3], 1u);
     EXPECT_EQ(on[4], 1u);
     EXPECT_EQ(on[5], 1u);
+    EXPECT_EQ(on[6], 1u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -232,8 +238,8 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
     EXPECT_EQ(v2[2], v1[2]);
     EXPECT_EQ(v2[3], std::byte{0});
 
-    // The next steps have the same shape, and the three compose: a version 1 document reaches
-    // version 4 through all of them, with everything it did carry surviving and everything it
+    // The next steps have the same shape, and the four compose: a version 1 document reaches
+    // version 5 through all of them, with everything it did carry surviving and everything it
     // predates coming up off.
     const std::vector<std::byte> v3 = kirpich::migrateSettingsV2ToV3(v2);
 
@@ -246,13 +252,97 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
 
     const std::vector<std::byte> v4 = kirpich::migrateSettingsV3ToV4(v3);
 
-    ASSERT_EQ(v4.size(), kirpich::kSettingsImageBytes);
+    ASSERT_EQ(v4.size(), kirpich::kSettingsImageBytesV4);
     EXPECT_EQ(v4[0], v1[0]);
     EXPECT_EQ(v4[1], v1[1]);
     EXPECT_EQ(v4[2], v1[2]);
     EXPECT_EQ(v4[3], std::byte{0});
     EXPECT_EQ(v4[4], std::byte{0});
     EXPECT_EQ(v4[5], std::byte{0});
+
+    const std::vector<std::byte> v5 = kirpich::migrateSettingsV4ToV5(v4);
+
+    ASSERT_EQ(v5.size(), kirpich::kSettingsImageBytes);
+    EXPECT_EQ(v5[0], v1[0]);
+    EXPECT_EQ(v5[1], v1[1]);
+    EXPECT_EQ(v5[2], v1[2]);
+    EXPECT_EQ(v5[3], std::byte{0});
+    EXPECT_EQ(v5[4], std::byte{0});
+    EXPECT_EQ(v5[5], std::byte{0});
+    EXPECT_EQ(v5[6], std::byte{0});
+}
+
+// (7b) The newest step on its own, against a version 4 image that carries every switch ON. It has to
+// append the show-stats byte off and touch nothing else: a step that resized the payload, or wrote
+// its byte over one of the six already there, would cost the player a setting they had chosen.
+TEST(SettingsValue, TheShowStatsMigrationAppendsOffAndLeavesTheRestAlone) {
+    const std::vector<std::byte> v4{std::byte{1}, std::byte{6}, std::byte{2},
+                                    std::byte{1}, std::byte{1}, std::byte{1}};
+    ASSERT_EQ(v4.size(), kirpich::kSettingsImageBytesV4);
+
+    const std::vector<std::byte> v5 = kirpich::migrateSettingsV4ToV5(v4);
+
+    ASSERT_EQ(v5.size(), kirpich::kSettingsImageBytes);
+    for (std::size_t i = 0; i < v4.size(); ++i) {
+        EXPECT_EQ(v5[i], v4[i]) << "byte " << i << " belonged to version 4 and must survive";
+    }
+    EXPECT_EQ(v5[kirpich::kSettingsImageBytesV4], std::byte{0})
+        << "a document written before the statistics were offered had them off";
+
+    // And what that image decodes to: six switches as the player left them, the new one off.
+    Settings decoded{};
+    const std::span<const std::uint8_t> image(
+        reinterpret_cast<const std::uint8_t*>(v5.data()), v5.size());
+    ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+    EXPECT_TRUE(decoded.fullscreen);
+    EXPECT_EQ(decoded.windowScale, 6);
+    EXPECT_EQ(decoded.shadeRamp, 2);
+    EXPECT_TRUE(decoded.ghostPiece);
+    EXPECT_TRUE(decoded.newModes);
+    EXPECT_TRUE(decoded.fixAudio);
+    EXPECT_FALSE(decoded.showStats);
+}
+
+// (7c) A settings document written by the shipped 0.9.5 build - version 4, six bytes - loads through
+// the shipped loader, with its six values intact and the statistics off.
+//
+// It is asked what the payload arrived AS, not only what it decoded to. The short-image fallback
+// reaches the same decoded values from a six-byte version 5 document, so the decoded values alone
+// cannot tell a migration from no migration at all.
+TEST(SettingsValue, AVersionFourDocumentFromZeroNinePointFiveMigratesForward) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_settings_v4_migration";
+    std::filesystem::remove_all(root);
+
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        // Windowed, scale 4, ramp 17, ghost on, new modes on, the audio fix on - and no seventh byte,
+        // because there was no seventh setting.
+        const std::array<std::uint8_t, kirpich::kSettingsImageBytesV4> v4{0, 4, 17, 1, 1, 1};
+        ASSERT_TRUE(store.write("settings", 4, std::as_bytes(std::span<const std::uint8_t>(v4))));
+    }
+
+    {
+        auto     store = retropp::SaveStore::atPath(root);
+        Settings loaded{};
+        ASSERT_TRUE(kirpich::loadSettings(store, loaded))
+            << "a document from the last release must still load";
+        EXPECT_FALSE(loaded.fullscreen);
+        EXPECT_EQ(loaded.windowScale, 4);
+        EXPECT_EQ(loaded.shadeRamp, 17);
+        EXPECT_TRUE(loaded.ghostPiece);
+        EXPECT_TRUE(loaded.newModes);
+        EXPECT_TRUE(loaded.fixAudio);
+        EXPECT_FALSE(loaded.showStats) << "a setting the document predates takes its default";
+
+        const auto migrated = store.read("settings");
+        ASSERT_TRUE(migrated.has_value());
+        EXPECT_EQ(migrated->schemaVersion, kirpich::kSettingsSchemaVersion);
+        EXPECT_EQ(migrated->payload.size(), kirpich::kSettingsImageBytes)
+            << "a version 4 document must reach the decoder at version 5's length";
+    }
+
+    std::filesystem::remove_all(root);
 }
 
 // (8) A settings document written by a released build - Kirpich 0.9.0 and 0.9.1 wrote version 1,

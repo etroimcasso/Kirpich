@@ -8,6 +8,20 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-08-31
+
+- **Statistics** ⬜ → 🟡. The game now records what has been played — rounds, time, drops, score,
+  lines and their kinds, and the longest single round — per difficulty combination, in its own save
+  document, across launches and across the reset chord. Only the 130 per-combination slices are
+  stored; a game type's totals, the whole game's, and the longest round anywhere are folds over them,
+  and the longest round's label is the slice it was found in rather than a stored field that could
+  drift from the length beside it. Time is stamped at a round's start and end rather than counted per
+  frame, with a pause banking the stretch just played, so nothing runs on the hot path and paused time
+  is not counted as play. Recording does not depend on any setting: a player who is later shown this
+  finds their whole history rather than a table that starts the day they looked. The attract demo is
+  excluded at the one gate that opens a round, and quitting mid-round records the round in full. The
+  screens that show any of it are not built yet.
+
 ## 2026-08-25
 
 - **Type-C gameplay (the rising floor)** 🟡 → ✅. A Type C round is now picked as a level **and** a

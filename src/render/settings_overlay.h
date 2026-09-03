@@ -61,4 +61,23 @@ inline constexpr int kArrowInset = 2;
                                                           std::uint8_t ramp, const TileAtlas& atlas,
                                                           std::size_t optionCount);
 
+// A list screen's two end indicators, the same sprite again: up when there is list above the window,
+// down when there is list below it (src/systems/list_screen.h). A list that fits the window draws
+// neither - the ends of a range are visible rather than something a player finds by pressing.
+//
+// How long the list is comes from ScreenUiState, recorded by the screen as it painted, because an
+// instance's row count is a seam the render bridge cannot reach.
+[[nodiscard]] std::vector<retropp::Sprite> listArrows(const kirpich::ScreenUiState& ui,
+                                                      std::uint8_t ramp, const TileAtlas& atlas);
+
+// A paged screen's two page arrows, the same sprite once more: up when there is a page before the one
+// shown, down when there is one after it (src/systems/page_screen.h). A branch with a single page
+// draws neither.
+//
+// How many pages the branch holds comes from ScreenUiState, recorded by the screen as it painted,
+// because an instance's page count is a seam the render bridge cannot reach.
+[[nodiscard]] std::vector<retropp::Sprite> statsPageArrows(const kirpich::ScreenUiState& ui,
+                                                           std::uint8_t     ramp,
+                                                           const TileAtlas& atlas);
+
 }  // namespace kirpich::render

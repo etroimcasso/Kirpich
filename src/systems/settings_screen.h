@@ -126,6 +126,27 @@ void blinkScreenCursor(GameContext& game);
 // caller's screen and lose the real one.
 void returnToSettings(GameContext& game, const SettingsWiring& wiring);
 
+// Take the caller's whole screen, and put it back.
+//
+// A port screen paints over whatever was on the display, so the picture underneath is saved on the
+// way in and restored on the way out rather than rebuilt: that is what lets a paused round come back
+// with its paused screen, its hidden piece objects and its music exactly as they were, and what lets
+// the title screen come back without running the init that would clear the round it has just played.
+//
+// Saving also does the three things every port screen needs done before it draws: it empties the
+// object buffer, it selects the copyright-and-title art (the set the game's own selector arrow is a
+// tile of), and it lifts the sound driver's demo gate for as long as the screen is up. See the note
+// on ScreenUiState::savedActiveDemo for why the gate has to be lifted at all.
+//
+// Restoring puts every one of them back. It does not choose a state to hand control to — that is the
+// caller's, because the screens that use this leave in different directions.
+//
+// One saved picture serves every port screen, because only one of them is ever on the display. A
+// screen opened on top of another does NOT save again: the picture it is covering belongs to the
+// screen it was opened from, and saving it would store that screen as what the player returns to.
+void saveCallerScreen(GameContext& game);
+void restoreCallerScreen(GameContext& game);
+
 // ── Opening ───────────────────────────────────────────────────────────────────────────────────────
 
 // Remember the current state as the one to return to, and enter the settings screen. Called by the

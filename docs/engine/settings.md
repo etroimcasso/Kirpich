@@ -154,11 +154,12 @@ struct ShadeRamp {
     retropp::Rgba8 darkest{}, dark{}, light{}, lightest{};
     bool mayBottomOutAtBlack = false;
 };
-inline constexpr std::array<ShadeRamp, 48> kShadeRamps{ /* ... */ };
+inline constexpr std::array<ShadeRamp, 80> kShadeRamps{ /* ... */ };
 ```
 
-Forty-eight of them: twenty-four built for this port, the eight colour schemes Windows 3.1 shipped in
-its Control Panel, named as it named them, and sixteen that keep a real colour in their darkest shade.
+Eighty of them: twenty-four built for this port, the eight colour schemes Windows 3.1 shipped in its
+Control Panel, named as it named them, and three further sets of sixteen that keep a real colour in
+their darkest shade.
 
 `mayBottomOutAtBlack` says whether a ramp is meant to go black at the bottom, and the default is that
 it is not. The darkest shade is what the playing field's walls, the panel's rules and every locked

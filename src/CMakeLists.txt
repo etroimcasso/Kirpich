@@ -13,6 +13,7 @@ add_library(kirpich-lib STATIC
     data/scoring.cpp
     state/high_score_persistence.cpp
     state/settings.cpp
+    state/stats_persistence.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/boot.cpp
@@ -22,7 +23,11 @@ add_library(kirpich-lib STATIC
     systems/menu_screens.cpp
     systems/mode_screen.cpp
     systems/carousel_screen.cpp
+    systems/list_screen.cpp
+    systems/page_screen.cpp
     systems/enhancement_screens.cpp
+    systems/stats_screens.cpp
+    systems/stats_pages.cpp
     systems/title_screens.cpp
     systems/gameplay.cpp
     systems/type_b_ending.cpp
@@ -35,10 +40,12 @@ add_library(kirpich-lib STATIC
     systems/settings_screen.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
+    systems/stats.cpp
     render/tile_atlas.cpp
     render/background.cpp
     render/sprites.cpp
     render/settings_overlay.cpp
+    render/stats_pages.cpp
     render/config_section.cpp
     render/ghost_piece.cpp
     render/type_c_difficulty.cpp

@@ -24,6 +24,7 @@
 #include "systems/screen.h"          // loadScreenTilemap, loadTileSheet, writeMapText
 #include "systems/scoring.h"         // clearScoreAndStats
 #include "systems/settings_screen.h"  // openSettings
+#include "systems/stats_screens.h"    // openStatsMenu
 
 namespace kirpich::systems {
 
@@ -39,15 +40,15 @@ constexpr std::uint8_t kTitleCursorY = 0x80;
 constexpr std::uint8_t kCursorX1P = 0x10;
 constexpr std::uint8_t kCursorX2P = 0x60;
 
-// The port's own third item, drawn as objects rather than as a row of the background.
+// The port's own bottom row, drawn as objects rather than as a row of the background.
 //
 // The background is a grid of eight-pixel cells and the panel's two spare cells are spoken for, but
 // the art inside them is not. The player options' underline inks only the FIRST pixel row of its
-// cell, leaving the seven below it blank, and a font letter inks six of its eight rows. So the word
+// cell, leaving the seven below it blank, and a font letter inks six of its eight rows. So a word
 // fits in that blank band with its own line beneath it - and objects are what can be placed there,
 // because they are positioned per pixel while a background cell cannot be.
 //
-// Object coordinates are offset from the screen's by (8, 16). The word's letters ink screen rows
+// Object coordinates are offset from the screen's by (8, 16). A word's letters ink screen rows
 // 122-127, its line lands on 128 directly beneath them, and the copyright keeps a whole cell to
 // itself at the bottom of the panel.
 constexpr std::uint8_t kObjectOriginX = 8;
@@ -59,6 +60,29 @@ constexpr std::uint8_t kSettingsLineY   = 130 + kObjectOriginY;
 constexpr std::uint8_t kSettingsCursorY = 123 + kObjectOriginY;
 constexpr std::uint8_t kSettingsCursorX = 0x30;  // one cell left of the word
 
+// The two words the bottom row can hold. With the statistics switched off it carries the first
+// alone, centred where it has always been; with them on it carries both, one under each player-count
+// column.
+constexpr std::string_view kSettingsWord = "settings";
+constexpr std::string_view kStatsWord    = "stats";
+
+// A bottom-row item's word starts one cell to the right of its cursor, which is how the player
+// options above it are laid out.
+constexpr std::size_t columnRightOf(std::uint8_t cursorX) {
+    return static_cast<std::size_t>((cursorX - kObjectOriginX) / 8 + 1);
+}
+
+// The two columns are the player options' own, taken from their cursor positions rather than written
+// out again, so an item sits under the option it belongs to by construction.
+constexpr std::size_t kBottomLeftTextCol  = columnRightOf(kCursorX1P);
+constexpr std::size_t kBottomRightTextCol = columnRightOf(kCursorX2P);
+
+static_assert(kBottomLeftTextCol + kSettingsWord.size() < kBottomRightTextCol,
+              "the left item must end before the right item's cursor, or one would run under the "
+              "other");
+static_assert(kBottomRightTextCol + kStatsWord.size() <= kTilemapScreenCols,
+              "the right item must end within the screen");
+
 // The tile the game underlines its own player options with, borrowed for the third item so the two
 // are underlined with the same line.
 constexpr std::uint8_t kUnderlineTile = 0x9A;
@@ -69,7 +93,8 @@ constexpr std::uint8_t kUnderlineTile = 0x9A;
 constexpr std::size_t  kCopyrightRow = 16;
 constexpr std::uint8_t kCopyrightY   = 135 + kObjectOriginY;
 
-// The object entries the item occupies. Entry 0 stays the selector, as the stored screen has it.
+// The object entries the bottom row and the copyright line occupy. Entry 0 stays the selector, as
+// the stored screen has it, and everything from here up is redrawn together each frame.
 constexpr std::size_t kSettingsFirstObject = 1;
 
 // Frame counts: the title screen's attract timer (125) and the copyright screen's display timer
@@ -118,18 +143,28 @@ std::size_t drawTextObjects(GameContext& game, std::size_t entry, std::uint8_t y
     return entry;
 }
 
-// The third item: the word, then the line under it, one object per cell of each.
-std::size_t drawSettingsItem(GameContext& game, std::size_t entry) {
-    const std::string_view word = "settings";
-    entry = drawTextObjects(game, entry, kSettingsTextY, kSettingsTextCol, word);
+// One bottom-row item: the word, then the line under it, one object per cell of each.
+std::size_t drawBottomItem(GameContext& game, std::size_t entry, std::size_t col,
+                           std::string_view word) {
+    entry = drawTextObjects(game, entry, kSettingsTextY, col, word);
 
     for (std::size_t i = 0; i < word.size(); ++i, ++entry) {
         OamEntry& object = game.engine.oam[entry];
         object.y    = kSettingsLineY;
-        object.x    = static_cast<std::uint8_t>((kSettingsTextCol + i) * 8 + kObjectOriginX);
+        object.x    = static_cast<std::uint8_t>((col + i) * 8 + kObjectOriginX);
         object.tile = kUnderlineTile;
     }
     return entry;
+}
+
+// The bottom row: the settings item alone, centred where it has always been, or that item and the
+// stats item under the two player-count columns.
+std::size_t drawBottomRow(GameContext& game, std::size_t entry, bool twoItems) {
+    if (!twoItems) {
+        return drawBottomItem(game, entry, kSettingsTextCol, kSettingsWord);
+    }
+    entry = drawBottomItem(game, entry, kBottomLeftTextCol, kSettingsWord);
+    return drawBottomItem(game, entry, kBottomRightTextCol, kStatsWord);
 }
 
 // The copyright line, redrawn from the stored screen's own row at the pixel height that leaves a
@@ -151,13 +186,30 @@ std::size_t drawCopyrightLine(GameContext& game, std::size_t entry) {
     return entry;
 }
 
+// The whole run of objects below the player options: the bottom row and the copyright line under it.
+//
+// Every entry from the first is emptied before the run is written, because the two layouts are
+// different lengths - dropping from two items to one would otherwise leave the second item's letters
+// behind, since the shorter run stops before reaching them.
+void drawTitleObjects(GameContext& game, bool twoItems) {
+    for (std::size_t entry = kSettingsFirstObject; entry < game.engine.oam.size(); ++entry) {
+        game.engine.oam[entry] = OamEntry{};
+    }
+    drawCopyrightLine(game, drawBottomRow(game, kSettingsFirstObject, twoItems));
+}
+
 // Put the selector where the current choice is. On the player-count row that is the original's own
 // placement (.updateCursor, tetris.asm:710-718), where the one/two-player flag doubles as the cursor
-// index; on the settings item it is the one fixed place below it.
-void placeTitleCursor(GameContext& game) {
+// index; on the bottom row it is the one fixed place below it, or one of the two player columns once
+// that row holds two items.
+void placeTitleCursor(GameContext& game, bool twoItems) {
     if (game.screens.titleSettingsSelected) {
         game.engine.oam[0].y = kSettingsCursorY;
-        game.engine.oam[0].x = kSettingsCursorX;
+        if (!twoItems) {
+            game.engine.oam[0].x = kSettingsCursorX;
+            return;
+        }
+        game.engine.oam[0].x = game.screens.titleStatsColumn ? kCursorX2P : kCursorX1P;
         return;
     }
     game.engine.oam[0].y = kTitleCursorY;
@@ -165,20 +217,31 @@ void placeTitleCursor(GameContext& game) {
 }
 
 // The title screen's .updateCursor: store the one/two-player flag and place the selector.
-void setTitleCursor(GameContext& game, bool multiplayer) {
+void setTitleCursor(GameContext& game, bool multiplayer, bool twoItems) {
     game.multiplayer.isMultiplayer = multiplayer;
-    placeTitleCursor(game);
+    placeTitleCursor(game, twoItems);
 }
 
-// Move between the player-count row and the settings item, leaving the player count where the player
-// left it. Returns whether the cursor moved.
-bool setTitleSettingsSelected(GameContext& game, bool selected) {
+// Move between the player-count row and the bottom row, leaving the player count where the player
+// left it - and, coming back down, leaving the bottom row's own column where they left that too.
+// Returns whether the cursor moved.
+bool setTitleSettingsSelected(GameContext& game, bool selected, bool twoItems) {
     if (game.screens.titleSettingsSelected == selected) {
         return false;
     }
     game.screens.titleSettingsSelected = selected;
-    placeTitleCursor(game);
+    placeTitleCursor(game, twoItems);
     return true;
+}
+
+// Move between the bottom row's two items. Nothing happens at either end, which is the law the row
+// above it follows: left from the one-player option and right from the two-player one both stay put.
+void setTitleStatsColumn(GameContext& game, bool stats) {
+    if (game.screens.titleStatsColumn == stats) {
+        return;
+    }
+    game.screens.titleStatsColumn = stats;
+    placeTitleCursor(game, /*twoItems=*/true);
 }
 
 }  // namespace
@@ -219,7 +282,7 @@ void copyrightSkippable(GameContext& game) {
     }
 }
 
-void initTitleScreen(GameContext& game) {
+void initTitleScreen(GameContext& game, const ShowStatsQuery& showStats) {
     // GameState_06 (tetris.asm:524-580). Reset leftover state from a prior round, paint the title board,
     // stamp the title screen over it, seed the cursor, and arm the attract countdown. The LCD toggles are
     // render mechanism (:525, :567-568).
@@ -272,9 +335,9 @@ void initTitleScreen(GameContext& game) {
     game.engine.oam[0].x = kCursorX1P;
     game.engine.oam[0].tile = kTitleCursorTile;
 
-    // The port's own third item, over the blank band the player options' underline leaves, and then
+    // The port's own bottom row, over the blank band the player options' underline leaves, and then
     // the copyright line beneath it.
-    drawCopyrightLine(game, drawSettingsItem(game, kSettingsFirstObject));
+    drawTitleObjects(game, showStats ? showStats() : false);
 
     game.audioCues.music = MusicId::TITLE;  // wNewMusicID = 3 (:565-566)
 
@@ -288,9 +351,15 @@ void initTitleScreen(GameContext& game) {
     }
 }
 
-void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
+void titleScreen(GameContext& game, const StartDemoHook& startDemo,
+                 const ShowStatsQuery& showStats) {
     // GameState_07 (tetris.asm:632-731). Three concerns each frame: the attract countdown, the deferred
     // serial poll, and the cursor / input.
+
+    // Whether the bottom row holds two items. Asked every frame rather than at the init, because the
+    // settings screen is where it changes and that screen hands the title screen's own objects back
+    // as it found them - so a row drawn once would still be the row the player left.
+    const bool twoItems = showStats && showStats();
 
     // Attract countdown (:633-640): when the frame timer expires, count down the attract counter; at zero
     // launch the demo, otherwise re-arm the timer. Decrementing a counter already at zero wraps to 255, so
@@ -309,19 +378,45 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
     // game or resets the cursor. Link-cable mechanism the serial system owns; nothing sets its trigger
     // without that system, so it has no effect here.
 
-    // The port's third item sits below the player-count pair, so up and down move between the two
-    // rows and the pair's own left/right/select laws apply only while the cursor is on it.
+    // The port's own row sits below the player-count pair, and its objects are laid down again each
+    // frame so that the row follows the setting rather than whatever it was drawn as.
+    drawTitleObjects(game, twoItems);
+
+    // The bottom row's cursor is placed again with them, because where it sits depends on how many
+    // items the row holds. The player-count cursor above is left alone: its position depends only on
+    // a flag that nothing but the branches below can change, and re-placing it every frame would
+    // make a press that moves nothing indistinguishable from one that does.
+    if (game.screens.titleSettingsSelected) {
+        placeTitleCursor(game, twoItems);
+    }
+
+    // Up and down move between the two rows, and the pair's own left/right/select laws apply only
+    // while the cursor is on it.
     if (pressed(game, Action::MenuDown)) {
-        setTitleSettingsSelected(game, true);
+        setTitleSettingsSelected(game, true, twoItems);
         return;
     }
     if (pressed(game, Action::MenuUp)) {
-        setTitleSettingsSelected(game, false);
+        setTitleSettingsSelected(game, false, twoItems);
         return;
     }
     if (game.screens.titleSettingsSelected) {
+        if (twoItems) {
+            if (pressed(game, Action::MenuRight)) {
+                setTitleStatsColumn(game, true);
+                return;
+            }
+            if (pressed(game, Action::MenuLeft)) {
+                setTitleStatsColumn(game, false);
+                return;
+            }
+        }
         if (pressed(game, Action::Start) || pressed(game, Action::Confirm)) {
-            openSettings(game);
+            if (twoItems && game.screens.titleStatsColumn) {
+                openStatsMenu(game);
+            } else {
+                openSettings(game);
+            }
         }
         return;
     }
@@ -329,18 +424,18 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
     // Cursor / input (:657-731): isMultiplayer doubles as the cursor index. Buttons are tested in this
     // order; the first match handles the frame.
     if (pressed(game, Action::Select)) {  // (:661-662, :708-718)
-        setTitleCursor(game, !game.multiplayer.isMultiplayer);
+        setTitleCursor(game, !game.multiplayer.isMultiplayer, twoItems);
         return;
     }
     if (pressed(game, Action::MenuRight)) {  // (:663-664, :720-724)
         if (!game.multiplayer.isMultiplayer) {
-            setTitleCursor(game, true);  // 1P -> 2P only
+            setTitleCursor(game, true, twoItems);  // 1P -> 2P only
         }
         return;
     }
     if (pressed(game, Action::MenuLeft)) {  // (:665-666, :726-731)
         if (game.multiplayer.isMultiplayer) {
-            setTitleCursor(game, false);  // 2P -> 1P only
+            setTitleCursor(game, false, twoItems);  // 2P -> 1P only
         }
         return;
     }
@@ -368,14 +463,19 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo) {
     game.demo.activeDemo = ActiveDemo::NONE;
 }
 
-void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo) {
+void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo,
+                                ShowStatsQuery showStats) {
     dispatcher.setHandler(GameState::INIT_COPYRIGHT, initCopyrightScreen);
     dispatcher.setHandler(GameState::COPYRIGHT_SCREEN, copyrightHold);
     dispatcher.setHandler(GameState::COPYRIGHT_SCREEN_SKIPPABLE, copyrightSkippable);
-    dispatcher.setHandler(GameState::INIT_TITLE_SCREEN, initTitleScreen);
-    dispatcher.setHandler(GameState::TITLE_SCREEN, [startDemo = std::move(startDemo)](GameContext& g) {
-        titleScreen(g, startDemo);
+    dispatcher.setHandler(GameState::INIT_TITLE_SCREEN, [showStats](GameContext& g) {
+        initTitleScreen(g, showStats);
     });
+    dispatcher.setHandler(GameState::TITLE_SCREEN,
+                          [startDemo = std::move(startDemo),
+                           showStats = std::move(showStats)](GameContext& g) {
+                              titleScreen(g, startDemo, showStats);
+                          });
 }
 
 }  // namespace kirpich::systems
