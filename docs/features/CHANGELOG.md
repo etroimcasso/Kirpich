@@ -8,6 +8,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-09-05
+
+- **Heart Mode (easter egg)** ⬜ → ✅. The mode's speed shift and its in-round heart shipped with the
+  gravity table and the panel readouts; what it never had was a way in. The original arms it by holding
+  Down while pressing Start on the title screen, and Down moves this port's title cursor to the settings
+  row instead, returning before the branch that reads the held button — so the mode was unreachable in
+  released builds by any route but an accident. Select at the title screen now turns it on and off,
+  wherever the cursor is standing, cueing the menu-move sound both ways; Left and Right already reach
+  both player counts, so the button costs nothing. A heart beside the difficulty screen's heading says
+  it is on before a round is picked, drawn as a gated sprite rather than written into the backdrop, so
+  leaving the screen takes it off the display with nothing to undo. The original's own latch is kept
+  where it is, dead, with its unreachability stated at the call site.
+
 ## 2026-08-31
 
 - **Statistics** ⬜ → 🟡. The game now records what has been played — rounds, time, drops, score,

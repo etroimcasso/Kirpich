@@ -179,14 +179,23 @@ lands.
 - **The piece ring is seeded with the 48 demo entries, and no more.** The original over-copies past the
   demo list; the port copies the 48 real entries and leaves the rest of the ring untouched. The tail is
   never read.
-- **Heart mode is a non-zero flag.** Holding Down while pressing Start on the title screen sets
-  `flow.heartMode` to a non-zero value; it is read only as zero / non-zero.
+- **Select on the title screen turns heart mode on and off.** `toggleHeartMode` assigns
+  `flow.heartMode` — a non-zero flag, read only as zero / non-zero — and cues the menu-move sound
+  either way. It answers wherever the cursor is standing, including on the bottom row, and it does not
+  move the player count or open the item under the cursor. The setting lives for the session: nothing
+  writes it to disk and nothing clears it between rounds.
+- **The original's own way in is unreachable, and is kept.** `titleScreen`'s one-player Start still
+  latches heart mode when Down is held (`tetris.asm:698-706`), but `Action::MenuDown` and
+  `Action::SoftDrop` are the same physical Down and the cursor branch takes it first, so a press never
+  reaches the latch. The heart beside a difficulty screen's heading is drawn by the render bridge —
+  see [`rendering.md`](rendering.md).
 - **The two-player paths are not wired here.** The title screen's serial poll and its two-player Start
   are link-cable mechanism, left to the serial/multiplayer work; one-player Start, the cursor, and the
   attract countdown are complete. The demo launch is the `StartDemoHook` seam.
-- **The 1P/2P cursor is the multiplayer flag.** `titleScreen` toggles `multiplayer.isMultiplayer` with
-  Select, moves it one way with Right (1P→2P) and the other with Left (2P→1P), and places OAM object 0
-  accordingly.
+- **The 1P/2P cursor is the multiplayer flag.** `titleScreen` moves `multiplayer.isMultiplayer` one way
+  with Right (1P→2P) and the other with Left (2P→1P), and places OAM object 0 accordingly. Each
+  direction is a one-way move: Right from 2P and Left from 1P write nothing at all, not even the
+  cursor. The two together reach both counts, which is why Select is free for heart mode.
 
 ## Build and test
 

@@ -55,6 +55,7 @@
 #include "assets/first_start.h"
 #include "render/background.h"
 #include "render/ghost_piece.h"
+#include "render/heart_indicator.h"
 #include "render/settings_overlay.h"
 #include "render/stats_pages.h"
 #include "render/type_c_difficulty.h"
@@ -523,6 +524,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
             const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
                                                                   kViewport.width);
             frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
+        }
+
+        // The heart-mode indicator, beside a difficulty screen's heading. Gated rather than written
+        // into the map, so leaving the screen takes it off the display with nothing to undo.
+        if (const auto heart = kirpich::render::heartIndicatorSprite(
+                game.flow.gameState, game.flow.heartMode, tiles, settings.shadeRamp)) {
+            sprites.push_back(*heart);
         }
 
         // The Type C difficulty screen's rise values. They are two glyphs each where the stored box

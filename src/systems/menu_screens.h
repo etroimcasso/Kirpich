@@ -152,6 +152,18 @@ void selectTypeCRise(GameContext& game, const TopScoresRefresh& refresh = {});
 inline constexpr std::size_t kRiseValueRows[] = {6, 8};
 inline constexpr std::size_t kRiseValueCols[] = {13, 15, 17};
 
+// ── Where a difficulty screen names its mode ──────────────────────────────────────────────────────
+//
+// The heading in the screen's top-left corner. All three modes put it in the same six cells - the
+// stored Type A and Type B screens hold "a-type" and "b-type" there, and the Type C init writes
+// "c-type" over the screen it borrows - so the row, the column and the width serve any of them.
+//
+// The render layer reads these to place the heart-mode indicator beside the heading
+// (src/render/heart_indicator.h) rather than against a number of its own.
+inline constexpr std::size_t kDifficultyHeadingRow  = 1;
+inline constexpr std::size_t kDifficultyHeadingCol  = 2;
+inline constexpr std::size_t kDifficultyHeadingCols = 6;
+
 // GameState_12 — init the Type B difficulty screen: two cursors (level and starting garbage height),
 // each placed at its current value; then enter level selection (or name entry).
 void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refresh = {});

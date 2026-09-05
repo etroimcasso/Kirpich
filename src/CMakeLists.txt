@@ -48,6 +48,7 @@ add_library(kirpich-lib STATIC
     render/stats_pages.cpp
     render/config_section.cpp
     render/ghost_piece.cpp
+    render/heart_indicator.cpp
     render/type_c_difficulty.cpp
     vm/piece_random.cpp
     vm/garbage_fill.cpp

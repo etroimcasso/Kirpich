@@ -83,7 +83,7 @@ Game logic.
 | Demo recording (dead-but-present) | ✅ | [`features/demo-playback.md`](features/demo-playback.md) — ported with playback, and dead exactly as it is in the original: the recorder runs every gameplay frame behind a flag nothing sets, because the routine that arms it has no caller |
 | Serial protocol | ⬜ | `features/serial-protocol.md` |
 | Multiplayer | ⬜ | `features/multiplayer.md` |
-| Heart Mode (easter egg) | ⬜ | `features/heart-mode.md` |
+| Heart Mode (easter egg) | ✅ | [`features/heart-mode.md`](features/heart-mode.md) — the harder start: the gravity lookup shifted ten levels up, marked by a heart beside the level digit while a round is played and beside the heading while one is picked. Select at the title screen turns it on and off, which is this port's way in — the original's held-Down latch cannot be reached here, because Down moves the title cursor |
 | Victory / defeat screens | ⬜ | `features/victory-defeat-screens.md` |
 | High-score recording | ✅ | [`features/high-score-recording.md`](features/high-score-recording.md) — a finished round's score compared against the three stored for its difficulty, inserted if it beat one, staged for the difficulty screen, and named on the letter-wheel entry screen; the tables are written to disk when a name is submitted |
 | Boot path and init quirks | ✅ | [`features/boot.md`](features/boot.md) — the cold boot and the soft reset the four-button chord runs, which differ only in whether the top-score tables are cleared; the startup ordering that lets a launch keep a player's saved scores; and the preserved routine-copy overrun, carried as an equivalence |

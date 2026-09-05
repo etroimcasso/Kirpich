@@ -250,6 +250,45 @@ derived by — a cell above the playing field is row 29, 30 or 31, not a negativ
 `ghostPieceRegions` needs the tile art uploaded, since a sprite resolves its coverage against its
 uploaded sheet. The other three calls read game state alone.
 
+### The heart-mode indicator — `src/render/heart_indicator.h`
+
+A heart beside a difficulty screen's heading while heart mode is on, saying that the round about to be
+picked falls at the shifted gravity. It is the glyph the panel draws beside the level digit during the
+round itself ([readouts.md](readouts.md)), so it needs no art of its own.
+
+```cpp
+#include "render/heart_indicator.h"
+
+if (const auto heart = kirpich::render::heartIndicatorSprite(
+        game.flow.gameState, game.flow.heartMode, tiles, settings.shadeRamp)) {
+    sprites.push_back(*heart);
+}
+```
+
+| Call | Answers |
+|---|---|
+| `heartIndicatorShown(state, heartMode)` | Whether a heart belongs on screen this frame |
+| `heartIndicatorSprite(state, heartMode, atlas, ramp)` | The sprite, or `std::nullopt` when it does not |
+
+**It is declared, not written.** The frame hands over the sprite while the gate is true and hands over
+nothing when it is false; the engine reconciles by `ObjectKey` against the previous tick, so a heart
+that stops being declared comes off the display with nothing to clear. A tile written into the
+background map would have to be undone by every path out of every screen that could be showing it.
+
+**The gate is heart mode being on and a difficulty screen being up** — all eight states of the three
+screens, plus `ENTER_TOP_SCORE`. Name entry draws no backdrop of its own: it paints over whichever
+difficulty screen it was entered from, whose heading is still on the display, so the heart belongs
+there too. `riseValuesShown` settles the same question for the Type C values.
+
+**The place comes from the heading.** `kDifficultyHeadingRow` / `Col` / `Cols`
+(`src/systems/menu_screens.h`) are where all three screens name their mode, and the heart sits one cell
+past the last of them, nudged by `kHeartIndicatorXOffset` / `kHeartIndicatorYOffset`. A `static_assert`
+in the Type C init ties the published width to the word it writes.
+
+**It draws through an object palette**, whose lightest shade is see-through, so only the ink lands and
+the backdrop survives underneath. `CharTile::HEART` is `$27`, the first tile of the block the gameplay
+regime carries over from the copyright-and-title art, so it resolves to that sheet under either regime.
+
 ## The host — `src/main.cpp`
 
 The program: configure the engine, make sure the assets exist, build the platform and renderer,
@@ -318,5 +357,6 @@ and left-to-right priority — and are recorded in
 | the visible window, layer key, depth, or wrap | `src/render/background.{h,cpp}` |
 | how objects are named, placed, or ordered | `src/render/sprites.{h,cpp}` |
 | the landing shadow's colour, opacity, or when it shows | `src/render/ghost_piece.{h,cpp}` |
+| where the heart-mode heart sits, or which screens show it | `src/render/heart_indicator.{h,cpp}` |
 | what the program does at startup | `src/main.cpp` |
 | the backdrop data itself | regenerate the tilemaps — see [tilemaps.md](tilemaps.md) |

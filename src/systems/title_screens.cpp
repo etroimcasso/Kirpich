@@ -13,6 +13,7 @@
 #include "data/charmap.h"   // encodeCharmapText
 #include "data/demo.h"      // kDemoPieceList
 #include "data/music.h"     // MusicId
+#include "data/sfx.h"       // SquareSfxId
 #include "data/tilemaps.h"  // kCopyrightScreenTilemap, kTitleScreenTilemap
 #include "retropp/input.h"  // actionId
 #include "state/display_state.h"
@@ -33,9 +34,18 @@ namespace {
 // The solid border tile the title board's walls and floor are drawn from ($8E).
 constexpr std::uint8_t kFieldBorderTile = 0x8E;
 
-// The 1P/2P selector cursor (OAM object 0) on the title screen: a fixed tile and Y, and one of two X
+// The 1P/2P selector cursor (OAM object 0) on the title screen: a tile and Y, and one of two X
 // positions for the one- and two-player choices.
 constexpr std::uint8_t kTitleCursorTile = 0x58;
+
+// While heart mode is on, the selector IS the heart. It is the screen's one moving part and the only
+// thing on it that belongs to the port rather than the cartridge, so the mode says it is on where the
+// player is already looking, without a placement of its own on the title art.
+constexpr std::uint8_t kHeartCursorTile = static_cast<std::uint8_t>(CharTile::HEART);
+
+std::uint8_t titleCursorTile(std::uint8_t heartMode) {
+    return heartMode != 0 ? kHeartCursorTile : kTitleCursorTile;
+}
 constexpr std::uint8_t kTitleCursorY = 0x80;
 constexpr std::uint8_t kCursorX1P = 0x10;
 constexpr std::uint8_t kCursorX2P = 0x60;
@@ -244,6 +254,24 @@ void setTitleStatsColumn(GameContext& game, bool stats) {
     placeTitleCursor(game, /*twoItems=*/true);
 }
 
+// Turn heart mode on, or off again.
+//
+// The flag is assigned rather than flipped bitwise, so any non-zero value reaching it clears to
+// exactly zero. It is read as zero / non-zero everywhere (docs/contracts/game-state-machine-state.md).
+//
+// The selector cursor becomes the heart the moment the mode goes on, and the plain selector again the
+// moment it goes off, so the press is answered where the player is looking. Both directions also cue the
+// menu-move sound, which is what every other selection on these screens makes (positionMusicTypeSprite /
+// updateDigitCursor, systems/menu_screens.cpp).
+//
+// The setting lives for the session. Nothing writes it to disk, and nothing clears it between rounds;
+// a cold boot and the reset chord clear it with the rest of the flow state (GameFlowState::reset).
+void toggleHeartMode(GameContext& game) {
+    game.flow.heartMode = game.flow.heartMode != 0 ? 0 : kHeartModeEnabled;
+    game.engine.oam[0].tile = titleCursorTile(game.flow.heartMode);
+    game.audioCues.square = SquareSfxId::TINK;
+}
+
 }  // namespace
 
 void initCopyrightScreen(GameContext& game) {
@@ -333,7 +361,9 @@ void initTitleScreen(GameContext& game, const ShowStatsQuery& showStats) {
     game.screens.titleSettingsSelected = false;
     game.engine.oam[0].y = kTitleCursorY;
     game.engine.oam[0].x = kCursorX1P;
-    game.engine.oam[0].tile = kTitleCursorTile;
+    // Heart mode is sticky across the session, so the selector is seeded as the heart if the mode is
+    // already on when the title screen is (re-)entered — not always the plain selector.
+    game.engine.oam[0].tile = titleCursorTile(game.flow.heartMode);
 
     // The port's own bottom row, over the blank band the player options' underline leaves, and then
     // the copyright line beneath it.
@@ -390,8 +420,8 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo,
         placeTitleCursor(game, twoItems);
     }
 
-    // Up and down move between the two rows, and the pair's own left/right/select laws apply only
-    // while the cursor is on it.
+    // Up and down move between the two rows, and the pair's own left/right laws apply only while the
+    // cursor is on it.
     if (pressed(game, Action::MenuDown)) {
         setTitleSettingsSelected(game, true, twoItems);
         return;
@@ -400,6 +430,19 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo,
         setTitleSettingsSelected(game, false, twoItems);
         return;
     }
+
+    // Select turns heart mode on and off, wherever the cursor is standing — one rule for the screen
+    // rather than a button that means different things on different rows. It is the only way in: the
+    // cartridge's own latch reads Down held at Start (:698-706), and Down is bound to the cursor as
+    // well as to soft drop, so the branch above takes it first (see the latch below).
+    //
+    // Binding it here costs no other function: Left and Right reach both player counts on their own
+    // (:663-666), which is what the cartridge's Select does from the other side.
+    if (pressed(game, Action::Select)) {
+        toggleHeartMode(game);
+        return;
+    }
+
     if (game.screens.titleSettingsSelected) {
         if (twoItems) {
             if (pressed(game, Action::MenuRight)) {
@@ -423,10 +466,6 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo,
 
     // Cursor / input (:657-731): isMultiplayer doubles as the cursor index. Buttons are tested in this
     // order; the first match handles the frame.
-    if (pressed(game, Action::Select)) {  // (:661-662, :708-718)
-        setTitleCursor(game, !game.multiplayer.isMultiplayer, twoItems);
-        return;
-    }
     if (pressed(game, Action::MenuRight)) {  // (:663-664, :720-724)
         if (!game.multiplayer.isMultiplayer) {
             setTitleCursor(game, true, twoItems);  // 1P -> 2P only
@@ -452,6 +491,12 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo,
 
     // One-player Start (:698-706): latch heart mode if Down (SoftDrop) is held, then enter the config
     // screen with the entry zeroing (.nextState, :688-696).
+    //
+    // The latch is unreachable and is kept as the cartridge's own line. Down is bound to MenuDown as
+    // well as to SoftDrop, and the branch above takes it: a press moves the cursor to the bottom row
+    // and returns, so a Start pressed afterwards never arrives here with Down held. The one path that
+    // reaches it holds Down from before the screen appears, where no press edge ever fires. Select is
+    // the way heart mode is turned on (above).
     if (held(game, Action::SoftDrop)) {
         game.flow.heartMode = kHeartModeEnabled;  // Down held (:700-701)
     }
