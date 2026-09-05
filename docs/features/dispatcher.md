@@ -56,7 +56,7 @@ serial system; the second is the engine run loop's frame pacing and has no obser
 Both are recorded in the contract and absent from the per-tick body.
 
 **Start and Select join the action vocabulary.** The chord needs them, and this is the first consumer
-that does. They bind to Enter / Right Shift on the keyboard (the emulator convention) and to the pad's
+that does. They bind to Enter / Backspace on the keyboard (the emulator convention) and to the pad's
 own Start / Select buttons. The action enum grows by an enumerated update the input layer already
 anticipated; the default bindings and the held-action walk grow with it.
 

@@ -18,6 +18,7 @@
 
 #include "data/demo.h"      // kDemoPieceList
 #include "data/music.h"     // MusicId
+#include "data/sfx.h"       // SquareSfxId
 #include "data/tilemaps.h"  // kTitleScreenTilemap
 #include "retropp/input.h"
 #include "state/demo_state.h"    // ActiveDemo
@@ -295,8 +296,12 @@ TEST(TitleScreens, TitleInitVectors) {
 }
 
 // ── Test 4: TitleCursorVectors ──────────────────────────────────────────────────────────────────────
-// GameState_07 cursor input (tetris.asm:657-731): Select toggles the 1P/2P cursor; Right moves 1P->2P
-// only; Left moves 2P->1P only; the OAM X is placed accordingly; nothing else changes.
+// GameState_07 cursor input (tetris.asm:657-731): Right moves 1P->2P only; Left moves 2P->1P only; the
+// OAM X is placed accordingly; nothing else changes.
+//
+// The port takes Select for heart mode instead of the player count (see TitleHeartModeToggleVectors).
+// The two cases below are what says that costs nothing: Left and Right reach both player counts on
+// their own, which is exactly what the cartridge's own Select duplicated.
 TEST(TitleScreens, TitleCursorVectors) {
     auto titleContext = [](bool multiplayer) {
         GameContext game;
@@ -306,20 +311,6 @@ TEST(TitleScreens, TitleCursorVectors) {
         return game;
     };
 
-    // Select toggles both ways and places the cursor.
-    {
-        GameContext game = titleContext(false);
-        press(game, {Action::Select});
-        kirpich::systems::titleScreen(game);
-        EXPECT_TRUE(game.multiplayer.isMultiplayer);
-        EXPECT_EQ(game.engine.oam[0].x, kCursorX2P);
-
-        GameContext back = titleContext(true);
-        press(back, {Action::Select});
-        kirpich::systems::titleScreen(back);
-        EXPECT_FALSE(back.multiplayer.isMultiplayer);
-        EXPECT_EQ(back.engine.oam[0].x, kCursorX1P);
-    }
     // Right: 1P -> 2P; a no-op (with no cursor write) when already 2P.
     {
         GameContext game = titleContext(false);
@@ -353,9 +344,144 @@ TEST(TitleScreens, TitleCursorVectors) {
     // A cursor move does not transition state.
     {
         GameContext game = titleContext(false);
-        press(game, {Action::Select});
+        press(game, {Action::MenuRight});
         kirpich::systems::titleScreen(game);
         EXPECT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
+    }
+}
+
+// ── Test 6: TitleHeartModeToggleVectors ─────────────────────────────────────────────────────────────
+// Select turns heart mode on and off. It is the port's own way in: Down is bound to the cursor as well
+// as to soft drop, so the cartridge's held-Down latch at Start (tetris.asm:698-706) can no longer be
+// reached from the title screen.
+TEST(TitleScreens, TitleHeartModeToggleVectors) {
+    auto titleContext = []() {
+        GameContext game;
+        game.flow.gameState = GameState::TITLE_SCREEN;
+        game.flow.timer1 = 5;  // non-zero: the attract countdown is skipped, isolating the input
+        return game;
+    };
+
+    // On, then off again, and nothing else in the flow state moves either way. The whole struct is
+    // compared rather than the one field, so a toggle that also cleared a level or a timer would show.
+    {
+        GameContext            game   = titleContext();
+        const kirpich::GameFlowState before = game.flow;
+
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_NE(game.flow.heartMode, 0);
+        {
+            kirpich::GameFlowState rest = game.flow;
+            rest.heartMode = before.heartMode;
+            EXPECT_EQ(rest, before);
+        }
+
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_EQ(game.flow.heartMode, 0);
+        EXPECT_EQ(game.flow, before);
+    }
+    // A value latched by the held-Down path clears to exactly zero rather than being flipped bitwise.
+    {
+        GameContext game = titleContext();
+        game.flow.heartMode = 0x08;  // a raw held-joypad byte, as the cartridge would have left it
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_EQ(game.flow.heartMode, 0);
+    }
+    // Both directions cue the menu-move sound, which is the only feedback the press has where it
+    // happens — the heart itself is a screen later.
+    {
+        GameContext game = titleContext();
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+
+        game.audioCues.square = kirpich::SquareSfxId::NONE;
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_EQ(game.flow.heartMode, 0);
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+    }
+    // Select means heart mode wherever the cursor is standing: from the bottom row it toggles too, and
+    // leaves the cursor and the row's own column where the player left them.
+    {
+        GameContext game = titleContext();
+        game.screens.titleSettingsSelected = true;
+        game.screens.titleStatsColumn      = true;
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_NE(game.flow.heartMode, 0);
+        EXPECT_TRUE(game.screens.titleSettingsSelected);
+        EXPECT_TRUE(game.screens.titleStatsColumn);
+        EXPECT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);  // it does not open the screen below
+    }
+    // Neither does it move the player count, which is the button's cartridge meaning.
+    {
+        GameContext game = titleContext();
+        game.multiplayer.isMultiplayer = false;
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_FALSE(game.multiplayer.isMultiplayer);
+    }
+    // Through the dispatcher, from held levels: the press edge fires once and the mode stays on while
+    // the button is held, so a held Select does not flicker the setting every frame.
+    {
+        GameStateDispatcher dispatcher;
+        kirpich::systems::installTitleScreenHandlers(dispatcher);
+        GameContext game;
+        game.flow.gameState = GameState::TITLE_SCREEN;
+        game.flow.timer1 = 5;
+
+        dispatcher.tick(game, actionSet({Action::Select}));
+        EXPECT_NE(game.flow.heartMode, 0);
+        dispatcher.tick(game, actionSet({Action::Select}));  // still held: no new edge
+        EXPECT_NE(game.flow.heartMode, 0);
+        dispatcher.tick(game, retropp::ActionSet{});         // released
+        dispatcher.tick(game, actionSet({Action::Select}));  // pressed again
+        EXPECT_EQ(game.flow.heartMode, 0);
+    }
+}
+
+// ── Test 7: TitleHeartCursorVectors ─────────────────────────────────────────────────────────────────
+// The selector cursor (OAM object 0) IS the heart while heart mode is on. With the mode off the cursor is
+// exactly the tile the cartridge shipped ($58); the heart is a pure addition that appears only under the
+// port's own heart mode. The init seeds it (the mode is sticky across the session, so a re-entered title
+// shows the heart if the mode is already on), and Select flips it live as it toggles the mode.
+TEST(TitleScreens, TitleHeartCursorVectors) {
+    constexpr std::uint8_t kHeartTile = static_cast<std::uint8_t>(CharTile::HEART);
+
+    // Init with heart mode off: the cursor is the cartridge's own selector, unchanged.
+    {
+        GameContext game;
+        game.flow.heartMode = 0;
+        kirpich::systems::initTitleScreen(game);
+        EXPECT_EQ(game.engine.oam[0].tile, kCursorTile);
+    }
+    // Init with heart mode already on: the cursor is seeded as the heart.
+    {
+        GameContext game;
+        game.flow.heartMode = 1;
+        kirpich::systems::initTitleScreen(game);
+        EXPECT_EQ(game.engine.oam[0].tile, kHeartTile);
+    }
+    // Select flips the cursor's tile live: off -> on paints the heart, on -> off restores the selector.
+    {
+        GameContext game;
+        game.flow.gameState = GameState::TITLE_SCREEN;
+        game.flow.timer1 = 5;                     // non-zero: skip the attract countdown
+        game.engine.oam[0].tile = kCursorTile;    // the selector, as the init leaves it with heart mode off
+
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_NE(game.flow.heartMode, 0);
+        EXPECT_EQ(game.engine.oam[0].tile, kHeartTile);
+
+        press(game, {Action::Select});
+        kirpich::systems::titleScreen(game);
+        EXPECT_EQ(game.flow.heartMode, 0);
+        EXPECT_EQ(game.engine.oam[0].tile, kCursorTile);
     }
 }
 

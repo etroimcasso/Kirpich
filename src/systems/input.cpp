@@ -74,7 +74,7 @@ retropp::ActionMap defaultActionMap() {
         {Action::RotateClockwise, {SDL_SCANCODE_X, retropp::PadButton::FaceLabelA}},
         {Action::RotateCounterClockwise, {SDL_SCANCODE_Z, retropp::PadButton::FaceLabelB}},
         {Action::Start, {SDL_SCANCODE_RETURN, retropp::PadButton::Start}},
-        {Action::Select, {SDL_SCANCODE_RSHIFT, retropp::PadButton::Select}},
+        {Action::Select, {SDL_SCANCODE_BACKSPACE, retropp::PadButton::Select}},
 
         // Menu navigation shares its gameplay counterpart's sources: the directions with the
         // movement / soft-drop keys and d-pad, Confirm with rotate-clockwise (X / GB A), Back with

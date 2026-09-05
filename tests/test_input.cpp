@@ -168,7 +168,7 @@ TEST(Input, DefaultMapRows) {
     EXPECT_TRUE(hasPad(Action::RotateCounterClockwise, retropp::PadButton::FaceLabelB));
     EXPECT_TRUE(hasKey(Action::Start, SDL_SCANCODE_RETURN));
     EXPECT_TRUE(hasPad(Action::Start, retropp::PadButton::Start));
-    EXPECT_TRUE(hasKey(Action::Select, SDL_SCANCODE_RSHIFT));
+    EXPECT_TRUE(hasKey(Action::Select, SDL_SCANCODE_BACKSPACE));
     EXPECT_TRUE(hasPad(Action::Select, retropp::PadButton::Select));
 
     // Menu navigation: the directions share the movement / soft-drop sources, MenuUp takes the

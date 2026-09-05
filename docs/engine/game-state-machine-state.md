@@ -91,9 +91,11 @@ flow.reset();
 - **`lines` is a decimal integer, not packed-decimal.** The original stores it as two packed-decimal
   bytes; `GameFlowState` keeps a plain `uint16_t`. The Type A `9999` ceiling and the Type B down-count
   are enforced by the line-clear code, not by this struct.
-- **`paused` is a `bool`, `heartMode` is a `uint8_t`.** Both are flags, but they were sized from how
-  the original writes them: `paused` only ever holds `0` or `1`; `heartMode` holds the raw joypad byte
-  and is read only as zero / non-zero, so a `bool` would lose information the original keeps.
+- **`paused` is a `bool`, `heartMode` is a `uint8_t`.** Both are flags, but they are sized from how the
+  original writes them: `paused` only ever holds `0` or `1`; `heartMode` takes the raw joypad byte
+  there, so the field keeps a byte's width and every reader tests it as zero / non-zero. The title
+  screen's own toggle writes a canonical `1`, and clears to exactly `0` — never a bitwise flip, which
+  would leave a raw byte partly set.
 - **`gameType` and `musicType` boot to an invalid enumerator.** Their boot value `0` is not a named
   `GameType`/`MusicType`; it means "unset until the menu writes it," exactly as in the original. Do not
   treat a freshly-reset `gameType` as `TYPE_A`.
