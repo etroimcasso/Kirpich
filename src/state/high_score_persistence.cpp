@@ -38,9 +38,18 @@ std::uint32_t decodeBcd(const std::uint8_t* bytes) {
     return value;
 }
 
-}  // namespace
+// The two table shapes the three blocks come in: Type B and Type C are one slice per level and
+// second-axis value, Type A is one slice per level.
+using WideTable   = std::array<std::array<std::array<TopScoreEntry, 3>, 6>, 10>;
+using NarrowTable = std::array<std::array<TopScoreEntry, 3>, 10>;
 
-std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScores(const HighScoreState& state) {
+// Encode three tables into the wire image: the wide first block, then the narrow, then the second
+// wide - the order the document has held since Type C was added (Type B, Type A, Type C). Factored
+// so the cartridge tables and the parallel heart tables serialise through one walk, which is what
+// makes the two documents byte-identical in shape.
+std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScoreTables(const WideTable& first,
+                                                                    const NarrowTable& middle,
+                                                                    const WideTable& last) {
     std::array<std::uint8_t, kTopScoresImageBytes> image{};
     std::size_t p = 0;
 
@@ -58,19 +67,20 @@ std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScores(const HighScoreSt
                 image[p++] = static_cast<std::uint8_t>(glyph);
     };
 
-    for (const auto& level : state.typeB)      // 10 levels x 6 heights = 60 slices = 1620 bytes
-        for (const auto& height : level)
-            writeSlice(height);
-    for (const auto& level : state.typeA)      // 10 levels = 10 slices = 270 bytes
+    for (const auto& level : first)       // 10 levels x 6 = 60 slices = 1620 bytes
+        for (const auto& slot : level)
+            writeSlice(slot);
+    for (const auto& level : middle)      // 10 levels = 10 slices = 270 bytes
         writeSlice(level);
-    for (const auto& level : state.typeC)      // 10 levels x 6 rises, Type B's shape
-        for (const auto& rise : level)
-            writeSlice(rise);
+    for (const auto& level : last)        // 10 levels x 6, the wide shape again
+        for (const auto& slot : level)
+            writeSlice(slot);
 
     return image;
 }
 
-bool decodeTopScores(std::span<const std::uint8_t> image, HighScoreState& state) {
+bool decodeTopScoreTables(std::span<const std::uint8_t> image, WideTable& first, NarrowTable& middle,
+                          WideTable& last) {
     if (image.size() != kTopScoresImageBytes) return false;
 
     std::size_t p = 0;
@@ -84,16 +94,34 @@ bool decodeTopScores(std::span<const std::uint8_t> image, HighScoreState& state)
                 glyph = static_cast<CharTile>(image[p++]);
     };
 
-    for (auto& level : state.typeB)
-        for (auto& height : level)
-            readSlice(height);
-    for (auto& level : state.typeA)
+    for (auto& level : first)
+        for (auto& slot : level)
+            readSlice(slot);
+    for (auto& level : middle)
         readSlice(level);
-    for (auto& level : state.typeC)
-        for (auto& rise : level)
-            readSlice(rise);
+    for (auto& level : last)
+        for (auto& slot : level)
+            readSlice(slot);
 
     return true;
+}
+
+}  // namespace
+
+std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScores(const HighScoreState& state) {
+    return encodeTopScoreTables(state.typeB, state.typeA, state.typeC);
+}
+
+bool decodeTopScores(std::span<const std::uint8_t> image, HighScoreState& state) {
+    return decodeTopScoreTables(image, state.typeB, state.typeA, state.typeC);
+}
+
+std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScoresHeart(const HighScoreState& state) {
+    return encodeTopScoreTables(state.typeBHeart, state.typeAHeart, state.typeCHeart);
+}
+
+bool decodeTopScoresHeart(std::span<const std::uint8_t> image, HighScoreState& state) {
+    return decodeTopScoreTables(image, state.typeBHeart, state.typeAHeart, state.typeCHeart);
 }
 
 std::vector<std::byte> migrateTopScoresV1ToV2(std::vector<std::byte> payload) {
@@ -159,6 +187,41 @@ bool loadTopScores(retropp::SaveStore& store, HighScoreState& state) {
     if (!decodeTopScores(image, state)) {
         spdlog::error("top-score save has wrong length {} (expected {}), running with no saved scores",
                       doc->payload.size(), kTopScoresImageBytes);
+        return false;
+    }
+    return true;
+}
+
+bool saveTopScoresHeart(const HighScoreState& state, retropp::SaveStore& store) {
+    const auto image = encodeTopScoresHeart(state);
+    return store.write("topscores-heart", kTopScoresHeartSchemaVersion,
+                       std::as_bytes(std::span<const std::uint8_t>(image)));
+}
+
+bool loadTopScoresHeart(retropp::SaveStore& store, HighScoreState& state) {
+    // The heart document is born at version 1 already carrying all three tables, so it has no older
+    // format to migrate from. Its version is still declared here, immediately before its own read, for
+    // the same reason the others declare theirs: the version and the migration map are the store's, so
+    // whichever loader is about to read has to be the one that last set the version - here to 1, which
+    // leaves the cartridge document's migrations (registered above) unreachable for a v1-stored read.
+    store.setCurrentVersion(kTopScoresHeartSchemaVersion);
+
+    std::optional<retropp::SaveStore::Document> doc;
+    try {
+        doc = store.read("topscores-heart");
+    } catch (const retropp::SaveStoreError& error) {
+        spdlog::error("heart top-score save is corrupt, running with no saved heart scores: {}",
+                      error.what());
+        return false;
+    }
+    if (!doc) return false;  // absent - ordinary until the first heart round; leave the boot zeros
+
+    const std::span<const std::uint8_t> image(
+        reinterpret_cast<const std::uint8_t*>(doc->payload.data()), doc->payload.size());
+    if (!decodeTopScoresHeart(image, state)) {
+        spdlog::error(
+            "heart top-score save has wrong length {} (expected {}), running with no saved heart scores",
+            doc->payload.size(), kTopScoresImageBytes);
         return false;
     }
     return true;

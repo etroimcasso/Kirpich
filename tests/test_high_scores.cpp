@@ -84,13 +84,20 @@ GameContext nameEntryContext(std::uint8_t rank = 3, GameType type = GameType::TY
     return game;
 }
 
-// The entry name entry is editing, for the context above.
+// The entry name entry is editing, for the context above. Mirrors the production routing in
+// high_scores.cpp: a heart round edits the parallel heart table, so this reads the same table the
+// handler under test writes.
 TopScoreEntry& namedEntry(GameContext& game) {
     const std::size_t index = kTopScoreRowCount - game.highScores.newScoreRank;
+    const bool        heart = game.flow.heartMode != 0;
     if (game.flow.gameType == GameType::TYPE_B) {
-        return game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight][index];
+        return heart
+                   ? game.highScores
+                         .typeBHeart[game.flow.typeBLevel][game.flow.typeBStartHeight][index]
+                   : game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight][index];
     }
-    return game.highScores.typeA[game.flow.typeALevel][index];
+    return heart ? game.highScores.typeAHeart[game.flow.typeALevel][index]
+                 : game.highScores.typeA[game.flow.typeALevel][index];
 }
 
 // The wheel's reachable domain in order (tetris.asm:4025-4077): "a" up through the skip glyph, then
@@ -790,4 +797,137 @@ TEST(HighScores, AFinishedTypeCRoundRecordsToTypeC) {
     EXPECT_FALSE(game.highScores.newTopScore);
     EXPECT_EQ(game.flow.gameState, GameState::TYPE_C_LEVEL_SELECTION)
         << "and it returns to Type C's own level picker";
+}
+
+// ── Heart mode ────────────────────────────────────────────────────────────────────────────────────
+
+namespace {
+
+struct HeartCase {
+    GameType     type;
+    std::uint8_t level;
+    std::uint8_t variant;
+};
+
+void selectCombination(GameContext& game, const HeartCase& c) {
+    game.flow.gameType = c.type;
+    switch (c.type) {
+        case GameType::TYPE_B:
+            game.flow.typeBLevel       = c.level;
+            game.flow.typeBStartHeight = c.variant;
+            break;
+        case GameType::TYPE_C:
+            game.flow.typeCLevel = c.level;
+            game.flow.typeCRise  = c.variant;
+            break;
+        case GameType::TYPE_A:
+            game.flow.typeALevel = c.level;
+            break;
+    }
+}
+
+void callUpdate(GameContext& game, GameType type) {
+    switch (type) {
+        case GameType::TYPE_A: kirpich::systems::updateTypeATopScores(game); break;
+        case GameType::TYPE_B: kirpich::systems::updateTypeBTopScores(game); break;
+        case GameType::TYPE_C: kirpich::systems::updateTypeCTopScores(game); break;
+    }
+}
+
+std::array<TopScoreEntry, 3>& cartridgeSlice(GameContext& game, const HeartCase& c) {
+    switch (c.type) {
+        case GameType::TYPE_B: return game.highScores.typeB[c.level][c.variant];
+        case GameType::TYPE_C: return game.highScores.typeC[c.level][c.variant];
+        case GameType::TYPE_A: break;
+    }
+    return game.highScores.typeA[c.level];
+}
+
+std::array<TopScoreEntry, 3>& heartSlice(GameContext& game, const HeartCase& c) {
+    switch (c.type) {
+        case GameType::TYPE_B: return game.highScores.typeBHeart[c.level][c.variant];
+        case GameType::TYPE_C: return game.highScores.typeCHeart[c.level][c.variant];
+        case GameType::TYPE_A: break;
+    }
+    return game.highScores.typeAHeart[c.level];
+}
+
+}  // namespace
+
+// The difficulty-screen leaderboard reads the table a score will actually land in: the heart table
+// while heart mode is on, the cartridge table while it is off. Swept over all three game types, both
+// modes, with the other table seeded so a wrong pick would be visible.
+TEST(HighScores, TheDifficultyLeaderboardReadsTheTableForTheModeThatIsOn) {
+    for (const HeartCase c :
+         {HeartCase{GameType::TYPE_A, 2, 0}, HeartCase{GameType::TYPE_B, 3, 4},
+          HeartCase{GameType::TYPE_C, 5, 1}}) {
+        // Heart mode: the insert lands in the heart slice; the cartridge slice is untouched.
+        {
+            GameContext game;
+            selectCombination(game, c);
+            game.flow.heartMode = 1;
+            seedSlice(cartridgeSlice(game, c), 5000, 3000, 1000);
+            game.engine.score = 5001;
+            callUpdate(game, c.type);
+            EXPECT_EQ(heartSlice(game, c)[0].score, 5001u)
+                << "heart mode inserts into the heart table, type " << static_cast<int>(c.type);
+            EXPECT_EQ(cartridgeSlice(game, c)[0].score, 5000u)
+                << "and leaves the cartridge table alone, type " << static_cast<int>(c.type);
+        }
+        // Normal mode: the mirror, with the heart slice seeded instead.
+        {
+            GameContext game;
+            selectCombination(game, c);
+            game.flow.heartMode = 0;
+            seedSlice(heartSlice(game, c), 6000, 3000, 1000);
+            game.engine.score = 6001;
+            callUpdate(game, c.type);
+            EXPECT_EQ(cartridgeSlice(game, c)[0].score, 6001u)
+                << "normal mode inserts into the cartridge table, type " << static_cast<int>(c.type);
+            EXPECT_EQ(heartSlice(game, c)[0].score, 6000u)
+                << "and leaves the heart table alone, type " << static_cast<int>(c.type);
+        }
+    }
+}
+
+// Name entry writes into the entry the round's combination names, which in heart mode is the heart
+// table's. Driven end to end through the shipped path - the leaderboard insert, a name edit, then the
+// submit - so both routing sites (updateType* and namedEntry) are proven to agree, across all three
+// game types. The name edit is what exercises namedEntry: it must reach the heart entry, so a wheel
+// step lands there and not on the cartridge entry the insert never touched.
+TEST(HighScores, AFinishedHeartRoundRecordsToTheHeartTable) {
+    for (const HeartCase c :
+         {HeartCase{GameType::TYPE_A, 2, 0}, HeartCase{GameType::TYPE_B, 3, 4},
+          HeartCase{GameType::TYPE_C, 5, 1}}) {
+        GameContext game;
+        selectCombination(game, c);
+        game.flow.heartMode = 1;
+        game.engine.score   = 4242;
+
+        // The leaderboard insert seeds the heart entry's name to "a" (updateType* routing, D4).
+        callUpdate(game, c.type);
+        ASSERT_TRUE(game.highScores.newTopScore) << "type " << static_cast<int>(c.type);
+        ASSERT_EQ(game.highScores.newScoreRank, kTopScoreRowCount) << "the best rank";
+        ASSERT_EQ(heartSlice(game, c)[0].name[0], CharTile::LETTER_A);
+
+        game.flow.gameState = GameState::ENTER_TOP_SCORE;
+
+        // A wheel step goes through namedEntry (D3): in heart mode it must edit the heart entry, so
+        // "a" advances to "b" there and the cartridge entry is never touched.
+        press(game, {Action::MenuUp});
+        kirpich::systems::enterTopScore(game);
+        EXPECT_EQ(heartSlice(game, c)[0].name[0], CharTile::LETTER_B)
+            << "the name edit lands on the heart entry, type " << static_cast<int>(c.type);
+        EXPECT_EQ(cartridgeSlice(game, c)[0].name[0], CharTile{})
+            << "and not the cartridge entry, type " << static_cast<int>(c.type);
+
+        // Submitting keeps the score in the heart table and returns to the mode's picker.
+        press(game, {Action::Start});
+        kirpich::systems::enterTopScore(game);
+        EXPECT_EQ(heartSlice(game, c)[0].score, 4242u)
+            << "the heart entry keeps the score, type " << static_cast<int>(c.type);
+        EXPECT_EQ(cartridgeSlice(game, c)[0].score, 0u)
+            << "and the cartridge table is untouched, type " << static_cast<int>(c.type);
+        EXPECT_FALSE(game.highScores.newTopScore);
+    }
 }

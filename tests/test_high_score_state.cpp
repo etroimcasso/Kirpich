@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <span>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <vector>
@@ -474,6 +475,133 @@ TEST(HighScoreState, PersistenceStoreRoundTrip) {
         for (const auto& entry : std::filesystem::directory_iterator(store.basePath()))
             if (entry.is_regular_file()) stillPresent = true;
         EXPECT_TRUE(stillPresent);
+    }
+
+    std::filesystem::remove_all(root);
+}
+
+// Distinct data in the three heart tables, from names and scores that do not appear in
+// populatedState(), so a codec that crossed a heart table with a cartridge one could not round-trip.
+HighScoreState populatedHeartState() {
+    HighScoreState s{};
+    s.typeBHeart[0][0][0] = {.score = 111111u, .name = {CharTile::LETTER_H, CharTile::LETTER_E,
+                                                        CharTile::LETTER_A, CharTile::LETTER_R,
+                                                        CharTile::LETTER_T, CharTile::HEART}};
+    s.typeBHeart[9][5][2] = {.score = 222222u, .name = {CharTile::HEART, CharTile::HEART,
+                                                        CharTile::HEART, CharTile::HEART,
+                                                        CharTile::HEART, CharTile::HEART}};
+    s.typeAHeart[3][1] = {.score = 333333u, .name = {CharTile::LETTER_A, CharTile::LETTER_A,
+                                                     CharTile::LETTER_A, CharTile::LETTER_A,
+                                                     CharTile::LETTER_A, CharTile::LETTER_A}};
+    s.typeCHeart[7][4][0] = {.score = 444444u, .name = {CharTile::LETTER_Z, CharTile::LETTER_Y,
+                                                        CharTile::LETTER_X, CharTile::SPACE,
+                                                        CharTile::SPACE, CharTile::SPACE}};
+    return s;
+}
+
+// (8) The heart tables have their own codec through the same walk the cartridge tables use, so the
+// wire image is the same kTopScoresImageBytes in size, and it round-trips every heart entry while
+// leaving the cartridge tables untouched. A wrong length is refused.
+TEST(HighScoreState, HeartCodecRoundTripsThroughTheSameWireShape) {
+    const HighScoreState saved = populatedHeartState();
+
+    const auto image = kirpich::encodeTopScoresHeart(saved);
+    EXPECT_EQ(image.size(), kirpich::kTopScoresImageBytes)
+        << "the heart document reuses the top-score wire shape";
+
+    HighScoreState loaded{};
+    ASSERT_TRUE(kirpich::decodeTopScoresHeart(image, loaded));
+    EXPECT_TRUE(loaded.typeBHeart == saved.typeBHeart);
+    EXPECT_TRUE(loaded.typeAHeart == saved.typeAHeart);
+    EXPECT_TRUE(loaded.typeCHeart == saved.typeCHeart);
+
+    // The heart codec reads only the heart tables: the cartridge tables are left at boot.
+    EXPECT_TRUE(loaded.typeB == HighScoreState{}.typeB);
+    EXPECT_TRUE(loaded.typeA == HighScoreState{}.typeA);
+    EXPECT_TRUE(loaded.typeC == HighScoreState{}.typeC);
+
+    std::vector<std::uint8_t> wrong(kirpich::kTopScoresImageBytes - 1, 0xAB);
+    HighScoreState before = saved;
+    EXPECT_FALSE(kirpich::decodeTopScoresHeart(wrong, before));
+    EXPECT_TRUE(before == saved) << "a wrong length must leave the state alone";
+}
+
+// (9) The refactor that factored the three-table walk did not disturb the released `topscores`
+// format: a state carrying heart data encodes the same `topscores` bytes it did before, because the
+// cartridge codec reads only the cartridge tables. This is the guard the byte-identity flip reddens.
+TEST(HighScoreState, ReleasedTopScoresDocumentIsByteIdenticalWithHeartDataPresent) {
+    const HighScoreState withoutHeart = populatedState();
+
+    HighScoreState     withHeart = withoutHeart;
+    const HighScoreState heart   = populatedHeartState();
+    withHeart.typeBHeart = heart.typeBHeart;
+    withHeart.typeAHeart = heart.typeAHeart;
+    withHeart.typeCHeart = heart.typeCHeart;
+
+    EXPECT_EQ(kirpich::encodeTopScores(withoutHeart), kirpich::encodeTopScores(withHeart))
+        << "the released topscores document must not change one byte when heart data is present";
+}
+
+// (10) Through a hermetic store: the heart document is absent until written, round-trips a save, a
+// corrupt document leaves boot state with the damaged file in place, and it coexists with the
+// cartridge `topscores` document, each keeping its own schema version.
+TEST(HighScoreState, HeartStoreRoundTripAbsentCorruptAndCoexistence) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_high_score_heart_store";
+    std::filesystem::remove_all(root);
+
+    // Absent -> boot state, "no save".
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        HighScoreState s{};
+        EXPECT_FALSE(kirpich::loadTopScoresHeart(store, s));
+        EXPECT_TRUE(s == HighScoreState{});
+    }
+
+    // Coexistence: both documents written to one store come back correct, read in the opposite order
+    // to the writes so a version left standing by one loader would be in place when the other reads.
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        const HighScoreState cartridge = populatedState();
+        const HighScoreState heart     = populatedHeartState();
+        ASSERT_TRUE(kirpich::saveTopScores(cartridge, store));
+        ASSERT_TRUE(kirpich::saveTopScoresHeart(heart, store));
+
+        HighScoreState loaded{};
+        ASSERT_TRUE(kirpich::loadTopScoresHeart(store, loaded));
+        ASSERT_TRUE(kirpich::loadTopScores(store, loaded));
+        EXPECT_TRUE(loaded.typeB == cartridge.typeB) << "the cartridge document is intact";
+        EXPECT_TRUE(loaded.typeBHeart == heart.typeBHeart) << "the heart document is intact";
+        EXPECT_TRUE(loaded.typeAHeart == heart.typeAHeart);
+        EXPECT_TRUE(loaded.typeCHeart == heart.typeCHeart);
+    }
+
+    // Corrupt the heart document: truncate it to a stub. loadTopScoresHeart catches the error, returns
+    // false, leaves boot state, and does not remove the damaged file.
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        HighScoreState heartOnly{};
+        heartOnly.typeAHeart[0][0].score = 5u;
+        ASSERT_TRUE(kirpich::saveTopScoresHeart(heartOnly, store));
+
+        for (const auto& entry : std::filesystem::directory_iterator(store.basePath())) {
+            if (!entry.is_regular_file()) continue;
+            if (entry.path().filename().string().find("topscores-heart") == std::string::npos) continue;
+            std::ofstream(entry.path(), std::ios::binary | std::ios::trunc).put('\x01').put('\x02');
+        }
+
+        HighScoreState s{};
+        EXPECT_FALSE(kirpich::loadTopScoresHeart(store, s));
+        EXPECT_TRUE(s == HighScoreState{});
+
+        bool stillPresent = false;
+        for (const auto& entry : std::filesystem::directory_iterator(store.basePath())) {
+            if (entry.path().filename().string().find("topscores-heart") != std::string::npos &&
+                entry.is_regular_file()) {
+                stillPresent = true;
+            }
+        }
+        EXPECT_TRUE(stillPresent) << "the damaged heart file must survive";
     }
 
     std::filesystem::remove_all(root);

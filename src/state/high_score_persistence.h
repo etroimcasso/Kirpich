@@ -50,6 +50,13 @@ inline constexpr std::string_view kSaveApplication = "Kirpich";
 inline constexpr std::string_view kTopScoresDocument = "topscores";
 inline constexpr std::uint32_t kTopScoresSchemaVersion = 3;
 
+// Heart-mode top scores live in their own document, so the released `topscores` document above is
+// never touched. It reuses the same wire format pointed at the parallel heart tables, so it is the
+// same kTopScoresImageBytes in size. Born at version 1 already carrying all three tables, it has no
+// older format to migrate from.
+inline constexpr std::string_view kTopScoresHeartDocument      = "topscores-heart";
+inline constexpr std::uint32_t    kTopScoresHeartSchemaVersion = 1;
+
 // What one (level, rise) or (level, height) slice costs on the wire: three BCD scores then three
 // six-glyph names.
 inline constexpr std::size_t kTopScoresSliceBytes = 27;
@@ -111,5 +118,17 @@ bool saveTopScores(const HighScoreState& state, retropp::SaveStore& store);
 // the boot zeros, leave the damaged file in place (never treated as absent, never proactively
 // overwritten), return false. The HRAM session fields are never touched.
 bool loadTopScores(retropp::SaveStore& store, HighScoreState& state);
+
+// Encode / decode the three heart tables through the same walk the cartridge tables use, so the wire
+// image is byte-identical in shape (only the tables it reads differ). Writes / reads only the three
+// heart tables; the cartridge tables and the HRAM session fields are untouched.
+std::array<std::uint8_t, kTopScoresImageBytes> encodeTopScoresHeart(const HighScoreState& state);
+bool decodeTopScoresHeart(std::span<const std::uint8_t> image, HighScoreState& state);
+
+// Persist / load the heart tables as document "topscores-heart" at version 1. Same absent / valid /
+// corrupt / wrong-length behaviour as loadTopScores; an absent document is ordinary until the first
+// heart round is recorded.
+bool saveTopScoresHeart(const HighScoreState& state, retropp::SaveStore& store);
+bool loadTopScoresHeart(retropp::SaveStore& store, HighScoreState& state);
 
 }  // namespace kirpich

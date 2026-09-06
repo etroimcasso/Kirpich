@@ -180,8 +180,20 @@ TopScoreEntry* namedEntry(GameContext& game) {
 
     // Which combination the round was played at is one derivation, shared with the statistics
     // tables (src/state/game_flow_state.h): a score and the round's counts have to land on the
-    // same slice, and two readings of the same flow state could drift apart.
+    // same slice, and two readings of the same flow state could drift apart. A heart round inserts
+    // into the parallel heart tables, so its score stands only against other heart rounds.
     const RoundCombination at = combinationOf(game.flow);
+    if (at.heart) {
+        switch (at.type) {
+            case GameType::TYPE_B:
+                return &game.highScores.typeBHeart[at.level][at.variant][index];
+            case GameType::TYPE_C:
+                return &game.highScores.typeCHeart[at.level][at.variant][index];
+            case GameType::TYPE_A:
+                break;
+        }
+        return &game.highScores.typeAHeart[at.level][index];
+    }
     switch (at.type) {
         case GameType::TYPE_B:
             return &game.highScores.typeB[at.level][at.variant][index];
@@ -245,24 +257,30 @@ void clearTopScoreFields(GameContext& game) {
     }
 }
 
+// The difficulty screens show the leaderboard a score will actually land in, so each reads the heart
+// or the cartridge table by the mode that is on right now. A screen is only reached with the mode
+// already chosen, so this leaderboard is always shown - it is the statistics screens, reachable
+// without heart mode on, that keep heart content hidden until a heart round has been recorded.
 void updateTypeATopScores(GameContext& game) {
     // UpdateTypeATopScores (tetris.asm:3641-3659): one slice of three entries per level.
     clearTopScoreFields(game);
-    updateTopScores(game, game.highScores.typeA[game.flow.typeALevel]);
+    auto& table = game.flow.heartMode != 0 ? game.highScores.typeAHeart : game.highScores.typeA;
+    updateTopScores(game, table[game.flow.typeALevel]);
 }
 
 void updateTypeCTopScores(GameContext& game) {
     // Type C's own slice, one per level and rise - the shape Type B's table has, for the same reason:
     // the round is picked as a pair, so a score only stands against others played at that pair.
     clearTopScoreFields(game);
-    updateTopScores(game, game.highScores.typeC[game.flow.typeCLevel][game.flow.typeCRise]);
+    auto& table = game.flow.heartMode != 0 ? game.highScores.typeCHeart : game.highScores.typeC;
+    updateTopScores(game, table[game.flow.typeCLevel][game.flow.typeCRise]);
 }
 
 void updateTypeBTopScores(GameContext& game) {
     // UpdateTypeBTopScores (tetris.asm:3661-3689): one slice per level and starting height.
     clearTopScoreFields(game);
-    updateTopScores(
-        game, game.highScores.typeB[game.flow.typeBLevel][game.flow.typeBStartHeight]);
+    auto& table = game.flow.heartMode != 0 ? game.highScores.typeBHeart : game.highScores.typeB;
+    updateTopScores(game, table[game.flow.typeBLevel][game.flow.typeBStartHeight]);
 }
 
 void drawTopScoresToVram(GameContext& game) {

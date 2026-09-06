@@ -30,6 +30,8 @@
 #include "state/display_state.h"
 #include "state/high_score_persistence.h"
 #include "state/high_score_state.h"
+#include "state/stats_persistence.h"
+#include "state/stats_state.h"
 #include "systems/boot.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
@@ -424,4 +426,59 @@ TEST(Boot, OverCopyLandsOnValuesTheBootOverwrites) {
             EXPECT_EQ(game.flow.musicType, MusicType::MUSIC_A);
         }
     }
+}
+
+// The heart top-score tables outlive the reset chord exactly as the cartridge ones do, and a cold
+// boot clears them. The stats heart tables ride inside StatsState, so they are covered by the stats
+// reset test; this is the high-score half.
+TEST(Boot, SoftResetPreservesTheHeartTables) {
+    GameContext game;
+    game.highScores.typeAHeart[1][0].score    = 12345;
+    game.highScores.typeBHeart[2][3][1].score = 54321;
+    game.highScores.typeCHeart[4][5][2].score = 999;
+    const HighScoreState before = game.highScores;
+
+    kirpich::systems::softReset(game);
+    EXPECT_TRUE(game.highScores.typeAHeart == before.typeAHeart)
+        << "the heart tables keep the same company as the cartridge ones";
+    EXPECT_TRUE(game.highScores.typeBHeart == before.typeBHeart);
+    EXPECT_TRUE(game.highScores.typeCHeart == before.typeCHeart);
+
+    kirpich::systems::coldBoot(game);
+    EXPECT_TRUE(game.highScores.typeAHeart == HighScoreState{}.typeAHeart);
+    EXPECT_TRUE(game.highScores.typeBHeart == HighScoreState{}.typeBHeart);
+    EXPECT_TRUE(game.highScores.typeCHeart == HighScoreState{}.typeCHeart);
+}
+
+// bootGame loads the heart documents beside the cartridge ones, each loader naming its own version
+// before its own read. A launch with all four documents on disk ends up holding all four.
+TEST(Boot, BootGameLoadsTheHeartDocuments) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_boot_heart";
+    std::filesystem::remove_all(root);
+
+    HighScoreState scores{};
+    fillTopScoreTables(scores);                 // the cartridge document
+    scores.typeAHeart[3][1].score = 4242;       // the heart document
+    kirpich::StatsState stats{};
+    stats.typeB[1][1].rounds      = 3;          // the cartridge statistics
+    stats.typeBHeart[2][0].rounds = 7;          // the heart statistics
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        ASSERT_TRUE(kirpich::saveTopScores(scores, store));
+        ASSERT_TRUE(kirpich::saveTopScoresHeart(scores, store));
+        ASSERT_TRUE(kirpich::saveStats(stats, store));
+        ASSERT_TRUE(kirpich::saveStatsHeart(stats, store));
+    }
+
+    GameContext game  = dirtied();
+    auto        store = retropp::SaveStore::atPath(root);
+    kirpich::systems::bootGame(game, store);
+
+    EXPECT_EQ(game.highScores.typeAHeart[3][1].score, 4242u) << "the heart top scores loaded";
+    EXPECT_TRUE(game.highScores.typeA == scores.typeA) << "and the cartridge ones too";
+    EXPECT_EQ(game.stats.typeBHeart[2][0].rounds, 7u) << "the heart statistics loaded";
+    EXPECT_EQ(game.stats.typeB[1][1].rounds, 3u) << "and the cartridge ones too";
+
+    std::filesystem::remove_all(root);
 }

@@ -513,3 +513,115 @@ TEST(Stats, TheFoldsReportNothingPlayedAndFoldBothAxesToTheTypeTotal) {
     EXPECT_EQ(kirpich::systems::totalsForSelection(stats, typeALevel).rounds,
               stats.typeA[4].rounds);
 }
+
+namespace {
+
+// Fill only the three heart slice tables, from a seed distinct from populated()'s, so a codec that
+// crossed a heart table with a cartridge one could not round-trip by accident.
+StatsState populatedHeart() {
+    StatsState stats;
+    std::uint32_t seed = 500;
+    for (std::size_t level = 0; level < kirpich::kStatLevels; ++level) {
+        stats.typeAHeart[level] = sliceAt(seed);
+        seed += 100;
+        for (std::size_t variant = 0; variant < kirpich::kStatVariants; ++variant) {
+            stats.typeBHeart[level][variant] = sliceAt(seed);
+            seed += 100;
+            stats.typeCHeart[level][variant] = sliceAt(seed);
+            seed += 100;
+        }
+    }
+    return stats;
+}
+
+}  // namespace
+
+// (15) The heart document carries the three slice tables alone - no application total, no music block
+// - so its image is the three slice blocks and nothing else, and it round-trips every field of every
+// heart slice while leaving the cartridge tables and the globals untouched. A wrong length is refused.
+TEST(Stats, HeartCodecRoundTripsTheThreeTablesAlone) {
+    EXPECT_EQ(kirpich::kStatsHeartImageBytes,
+              kirpich::kStatsTypeBBytes + kirpich::kStatsTypeABytes + kirpich::kStatsTypeCBytes);
+    EXPECT_EQ(kirpich::kStatsHeartImageBytes, 8840u) << "the slice blocks alone, no globals";
+
+    const StatsState saved = populatedHeart();
+
+    const auto image = kirpich::encodeStatsHeart(saved);
+    EXPECT_EQ(image.size(), kirpich::kStatsHeartImageBytes);
+
+    StatsState loaded;
+    ASSERT_TRUE(kirpich::decodeStatsHeart(image, loaded));
+    EXPECT_TRUE(loaded.typeAHeart == saved.typeAHeart);
+    EXPECT_TRUE(loaded.typeBHeart == saved.typeBHeart);
+    EXPECT_TRUE(loaded.typeCHeart == saved.typeCHeart);
+
+    // The heart codec reads only the heart tables: the cartridge tables and the globals are left at
+    // boot.
+    EXPECT_TRUE(loaded.typeA == StatsState{}.typeA);
+    EXPECT_TRUE(loaded.typeB == StatsState{}.typeB);
+    EXPECT_EQ(loaded.applicationSeconds, 0u);
+    EXPECT_EQ(loaded.musicRounds, (std::array<std::uint32_t, kirpich::kMusicTypeCount>{}));
+
+    // A wrong length is refused and the state left alone.
+    for (const std::size_t size : {std::size_t{0}, kirpich::kStatsHeartImageBytes - 1,
+                                   kirpich::kStatsHeartImageBytes + 1, kirpich::kStatsImageBytes}) {
+        std::vector<std::uint8_t> wrong(size, 0xAB);
+        StatsState state = saved;
+        EXPECT_FALSE(kirpich::decodeStatsHeart(wrong, state)) << "accepted a heart image of " << size;
+        EXPECT_TRUE(state == saved) << "wrote into the state while refusing, at " << size;
+    }
+}
+
+// (16) The refactor that factored the slice-table walk did not disturb the released `stats` format:
+// a state carrying heart data encodes the same `stats` bytes it did before, because the cartridge
+// codec reads only the cartridge-shaped members. This is the guard the byte-identity flip reddens.
+TEST(Stats, ReleasedStatsDocumentIsByteIdenticalWithHeartDataPresent) {
+    const StatsState withoutHeart = populated();
+
+    StatsState withHeart = withoutHeart;
+    const StatsState heart = populatedHeart();
+    withHeart.typeAHeart = heart.typeAHeart;
+    withHeart.typeBHeart = heart.typeBHeart;
+    withHeart.typeCHeart = heart.typeCHeart;
+
+    EXPECT_EQ(kirpich::encodeStats(withoutHeart), kirpich::encodeStats(withHeart))
+        << "the released stats document must not change one byte when heart data is present";
+}
+
+// (17) Through a hermetic store: the heart document is absent until written, round-trips a save, and
+// coexists with the main `stats` document, each keeping its own schema version. Read in the opposite
+// order to the writes, so a version left standing by one loader would be the one in place when the
+// other reads.
+TEST(Stats, HeartStoreRoundTripAndCoexistsWithTheMainDocument) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_stats_heart_store";
+    std::filesystem::remove_all(root);
+
+    // Absent -> boot zeros, nothing written.
+    {
+        auto       store = retropp::SaveStore::atPath(root);
+        StatsState state;
+        EXPECT_FALSE(kirpich::loadStatsHeart(store, state));
+        EXPECT_TRUE(state == StatsState{});
+    }
+
+    auto store = retropp::SaveStore::atPath(root);
+
+    const StatsState savedStats  = populated();
+    const StatsState savedHeart  = populatedHeart();
+    ASSERT_TRUE(kirpich::saveStats(savedStats, store));
+    ASSERT_TRUE(kirpich::saveStatsHeart(savedHeart, store));
+
+    StatsState loadedHeart;
+    ASSERT_TRUE(kirpich::loadStatsHeart(store, loadedHeart));
+    StatsState loadedStats;
+    ASSERT_TRUE(kirpich::loadStats(store, loadedStats));
+
+    EXPECT_TRUE(loadedHeart.typeAHeart == savedHeart.typeAHeart);
+    EXPECT_TRUE(loadedHeart.typeBHeart == savedHeart.typeBHeart);
+    EXPECT_TRUE(loadedHeart.typeCHeart == savedHeart.typeCHeart);
+    EXPECT_TRUE(loadedStats.typeB == savedStats.typeB);
+    EXPECT_EQ(loadedStats.applicationSeconds, savedStats.applicationSeconds);
+
+    std::filesystem::remove_all(root);
+}

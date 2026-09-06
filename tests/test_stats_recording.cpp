@@ -14,6 +14,7 @@
 
 #include "data/sprites.h"  // SpriteId
 #include "state/demo_state.h"
+#include "state/game_flow_state.h"  // GameFlowState, combinationOf
 #include "state/sprite_renderer_state.h"  // kActivePieceSlot
 #include "state/stats_state.h"
 #include "systems/boot.h"
@@ -445,18 +446,102 @@ TEST(StatsRecording, ApplicationSecondsCarryTheRemainder) {
 }
 
 // (20) The statistics outlive the reset chord, as the top scores do, and a cold boot clears them.
+// The heart slice tables ride inside the same struct, so they are kept and cleared with the rest.
 TEST(StatsRecording, SoftResetKeepsTheStatisticsAndColdBootDoesNot) {
     GameContext game;
-    game.stats.typeB[1][2].rounds = 9;
+    game.stats.typeB[1][2].rounds      = 9;
+    game.stats.typeBHeart[1][2].rounds = 5;
     game.stats.applicationSeconds = 4242;
     game.stats.applicationStampNanos = 77 * kSecond;
 
     kirpich::systems::softReset(game);
     EXPECT_EQ(game.stats.typeB[1][2].rounds, 9u);
+    EXPECT_EQ(game.stats.typeBHeart[1][2].rounds, 5u) << "the heart tables survive the reset too";
     EXPECT_EQ(game.stats.applicationSeconds, 4242u);
     EXPECT_EQ(game.stats.applicationStampNanos, 77 * kSecond)
         << "a zeroed stamp would make the next reading measure from the clock's origin";
 
     kirpich::systems::coldBoot(game);
     EXPECT_TRUE(game.stats == StatsState{});
+}
+
+// (25) A heart round records into the parallel heart slice tables and not the cartridge ones; a
+// normal round the reverse. Swept over all three game types at a chosen slice. combinationOf reads
+// heartMode once at beginRound, so this routing is the whole of heart's effect on recording.
+TEST(StatsRecording, HeartRoundsRecordIntoTheHeartTables) {
+    // Each game type, its own (level, variant) and the same slice in both table sets.
+    struct Case {
+        GameType     type;
+        std::uint8_t level;
+        std::uint8_t variant;
+    };
+    for (const Case c : {Case{GameType::TYPE_A, 2, 0}, Case{GameType::TYPE_B, 3, 4},
+                         Case{GameType::TYPE_C, 5, 1}}) {
+        GameContext game;
+        const auto select = [&] {
+            switch (c.type) {
+                case GameType::TYPE_A: selectTypeA(game, c.level); break;
+                case GameType::TYPE_B: selectTypeB(game, c.level, c.variant); break;
+                case GameType::TYPE_C: selectTypeC(game, c.level, c.variant); break;
+            }
+        };
+        const auto normalSlice = [&]() -> const StatSlice& {
+            switch (c.type) {
+                case GameType::TYPE_B: return game.stats.typeB[c.level][c.variant];
+                case GameType::TYPE_C: return game.stats.typeC[c.level][c.variant];
+                case GameType::TYPE_A: break;
+            }
+            return game.stats.typeA[c.level];
+        };
+        const auto heartSlice = [&]() -> const StatSlice& {
+            switch (c.type) {
+                case GameType::TYPE_B: return game.stats.typeBHeart[c.level][c.variant];
+                case GameType::TYPE_C: return game.stats.typeCHeart[c.level][c.variant];
+                case GameType::TYPE_A: break;
+            }
+            return game.stats.typeAHeart[c.level];
+        };
+
+        // A heart round: it lands in the heart slice, and the cartridge slice stays empty.
+        select();
+        game.flow.heartMode = 1;
+        kirpich::systems::beginRound(game, 0);
+        kirpich::systems::recordDrop(game);
+        kirpich::systems::endRound(game, 0);
+        EXPECT_EQ(heartSlice().rounds, 1u) << "heart round, type " << static_cast<int>(c.type);
+        EXPECT_EQ(heartSlice().drops, 1u);
+        EXPECT_EQ(normalSlice().rounds, 0u)
+            << "a heart round must not touch the cartridge table, type " << static_cast<int>(c.type);
+
+        // A normal round at the same combination: it lands in the cartridge slice, and the heart
+        // slice keeps the one it already had.
+        select();
+        game.flow.heartMode = 0;
+        kirpich::systems::beginRound(game, 0);
+        kirpich::systems::recordDrop(game);
+        kirpich::systems::endRound(game, 0);
+        EXPECT_EQ(normalSlice().rounds, 1u) << "normal round, type " << static_cast<int>(c.type);
+        EXPECT_EQ(heartSlice().rounds, 1u)
+            << "a normal round must not disturb the heart table, type " << static_cast<int>(c.type);
+    }
+}
+
+// (26) combinationOf carries heartMode into the slice key - the single injection point both the
+// statistics and the top scores read. Any non-zero heartMode is on, since the byte stores the raw
+// joypad value.
+TEST(StatsRecording, CombinationOfCarriesHeart) {
+    for (const GameType type : {GameType::TYPE_A, GameType::TYPE_B, GameType::TYPE_C}) {
+        kirpich::GameFlowState flow;
+        flow.gameType = type;
+
+        flow.heartMode = 0;
+        EXPECT_FALSE(kirpich::combinationOf(flow).heart) << "type " << static_cast<int>(type);
+
+        flow.heartMode = 1;
+        EXPECT_TRUE(kirpich::combinationOf(flow).heart) << "type " << static_cast<int>(type);
+
+        flow.heartMode = 0xFF;  // the raw joypad byte: any non-zero value is heart mode
+        EXPECT_TRUE(kirpich::combinationOf(flow).heart)
+            << "any non-zero byte is heart, type " << static_cast<int>(type);
+    }
 }
