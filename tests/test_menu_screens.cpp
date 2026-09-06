@@ -502,6 +502,36 @@ TEST(MenuScreens, DifficultyInitVectors) {
     }
 }
 
+// The heart-mode indicator is drawn one cell past the heading, on the cell the tilemap left as the
+// heading strip's right-hand pad - so with the heart shown the strip ends flush against it while the
+// left keeps its pad. Each difficulty init, in heart mode, extends the strip one cell so the cell after
+// the indicator matches the pad before the heading; in normal mode the heading is the cartridge's and
+// the cell past the strip is the background. Swept over all three screens, which share the geometry.
+TEST(MenuScreens, HeartModeExtendsTheHeadingStripPastTheIndicator) {
+    namespace sys = kirpich::systems;
+    const std::size_t row     = sys::kDifficultyHeadingRow;
+    const std::size_t leftPad = sys::kDifficultyHeadingCol - 1;                     // the pad before "A"
+    const std::size_t extCol  = sys::kDifficultyHeadingCol + sys::kDifficultyHeadingCols + 1;  // after the heart
+
+    const auto check = [&](auto init) {
+        GameContext on;
+        on.flow.heartMode = 1;
+        init(on, sys::TopScoresRefresh{});
+        EXPECT_EQ(on.display.map[row][extCol], on.display.map[row][leftPad])
+            << "heart on: the strip pads the indicator the way it pads the heading";
+
+        GameContext off;
+        off.flow.heartMode = 0;
+        init(off, sys::TopScoresRefresh{});
+        EXPECT_NE(off.display.map[row][extCol], off.display.map[row][leftPad])
+            << "heart off: the heading is the cartridge's, and the cell past the strip is background";
+    };
+
+    check(sys::initTypeADifficultyScreen);
+    check(sys::initTypeBDifficultyScreen);
+    check(sys::initTypeCDifficultyScreen);
+}
+
 // ── Test 7: BlinkAndActionRows ──────────────────────────────────────────────────────────────────
 // The blink law (timer-gated toggle, 16-reload, XOR semantics), the installer covering exactly the
 // eight selection slots, and the menu-action held-set adapter.

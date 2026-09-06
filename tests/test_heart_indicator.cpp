@@ -164,17 +164,33 @@ TEST(HeartIndicator, NothingDeclaredWhenItDoesNotBelong) {
 }
 
 // ── Test 5: TheBackdropIsNotWrittenTo ───────────────────────────────────────────────────────────────
-// The other half of the same mechanism: the indicator is drawn over the screen, never into it. Laying
-// out a difficulty screen with heart mode on leaves the backdrop exactly as the stored tilemap has it,
-// so nothing the player leaves behind has to be cleaned up on the way out.
+// The heart glyph is drawn over the screen, never into it. Laying out a difficulty screen with heart
+// mode on leaves the backdrop exactly as the stored tilemap has it, with one deliberate exception: the
+// single tan cell the heading strip is extended by, so the glyph has a pad on its right the way the
+// heading has one on its left (menu_screens.cpp). That write is self-cleaning - every difficulty entry
+// repaints the base tilemap first, so a normal-mode entry carries no extension and nothing the player
+// leaves behind has to be undone. Everything else stays byte-for-byte the stored screen.
 TEST(HeartIndicator, TheBackdropIsNotWrittenTo) {
     kirpich::systems::GameContext game;
     game.flow.gameState = GameState::INIT_TYPE_A_DIFFICULTY;
     game.flow.heartMode = kOn;
     kirpich::systems::initTypeADifficultyScreen(game);
 
+    const std::size_t extRow = kirpich::systems::kDifficultyHeadingRow;
+    const std::size_t extCol =
+        kirpich::systems::kDifficultyHeadingCol + kirpich::systems::kDifficultyHeadingCols + 1;
+    const std::size_t headingLeftPad = kirpich::systems::kDifficultyHeadingCol - 1;
+
     for (std::size_t row = 0; row < kirpich::kTilemapScreenRows; ++row) {
         for (std::size_t col = 0; col < kirpich::kTilemapScreenCols; ++col) {
+            if (row == extRow && col == extCol) {
+                // The one licensed write: the strip's new right-hand pad is the same tile the pad before
+                // the heading is, so the heart is padded exactly the way the heading text is.
+                EXPECT_EQ(game.display.map[row][col],
+                          kirpich::kTypeADifficultyTilemap[extRow][headingLeftPad])
+                    << "the strip extension is the heading's own pad tile";
+                continue;
+            }
             EXPECT_EQ(game.display.map[row][col], kirpich::kTypeADifficultyTilemap[row][col])
                 << "row " << row << " col " << col;
         }

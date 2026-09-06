@@ -461,6 +461,21 @@ void selectMusicType(GameContext& game, bool showSection) {
     renderCursors(game);
 }
 
+// The heart-mode indicator (render/heart_indicator.h) is a sprite drawn one cell past the heading, on
+// the cell the difficulty tilemap left as the heading strip's right-hand pad. The heart therefore sits
+// on that pad and the tan strip ends flush with it, while the left keeps its own pad - so with the
+// heart shown the heading reads lopsided. When heart mode is on, extend the strip one cell to the right
+// (a single tan SPACE) so the heart has matching padding after it. The ROM tilemap is left untouched;
+// this is an additive write, and every difficulty entry repaints the base tilemap first, so a
+// normal-mode entry carries no extension and nothing has to undo it.
+void extendHeadingStripForHeart(GameContext& game) {
+    if (game.flow.heartMode == 0) {
+        return;
+    }
+    writeMapText(game.display.map, kDifficultyHeadingRow,
+                 kDifficultyHeadingCol + kDifficultyHeadingCols + 1, " ");
+}
+
 void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refresh) {
     // GameState_10 (tetris.asm:3317-3342): set up the Type A difficulty screen. The LCD-on step is
     // render mechanism, and the top-score-field clear and the draw-to-VRAM are top-score render seams
@@ -470,6 +485,7 @@ void initTypeADifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // top score, which routes straight to name entry. No art load here: the config screen this is
     // entered from already loaded the gameplay set, and the original does not reload it (:3318-3320).
     loadScreenTilemap(game.display, kTypeADifficultyTilemap);  // (:3319-3320)
+    extendHeadingStripForHeart(game);
     clearOamObjects(game);  // ClearTopScoreFields is a top-score render seam (no sim effect)
     loadSceneSprites(game.spriteRenderer, typeADifficultySprites());  // Data_26DB: 1 digit cursor
 
@@ -505,6 +521,7 @@ void initTypeCDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
                   "indicator after; a heading of another length would leave it in the wrong cell");
     writeMapText(game.display.map, kDifficultyHeadingRow, kDifficultyHeadingCol, "c-type");
     writeMapText(game.display.map, kSecondBoxLabelRow, kSecondBoxLabelCol, "rise");
+    extendHeadingStripForHeart(game);
 
     // The stored box holds a single digit in each compartment. Type C's values are two glyphs each and
     // are drawn over the box by the render layer, through a palette that leaves everything but the ink
@@ -659,6 +676,7 @@ void initTypeBDifficultyScreen(GameContext& game, const TopScoresRefresh& refres
     // level (slot 0) and the starting garbage height (slot 1). Same shape as the Type A init, but with
     // no separate top-score-field clear (the Type B refresh does its own) and two cursors seeded.
     loadScreenTilemap(game.display, kTypeBDifficultyTilemap);  // (:3410-3411)
+    extendHeadingStripForHeart(game);
     clearOamObjects(game);
     loadSceneSprites(game.spriteRenderer, typeBDifficultySprites());  // Data_26E1: 2 digit cursors
 
