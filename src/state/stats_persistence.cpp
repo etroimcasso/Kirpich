@@ -8,9 +8,14 @@ namespace kirpich {
 
 namespace {
 
-// One 32-bit count, little-endian, at `at`; `at` moves past it.
-void putU32(std::array<std::uint8_t, kStatsImageBytes>& image, std::size_t& at,
-            std::uint32_t value) {
+// The two table shapes a slice block comes in: Type A is one slice per level, Type B and Type C are
+// one slice per level and second-axis value.
+using LevelTable   = std::array<StatSlice, kStatLevels>;
+using VariantTable = std::array<std::array<StatSlice, kStatVariants>, kStatLevels>;
+
+// One 32-bit count, little-endian, at `at`; `at` moves past it. The image is a span so one set of
+// helpers serves both the full document and the smaller heart document.
+void putU32(std::span<std::uint8_t> image, std::size_t& at, std::uint32_t value) {
     image[at++] = static_cast<std::uint8_t>(value & 0xFFu);
     image[at++] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
     image[at++] = static_cast<std::uint8_t>((value >> 16) & 0xFFu);
@@ -26,8 +31,7 @@ std::uint32_t takeU32(std::span<const std::uint8_t> image, std::size_t& at) {
     return value;
 }
 
-void putSlice(std::array<std::uint8_t, kStatsImageBytes>& image, std::size_t& at,
-              const StatSlice& slice) {
+void putSlice(std::span<std::uint8_t> image, std::size_t& at, const StatSlice& slice) {
     putU32(image, at, slice.rounds);
     putU32(image, at, slice.seconds);
     putU32(image, at, slice.longestRoundSeconds);
@@ -57,19 +61,38 @@ StatSlice takeSlice(std::span<const std::uint8_t> image, std::size_t& at) {
     return slice;
 }
 
+// The three slice tables, in the document's order (Type B, Type A, Type C). Factored so the
+// cartridge-shaped statistics and the parallel heart statistics serialise through one walk, which is
+// what keeps the heart image a strict prefix of the full one's slice blocks.
+void writeSliceTables(std::span<std::uint8_t> image, std::size_t& at, const VariantTable& typeB,
+                      const LevelTable& typeA, const VariantTable& typeC) {
+    for (const auto& level : typeB) {
+        for (const auto& slice : level) putSlice(image, at, slice);
+    }
+    for (const auto& slice : typeA) putSlice(image, at, slice);
+    for (const auto& level : typeC) {
+        for (const auto& slice : level) putSlice(image, at, slice);
+    }
+}
+
+void readSliceTables(std::span<const std::uint8_t> image, std::size_t& at, VariantTable& typeB,
+                     LevelTable& typeA, VariantTable& typeC) {
+    for (auto& level : typeB) {
+        for (auto& slice : level) slice = takeSlice(image, at);
+    }
+    for (auto& slice : typeA) slice = takeSlice(image, at);
+    for (auto& level : typeC) {
+        for (auto& slice : level) slice = takeSlice(image, at);
+    }
+}
+
 }  // namespace
 
 std::array<std::uint8_t, kStatsImageBytes> encodeStats(const StatsState& state) {
     std::array<std::uint8_t, kStatsImageBytes> image{};
     std::size_t at = 0;
 
-    for (const auto& level : state.typeB) {
-        for (const auto& slice : level) putSlice(image, at, slice);
-    }
-    for (const auto& slice : state.typeA) putSlice(image, at, slice);
-    for (const auto& level : state.typeC) {
-        for (const auto& slice : level) putSlice(image, at, slice);
-    }
+    writeSliceTables(image, at, state.typeB, state.typeA, state.typeC);
     putU32(image, at, state.applicationSeconds);
     for (const std::uint32_t count : state.musicRounds) putU32(image, at, count);
 
@@ -80,15 +103,29 @@ bool decodeStats(std::span<const std::uint8_t> image, StatsState& state) {
     if (image.size() != kStatsImageBytes) return false;
 
     std::size_t at = 0;
-    for (auto& level : state.typeB) {
-        for (auto& slice : level) slice = takeSlice(image, at);
-    }
-    for (auto& slice : state.typeA) slice = takeSlice(image, at);
-    for (auto& level : state.typeC) {
-        for (auto& slice : level) slice = takeSlice(image, at);
-    }
+    readSliceTables(image, at, state.typeB, state.typeA, state.typeC);
     state.applicationSeconds = takeU32(image, at);
     for (std::uint32_t& count : state.musicRounds) count = takeU32(image, at);
+
+    return true;
+}
+
+std::array<std::uint8_t, kStatsHeartImageBytes> encodeStatsHeart(const StatsState& state) {
+    std::array<std::uint8_t, kStatsHeartImageBytes> image{};
+    std::size_t at = 0;
+
+    // Only the three slice tables: the application total and the music counts are global and stay in
+    // the main document, so the heart image is the slice blocks alone.
+    writeSliceTables(image, at, state.typeBHeart, state.typeAHeart, state.typeCHeart);
+
+    return image;
+}
+
+bool decodeStatsHeart(std::span<const std::uint8_t> image, StatsState& state) {
+    if (image.size() != kStatsHeartImageBytes) return false;
+
+    std::size_t at = 0;
+    readSliceTables(image, at, state.typeBHeart, state.typeAHeart, state.typeCHeart);
 
     return true;
 }
@@ -143,6 +180,41 @@ bool loadStats(retropp::SaveStore& store, StatsState& state) {
     if (!decodeStats(image, state)) {
         spdlog::error("statistics save has wrong length {} (expected {}), starting the tables empty",
                       doc->payload.size(), kStatsImageBytes);
+        return false;
+    }
+    return true;
+}
+
+bool saveStatsHeart(const StatsState& state, retropp::SaveStore& store) {
+    const auto image = encodeStatsHeart(state);
+    return store.write("stats-heart", kStatsHeartSchemaVersion,
+                       std::as_bytes(std::span<const std::uint8_t>(image)));
+}
+
+bool loadStatsHeart(retropp::SaveStore& store, StatsState& state) {
+    // The heart document is born at version 1 and has no older format to migrate from. Its version is
+    // still declared here, immediately before its own read, for the reason every loader sharing this
+    // store does: the version is the store's, and whichever loader is about to read has to be the one
+    // that last set it - here to 1, which leaves the main document's migration unreachable for a
+    // v1-stored read.
+    store.setCurrentVersion(kStatsHeartSchemaVersion);
+
+    std::optional<retropp::SaveStore::Document> doc;
+    try {
+        doc = store.read("stats-heart");
+    } catch (const retropp::SaveStoreError& error) {
+        spdlog::error("heart statistics save is corrupt, starting the heart tables empty: {}",
+                      error.what());
+        return false;
+    }
+    if (!doc) return false;  // absent - ordinary until the first heart round; leave the boot zeros
+
+    const std::span<const std::uint8_t> image(
+        reinterpret_cast<const std::uint8_t*>(doc->payload.data()), doc->payload.size());
+    if (!decodeStatsHeart(image, state)) {
+        spdlog::error(
+            "heart statistics save has wrong length {} (expected {}), starting the heart tables empty",
+            doc->payload.size(), kStatsHeartImageBytes);
         return false;
     }
     return true;

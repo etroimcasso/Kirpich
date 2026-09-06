@@ -632,11 +632,16 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
         }
 
         if (ui.confirmRight) {
-            // Both tables, back to the state a machine that has never been played holds. A cleared
-            // name is six zero bytes, which is what the top-score printer reads as no name at all.
+            // Every table, back to the state a machine that has never been played holds - the heart
+            // tables with the cartridge ones, since "erase all high scores" means all of them. A
+            // cleared name is six zero bytes, which is what the top-score printer reads as no name at
+            // all. saveScores writes both documents, so the cleared heart tables are persisted too.
             game.highScores.typeA = {};
             game.highScores.typeB = {};
             game.highScores.typeC = {};
+            game.highScores.typeAHeart = {};
+            game.highScores.typeBHeart = {};
+            game.highScores.typeCHeart = {};
             if (wiring.saveScores) {
                 wiring.saveScores(game.highScores);
             }

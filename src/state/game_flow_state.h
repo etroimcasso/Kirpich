@@ -136,39 +136,53 @@ struct GameFlowState {
 };
 
 // Which difficulty combination a round is being played at: the game type, the level it was started
-// on, and - for the two types that are picked with a second value - the start height or the rise
-// index. Type A is picked by level alone, so it carries no second value.
+// on, - for the two types that are picked with a second value - the start height or the rise index,
+// and whether heart mode was on. Type A is picked by level alone, so it carries no second value.
 //
 // One derivation, shared by everything that keys a finished round. The top-score tables and the
-// statistics tables both slice by this triple, and two separate readings of the same flow state
-// could come to disagree about which slice a round belongs in.
+// statistics tables both slice by this key, and two separate readings of the same flow state could
+// come to disagree about which slice a round belongs in. Heart is part of the key rather than a level
+// axis: a heart round is the same difficulty combination played harder, and it fills its own tables
+// (src/state/stats_state.h, src/state/high_score_state.h) so a normal round's figures are never mixed
+// with a heart one's.
 struct RoundCombination {
     GameType type{};
     uint8_t  level      = 0;
     uint8_t  variant    = 0;  // Type B start height, Type C rise index
     bool     hasVariant = false;
+    bool     heart      = false;  // heart mode was on for this round
 
     friend constexpr bool operator==(const RoundCombination&, const RoundCombination&) = default;
 };
 
 [[nodiscard]] constexpr RoundCombination combinationOf(const GameFlowState& flow) noexcept {
+    // heartMode stores the raw joypad byte, so any non-zero value means the mode is on (see the field
+    // note above). This is the single site both the statistics and the top-score tables key on, so
+    // adding heart here is what routes a heart round into its own tables.
+    const bool heart = flow.heartMode != 0;
     switch (flow.gameType) {
         case GameType::TYPE_B:
             return {.type       = GameType::TYPE_B,
                     .level      = flow.typeBLevel,
                     .variant    = flow.typeBStartHeight,
-                    .hasVariant = true};
+                    .hasVariant = true,
+                    .heart      = heart};
         case GameType::TYPE_C:
             return {.type       = GameType::TYPE_C,
                     .level      = flow.typeCLevel,
                     .variant    = flow.typeCRise,
-                    .hasVariant = true};
+                    .hasVariant = true,
+                    .heart      = heart};
         case GameType::TYPE_A:
             break;
     }
     // Type A, and the boot value the cartridge leaves in place until a menu writes one: the same
     // fall-through the top-score slice selection takes.
-    return {.type = GameType::TYPE_A, .level = flow.typeALevel, .variant = 0, .hasVariant = false};
+    return {.type       = GameType::TYPE_A,
+            .level      = flow.typeALevel,
+            .variant    = 0,
+            .hasVariant = false,
+            .heart      = heart};
 }
 
 }  // namespace kirpich

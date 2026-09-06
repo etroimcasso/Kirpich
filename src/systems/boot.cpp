@@ -72,10 +72,17 @@ void softReset(GameContext& game) {
     auto typeB = game.highScores.typeB;
     auto typeC = game.highScores.typeC;
 
+    // The heart top-score tables outlive a reset the same way, for the same reason: they are the
+    // player's scores, kept by the same chord that keeps the cartridge ones.
+    auto typeAHeart = game.highScores.typeAHeart;
+    auto typeBHeart = game.highScores.typeBHeart;
+    auto typeCHeart = game.highScores.typeCHeart;
+
     // The statistics keep the same company for the same reason: they outlive a launch, so a reset
     // that emptied them would lose a player's history to a button chord. The whole struct is kept,
     // the session's own timing included - a zeroed stamp would make the next reading measure from
-    // the clock's origin rather than from this session.
+    // the clock's origin rather than from this session. The heart slice tables are inside it, so they
+    // ride along with no extra handling.
     auto stats = game.stats;
 
     coldBoot(game);
@@ -83,6 +90,9 @@ void softReset(GameContext& game) {
     game.highScores.typeA = typeA;
     game.highScores.typeB = typeB;
     game.highScores.typeC = typeC;
+    game.highScores.typeAHeart = typeAHeart;
+    game.highScores.typeBHeart = typeBHeart;
+    game.highScores.typeCHeart = typeCHeart;
     game.stats            = stats;
 }
 
@@ -90,6 +100,11 @@ void bootGame(GameContext& game, retropp::SaveStore& saves) {
     coldBoot(game);
     loadTopScores(saves, game.highScores);
     loadStats(saves, game.stats);
+    // The heart documents load beside the cartridge ones. Each loader sets the store's version to its
+    // own immediately before its read, so reading these after the two above is safe (an absent
+    // document is ordinary until the first heart round is recorded).
+    loadTopScoresHeart(saves, game.highScores);
+    loadStatsHeart(saves, game.stats);
 }
 
 }  // namespace kirpich::systems

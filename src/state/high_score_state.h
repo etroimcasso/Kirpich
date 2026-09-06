@@ -60,6 +60,16 @@ struct HighScoreState {
     // document as the other two, appended after them.
     std::array<std::array<std::array<TopScoreEntry, 3>, 6>, 10> typeC{};
 
+    // Heart-mode top scores, one parallel table per game type in the same three shapes above. A heart
+    // round is the same difficulty played harder and its score stands only against other heart rounds,
+    // so it is inserted here rather than into the cartridge tables (routed by RoundCombination::heart,
+    // src/state/game_flow_state.h). The cartridge tables and their released `topscores` document are
+    // left exactly as they were; these persist in their own document (topscores-heart), which reuses
+    // the top-score wire format pointed at these tables.
+    std::array<std::array<std::array<TopScoreEntry, 3>, 6>, 10> typeBHeart{};
+    std::array<std::array<TopScoreEntry, 3>, 10>                typeAHeart{};
+    std::array<std::array<std::array<TopScoreEntry, 3>, 6>, 10> typeCHeart{};
+
     // $FFC7 hNewTopScore: set when the just-finished game earned a top score (routes the menu into
     // name entry), cleared once name entry is submitted or the game starts. Domain {0,1}.
     bool newTopScore = false;

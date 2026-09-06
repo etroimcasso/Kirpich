@@ -75,6 +75,7 @@ struct RoundInProgress {
     std::uint8_t  level       = 0;
     std::uint8_t  variant     = 0;      // start height or rise index; meaningless when hasVariant is false
     bool          hasVariant  = false;
+    bool          heart       = false;  // heart mode was on; selects the heart slice tables below
     std::uint64_t stampNanos  = 0;
     std::uint64_t bankedNanos = 0;
 
@@ -87,6 +88,16 @@ struct StatsState {
     std::array<StatSlice, kStatLevels>                              typeA{};
     std::array<std::array<StatSlice, kStatVariants>, kStatLevels>    typeB{};
     std::array<std::array<StatSlice, kStatVariants>, kStatLevels>    typeC{};
+
+    // Heart-mode rounds keep their own tables, in the same three shapes: a heart round is the same
+    // difficulty played harder, so mixing its figures with a normal round's would misreport both. A
+    // round routes to one set or the other by RoundCombination::heart (src/state/game_flow_state.h),
+    // read once at beginRound. These persist in their own save document (stats-heart), carrying the
+    // three slice tables alone - the application total and the music counts below are global and stay
+    // with the main document.
+    std::array<StatSlice, kStatLevels>                              typeAHeart{};
+    std::array<std::array<StatSlice, kStatVariants>, kStatLevels>    typeBHeart{};
+    std::array<std::array<StatSlice, kStatVariants>, kStatLevels>    typeCHeart{};
 
     // How long the program itself has run, across every launch. The one figure that is not a fold
     // over the tables: it counts the title screen and the menus, which belong to no round.

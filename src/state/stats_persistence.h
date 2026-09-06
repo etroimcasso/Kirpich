@@ -41,6 +41,13 @@ namespace kirpich {
 inline constexpr std::string_view kStatsDocument      = "stats";
 inline constexpr std::uint32_t    kStatsSchemaVersion = 2;
 
+// Heart-mode statistics live in their own document, so the released `stats` document above is never
+// touched. It carries only the three slice tables - the application total and the music counts are
+// global and stay in the main document - so its image is the slice blocks alone (see
+// kStatsHeartImageBytes below). Born at version 1, it has no older format to migrate from.
+inline constexpr std::string_view kStatsHeartDocument      = "stats-heart";
+inline constexpr std::uint32_t    kStatsHeartSchemaVersion = 1;
+
 // What one slice costs on the wire, and what each block and the whole document cost.
 inline constexpr std::size_t kStatSliceCounts = 10 + kPieceKindCount;
 inline constexpr std::size_t kStatSliceBytes  = kStatSliceCounts * 4;
@@ -52,6 +59,11 @@ inline constexpr std::size_t kStatsMusicBytes       = kMusicTypeCount * 4;
 inline constexpr std::size_t kStatsImageBytes = kStatsTypeBBytes + kStatsTypeABytes +
                                                 kStatsTypeCBytes + kStatsApplicationBytes +
                                                 kStatsMusicBytes;
+
+// The heart document is the three slice tables alone - no application total, no music block - so its
+// image is the main image's three slice blocks and nothing else.
+inline constexpr std::size_t kStatsHeartImageBytes =
+    kStatsTypeBBytes + kStatsTypeABytes + kStatsTypeCBytes;
 
 // What version 1 wrote: the same three tables and the application total, with ten counts to a slice
 // and no music block. Named so the migration and its test say the same numbers.
@@ -93,5 +105,19 @@ bool saveStats(const StatsState& state, retropp::SaveStore& store);
 // store's rather than the document's: every loader sharing a store must name its own version
 // immediately before its own read (src/state/settings.h and high_score_persistence.h do the same).
 bool loadStats(retropp::SaveStore& store, StatsState& state);
+
+// Encode / decode the three heart slice tables. The image is the slice blocks alone
+// (kStatsHeartImageBytes) - the application total and music counts are global and stay in the main
+// document. decodeStatsHeart returns false and leaves `state` untouched on a wrong length; it writes
+// only the three heart tables.
+[[nodiscard]] std::array<std::uint8_t, kStatsHeartImageBytes> encodeStatsHeart(
+    const StatsState& state);
+[[nodiscard]] bool decodeStatsHeart(std::span<const std::uint8_t> image, StatsState& state);
+
+// Persist / load the heart tables as document "stats-heart" at version 1. Same absent / valid /
+// corrupt / wrong-length behaviour as loadStats; an absent document is ordinary until the first heart
+// round is recorded.
+bool saveStatsHeart(const StatsState& state, retropp::SaveStore& store);
+bool loadStatsHeart(retropp::SaveStore& store, StatsState& state);
 
 }  // namespace kirpich

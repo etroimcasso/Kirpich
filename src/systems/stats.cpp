@@ -18,10 +18,19 @@ void addSaturating(std::uint32_t& into, std::uint32_t amount) {
 }
 
 // The slice a round belongs to. Both indices are held inside the tables: the difficulty screens keep
-// them in range, and a table this size is not worth leaving open to a stray value.
+// them in range, and a table this size is not worth leaving open to a stray value. A heart round
+// routes to the parallel heart tables, the whole of heart's effect on recording.
 StatSlice& sliceFor(StatsState& stats, const RoundInProgress& round) {
     const std::size_t level   = std::min<std::size_t>(round.level, kStatLevels - 1);
     const std::size_t variant = std::min<std::size_t>(round.variant, kStatVariants - 1);
+    if (round.heart) {
+        switch (round.type) {
+            case GameType::TYPE_B: return stats.typeBHeart[level][variant];
+            case GameType::TYPE_C: return stats.typeCHeart[level][variant];
+            case GameType::TYPE_A: break;
+        }
+        return stats.typeAHeart[level];
+    }
     switch (round.type) {
         case GameType::TYPE_B: return stats.typeB[level][variant];
         case GameType::TYPE_C: return stats.typeC[level][variant];
@@ -80,6 +89,7 @@ void beginRound(GameContext& game, std::uint64_t nowNanos) {
     round.level       = at.level;
     round.variant     = at.variant;
     round.hasVariant  = at.hasVariant;
+    round.heart       = at.heart;
     round.stampNanos  = nowNanos;
     round.bankedNanos = 0;
 

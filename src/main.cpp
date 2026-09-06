@@ -314,6 +314,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     const auto persistStats = [&game, &saves, nowNanos] {
         kirpich::systems::bankApplicationTime(game, nowNanos());
         kirpich::saveStats(game.stats, saves);
+        kirpich::saveStatsHeart(game.stats, saves);
     };
 
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
@@ -321,6 +322,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installHighScoreHandlers(
         dispatcher, [&saves, persistStats](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
+            kirpich::saveTopScoresHeart(scores, saves);
             persistStats();
         });
 
@@ -335,6 +337,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         .saveScores =
             [&saves](const kirpich::HighScoreState& scores) {
                 kirpich::saveTopScores(scores, saves);
+                kirpich::saveTopScoresHeart(scores, saves);
             },
         // Submitted rather than performed: the engine ends the run at the next frame boundary, so
         // the frame the player answered on finishes drawing first.
