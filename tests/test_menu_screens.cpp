@@ -211,6 +211,33 @@ TEST(MenuScreens, GameTypeSelectVectors) {
 // ── Test 3: MusicTypeSelectVectors ──────────────────────────────────────────────────────────────
 // GameState_0F (tetris.asm:3181-3246): the 2x2 grid walk incl. every boundary no-op, the reposition /
 // music / cue on change, the shared Start/Confirm transition, and the one- vs two-player Back.
+// The game-type screen is the top of the selection menu, so B there backs out to the title rather than
+// doing nothing - the last link that lets a player leave the menu without wasting a round. One player
+// only, matching the music screen's Back; in two-player the config flow is unported and B is inert.
+TEST(MenuScreens, BackFromGameTypeReturnsToTitle) {
+    // One player: B returns to the title and unhides the cursor, as the other transitions off this
+    // screen do.
+    {
+        GameContext game = menuContext();
+        game.flow.gameState                 = GameState::SELECT_GAME_TYPE;
+        game.spriteRenderer.slots[1].hidden = true;
+        press(game, {Action::Back});
+        kirpich::systems::selectGameType(game);
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_TITLE_SCREEN);
+        EXPECT_FALSE(game.spriteRenderer.slots[1].hidden);
+    }
+    // Two players: the same press leaves the state where it was.
+    {
+        GameContext game = menuContext();
+        game.flow.gameState            = GameState::SELECT_GAME_TYPE;
+        game.multiplayer.isMultiplayer = true;
+        press(game, {Action::Back});
+        kirpich::systems::selectGameType(game);
+        EXPECT_EQ(game.flow.gameState, GameState::SELECT_GAME_TYPE)
+            << "the two-player config flow is unported, so Back is inert there";
+    }
+}
+
 TEST(MenuScreens, MusicTypeSelectVectors) {
     // Move helper: press dir from value, return the resulting music-type byte.
     auto moved = [](std::uint8_t start, Action dir) {

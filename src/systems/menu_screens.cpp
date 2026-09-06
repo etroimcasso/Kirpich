@@ -386,6 +386,18 @@ void selectGameType(GameContext& game, bool showSection, bool showGrid) {
         cursor.hidden = false;
         return;
     }
+    if (pressed(game, Action::Back) && !game.multiplayer.isMultiplayer) {
+        // The game-type screen is the top of the selection flow, so there is nowhere above it but the
+        // title screen. The level / height / rise pickers already Back down to the config screen and the
+        // music screen Backs here, so this last link closes the whole chain: a player can leave the menu
+        // with B and reach the settings or the quit option without wasting a round to do it. New to the
+        // port — the cartridge had no way back to the title from here. Gated to one player, as the music
+        // screen's Back is; the two-player config flow is not ported. The title init re-cues its own
+        // music, so nothing is owed here beyond the state change.
+        game.flow.gameState = GameState::INIT_TITLE_SCREEN;
+        cursor.hidden       = false;
+        return;
+    }
     // Every d-pad path — including the end-stops that change nothing — leaves through the shared exit
     // that redraws the cursors (:3296). The Start and Confirm transitions above do not: they leave by
     // the state-change path (:3300-3313), which never reaches the redraw.
