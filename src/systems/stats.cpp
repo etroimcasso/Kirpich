@@ -71,6 +71,65 @@ void fold(StatSlice& into, const StatSlice& from) {
     }
 }
 
+// The table set a scope selects. Each accessor picks the cartridge or the heart table for one game
+// type by a bool, so every fold below reads the right tables by naming that bool once.
+const std::array<StatSlice, kStatLevels>& typeATable(const StatsState& stats, bool heart) {
+    return heart ? stats.typeAHeart : stats.typeA;
+}
+const std::array<std::array<StatSlice, kStatVariants>, kStatLevels>& typeBTable(
+    const StatsState& stats, bool heart) {
+    return heart ? stats.typeBHeart : stats.typeB;
+}
+const std::array<std::array<StatSlice, kStatVariants>, kStatLevels>& typeCTable(
+    const StatsState& stats, bool heart) {
+    return heart ? stats.typeCHeart : stats.typeC;
+}
+
+// Run `body(heart)` over the table sets a scope covers: the cartridge set, the heart set, or both.
+// Every scoped fold is this walk over one or two sets, so the scope-to-sets mapping lives in one
+// place.
+template <typename Body>
+void forEachSet(StatScope scope, Body&& body) {
+    switch (scope) {
+        case StatScope::NORMAL: body(false); return;
+        case StatScope::HEART:  body(true); return;
+        case StatScope::ALL:    body(false); body(true); return;
+    }
+}
+
+// Fold one game type's table (cartridge or heart) into `total`, taking only the levels and variants a
+// selection wants. `everyLevel` / `everyVariant` fold that axis away; otherwise only the one value is
+// taken. Type A is picked by level alone, so its second axis is never consulted. This is the shared
+// body under both totalsFor (which folds every level and variant) and totalsForSelection (which
+// filters them).
+void foldTypeSelection(StatSlice& total, const StatsState& stats, GameType type, bool heart,
+                       bool everyLevel, std::size_t wantLevel, bool everyVariant,
+                       std::size_t wantVariant) {
+    const auto wantedLevel   = [&](std::size_t level) { return everyLevel || level == wantLevel; };
+    const auto wantedVariant = [&](std::size_t v) { return everyVariant || v == wantVariant; };
+
+    switch (type) {
+        case GameType::TYPE_B:
+        case GameType::TYPE_C: {
+            const auto& table =
+                type == GameType::TYPE_B ? typeBTable(stats, heart) : typeCTable(stats, heart);
+            for (std::size_t level = 0; level < kStatLevels; ++level) {
+                if (!wantedLevel(level)) continue;
+                for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
+                    if (wantedVariant(variant)) fold(total, table[level][variant]);
+                }
+            }
+            return;
+        }
+        case GameType::TYPE_A:
+            break;
+    }
+    const auto& table = typeATable(stats, heart);
+    for (std::size_t level = 0; level < kStatLevels; ++level) {
+        if (wantedLevel(level)) fold(total, table[level]);
+    }
+}
+
 }  // namespace
 
 void beginRound(GameContext& game, std::uint64_t nowNanos) {
@@ -184,35 +243,23 @@ void bankApplicationTime(GameContext& game, std::uint64_t nowNanos) {
     addSaturating(stats.applicationSeconds, wholeSeconds(whole * kNanosPerSecond));
 }
 
-StatSlice totalsFor(const StatsState& stats, GameType type) {
+StatSlice totalsFor(const StatsState& stats, GameType type, StatScope scope) {
     StatSlice total;
-    switch (type) {
-        case GameType::TYPE_B:
-            for (const auto& level : stats.typeB) {
-                for (const auto& slice : level) fold(total, slice);
-            }
-            return total;
-        case GameType::TYPE_C:
-            for (const auto& level : stats.typeC) {
-                for (const auto& slice : level) fold(total, slice);
-            }
-            return total;
-        case GameType::TYPE_A:
-            break;
-    }
-    for (const auto& slice : stats.typeA) fold(total, slice);
+    forEachSet(scope, [&](bool heart) {
+        foldTypeSelection(total, stats, type, heart, /*everyLevel=*/true, 0, /*everyVariant=*/true, 0);
+    });
     return total;
 }
 
-StatSlice lifetimeTotals(const StatsState& stats) {
+StatSlice lifetimeTotals(const StatsState& stats, StatScope scope) {
     StatSlice total;
-    fold(total, totalsFor(stats, GameType::TYPE_A));
-    fold(total, totalsFor(stats, GameType::TYPE_B));
-    fold(total, totalsFor(stats, GameType::TYPE_C));
+    fold(total, totalsFor(stats, GameType::TYPE_A, scope));
+    fold(total, totalsFor(stats, GameType::TYPE_B, scope));
+    fold(total, totalsFor(stats, GameType::TYPE_C, scope));
     return total;
 }
 
-LongestRound longestRound(const StatsState& stats) {
+LongestRound longestRound(const StatsState& stats, StatScope scope) {
     LongestRound best;
 
     // Strictly greater, so the first slice in this walk keeps a tie.
@@ -224,37 +271,66 @@ LongestRound longestRound(const StatsState& stats) {
         best.any     = true;
     };
 
-    for (std::size_t level = 0; level < kStatLevels; ++level) {
-        consider(stats.typeA[level], {.type       = GameType::TYPE_A,
-                                      .level      = static_cast<std::uint8_t>(level),
-                                      .variant    = 0,
-                                      .hasVariant = false});
-    }
-    for (std::size_t level = 0; level < kStatLevels; ++level) {
-        for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
-            consider(stats.typeB[level][variant], {.type       = GameType::TYPE_B,
-                                                   .level      = static_cast<std::uint8_t>(level),
-                                                   .variant    = static_cast<std::uint8_t>(variant),
-                                                   .hasVariant = true});
+    // One walk over one table set, carrying the set's heart-ness in the combination so the winner
+    // remembers which set it came from. Under ALL this runs for the cartridge set first and the heart
+    // set second, which is what keeps a cross-set tie on the cartridge slice.
+    const auto walk = [&](bool heart) {
+        for (std::size_t level = 0; level < kStatLevels; ++level) {
+            consider(typeATable(stats, heart)[level],
+                     {.type       = GameType::TYPE_A,
+                      .level      = static_cast<std::uint8_t>(level),
+                      .variant    = 0,
+                      .hasVariant = false,
+                      .heart      = heart});
         }
-    }
-    for (std::size_t level = 0; level < kStatLevels; ++level) {
-        for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
-            consider(stats.typeC[level][variant], {.type       = GameType::TYPE_C,
-                                                   .level      = static_cast<std::uint8_t>(level),
-                                                   .variant    = static_cast<std::uint8_t>(variant),
-                                                   .hasVariant = true});
+        for (std::size_t level = 0; level < kStatLevels; ++level) {
+            for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
+                consider(typeBTable(stats, heart)[level][variant],
+                         {.type       = GameType::TYPE_B,
+                          .level      = static_cast<std::uint8_t>(level),
+                          .variant    = static_cast<std::uint8_t>(variant),
+                          .hasVariant = true,
+                          .heart      = heart});
+            }
         }
-    }
+        for (std::size_t level = 0; level < kStatLevels; ++level) {
+            for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
+                consider(typeCTable(stats, heart)[level][variant],
+                         {.type       = GameType::TYPE_C,
+                          .level      = static_cast<std::uint8_t>(level),
+                          .variant    = static_cast<std::uint8_t>(variant),
+                          .hasVariant = true,
+                          .heart      = heart});
+            }
+        }
+    };
+    forEachSet(scope, walk);
 
     return best;
 }
 
-std::uint32_t roundsFor(const StatsState& stats, GameType type) {
-    return totalsFor(stats, type).rounds;
+std::uint32_t roundsFor(const StatsState& stats, GameType type, StatScope scope) {
+    return totalsFor(stats, type, scope).rounds;
 }
 
-FavouriteMode favouriteMode(const StatsState& stats) {
+bool heartEverRecorded(const StatsState& stats) {
+    for (const auto& slice : stats.typeAHeart) {
+        if (slice.rounds != 0) return true;
+    }
+    for (const auto& level : stats.typeBHeart) {
+        for (const auto& slice : level) {
+            if (slice.rounds != 0) return true;
+        }
+    }
+    for (const auto& level : stats.typeCHeart) {
+        for (const auto& slice : level) {
+            if (slice.rounds != 0) return true;
+        }
+    }
+    return false;
+}
+
+FavouriteMode favouriteMode(const StatsState& stats, StatScope scope) {
     FavouriteMode best;
 
     // Strictly greater again, so the first type in this walk keeps a tie.
@@ -264,9 +340,9 @@ FavouriteMode favouriteMode(const StatsState& stats) {
         best = FavouriteMode{.type = type, .rounds = rounds, .any = true};
     };
 
-    consider(GameType::TYPE_A, roundsFor(stats, GameType::TYPE_A));
-    consider(GameType::TYPE_B, roundsFor(stats, GameType::TYPE_B));
-    consider(GameType::TYPE_C, roundsFor(stats, GameType::TYPE_C));
+    consider(GameType::TYPE_A, roundsFor(stats, GameType::TYPE_A, scope));
+    consider(GameType::TYPE_B, roundsFor(stats, GameType::TYPE_B, scope));
+    consider(GameType::TYPE_C, roundsFor(stats, GameType::TYPE_C, scope));
     return best;
 }
 
@@ -289,61 +365,64 @@ FavouriteMusic favouriteMusic(const StatsState& stats) {
     return best;
 }
 
-PreferredLevel preferredLevel(const StatsState& stats) {
+PreferredLevel preferredLevel(const StatsState& stats, StatScope scope) {
     PreferredLevel best;
 
-    for (std::size_t level = 0; level < kStatLevels; ++level) {
-        // A starting level is picked in all three game types, so the count for one is the rounds
-        // played at that level across every one of them.
-        std::uint32_t rounds = 0;
-        addSaturating(rounds, stats.typeA[level].rounds);
-        for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
-            addSaturating(rounds, stats.typeB[level][variant].rounds);
-            addSaturating(rounds, stats.typeC[level][variant].rounds);
-        }
+    // One walk over one table set: for each level, the rounds played at it across the set's three
+    // game types. Under ALL this runs for the cartridge set first and the heart set second, so a
+    // cartridge level and the heart level of the same number are separate candidates and a tie keeps
+    // the cartridge one. `best.heart` remembers which set the winner came from.
+    const auto walk = [&](bool heart) {
+        for (std::size_t level = 0; level < kStatLevels; ++level) {
+            // A starting level is picked in all three game types, so the count for one is the rounds
+            // played at that level across every one of them.
+            std::uint32_t rounds = 0;
+            addSaturating(rounds, typeATable(stats, heart)[level].rounds);
+            for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
+                addSaturating(rounds, typeBTable(stats, heart)[level][variant].rounds);
+                addSaturating(rounds, typeCTable(stats, heart)[level][variant].rounds);
+            }
 
-        if (rounds == 0) continue;
-        if (best.any && rounds <= best.rounds) continue;
-        best = PreferredLevel{
-            .level = static_cast<std::uint8_t>(level), .rounds = rounds, .any = true};
-    }
+            if (rounds == 0) continue;
+            if (best.any && rounds <= best.rounds) continue;
+            best = PreferredLevel{.level  = static_cast<std::uint8_t>(level),
+                                  .rounds = rounds,
+                                  .any    = true,
+                                  .heart  = heart};
+        }
+    };
+    forEachSet(scope, walk);
+
     return best;
 }
 
 StatSlice totalsForSelection(const StatsState& stats, const StatSelection& selection) {
-    // Anything outside an axis folds that axis, which is what kStatAxisAll is and what a selection
-    // left over from a wider table would otherwise fall off the end of.
-    const bool everyLevel   = selection.level >= kStatLevels;
+    // The per-mode pages carry their scope on the level axis rather than in a field, because the
+    // level picker is where the player chooses it: positions 0-9 are the cartridge levels, 10-19 are
+    // the same numbers played in heart mode, and anything past them - kStatAxisAll, or a value left
+    // over from a narrower table - folds every level of both. Decode that here into a scope and a
+    // level within the chosen set. The variant axis is not overloaded: a heart Type B round is still
+    // (level, height), and its heart-ness is the level half.
+    StatScope   scope      = StatScope::ALL;
+    bool        everyLevel = true;
+    std::size_t level      = 0;
+    if (selection.level < kStatLevels) {
+        scope      = StatScope::NORMAL;
+        everyLevel = false;
+        level      = selection.level;
+    } else if (selection.level < 2 * kStatLevels) {
+        scope      = StatScope::HEART;
+        everyLevel = false;
+        level      = selection.level - kStatLevels;
+    }
+
     const bool everyVariant = selection.variant >= kStatVariants;
 
-    const auto wantedLevel = [&](std::size_t level) {
-        return everyLevel || level == selection.level;
-    };
-    const auto wantedVariant = [&](std::size_t variant) {
-        return everyVariant || variant == selection.variant;
-    };
-
     StatSlice total;
-    switch (selection.type) {
-        case GameType::TYPE_B:
-        case GameType::TYPE_C: {
-            const auto& table = selection.type == GameType::TYPE_B ? stats.typeB : stats.typeC;
-            for (std::size_t level = 0; level < kStatLevels; ++level) {
-                if (!wantedLevel(level)) continue;
-                for (std::size_t variant = 0; variant < kStatVariants; ++variant) {
-                    if (wantedVariant(variant)) fold(total, table[level][variant]);
-                }
-            }
-            return total;
-        }
-        case GameType::TYPE_A:
-            break;
-    }
-
-    // Type A is picked by level alone, so its second axis is not consulted at all.
-    for (std::size_t level = 0; level < kStatLevels; ++level) {
-        if (wantedLevel(level)) fold(total, stats.typeA[level]);
-    }
+    forEachSet(scope, [&](bool heart) {
+        foldTypeSelection(total, stats, selection.type, heart, everyLevel, level, everyVariant,
+                          selection.variant);
+    });
     return total;
 }
 

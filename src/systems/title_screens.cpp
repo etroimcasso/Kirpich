@@ -208,39 +208,57 @@ void drawTitleObjects(GameContext& game, bool twoItems) {
     drawCopyrightLine(game, drawBottomRow(game, kSettingsFirstObject, twoItems));
 }
 
-// Put the selector where the current choice is. On the player-count row that is the original's own
-// placement (.updateCursor, tetris.asm:710-718), where the one/two-player flag doubles as the cursor
-// index; on the bottom row it is the one fixed place below it, or one of the two player columns once
-// that row holds two items.
+// Derive the selector's whole appearance - its glyph, its row and its column - from the current
+// state. The glyph is the heart while heart mode is on and the plain selector otherwise, on either
+// row (.updateCursor, tetris.asm:710-718). On the player-count row the one/two-player flag doubles as
+// the column; on the bottom row it is the one fixed place below it, or one of the two player columns
+// once that row holds two items.
+//
+// This is a pure function of state, so titleScreen re-derives it every frame rather than writing it
+// at each thing that could change it. The engine reconciles the object buffer by object key against
+// the previous tick and ignores a sprite that has not changed, so re-deriving an unchanged cursor
+// costs nothing - which is what lets the cursor be a gated result of the state rather than a value
+// injected wherever the state is touched.
 void placeTitleCursor(GameContext& game, bool twoItems) {
+    game.engine.oam[0].tile = titleCursorTile(game.flow.heartMode);
+
     if (game.screens.titleSettingsSelected) {
         game.engine.oam[0].y = kSettingsCursorY;
-        if (!twoItems) {
-            game.engine.oam[0].x = kSettingsCursorX;
-            return;
-        }
-        game.engine.oam[0].x = game.screens.titleStatsColumn ? kCursorX2P : kCursorX1P;
+        game.engine.oam[0].x =
+            !twoItems ? kSettingsCursorX
+                      : (game.screens.titleStatsColumn ? kCursorX2P : kCursorX1P);
         return;
     }
+
     game.engine.oam[0].y = kTitleCursorY;
-    game.engine.oam[0].x = game.multiplayer.isMultiplayer ? kCursorX2P : kCursorX1P;
+    std::uint8_t x = game.multiplayer.isMultiplayer ? kCursorX2P : kCursorX1P;
+
+    // Optical kerning for the heart cursor. The "1" and the "2" are not drawn the same within their
+    // tiles - as font glyphs never are - so the heart stands flush against the "2" while it has a
+    // clear gap before the "1". Nudge the heart one pixel left when it is before the "2" so the gap
+    // reads the same on both. Only the heart needs it; the cartridge's own selector arrow does not.
+    if (game.multiplayer.isMultiplayer && game.flow.heartMode != 0) {
+        --x;
+    }
+    game.engine.oam[0].x = x;
 }
 
-// The title screen's .updateCursor: store the one/two-player flag and place the selector.
-void setTitleCursor(GameContext& game, bool multiplayer, bool twoItems) {
+// The mutators below change only state. The selector follows from that state and is derived by
+// placeTitleCursor once per frame, so none of them touches the object buffer.
+
+// The title screen's .updateCursor: store the one/two-player flag.
+void setTitleCursor(GameContext& game, bool multiplayer) {
     game.multiplayer.isMultiplayer = multiplayer;
-    placeTitleCursor(game, twoItems);
 }
 
 // Move between the player-count row and the bottom row, leaving the player count where the player
 // left it - and, coming back down, leaving the bottom row's own column where they left that too.
 // Returns whether the cursor moved.
-bool setTitleSettingsSelected(GameContext& game, bool selected, bool twoItems) {
+bool setTitleSettingsSelected(GameContext& game, bool selected) {
     if (game.screens.titleSettingsSelected == selected) {
         return false;
     }
     game.screens.titleSettingsSelected = selected;
-    placeTitleCursor(game, twoItems);
     return true;
 }
 
@@ -251,7 +269,6 @@ void setTitleStatsColumn(GameContext& game, bool stats) {
         return;
     }
     game.screens.titleStatsColumn = stats;
-    placeTitleCursor(game, /*twoItems=*/true);
 }
 
 // Turn heart mode on, or off again.
@@ -267,9 +284,10 @@ void setTitleStatsColumn(GameContext& game, bool stats) {
 // The setting lives for the session. Nothing writes it to disk, and nothing clears it between rounds;
 // a cold boot and the reset chord clear it with the rest of the flow state (GameFlowState::reset).
 void toggleHeartMode(GameContext& game) {
-    game.flow.heartMode = game.flow.heartMode != 0 ? 0 : kHeartModeEnabled;
-    game.engine.oam[0].tile = titleCursorTile(game.flow.heartMode);
+    game.flow.heartMode   = game.flow.heartMode != 0 ? 0 : kHeartModeEnabled;
     game.audioCues.square = SquareSfxId::TINK;
+    // The selector's glyph follows heartMode and is derived by placeTitleCursor each frame; nothing is
+    // written to the object buffer here.
 }
 
 }  // namespace
@@ -381,53 +399,21 @@ void initTitleScreen(GameContext& game, const ShowStatsQuery& showStats) {
     }
 }
 
-void titleScreen(GameContext& game, const StartDemoHook& startDemo,
-                 const ShowStatsQuery& showStats) {
-    // GameState_07 (tetris.asm:632-731). Three concerns each frame: the attract countdown, the deferred
-    // serial poll, and the cursor / input.
+namespace {
 
-    // Whether the bottom row holds two items. Asked every frame rather than at the init, because the
-    // settings screen is where it changes and that screen hands the title screen's own objects back
-    // as it found them - so a row drawn once would still be the row the player left.
-    const bool twoItems = showStats && showStats();
-
-    // Attract countdown (:633-640): when the frame timer expires, count down the attract counter; at zero
-    // launch the demo, otherwise re-arm the timer. Decrementing a counter already at zero wraps to 255, so
-    // the demo does not launch that frame.
-    if (game.flow.timer1 == 0) {
-        if (--game.flow.coarseCountdown == 0) {
-            if (startDemo) {
-                startDemo(game);  // StartDemo (:582-630) — filled by the demo system
-            }
-            return;
-        }
-        game.flow.timer1 = kTitleTimer;
-    }
-
-    // Serial poll (:642-655): the slave-mode link-cable check that launches a peer-initiated two-player
-    // game or resets the cursor. Link-cable mechanism the serial system owns; nothing sets its trigger
-    // without that system, so it has no effect here.
-
-    // The port's own row sits below the player-count pair, and its objects are laid down again each
-    // frame so that the row follows the setting rather than whatever it was drawn as.
-    drawTitleObjects(game, twoItems);
-
-    // The bottom row's cursor is placed again with them, because where it sits depends on how many
-    // items the row holds. The player-count cursor above is left alone: its position depends only on
-    // a flag that nothing but the branches below can change, and re-placing it every frame would
-    // make a press that moves nothing indistinguishable from one that does.
-    if (game.screens.titleSettingsSelected) {
-        placeTitleCursor(game, twoItems);
-    }
-
+// One frame of the title screen's own input, across its two rows: up and down between them, Select
+// toggling heart mode, the bottom row's left/right and act, and the player-count row's left/right and
+// Start. It changes only state and may transition away; the selector that results is derived
+// afterward by placeTitleCursor, so nothing here touches the object buffer.
+void handleTitleInput(GameContext& game, bool twoItems) {
     // Up and down move between the two rows, and the pair's own left/right laws apply only while the
     // cursor is on it.
     if (pressed(game, Action::MenuDown)) {
-        setTitleSettingsSelected(game, true, twoItems);
+        setTitleSettingsSelected(game, true);
         return;
     }
     if (pressed(game, Action::MenuUp)) {
-        setTitleSettingsSelected(game, false, twoItems);
+        setTitleSettingsSelected(game, false);
         return;
     }
 
@@ -468,13 +454,13 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo,
     // order; the first match handles the frame.
     if (pressed(game, Action::MenuRight)) {  // (:663-664, :720-724)
         if (!game.multiplayer.isMultiplayer) {
-            setTitleCursor(game, true, twoItems);  // 1P -> 2P only
+            setTitleCursor(game, true);  // 1P -> 2P only
         }
         return;
     }
     if (pressed(game, Action::MenuLeft)) {  // (:665-666, :726-731)
         if (game.multiplayer.isMultiplayer) {
-            setTitleCursor(game, false, twoItems);  // 2P -> 1P only
+            setTitleCursor(game, false);  // 2P -> 1P only
         }
         return;
     }
@@ -506,6 +492,50 @@ void titleScreen(GameContext& game, const StartDemoHook& startDemo,
     game.flow.typeBLevel = 0;
     game.flow.typeBStartHeight = 0;
     game.demo.activeDemo = ActiveDemo::NONE;
+}
+
+}  // namespace
+
+void titleScreen(GameContext& game, const StartDemoHook& startDemo,
+                 const ShowStatsQuery& showStats) {
+    // GameState_07 (tetris.asm:632-731). Three concerns each frame: the attract countdown, the deferred
+    // serial poll, and the cursor / input.
+
+    // Whether the bottom row holds two items. Asked every frame rather than at the init, because the
+    // settings screen is where it changes and that screen hands the title screen's own objects back
+    // as it found them - so a row drawn once would still be the row the player left.
+    const bool twoItems = showStats && showStats();
+
+    // Attract countdown (:633-640): when the frame timer expires, count down the attract counter; at zero
+    // launch the demo, otherwise re-arm the timer. Decrementing a counter already at zero wraps to 255, so
+    // the demo does not launch that frame.
+    if (game.flow.timer1 == 0) {
+        if (--game.flow.coarseCountdown == 0) {
+            if (startDemo) {
+                startDemo(game);  // StartDemo (:582-630) — filled by the demo system
+            }
+            return;
+        }
+        game.flow.timer1 = kTitleTimer;
+    }
+
+    // Serial poll (:642-655): the slave-mode link-cable check that launches a peer-initiated two-player
+    // game or resets the cursor. Link-cable mechanism the serial system owns; nothing sets its trigger
+    // without that system, so it has no effect here.
+
+    // The port's own row sits below the player-count pair, and its objects are laid down again each
+    // frame so that the row follows the setting rather than whatever it was drawn as.
+    drawTitleObjects(game, twoItems);
+
+    // Handle this frame's input, then derive the selector from the resulting state. A frame that
+    // transitioned away - Start, or opening a screen - leaves the cursor to the screen it opened; on
+    // a frame that stays, the selector is a pure function of the state the input just left, so a
+    // Select that toggled heart mode moves the cursor to its nudged spot this same frame. The engine
+    // keeps resubmitting the unchanged title frame until a press changes it.
+    handleTitleInput(game, twoItems);
+    if (game.flow.gameState == GameState::TITLE_SCREEN) {
+        placeTitleCursor(game, twoItems);
+    }
 }
 
 void installTitleScreenHandlers(GameStateDispatcher& dispatcher, StartDemoHook startDemo,

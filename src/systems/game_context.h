@@ -60,4 +60,15 @@ struct GameContext {
     friend bool operator==(const GameContext&, const GameContext&) = default;
 };
 
+// Whether heart mode governs the round on screen. Heart mode is a persistent title-screen toggle in
+// this port (the cartridge armed it transiently, by a held button at the moment of Start, so its
+// attract demo never inherited it). The demo, though, runs the same round pipeline a player does, and
+// its recordings assume normal gravity — playing them faster tops the field out, which loses a demo
+// that is meant never to lose. So a round belongs to heart mode only when it is a real round, not an
+// attract demo. The toggle itself is left set, so it survives a demo and greets the player as they
+// left it; only the round's difficulty ignores it while a demo is running.
+[[nodiscard]] inline bool heartModeActive(const GameContext& game) noexcept {
+    return game.flow.heartMode != 0 && game.demo.activeDemo == ActiveDemo::NONE;
+}
+
 }  // namespace kirpich::systems

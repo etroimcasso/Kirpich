@@ -60,6 +60,17 @@ struct StatSlice {
 inline constexpr std::size_t kStatLevels   = 10;
 inline constexpr std::size_t kStatVariants = 6;
 
+// Which set of tables a fold reads. Heart rounds keep their own tables (typeAHeart / typeBHeart /
+// typeCHeart below), so a rollup either reads the cartridge tables, the heart tables, or folds both
+// together. It lives here, in the stats data header, rather than beside the folds in systems/stats.h,
+// because ScreenUiState carries a StatScope field and systems/stats.h already includes this header -
+// putting it there instead would make the two headers include each other.
+enum class StatScope : std::uint8_t {
+    NORMAL,  // the cartridge tables
+    HEART,   // the heart tables
+    ALL,     // both, folded together
+};
+
 // The round being played right now, so that its counts can be attributed to the slice it started in
 // rather than to whatever the flow state says when it ends - a Type A round levels up as it runs,
 // and it still belongs to the level it was picked at.

@@ -344,4 +344,124 @@ TEST(StatsScreens, LeavingARowAndComingBackLeavesBothChoicesAlone) {
     EXPECT_TRUE(game.screens.titleStatsColumn);
 }
 
+// ── Unit 2: the All-Time scope sub-menu ─────────────────────────────────────────────────────────────
+
+using kirpich::StatScope;
+using kirpich::systems::StatsBranch;
+
+// (6) The All-Time row opens the scope sub-menu once heart has been unlocked, and pushes the pages
+// directly - at the combined scope - before that, when there is nothing to choose.
+TEST(StatsScreens, TheAllTimeRowOpensTheScopeMenuOnlyOnceHeartIsUnlocked) {
+    Settings            settings;
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installStatsScreens(dispatcher, settings, {}, SettingsWiring{});
+
+    // Locked: the pages open directly, at ALL.
+    {
+        GameContext game;
+        game.flow.gameState = GameState::INIT_STATS_MENU;
+        dispatcher.tick(game, retropp::ActionSet{});  // init -> STATS_MENU
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::Confirm}));  // "all time" (row 0)
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_PAGE);
+        EXPECT_EQ(game.screens.statsScope, StatScope::ALL);
+    }
+
+    // Unlocked: the scope sub-menu opens instead.
+    {
+        GameContext game;
+        game.stats.typeAHeart[0].rounds = 1;
+        game.flow.gameState             = GameState::INIT_STATS_MENU;
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::Confirm}));
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_SCOPE);
+    }
+
+    // A per-mode row never opens the scope menu, even with heart unlocked - its scope rides the level
+    // axis.
+    {
+        GameContext game;
+        game.stats.typeAHeart[0].rounds = 1;
+        game.flow.gameState             = GameState::INIT_STATS_MENU;
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));  // to "mode a"
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::Confirm}));
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_PAGE);
+    }
+}
+
+// (7) The scope sub-menu offers all, normal and heart; the heart row wears the glyph; choosing a row
+// sets the scope and opens the pages; and B pops back to the chooser.
+TEST(StatsScreens, TheScopeMenuOffersAllNormalHeartAndSetsTheScope) {
+    Settings            settings;
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installStatsScreens(dispatcher, settings, {}, SettingsWiring{});
+
+    const auto openScopeMenu = [&](GameContext& game) {
+        game.stats.typeAHeart[0].rounds = 1;
+        game.flow.gameState             = GameState::INIT_STATS_MENU;
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::Confirm}));  // -> INIT_STATS_SCOPE
+        dispatcher.tick(game, retropp::ActionSet{});          // -> STATS_SCOPE
+    };
+
+    // The three rows are on screen, and the heart row wears its glyph one cell past the word.
+    {
+        GameContext game;
+        openScopeMenu(game);
+        ASSERT_EQ(game.flow.gameState, GameState::STATS_SCOPE);
+
+        constexpr std::string_view kRows[] = {"all", "normal", "heart"};
+        for (std::size_t i = 0; i < std::size(kRows); ++i) {
+            EXPECT_EQ(rowText(game.display.map, kListFirstRow + i, kTextCol, 6, kRows[i]), kRows[i])
+                << "row " << i;
+        }
+        EXPECT_EQ(game.display.map[kListFirstRow + 2][kTextCol + 5 + 1],
+                  static_cast<std::uint8_t>(kirpich::CharTile::HEART))
+            << "the heart row wears the heart glyph";
+    }
+
+    // Choosing "heart" sets the scope and opens the pages, still on the All-Time branch.
+    {
+        GameContext game;
+        openScopeMenu(game);
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));  // to "normal"
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));  // to "heart"
+        ASSERT_EQ(game.screens.listRow, 2u);
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::Confirm}));
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_PAGE);
+        EXPECT_EQ(game.screens.statsScope, StatScope::HEART);
+        EXPECT_EQ(game.screens.statsBranch, static_cast<std::uint8_t>(StatsBranch::ALL_TIME));
+    }
+
+    // B pops back to the chooser it opened from, with the chooser's cursor restored to the All-Time
+    // row it was on - even after the scope menu moved the shared list cursor. This is the position
+    // memory the other branches keep, held through this one too.
+    {
+        GameContext game;
+        openScopeMenu(game);
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));  // move the shared cursor off row 0
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::MenuDown}));  // to "heart"
+        ASSERT_EQ(game.screens.listRow, 2u);
+        dispatcher.tick(game, retropp::ActionSet{});
+        dispatcher.tick(game, actionSet({Action::Back}));
+        EXPECT_EQ(game.flow.gameState, GameState::STATS_MENU);
+        EXPECT_EQ(game.screens.listRow, 0u) << "the chooser came back on a row the scope menu left behind";
+
+        // And the chooser is drawn with its cursor on the All-Time row.
+        dispatcher.tick(game, retropp::ActionSet{});
+        EXPECT_EQ(game.display.map[kListFirstRow + 0][1],
+                  static_cast<std::uint8_t>(kirpich::CharTile::HYPHEN));
+    }
+}
+
 }  // namespace

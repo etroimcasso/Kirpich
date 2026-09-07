@@ -8,6 +8,21 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-09-06
+
+- **Statistics** ✅, **Heart Mode** ✅ — heart mode reaches the stats screens. Once a heart game has
+  been played, the All-Time branch opens an `all / normal / heart` filter and every game type's level
+  selector reaches the heart levels (`0-9`, then `0-9` again wearing a heart); in the combined view a
+  record that traces to a single heart round — the longest round, a preferred level — wears the heart.
+  All of it stays hidden until a heart round has actually been recorded, so a player who never touches
+  the easter egg sees the screens they always had. Program time (a whole-application figure) now shows
+  only on the combined view; each scope and each combination reads its own play time. Three heart
+  rough edges found in play are fixed with it: the attract demo plays at normal speed whatever the
+  toggle says (its recordings assume normal gravity, and a demo that inherited heart mode lost and
+  reached the name-entry screen), the title selector is a gated result derived from state each frame
+  (so toggling heart with Select moves the heart to its optically-kerned spot the same frame), and the
+  All-Time filter no longer strands the chooser's cursor when the player backs out of it.
+
 ## 2026-09-05
 
 - **Heart Mode (easter egg)** ⬜ → ✅. The mode's speed shift and its in-round heart shipped with the

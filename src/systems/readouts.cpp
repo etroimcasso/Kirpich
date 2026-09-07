@@ -158,7 +158,7 @@ void printLevel(GameContext& game) {
     game.display.map[row][col] = flow.level;
     game.display.secondMap[row][col] = flow.level;
 
-    if (flow.heartMode != 0) {
+    if (heartModeActive(game)) {
         const std::uint8_t heart = static_cast<std::uint8_t>(CharTile::HEART);
         game.display.secondMap[row][col + 1] = heart;
         game.display.map[row][col + 1] = heart;

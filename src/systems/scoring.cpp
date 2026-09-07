@@ -253,7 +253,7 @@ void checkForLevelUp(GameContext& game) {
 
     // Reload the gravity countdown for the new level; the original's LookupGravity writes both the
     // countdown and its reload value (:5875 / :4258-4259).
-    const std::uint8_t reload = kirpich::framesPerDrop(flow.level, flow.heartMode != 0);
+    const std::uint8_t reload = kirpich::framesPerDrop(flow.level, heartModeActive(game));
     flow.framesPerDrop = reload;
     flow.dropTimer = reload;
 }

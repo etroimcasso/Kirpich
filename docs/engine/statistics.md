@@ -33,7 +33,21 @@ std::array<std::array<StatSlice, kStatVariants>, kStatLevels> typeC;  // [level]
 `kStatLevels` is 10 and `kStatVariants` is 6, so there are 130 slices. Type A is picked by level
 alone and has no second axis.
 
-`StatsState` holds those three, plus the two figures that are not folds over them:
+Heart-mode rounds keep their own three tables in the same shapes — `typeAHeart`, `typeBHeart`,
+`typeCHeart` — because a heart round is the same difficulty played harder, and mixing its figures with
+a normal round's would misreport both. A round routes to one set or the other by
+`RoundCombination::heart`, read once at `beginRound`. Which set a rollup reads is a `StatScope`
+(`src/state/stats_state.h`):
+
+```cpp
+enum class StatScope : std::uint8_t { NORMAL, HEART, ALL };  // the cartridge set, the heart set, both
+```
+
+`StatScope` lives in the stats data header rather than beside the folds, because `ScreenUiState`
+carries a `StatScope` field and `stats.h` already includes the data header — the other placement would
+make the two headers include each other.
+
+`StatsState` holds those six tables, plus the two figures that are not folds over them:
 `applicationSeconds`, how long the program itself has run, which belongs to no round; and
 `musicRounds`, how many rounds have been played under each music selection, indexed by
 `musicTypeIndex` — a song is not part of a combination, so there is nowhere in a slice for it to
@@ -94,33 +108,48 @@ one would. Call it wherever the game already writes to disk.
 
 ## Reading it back
 
+Every rollup takes a `StatScope`: `NORMAL` reads the cartridge tables, `HEART` the heart tables, `ALL`
+folds both. The scope is an explicit argument, not a default, so every call site states which tables
+it means.
+
 ```cpp
-StatSlice totalsFor(const StatsState&, GameType);
-StatSlice lifetimeTotals(const StatsState&);
+StatSlice totalsFor(const StatsState&, GameType, StatScope);
+StatSlice lifetimeTotals(const StatsState&, StatScope);
 
 struct LongestRound { std::uint32_t seconds; RoundCombination at; bool any; };
-LongestRound longestRound(const StatsState&);
+LongestRound longestRound(const StatsState&, StatScope);
 ```
 
 A rollup is a fold over slices: the running counts add and `longestRoundSeconds` takes the larger of
 the two. **Summing that field is the mistake to avoid** — it reports a length no round ever had.
 
 `longestRound` walks Type A by level, then Type B and Type C by level and then by their second axis,
-and returns the largest with the slice it was found in. `any` is false when nothing has been played.
-Ties keep the first slice in that walk, so the answer does not move between calls.
+and returns the largest with the slice it was found in. Under `ALL` it walks the cartridge tables
+before the heart ones, so a cross-set tie keeps the cartridge slice, and `at.heart` is the winning
+slice's own heart-ness — which is what lets an all-time record wear the heart. `any` is false when
+nothing has been played.
 
-`RoundCombination` (`src/state/game_flow_state.h`) carries `type`, `level`, `variant` and
-`hasVariant`; Type A leaves `hasVariant` false, which is what makes its label read `a-5` where the
+`RoundCombination` (`src/state/game_flow_state.h`) carries `type`, `level`, `variant`, `hasVariant`
+and `heart`; Type A leaves `hasVariant` false, which is what makes its label read `a-5` where the
 other two read `b-1-3`.
 
-The remaining folds answer the all-time page, and each is an argmax over rounds played:
+The whole-game folds answer the all-time page, and each is an argmax over rounds played:
 
 ```cpp
-std::uint32_t  roundsFor(const StatsState&, GameType);
-FavouriteMode  favouriteMode(const StatsState&);
-FavouriteMusic favouriteMusic(const StatsState&);
-PreferredLevel preferredLevel(const StatsState&);   // across all three game types
+std::uint32_t  roundsFor(const StatsState&, GameType, StatScope);
+FavouriteMode  favouriteMode(const StatsState&, StatScope);
+FavouriteMusic favouriteMusic(const StatsState&);                 // global: no scope
+PreferredLevel preferredLevel(const StatsState&, StatScope);      // across all three game types
+bool           heartEverRecorded(const StatsState&);
 ```
+
+`favouriteMusic` takes no scope: music is not part of a combination and is not split by heart, so it
+is always the whole game's. `preferredLevel` under `ALL` counts a normal level and the heart level of
+the same number as separate candidates, so a heart level can win in its own right —
+`PreferredLevel::heart` then says so, and a cross-set tie keeps the cartridge level. `heartEverRecorded`
+is a fold over the three heart tables for a single non-zero round count: it is the discovery gate the
+stats screens read (heart content stays hidden until a heart game has been played), and it needs no
+stored flag, because the heart tables themselves persist.
 
 Each result carries its own `any`, false when nothing has been played, so a caller shows that rather
 than a first-slot default reading as a real answer. Ties go to the first in walk order — game types
@@ -129,16 +158,20 @@ A, B, C; levels from 0 up; music selections from A up — which is the rule `lon
 One more fold reads a picker's two axes:
 
 ```cpp
-struct StatSelection { GameType type; std::uint8_t level, variant; };  // kStatAxisAll folds an axis
+struct StatSelection { GameType type; std::uint8_t level, variant; };
 StatSlice totalsForSelection(const StatsState&, const StatSelection&);
 ```
 
-`kStatAxisAll` (`src/state/screen_ui_state.h`) sits outside the ten levels and six variants rather
-than at index 0, because 0 is a level a player can pick. **Both axes folded returns exactly what
-`totalsFor` returns for that type**, and a test asserts the two against each other: two folds that
-could disagree would be two answers to one question. Type A has no second axis, so its variant is not
-consulted whatever it holds, and a value outside an axis folds that axis rather than selecting
-nothing.
+`totalsForSelection` carries its scope on the **level axis** rather than in a field, because the level
+picker is where the per-mode pages choose it: `level` 0-9 is a cartridge level, 10-19 the same number
+played in heart mode (heart level `level − 10`), and `kStatAxisAll` — or any value past the axis —
+folds every level of both sets. The variant axis is not overloaded; a heart Type B round is still
+`(level, height)`, and its heart-ness is the level half. `kStatAxisAll`
+(`src/state/screen_ui_state.h`) sits outside the levels and variants rather than at index 0, because 0
+is a level a player can pick. **Both axes folded returns exactly what `totalsFor` returns for that type
+under `ALL`**, and a test asserts the two against each other: two folds that could disagree would be
+two answers to one question. Type A has no second axis, so its variant is not consulted whatever it
+holds.
 
 ### Showing a duration
 
@@ -168,9 +201,12 @@ Three machines and one content unit:
 | `src/render/stats_pages.h` | The seven shapes on a pieces page |
 
 The statistics screen is a list instance with five rows; every one of them opens **one** page-screen
-instance, which forks on `ScreenUiState::statsBranch`. The paged screen never holds a line: it clears
-the map, writes the heading, and asks the caller to fill the page, so a figure is computed as it is
-drawn and nothing has to outlive the call.
+instance, which forks on `ScreenUiState::statsBranch`. The All-Time row is the exception: once heart
+has been unlocked it opens a second list instance first — the scope sub-menu, `all | normal | heart`,
+on `INIT_STATS_SCOPE` / `STATS_SCOPE` — which sets `ScreenUiState::statsScope` and then opens the
+pages. Before heart is unlocked, and for the other four rows, the pages open directly. The paged screen
+never holds a line: it clears the map, writes the heading, and asks the caller to fill the page, so a
+figure is computed as it is drawn and nothing has to outlive the call.
 
 ```cpp
 struct PageWiring {
@@ -204,6 +240,25 @@ rows are scrollers in the settings screen's own columns; each axis opens on `kSt
 mode's aggregate, one level across its variants, and a single combination are one control scheme and
 none of them needs a page of its own. A rise is shown as the interval the player picked — 16, 14, 12,
 10, 8, 6 — never as the 0-5 index it is stored at.
+
+### Heart on the screens
+
+Once a heart game has been played (`heartEverRecorded`), two things open up:
+
+- **The All-Time scope sub-menu.** The All-Time row opens `all | normal | heart` and the chosen scope
+  drives its folds. In the `all` view, a record that traces to a single heart round wears the heart:
+  the longest round (its winning slice's heart-ness) and the preferred level (when its combined argmax
+  is a heart level). Summed totals, favourite mode (a game type) and favourite music (global) never do.
+- **The heart half of every per-mode level selector.** The `level` axis reaches twice as far —
+  positions 0-9 are the cartridge levels, 10-19 the same numbers in heart mode — so a heart level's
+  figures are read with the same picker. `axisCount(row 0)` is 10 below the gate and 20 above it; the
+  rest of the picker already generalises over the count.
+
+The heart is drawn as a background tile — `CharTile::HEART` (`$27`) — in the cell after a heart level's
+number on the picker, and one cell past the shared value column on an all-time record. It is a direct
+tile write, not text, because the glyph has no letter for `writeMapText` to spell; and it is a
+background tile, not the sprite the difficulty-screen indicator uses, because the stats screens draw
+their own opaque background rather than sitting over borrowed gameplay art.
 
 ### Drawing a line
 
@@ -242,7 +297,15 @@ existed loads with those counts at zero.
 ```cpp
 bool saveStats(const StatsState&, retropp::SaveStore&);
 bool loadStats(retropp::SaveStore&, StatsState&);
+bool saveStatsHeart(const StatsState&, retropp::SaveStore&);
+bool loadStatsHeart(retropp::SaveStore&, StatsState&);
 ```
+
+The heart tables save to their own `"stats-heart"` document, schema version 1, carrying the three
+heart slice tables alone — `applicationSeconds` and `musicRounds` are global and stay in `"stats"`.
+The `"stats"` document is byte-identical whether or not heart data is present, so heart added no
+migration and no format change to it. The two documents are read and written independently, each
+naming its own schema version before its own read.
 
 An absent document is an ordinary first run and leaves the tables empty. A corrupt or wrong-length
 one is logged, leaves the tables empty, and leaves the damaged file where it is.
@@ -263,8 +326,8 @@ own — so whichever loader is about to read has to be the one that last said wh
 | `recordLineClear` | the per-kind tally in `src/systems/line_clear.cpp` |
 | the screens | `installStatsScreens` (`src/systems/stats_screens.cpp`), from `src/main.cpp` |
 | `beginSession`, `bankApplicationTime` | `src/main.cpp` |
-| `loadStats` | `bootGame` (`src/systems/boot.cpp`) |
-| `saveStats` | `src/main.cpp`, on a submitted top score and in the exit guard |
+| `loadStats`, `loadStatsHeart` | `bootGame` (`src/systems/boot.cpp`) |
+| `saveStats`, `saveStatsHeart` | `src/main.cpp`, on a submitted top score and in the exit guard |
 
 The exit guard is a `RunLoop::exitAction`. Every exit source routes through it — the settings
 screen's exit row, the window's close button, and the platform's quit gesture — so it is the one

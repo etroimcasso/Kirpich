@@ -99,6 +99,8 @@ enum class GameState : uint8_t {
     STATS_MENU             = 0x51,  // The statistics and achievements chooser
     INIT_STATS_PAGE        = 0x52,  // Lay out a page of statistics
     STATS_PAGE             = 0x53,  // A page of statistics
+    INIT_STATS_SCOPE       = 0x54,  // Lay out the all-time scope sub-menu (all / normal / heart)
+    STATS_SCOPE            = 0x55,  // The all-time scope sub-menu
 };
 
 }  // namespace kirpich

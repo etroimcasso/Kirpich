@@ -311,7 +311,8 @@ TEST(TitleScreens, TitleCursorVectors) {
         return game;
     };
 
-    // Right: 1P -> 2P; a no-op (with no cursor write) when already 2P.
+    // Right: 1P -> 2P; a no-op for the player count when already 2P. The selector is a pure function
+    // of the state and is derived every frame, so it sits at its correct column either way.
     {
         GameContext game = titleContext(false);
         press(game, {Action::MenuRight});
@@ -320,13 +321,13 @@ TEST(TitleScreens, TitleCursorVectors) {
         EXPECT_EQ(game.engine.oam[0].x, kCursorX2P);
 
         GameContext already = titleContext(true);
-        already.engine.oam[0].x = 0xAB;  // sentinel — must be untouched
+        already.engine.oam[0].x = 0xAB;  // a stale value the frame's derive corrects
         press(already, {Action::MenuRight});
         kirpich::systems::titleScreen(already);
-        EXPECT_TRUE(already.multiplayer.isMultiplayer);
-        EXPECT_EQ(already.engine.oam[0].x, 0xAB);
+        EXPECT_TRUE(already.multiplayer.isMultiplayer) << "the player count did not change";
+        EXPECT_EQ(already.engine.oam[0].x, kCursorX2P) << "the cursor is re-derived to its column";
     }
-    // Left: 2P -> 1P; a no-op (with no cursor write) when already 1P.
+    // Left: 2P -> 1P; a no-op for the player count when already 1P.
     {
         GameContext game = titleContext(true);
         press(game, {Action::MenuLeft});
@@ -338,8 +339,8 @@ TEST(TitleScreens, TitleCursorVectors) {
         already.engine.oam[0].x = 0xAB;
         press(already, {Action::MenuLeft});
         kirpich::systems::titleScreen(already);
-        EXPECT_FALSE(already.multiplayer.isMultiplayer);
-        EXPECT_EQ(already.engine.oam[0].x, 0xAB);
+        EXPECT_FALSE(already.multiplayer.isMultiplayer) << "the player count did not change";
+        EXPECT_EQ(already.engine.oam[0].x, kCursorX1P) << "the cursor is re-derived to its column";
     }
     // A cursor move does not transition state.
     {
@@ -482,6 +483,32 @@ TEST(TitleScreens, TitleHeartCursorVectors) {
         kirpich::systems::titleScreen(game);
         EXPECT_EQ(game.flow.heartMode, 0);
         EXPECT_EQ(game.engine.oam[0].tile, kCursorTile);
+    }
+    // Optical kerning: the heart glyph stands flush against the "2" but has a gap before the "1", so
+    // the 2P heart cursor is nudged one pixel left. The 1P cursor and the plain selector are unmoved.
+    {
+        GameContext game;
+        game.flow.gameState            = GameState::TITLE_SCREEN;
+        game.flow.timer1               = 5;  // skip the attract countdown
+        game.flow.heartMode            = 1;
+        game.multiplayer.isMultiplayer = false;
+
+        press(game, {Action::MenuRight});  // 1P -> 2P
+        kirpich::systems::titleScreen(game);
+        ASSERT_TRUE(game.multiplayer.isMultiplayer);
+        EXPECT_EQ(game.engine.oam[0].x, static_cast<std::uint8_t>(kCursorX2P - 1))
+            << "the heart is nudged a pixel left of the 2";
+
+        press(game, {Action::MenuLeft});  // back to 1P: no nudge
+        kirpich::systems::titleScreen(game);
+        ASSERT_FALSE(game.multiplayer.isMultiplayer);
+        EXPECT_EQ(game.engine.oam[0].x, kCursorX1P);
+
+        game.flow.heartMode = 0;           // the plain selector is not nudged
+        press(game, {Action::MenuRight});
+        kirpich::systems::titleScreen(game);
+        ASSERT_TRUE(game.multiplayer.isMultiplayer);
+        EXPECT_EQ(game.engine.oam[0].x, kCursorX2P);
     }
 }
 

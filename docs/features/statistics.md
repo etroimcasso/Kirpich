@@ -1,7 +1,8 @@
 # Statistics
 
-**Date:** 2026-08-31
-**Status:** Recording and the screens that show it are complete. Achievements are not built.
+**Date:** 2026-09-05
+**Status:** Recording, the screens that show it, and the heart-mode filter are complete. Achievements
+are not built.
 
 ## Concept
 
@@ -11,10 +12,9 @@ record per difficulty combination — a Type A level, a Type B level and startin
 level and rise — so a player can look at one particular way of playing rather than at one number for
 everything. It also keeps how long the program itself has run.
 
-Recording is always on. Whether a player can *see* any of it is a setting, and that setting is not
-built yet; the point of separating the two is that a player who switches the display on a year from
-now finds their whole history there rather than an empty table that starts counting from the day
-they asked.
+Recording is always on. Whether a player can *see* any of it is a setting; the point of separating the
+two is that a player who switches the display on a year from now finds their whole history there
+rather than an empty table that starts counting from the day they asked.
 
 ## Design decisions
 
@@ -103,6 +103,18 @@ combination.
 has no slash. It has letters, digits, a period and a hyphen, and text the font cannot spell is not
 drawn at all.
 
+**Heart mode is a filter, revealed only once it has been played.** Heart rounds keep their own tables
+(a heart round is the same difficulty played harder), so the screens can read the cartridge figures,
+the heart figures, or both. All of it stays hidden until a heart game has actually been recorded — a
+player who never touches the easter egg sees the screens they always had. Once it has been played, two
+things appear: the All-Time branch gains a small `all | normal | heart` menu that filters its
+aggregates, and every game type's level selector reaches the heart levels (`0-9`, then `0-9` again
+each wearing a heart). In the combined all-time view, a single record that traces to a heart round —
+the longest round, or a preferred level that turns out to be a heart level — wears the heart; a total
+summed across many rounds, or the favourite mode or music, does not. Rejected: naming the filter rows
+with a category noun, which would collide with the `mode a / b / c` rows one screen up; the three rows
+stand alone, the heart one wearing the glyph.
+
 ## Layout
 
 A figure's label starts three cells in and its value ends two cells short of the last one, so the
@@ -122,14 +134,16 @@ from, so the seven line up with each other instead of hanging at different heigh
 
 | File | What it holds |
 |---|---|
-| `src/state/stats_state.h` | `StatSlice` (ten counts), the three tables, the application total, and the round in progress |
-| `src/state/stats_persistence.{h,cpp}` | The `stats` save document: schema version 1, a 5204-byte image, encode/decode, save/load |
-| `src/systems/stats.{h,cpp}` | Recording, the folds that read the tables back, and the duration text |
-| `src/state/game_flow_state.h` | `combinationOf` — the one derivation of which combination a round is at |
+| `src/state/stats_state.h` | `StatSlice` (seventeen counts), the three cartridge tables and the three heart tables, the application total, the per-music counts, and the round in progress; `StatScope` |
+| `src/state/stats_persistence.{h,cpp}` | The `stats` save document (schema version 2, an 8860-byte image) and the `stats-heart` document (version 1, the three heart tables alone) |
+| `src/systems/stats.{h,cpp}` | Recording, the scope-aware folds that read the tables back, `heartEverRecorded`, and the duration text |
+| `src/systems/stats_pages.{h,cpp}`, `src/systems/stats_screens.{h,cpp}` | The pages, the picker, the scope sub-menu, and the install |
+| `src/state/game_flow_state.h` | `combinationOf` — the one derivation of which combination a round is at, heart included |
 
-A slice is ten 32-bit counts: rounds, seconds, longest round, drops, score, lines, and the four clear
-kinds. Every count is 32 bits whether it needs to be or not, which makes the image's size a
-multiplication and leaves no count as the one that overflows first. Counts saturate rather than wrap.
+A slice is seventeen 32-bit counts: rounds, seconds, longest round, drops, score, lines, the four
+clear kinds, and the seven per-shape drop counts. Every count is 32 bits whether it needs to be or
+not, which makes the image's size a multiplication and leaves no count as the one that overflows
+first. Counts saturate rather than wrap.
 
 Drops and clears are counted as they happen; the round, its time, its score and its longest-round
 comparison resolve when the round ends. Score is taken at the end because it has a per-round ceiling
@@ -142,7 +156,7 @@ round is still recorded, at a length of zero.
 
 ## Open questions / future work
 
-The screens are not built. What exists is the record and the calls that read it back: a game type's
-totals, the whole game's, and the longest round with the combination it was played at. What is still
-to come is the way in — a settings row that reveals the feature, a Stats item on the title screen,
-and the screens themselves, which share their machinery with the achievements that follow.
+Achievements are the part not built. Its row is on the statistics screen and its branch says so. The
+recording, the persistence, the paged screens and the heart filter are complete; what is still to
+come is the achievement set and its screens, which share their machinery with the statistics they sit
+beside.

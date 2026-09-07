@@ -7,6 +7,7 @@
 #include <tuple>
 #include <utility>
 
+#include <kirpich/char_tile.h>  // CharTile::HEART
 #include <kirpich/game_state.h>
 
 #include "data/sfx.h"  // SquareSfxId
@@ -16,6 +17,7 @@
 #include "systems/page_screen.h"
 #include "systems/screen.h"        // writeMapText
 #include "systems/screen_stack.h"  // pushScreen, popScreen
+#include "systems/stats.h"         // heartEverRecorded, StatScope
 #include "systems/stats_pages.h"
 
 namespace kirpich::systems {
@@ -90,15 +92,86 @@ ListWiring chooserWiring() {
                 ui.statsLevel     = kStatAxisAll;
                 ui.statsVariant   = kStatAxisAll;
                 ui.statsPickerRow = 0;
+                ui.statsScope     = StatScope::ALL;
 
                 game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
-                pushScreen(game, GameState::INIT_STATS_PAGE);
+
+                // The All-Time branch picks a scope first, once heart has been unlocked - all, normal
+                // or heart. Before that, and for the per-mode branches (whose scope rides their level
+                // axis), there is nothing to pick, so the page opens directly; a one-real-choice
+                // sub-menu would be noise, since with no heart data "all" and "normal" are the same
+                // page.
+                const bool allTime = statsBranchOf(static_cast<std::uint8_t>(row)) ==
+                                     StatsBranch::ALL_TIME;
+                pushScreen(game, allTime && heartEverRecorded(game.stats)
+                                     ? GameState::INIT_STATS_SCOPE
+                                     : GameState::INIT_STATS_PAGE);
             },
         // B leaves the tree altogether, which means putting the title screen's own picture back -
         // this is the one screen here that borders something it did not paint over itself.
         .back =
             [](GameContext& game) {
                 restoreCallerScreen(game);
+                popScreen(game);
+            },
+    };
+}
+
+// ── The All-Time scope sub-menu ─────────────────────────────────────────────────────────────────────
+//
+// The All-Time branch reads all three scopes' aggregates, so rather than stack three page-sets it
+// opens a short menu to choose one. It is only reached once heart has been unlocked (the chooser
+// pushes the pages directly otherwise), so it always offers the whole choice.
+//
+// The rows stand alone with no category noun - a noun would collide with the "mode a/b/c" rows one
+// screen up - and the heart row wears the heart glyph. Choosing a scope sets it and opens the pages;
+// B pops back to the chooser.
+
+constexpr std::string_view kScopeTitle  = "all time";
+constexpr std::string_view kScopeRows[] = {"all", "normal", "heart"};
+constexpr std::size_t      kScopeHeartRow = 2;
+
+static_assert(std::size(kScopeRows) == 3,
+              "the scope menu offers all, normal and heart, in that order");
+
+StatScope scopeForRow(std::size_t row) noexcept {
+    switch (row) {
+        case 1:  return StatScope::NORMAL;
+        case 2:  return StatScope::HEART;
+        default: return StatScope::ALL;
+    }
+}
+
+ListWiring scopeWiring() {
+    return ListWiring{
+        .title = [] { return kScopeTitle; },
+        .count = [] { return std::size(kScopeRows); },
+        .paintRow =
+            [](BackgroundMap& map, std::size_t row, std::size_t line) {
+                writeMapText(map, line, kListTextCol, kScopeRows[row]);
+                if (row == kScopeHeartRow) {
+                    // The heart wears its glyph, one cell past the word. It is a tile write, not text:
+                    // the glyph has no letter for the encoder to spell.
+                    map[line][kListTextCol + kScopeRows[row].size() + 1] =
+                        static_cast<std::uint8_t>(CharTile::HEART);
+                }
+            },
+        .chose =
+            [](GameContext& game, std::size_t row) {
+                game.screens.statsScope = scopeForRow(row);
+                game.audioCues.square   = SquareSfxId::CHANGE_SCREEN;
+                pushScreen(game, GameState::INIT_STATS_PAGE);
+            },
+        // B pops back to the chooser. This menu is a second list instance, so it shares the list
+        // cursor with the chooser it was opened from; left to itself, the chooser would come back
+        // showing the cursor on whichever scope row was last touched. The scope menu is only ever
+        // opened from the All-Time row, so restore the chooser to that row before popping - which is
+        // where the player was, and what keeps the cursor remembering its place through this branch as
+        // it does through the others.
+        .back =
+            [](GameContext& game) {
+                game.screens.listRow = static_cast<std::uint8_t>(StatsBranch::ALL_TIME);
+                game.screens.listTop = 0;
                 popScreen(game);
             },
     };
@@ -143,6 +216,12 @@ void installStatsScreens(GameStateDispatcher& dispatcher, Settings& settings,
                         chooserWiring());
     installPageHandlers(dispatcher, GameState::INIT_STATS_PAGE, GameState::STATS_PAGE,
                         statsPageWiring());
+
+    // The All-Time scope sub-menu, a second list instance beside the chooser: same machine, its own
+    // two dispatch slots. The chooser opens it in place of the pages when the All-Time row is taken
+    // and heart has been unlocked.
+    installListHandlers(dispatcher, GameState::INIT_STATS_SCOPE, GameState::STATS_SCOPE,
+                        scopeWiring());
 }
 
 }  // namespace kirpich::systems
