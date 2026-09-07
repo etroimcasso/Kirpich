@@ -75,27 +75,44 @@ void beginSession(GameContext& game, std::uint64_t nowNanos);
 void bankApplicationTime(GameContext& game, std::uint64_t nowNanos);
 
 // ── Reading it back ───────────────────────────────────────────────────────────────────────────────
+//
+// Every rollup below takes a StatScope: NORMAL reads the cartridge tables, HEART the heart tables,
+// ALL folds both. The scope is an explicit argument rather than a default so that every call site
+// states which tables it means. The all-time pages carry it from the scope sub-menu the player picked
+// (systems/stats_screens.h); the per-mode pages carry it on the level axis instead (see
+// totalsForSelection). favouriteMusic below takes no scope: music is not part of a combination and is
+// not split by heart, so it is always the whole game's.
 
 // One game type's totals, and the whole game's. Both are folds over the slices - the nine running
 // counts add, and the longest round takes the larger of the two rather than their sum.
-[[nodiscard]] StatSlice totalsFor(const StatsState& stats, GameType type);
-[[nodiscard]] StatSlice lifetimeTotals(const StatsState& stats);
+[[nodiscard]] StatSlice totalsFor(const StatsState& stats, GameType type, StatScope scope);
+[[nodiscard]] StatSlice lifetimeTotals(const StatsState& stats, StatScope scope);
 
 // The longest single round anywhere, and where it was played. The combination is the slice the round
 // was found in rather than a stored field, so the length and the label it is shown under cannot
 // disagree. Ties go to the first slice in walk order - Type A by level, then Type B and Type C by
-// level and then by their second axis. `any` is false when nothing has been played at all.
+// level and then by their second axis; under ALL the cartridge tables are walked before the heart
+// ones, so a tie there keeps the cartridge slice. `at.heart` is the winning slice's own heart-ness,
+// which is what lets an all-time record wear the heart. `any` is false when nothing has been played
+// at all.
 struct LongestRound {
     std::uint32_t    seconds = 0;
     RoundCombination at{};
     bool             any = false;
 };
 
-[[nodiscard]] LongestRound longestRound(const StatsState& stats);
+[[nodiscard]] LongestRound longestRound(const StatsState& stats, StatScope scope);
 
 // How many rounds one game type has seen. The same fold totalsFor performs, named on its own because
 // the pages that compare the three types want only this one number out of it.
-[[nodiscard]] std::uint32_t roundsFor(const StatsState& stats, GameType type);
+[[nodiscard]] std::uint32_t roundsFor(const StatsState& stats, GameType type, StatScope scope);
+
+// Whether any heart round has ever been recorded: a fold over the three heart slice tables for a
+// single non-zero round count. This is the discovery gate the stats screens read - heart content
+// stays hidden until a heart game has actually been played - and it needs no stored flag, because the
+// heart tables themselves persist. It does NOT gate the difficulty-screen leaderboard, which is only
+// reached with heart mode already switched on.
+[[nodiscard]] bool heartEverRecorded(const StatsState& stats);
 
 // The three answers the all-time favourites page gives, each an argmax over rounds played.
 //
@@ -124,14 +141,26 @@ struct PreferredLevel {
     std::uint32_t rounds = 0;
     bool          any    = false;
 
+    // Whether the winning level is a heart level. Under ALL scope a normal level and a heart level of
+    // the same number are separate candidates, so the argmax can land on either; this says which, and
+    // is what lets the all-time combined view mark a heart-sourced preferred level. It is meaningful
+    // only under ALL - under NORMAL it is always false, under HEART always true, and neither of those
+    // views draws the marker.
+    bool          heart  = false;
+
     friend constexpr bool operator==(const PreferredLevel&, const PreferredLevel&) = default;
 };
 
-[[nodiscard]] FavouriteMode  favouriteMode(const StatsState& stats);
+// The favourite game type and the preferred starting level take a scope; the favourite music does
+// not, because music is global and not heart-split.
+[[nodiscard]] FavouriteMode  favouriteMode(const StatsState& stats, StatScope scope);
 [[nodiscard]] FavouriteMusic favouriteMusic(const StatsState& stats);
 
 // Across all three game types: the starting level more rounds have been played at than any other.
-[[nodiscard]] PreferredLevel preferredLevel(const StatsState& stats);
+// Under ALL a normal level and a heart level are counted separately, so a heart level can win in its
+// own right (PreferredLevel::heart then true); the walk takes the cartridge levels before the heart
+// ones, so a tie keeps the cartridge level.
+[[nodiscard]] PreferredLevel preferredLevel(const StatsState& stats, StatScope scope);
 
 // What a game type's pages are currently reading: one type, and each of its two axes either at one
 // value or folded away.

@@ -52,6 +52,21 @@ and nothing anywhere clears it — and it is what this port does. Nothing writes
 no settings schema change and no migration. A cold boot and the four-button reset chord clear it with
 the rest of the flow state, through `GameFlowState::reset`.
 
+### The attract demo is always normal, whatever the toggle says
+
+The cartridge armed heart mode transiently — a button held at the moment of Start — so its attract
+demo, which starts on its own, never saw it. This port made the mode a persistent toggle, which
+introduced a hazard the original never had: the demo runs the same round pipeline a player does, and
+its recorded inputs assume normal gravity. A demo played at heart speed falls too fast, tops the field
+out, and loses — a demo that is meant never to lose — which then drops the viewer into the high-score
+name entry, for a demo.
+
+So a round belongs to heart mode only when it is a real round, not an attract demo. `heartModeActive`
+(`src/systems/game_context.h`) is the whole rule: heart governs the round's gravity and its panel
+heart only when `heartMode` is set *and* no demo is running. The toggle byte itself is left set, so it
+survives the demo and greets the player exactly as they left it — the demo simply ignores it. Because
+the demo can no longer lose, nothing has to lock the high-score table against it.
+
 ### The cartridge's latch is kept, dead
 
 It stays where the original has it, with its unreachability stated at the call site — the way the demo
@@ -80,17 +95,27 @@ The Type C rise values are drawn this way for the same reasons.
 `CharTile::HEART` (`$27`), the same picture the panel puts beside the level digit during a heart-mode
 round, so a player sees before choosing a round what they see while playing one. No new art.
 
+### The title cursor's heart is optically kerned against the "2"
+
+The selector cursor sits one cell left of the "1 PLAYER" / "2 PLAYER" digit. The "1" and the "2" are
+not drawn the same within their tiles — as font glyphs never are — so the heart stands flush against
+the "2" while it keeps a clear gap before the "1". The 2P heart cursor is nudged one pixel left
+(`placeTitleCursor`, `src/systems/title_screens.cpp`) so the gap reads the same on both. Only the
+heart needs it; the cartridge's own selector arrow is left where it has always been.
+
 ## Implementation details
 
 | File | What it holds |
 |---|---|
 | `src/render/heart_indicator.{h,cpp}` | The indicator: its gate, its placement offsets, and the one sprite it declares |
-| `src/systems/title_screens.cpp` | `toggleHeartMode` (flips the mode and the selector cursor's tile) and the Select branch, above the row split so one call site serves both rows; the init seeds the cursor from the sticky mode |
+| `src/systems/title_screens.cpp` | `toggleHeartMode` (flips the mode and the selector cursor's tile) and the Select branch, above the row split so one call site serves both rows; the init seeds the cursor from the sticky mode; `placeTitleCursor` optically nudges the 2P heart cursor |
+| `src/systems/game_context.h` | `heartModeActive` — heart governs a round only when the toggle is set and no demo is running |
 | `src/systems/input.cpp` | Select bound to Backspace (the emulator convention, pairing with Enter as Start) |
 | `src/systems/menu_screens.h` | `kDifficultyHeadingRow` / `Col` / `Cols` — the heading's cells, published so the indicator is placed against them |
 | `src/main.cpp` | One gated append, where the frame's other bridge sprites are appended |
 | `src/data/gravity.h` | `kHeartModeLevelBoost` and the cap — the speed shift itself |
-| `src/systems/readouts.cpp` | The in-round heart beside the level digit |
+| `src/systems/gameplay.cpp`, `src/systems/scoring.cpp` | The gravity load and its level-up reload, gated through `heartModeActive` so a demo never plays fast |
+| `src/systems/readouts.cpp` | The in-round heart beside the level digit, gated through `heartModeActive` |
 
 The flag is read as zero / non-zero everywhere, never compared against a particular value: the original
 latches the raw held-joypad byte there and this port's toggle writes a canonical `1`. The toggle
@@ -112,6 +137,9 @@ Every CI job is headless, so none of this is visible to the suite:
 - A top score earned in heart mode still shows the heart on the name-entry screen.
 - Toggling off clears the heart from all three screens.
 - Left and Right still move between one and two players.
+- With the mode on, the attract demo plays at normal speed, does not lose, and does not reach name
+  entry — and the toggle is still on when the demo returns to the title.
+- The 2P heart cursor sits a pixel clear of the "2", matching the gap the 1P cursor has before the "1".
 
 ## Open questions / future work
 

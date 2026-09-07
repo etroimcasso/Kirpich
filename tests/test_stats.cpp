@@ -313,7 +313,7 @@ TEST(Stats, TypeTotalsSumTheCountsAndMaxTheLongestRound) {
                                .score = 250, .lines = 9, .singles = 1, .doubles = 2,
                                .triples = 1, .tetrises = 0};
 
-    const StatSlice total = kirpich::systems::totalsFor(stats, GameType::TYPE_A);
+    const StatSlice total = kirpich::systems::totalsFor(stats, GameType::TYPE_A, kirpich::StatScope::NORMAL);
 
     EXPECT_EQ(total.rounds, 3u);
     EXPECT_EQ(total.seconds, 120u);
@@ -337,7 +337,7 @@ TEST(Stats, LifetimeTotalsCoverAllThreeTypes) {
     stats.typeC[4][5].rounds              = 4;
     stats.typeC[4][5].longestRoundSeconds = 25;
 
-    const StatSlice total = kirpich::systems::lifetimeTotals(stats);
+    const StatSlice total = kirpich::systems::lifetimeTotals(stats, kirpich::StatScope::NORMAL);
     EXPECT_EQ(total.rounds, 7u);
     EXPECT_EQ(total.longestRoundSeconds, 40u);
 }
@@ -345,7 +345,7 @@ TEST(Stats, LifetimeTotalsCoverAllThreeTypes) {
 // (9) The longest round names the slice it was played in, Type A carries no second value, and a tie
 // keeps the first slice in the walk.
 TEST(Stats, LongestRoundNamesTheSliceItWasPlayedIn) {
-    EXPECT_FALSE(kirpich::systems::longestRound(StatsState{}).any)
+    EXPECT_FALSE(kirpich::systems::longestRound(StatsState{}, kirpich::StatScope::NORMAL).any)
         << "nothing has been played, so there is no longest round";
 
     StatsState stats;
@@ -356,7 +356,7 @@ TEST(Stats, LongestRoundNamesTheSliceItWasPlayedIn) {
     stats.typeC[5][1].rounds              = 1;
     stats.typeC[5][1].longestRoundSeconds = 90;
 
-    const auto best = kirpich::systems::longestRound(stats);
+    const auto best = kirpich::systems::longestRound(stats, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(best.any);
     EXPECT_EQ(best.seconds, 120u);
     EXPECT_EQ(best.at.type, GameType::TYPE_B);
@@ -368,7 +368,7 @@ TEST(Stats, LongestRoundNamesTheSliceItWasPlayedIn) {
     StatsState typeAOnly;
     typeAOnly.typeA[9].rounds              = 1;
     typeAOnly.typeA[9].longestRoundSeconds = 15;
-    const auto typeABest = kirpich::systems::longestRound(typeAOnly);
+    const auto typeABest = kirpich::systems::longestRound(typeAOnly, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(typeABest.any);
     EXPECT_EQ(typeABest.at.type, GameType::TYPE_A);
     EXPECT_EQ(typeABest.at.level, 9);
@@ -380,7 +380,7 @@ TEST(Stats, LongestRoundNamesTheSliceItWasPlayedIn) {
     tied.typeB[1][1].longestRoundSeconds = 50;
     tied.typeC[0][0].rounds              = 1;
     tied.typeC[0][0].longestRoundSeconds = 50;
-    const auto tiedBest = kirpich::systems::longestRound(tied);
+    const auto tiedBest = kirpich::systems::longestRound(tied, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(tiedBest.any);
     EXPECT_EQ(tiedBest.at.type, GameType::TYPE_B) << "a tie goes to the earlier slice in the walk";
 }
@@ -409,12 +409,12 @@ TEST(Stats, FavouriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
     stats.typeB[5][0].rounds = 1;
     stats.typeC[9][5].rounds = 2;
 
-    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_A), 3u);
-    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_B), 5u)
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_A, kirpich::StatScope::NORMAL), 3u);
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_B, kirpich::StatScope::NORMAL), 5u)
         << "a type's rounds are the sum over its whole table";
-    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_C), 2u);
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_C, kirpich::StatScope::NORMAL), 2u);
 
-    const auto best = kirpich::systems::favouriteMode(stats);
+    const auto best = kirpich::systems::favouriteMode(stats, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(best.any);
     EXPECT_EQ(best.type, GameType::TYPE_B);
     EXPECT_EQ(best.rounds, 5u);
@@ -423,7 +423,7 @@ TEST(Stats, FavouriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
     StatsState tied;
     tied.typeA[0].rounds    = 6;
     tied.typeC[0][0].rounds = 6;
-    const auto tiedBest = kirpich::systems::favouriteMode(tied);
+    const auto tiedBest = kirpich::systems::favouriteMode(tied, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(tiedBest.any);
     EXPECT_EQ(tiedBest.type, GameType::TYPE_A) << "a tie goes to the earlier type in the walk";
 }
@@ -464,7 +464,7 @@ TEST(Stats, PreferredLevelCountsALevelAcrossEveryGameType) {
     stats.typeC[6][0].rounds = 1;
     stats.typeA[2].rounds    = 5;
 
-    const auto best = kirpich::systems::preferredLevel(stats);
+    const auto best = kirpich::systems::preferredLevel(stats, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(best.any);
     EXPECT_EQ(best.level, 6) << "a level is the rounds played at it in every type";
     EXPECT_EQ(best.rounds, 6u);
@@ -472,7 +472,7 @@ TEST(Stats, PreferredLevelCountsALevelAcrossEveryGameType) {
     StatsState tied;
     tied.typeA[3].rounds    = 4;
     tied.typeC[8][2].rounds = 4;
-    const auto tiedBest = kirpich::systems::preferredLevel(tied);
+    const auto tiedBest = kirpich::systems::preferredLevel(tied, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(tiedBest.any);
     EXPECT_EQ(tiedBest.level, 3) << "a tie goes to the lower level";
 }
@@ -483,19 +483,21 @@ TEST(Stats, PreferredLevelCountsALevelAcrossEveryGameType) {
 TEST(Stats, TheFoldsReportNothingPlayedAndFoldBothAxesToTheTypeTotal) {
     const StatsState empty;
 
-    EXPECT_FALSE(kirpich::systems::favouriteMode(empty).any);
+    EXPECT_FALSE(kirpich::systems::favouriteMode(empty, kirpich::StatScope::NORMAL).any);
     EXPECT_FALSE(kirpich::systems::favouriteMusic(empty).any);
-    EXPECT_FALSE(kirpich::systems::preferredLevel(empty).any);
-    EXPECT_FALSE(kirpich::systems::longestRound(empty).any);
-    EXPECT_EQ(kirpich::systems::roundsFor(empty, GameType::TYPE_B), 0u);
+    EXPECT_FALSE(kirpich::systems::preferredLevel(empty, kirpich::StatScope::NORMAL).any);
+    EXPECT_FALSE(kirpich::systems::longestRound(empty, kirpich::StatScope::NORMAL).any);
+    EXPECT_EQ(kirpich::systems::roundsFor(empty, GameType::TYPE_B, kirpich::StatScope::NORMAL), 0u);
 
     const StatsState stats = populated();
     for (const GameType type : {GameType::TYPE_A, GameType::TYPE_B, GameType::TYPE_C}) {
+        // The selection's level axis is folded away (kStatAxisAll), which the per-mode pages read as
+        // the combined scope - so it equals the game type's ALL total.
         const kirpich::systems::StatSelection everything{.type    = type,
                                                          .level   = kirpich::kStatAxisAll,
                                                          .variant = kirpich::kStatAxisAll};
         EXPECT_EQ(kirpich::systems::totalsForSelection(stats, everything),
-                  kirpich::systems::totalsFor(stats, type));
+                  kirpich::systems::totalsFor(stats, type, kirpich::StatScope::ALL));
     }
 
     // One level folded across its variants: the six slices of that level and no others. Type A is
@@ -624,4 +626,141 @@ TEST(Stats, HeartStoreRoundTripAndCoexistsWithTheMainDocument) {
     EXPECT_EQ(loadedStats.applicationSeconds, savedStats.applicationSeconds);
 
     std::filesystem::remove_all(root);
+}
+
+// ── Unit 2: the scope the folds read ────────────────────────────────────────────────────────────────
+
+using kirpich::StatScope;
+
+// (18) A scope picks the table set every fold reads: NORMAL the cartridge tables, HEART the heart
+// tables, ALL both folded together. The cartridge and heart tables carry different counts here, so a
+// fold reading the wrong set reads the wrong number.
+TEST(Stats, ScopedFoldsReadTheMatchingTableSet) {
+    StatsState stats;
+    stats.typeA[0].rounds       = 3;
+    stats.typeAHeart[0].rounds  = 7;
+
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_A, StatScope::NORMAL), 3u);
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_A, StatScope::HEART), 7u);
+    EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_A, StatScope::ALL), 10u)
+        << "all folds both sets";
+
+    EXPECT_EQ(kirpich::systems::totalsFor(stats, GameType::TYPE_A, StatScope::HEART).rounds, 7u);
+    EXPECT_EQ(kirpich::systems::lifetimeTotals(stats, StatScope::NORMAL).rounds, 3u);
+    EXPECT_EQ(kirpich::systems::lifetimeTotals(stats, StatScope::HEART).rounds, 7u);
+    EXPECT_EQ(kirpich::systems::lifetimeTotals(stats, StatScope::ALL).rounds, 10u);
+}
+
+// (19) The discovery gate: a fold over the three heart tables for a single non-zero round count. A
+// boot table has none, a normal round is not a heart round, and one heart round in any of the three
+// tables opens it.
+TEST(Stats, HeartEverRecordedIsAFoldOverTheHeartTables) {
+    EXPECT_FALSE(kirpich::systems::heartEverRecorded(StatsState{}));
+
+    StatsState normalOnly;
+    normalOnly.typeA[0].rounds = 5;
+    EXPECT_FALSE(kirpich::systems::heartEverRecorded(normalOnly))
+        << "a normal round does not unlock the heart content";
+
+    for (int table = 0; table < 3; ++table) {
+        StatsState stats;
+        if (table == 0) stats.typeAHeart[9].rounds       = 1;
+        if (table == 1) stats.typeBHeart[3][2].rounds     = 1;
+        if (table == 2) stats.typeCHeart[7][5].rounds     = 1;
+        EXPECT_TRUE(kirpich::systems::heartEverRecorded(stats)) << "table " << table;
+    }
+}
+
+// (20) The longest round reads its scope and remembers which set its winner came from, so a combined
+// record can wear the heart. A cross-set tie keeps the cartridge slice, because ALL walks the
+// cartridge tables first.
+TEST(Stats, LongestRoundReadsItsScopeAndCarriesHeartNess) {
+    StatsState stats;
+    stats.typeA[2].rounds              = 1;
+    stats.typeA[2].longestRoundSeconds = 100;
+    stats.typeBHeart[3][1].rounds              = 1;
+    stats.typeBHeart[3][1].longestRoundSeconds = 200;
+
+    const auto normal = kirpich::systems::longestRound(stats, StatScope::NORMAL);
+    ASSERT_TRUE(normal.any);
+    EXPECT_EQ(normal.seconds, 100u);
+    EXPECT_FALSE(normal.at.heart) << "the normal scope never reads a heart slice";
+
+    const auto heart = kirpich::systems::longestRound(stats, StatScope::HEART);
+    ASSERT_TRUE(heart.any);
+    EXPECT_EQ(heart.seconds, 200u);
+    EXPECT_TRUE(heart.at.heart);
+    EXPECT_EQ(heart.at.type, GameType::TYPE_B);
+    EXPECT_EQ(heart.at.level, 3);
+    EXPECT_EQ(heart.at.variant, 1);
+
+    const auto all = kirpich::systems::longestRound(stats, StatScope::ALL);
+    ASSERT_TRUE(all.any);
+    EXPECT_EQ(all.seconds, 200u);
+    EXPECT_TRUE(all.at.heart) << "the combined winner was a heart round";
+
+    StatsState tied;
+    tied.typeA[4].rounds              = 1;
+    tied.typeA[4].longestRoundSeconds = 50;
+    tied.typeAHeart[4].rounds              = 1;
+    tied.typeAHeart[4].longestRoundSeconds = 50;
+    const auto tiedAll = kirpich::systems::longestRound(tied, StatScope::ALL);
+    ASSERT_TRUE(tiedAll.any);
+    EXPECT_FALSE(tiedAll.at.heart) << "a cross-set tie keeps the cartridge slice";
+}
+
+// (21) The preferred level reads its scope. Under ALL a normal level and the heart level of the same
+// number are separate candidates, so a heart level can win in its own right and the fold reports it;
+// a cross-set tie keeps the cartridge level.
+TEST(Stats, PreferredLevelReadsItsScopeAndMarksAHeartLevel) {
+    StatsState stats;
+    stats.typeA[2].rounds      = 5;
+    stats.typeAHeart[7].rounds = 8;
+
+    const auto normal = kirpich::systems::preferredLevel(stats, StatScope::NORMAL);
+    ASSERT_TRUE(normal.any);
+    EXPECT_EQ(normal.level, 2);
+    EXPECT_FALSE(normal.heart);
+
+    const auto heart = kirpich::systems::preferredLevel(stats, StatScope::HEART);
+    ASSERT_TRUE(heart.any);
+    EXPECT_EQ(heart.level, 7);
+
+    const auto all = kirpich::systems::preferredLevel(stats, StatScope::ALL);
+    ASSERT_TRUE(all.any);
+    EXPECT_EQ(all.level, 7);
+    EXPECT_TRUE(all.heart) << "the combined preferred level is a heart level";
+
+    StatsState normalWins;
+    normalWins.typeA[3].rounds      = 9;
+    normalWins.typeAHeart[3].rounds = 2;
+    const auto nw = kirpich::systems::preferredLevel(normalWins, StatScope::ALL);
+    ASSERT_TRUE(nw.any);
+    EXPECT_EQ(nw.level, 3);
+    EXPECT_FALSE(nw.heart) << "the cartridge level was played more";
+
+    StatsState tied;
+    tied.typeA[5].rounds      = 4;
+    tied.typeAHeart[5].rounds = 4;
+    const auto t = kirpich::systems::preferredLevel(tied, StatScope::ALL);
+    ASSERT_TRUE(t.any);
+    EXPECT_EQ(t.level, 5);
+    EXPECT_FALSE(t.heart) << "a cross-set tie keeps the cartridge level";
+}
+
+// (22) The favourite mode reads its scope; the favourite music takes none, because music is global
+// and not split by heart.
+TEST(Stats, FavouriteModeReadsItsScopeWhileMusicStaysGlobal) {
+    StatsState stats;
+    stats.typeA[0].rounds       = 6;
+    stats.typeB[0][0].rounds    = 2;
+    stats.typeCHeart[0][0].rounds = 9;
+
+    EXPECT_EQ(kirpich::systems::favouriteMode(stats, StatScope::NORMAL).type, GameType::TYPE_A);
+    EXPECT_EQ(kirpich::systems::favouriteMode(stats, StatScope::HEART).type, GameType::TYPE_C);
+    EXPECT_EQ(kirpich::systems::favouriteMode(stats, StatScope::ALL).type, GameType::TYPE_C)
+        << "nine heart Type C rounds outweigh six normal Type A";
+
+    stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_B)] = 3;
+    EXPECT_EQ(kirpich::systems::favouriteMusic(stats).type, kirpich::MusicType::MUSIC_B);
 }

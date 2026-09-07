@@ -255,7 +255,7 @@ void initGame(GameContext& game, const std::function<std::uint8_t()>& draw,
     // The level, into the cell its game type uses, in both maps (:4162-4175).
     printLevel(game);
 
-    game.flow.framesPerDrop = framesPerDrop(game.flow.level, game.flow.heartMode != 0);
+    game.flow.framesPerDrop = framesPerDrop(game.flow.level, heartModeActive(game));
     game.flow.dropTimer = game.flow.framesPerDrop;
 
     // Both piece descriptors come from their templates (:4176-4181), before the preview's own

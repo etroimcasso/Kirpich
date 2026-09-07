@@ -423,7 +423,7 @@ TEST(StatsPages, FoldingBothAxesGivesTheGameTypesOwnTotal) {
         const kirpich::systems::StatSelection everything{
             .type = type, .level = kStatAxisAll, .variant = kStatAxisAll};
         EXPECT_EQ(kirpich::systems::totalsForSelection(stats, everything),
-                  kirpich::systems::totalsFor(stats, type));
+                  kirpich::systems::totalsFor(stats, type, kirpich::StatScope::ALL));
     }
 
     // One level across its variants: the six slices of that level and no others.
@@ -608,6 +608,157 @@ TEST(StatsPages, TheShapesAreSpacedThreeToARowAndClearTheArrowRow) {
         EXPECT_GE(kStatsPieceCols[column + 1], kStatsPieceCols[column] + 6) << "column " << column;
     }
     EXPECT_LT(kStatsPieceCols[kStatsPieceGridCols - 1] + 6, kScreenCols);
+}
+
+// ── Unit 2: heart on the stats pages ────────────────────────────────────────────────────────────────
+
+constexpr auto kHeart = static_cast<std::uint8_t>(CharTile::HEART);
+
+// (13) The per-mode pages carry their scope on the level axis: 0-9 read the cartridge tables, 10-19
+// the same numbers in heart mode, and kStatAxisAll folds both. Reading 10-19 as cartridge levels
+// would read the wrong table.
+TEST(StatsPages, TheLevelAxisCarriesTheHeartScope) {
+    using kirpich::systems::StatSelection;
+    using kirpich::systems::totalsForSelection;
+
+    StatsState stats;
+    stats.typeA[4].rounds      = 3;
+    stats.typeAHeart[4].rounds = 8;
+
+    const auto normal = StatSelection{.type    = GameType::TYPE_A,
+                                      .level   = 4,
+                                      .variant = kStatAxisAll};
+    const auto heart  = StatSelection{
+        .type    = GameType::TYPE_A,
+        .level   = static_cast<std::uint8_t>(4 + kirpich::kStatLevels),
+        .variant = kStatAxisAll};
+    const auto all    = StatSelection{.type    = GameType::TYPE_A,
+                                      .level   = kStatAxisAll,
+                                      .variant = kStatAxisAll};
+
+    EXPECT_EQ(totalsForSelection(stats, normal).rounds, 3u) << "level 4 is the cartridge level 4";
+    EXPECT_EQ(totalsForSelection(stats, heart).rounds, 8u) << "level 14 is heart level 4";
+    EXPECT_EQ(totalsForSelection(stats, all).rounds, 11u) << "all folds both sets";
+}
+
+// (14) The level selector reaches the heart levels only once heart has been unlocked. Locked, the
+// axis is the ten it has always been and stops at level 9; unlocked, it walks on to the 0-9 heart
+// levels, each drawn as its number with the heart glyph in the cell after it.
+TEST(StatsPages, TheLevelSelectorReachesHeartLevelsOnlyOnceUnlocked) {
+    // Locked: eleven positions (all + 0-9), an end stop at level 9, and no heart glyph beside it.
+    {
+        Screen screen;
+        screen.open(StatsBranch::MODE_A);
+        for (int i = 0; i < 15; ++i) screen.step({Action::MenuRight});
+        EXPECT_EQ(screen.game.screens.statsLevel, 9u) << "locked, the axis stops at level 9";
+        EXPECT_NE(screen.map()[kStatsPickerFirstRow][kirpich::systems::kOptionValueCol + 1], kHeart);
+    }
+
+    // Unlocked: a single recorded heart round opens the 10-19 half.
+    {
+        Screen screen;
+        screen.game.stats.typeAHeart[0].rounds = 1;
+        screen.open(StatsBranch::MODE_A);
+
+        // all(pos 0) -> level 9 (pos 10) -> heart level 0 (pos 11).
+        for (int i = 0; i < 11; ++i) screen.step({Action::MenuRight});
+        EXPECT_EQ(screen.game.screens.statsLevel, kirpich::kStatLevels) << "reached heart level 0";
+        EXPECT_TRUE(holdsText(screen.map(), kStatsPickerFirstRow,
+                              kirpich::systems::kOptionValueCol, "0"))
+            << "a heart level reads as its own number";
+        EXPECT_EQ(screen.map()[kStatsPickerFirstRow][kirpich::systems::kOptionValueCol + 1], kHeart)
+            << "with the heart in the cell after it";
+
+        // On to the last heart level, and it is the end stop.
+        for (int i = 0; i < 20; ++i) screen.step({Action::MenuRight});
+        EXPECT_EQ(screen.game.screens.statsLevel, 2 * kirpich::kStatLevels - 1)
+            << "heart level 9 is the far end of the axis";
+    }
+}
+
+// (15) A mode page's figures follow the level axis into the heart levels, end to end through the
+// screen: a heart level reads the heart table, a cartridge level the cartridge table.
+TEST(StatsPages, AModePagesFiguresFollowTheLevelAxisIntoHeart) {
+    Screen screen;
+    screen.game.stats.typeA[4]      = sliceAt(7000);
+    screen.game.stats.typeAHeart[4] = sliceAt(4000);
+    screen.open(StatsBranch::MODE_A);
+
+    screen.game.screens.statsLevel = 4;  // cartridge level 4
+    screen.step({});
+    EXPECT_EQ(figureAt(screen.map(), kStatsModeFirstLine + 0, 3), "  7001");
+
+    screen.game.screens.statsLevel =
+        static_cast<std::uint8_t>(4 + kirpich::kStatLevels);  // heart level 4
+    screen.step({});
+    EXPECT_EQ(figureAt(screen.map(), kStatsModeFirstLine + 0, 3), "  4001")
+        << "the heart level reads the heart table";
+}
+
+// (16) In the combined all-time view, a longest round sourced from a heart round wears the heart, one
+// cell past the shared value column. A homogeneous view - normal or heart - draws no per-record
+// marker, because the whole page is one scope.
+TEST(StatsPages, AnAllTimeRecordWearsTheHeartInTheCombinedView) {
+    Screen screen;
+    screen.game.stats.typeBHeart[3][2].rounds              = 1;
+    screen.game.stats.typeBHeart[3][2].longestRoundSeconds = 500;
+    screen.open(StatsBranch::ALL_TIME);  // statsScope opens on ALL
+    screen.step({});
+    // The combined view leads with "program", so "at" is the fourth line.
+    EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 3, "b-3-2"));
+    EXPECT_EQ(screen.map()[kStatsFirstLine + 3][kStatsValueEndCol + 1], kHeart)
+        << "the combined longest round is a heart round and is not marked";
+
+    // A homogeneous scope drops "program" - it is a whole-application figure, not a scope's - so its
+    // pages lead with the scope's own round time and "at" moves up one line. It shows the cartridge
+    // winner and no per-record marker.
+    screen.game.stats.typeA[1].rounds              = 1;
+    screen.game.stats.typeA[1].longestRoundSeconds = 60;
+    screen.game.screens.statsScope = kirpich::StatScope::NORMAL;
+    screen.step({});
+    EXPECT_FALSE(holdsText(screen.map(), kStatsFirstLine + 0, kStatsLabelCol, "program"))
+        << "program time is a whole-application figure and does not belong on a filtered view";
+    EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 2, "a-1"));
+    EXPECT_NE(screen.map()[kStatsFirstLine + 2][kStatsValueEndCol + 1], kHeart)
+        << "a homogeneous scope draws no per-record marker";
+}
+
+// (17b) The all-time pages read the scope the sub-menu set: the normal view shows the cartridge
+// figures, the heart view the heart figures, the combined view both. This is the reported "all-time
+// heart shows normal" guard - it renders the page through the screen under each scope with distinct
+// data in the two table sets.
+TEST(StatsPages, TheAllTimePagesReadTheirScope) {
+    Screen screen;
+    screen.game.stats.typeA[0]      = sliceAt(1000);  // 1001 normal rounds
+    screen.game.stats.typeAHeart[0] = sliceAt(9000);  // 9001 heart rounds
+    screen.open(StatsBranch::ALL_TIME);
+    screen.game.screens.statsPage = 1;  // the "rounds" page: line 0 is the lifetime round count
+
+    screen.game.screens.statsScope = kirpich::StatScope::NORMAL;
+    screen.step({});
+    EXPECT_EQ(figureAt(screen.map(), kStatsFirstLine + 0, 3), "  1001") << "normal shows the cartridge count";
+
+    screen.game.screens.statsScope = kirpich::StatScope::HEART;
+    screen.step({});
+    EXPECT_EQ(figureAt(screen.map(), kStatsFirstLine + 0, 3), "  9001") << "heart shows the heart count";
+
+    screen.game.screens.statsScope = kirpich::StatScope::ALL;
+    screen.step({});
+    EXPECT_EQ(figureAt(screen.map(), kStatsFirstLine + 0, 3), " 10002") << "all folds both";
+}
+
+// (17) The favourites page marks the preferred level with the heart when the combined argmax is a
+// heart level.
+TEST(StatsPages, ThePreferredLevelWearsTheHeartWhenItIsAHeartLevel) {
+    Screen screen;
+    screen.game.stats.typeAHeart[7].rounds = 9;  // the most-played level anywhere is a heart level
+    screen.open(StatsBranch::ALL_TIME);
+    screen.game.screens.statsPage = 5;  // the favourites page
+    screen.step({});
+
+    EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 2, "7"));
+    EXPECT_EQ(screen.map()[kStatsFirstLine + 2][kStatsValueEndCol + 1], kHeart)
+        << "the combined preferred level is a heart level and is not marked";
 }
 
 }  // namespace

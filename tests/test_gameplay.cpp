@@ -248,6 +248,32 @@ TEST(Gameplay, InitGameVectors) {
     }
 }
 
+// A demo plays in normal mode however heart is toggled. Heart mode is a persistent title-screen
+// toggle in this port (the cartridge armed it transiently, so its attract demo never saw it), and the
+// demo runs the same round pipeline a player does. Its recordings assume normal gravity, so a demo
+// that inherited heart mode would fall too fast and top the field out - losing a demo that is meant
+// never to lose, and dropping the player into high-score name entry for a demo. The toggle itself is
+// left set, so it greets the player exactly as they left it.
+TEST(Gameplay, ADemoPlaysNormalGravityHoweverHeartIsToggled) {
+    for (const std::uint8_t level : {std::uint8_t{0}, std::uint8_t{5}, std::uint8_t{9}}) {
+        // Heart toggled on, but a demo is running: the round loads normal gravity and keeps the toggle.
+        GameContext demo = readyToStart(GameType::TYPE_A, level);
+        demo.flow.heartMode  = 1;
+        demo.demo.activeDemo = ActiveDemo::TYPE_A;
+        kirpich::systems::initGame(demo, cyclingDraw());
+        EXPECT_EQ(demo.flow.framesPerDrop, kirpich::framesPerDrop(level, /*heart=*/false))
+            << "a demo ignores the heart toggle";
+        EXPECT_EQ(demo.flow.heartMode, 1) << "and leaves the player's toggle set";
+
+        // The same toggle in a real round (no demo) does load heart gravity.
+        GameContext round = readyToStart(GameType::TYPE_A, level);
+        round.flow.heartMode = 1;
+        kirpich::systems::initGame(round, cyclingDraw());
+        EXPECT_EQ(round.flow.framesPerDrop, kirpich::framesPerDrop(level, /*heart=*/true))
+            << "a real round honors it";
+    }
+}
+
 // ── Test 2: NormalGameplayBeatOrder ─────────────────────────────────────────────────────────────────
 // GameState_00 (tetris.asm:4406-4421): the frame's twelve steps, their order, and the pause early-out.
 TEST(Gameplay, NormalGameplayBeatOrder) {

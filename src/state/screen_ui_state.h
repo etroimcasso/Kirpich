@@ -25,6 +25,7 @@
 #include "state/demo_state.h"     // ActiveDemo
 #include "state/display_state.h"  // BackgroundMap
 #include "state/engine_state.h"   // EngineState::oam
+#include "state/stats_state.h"    // StatScope
 
 namespace kirpich {
 
@@ -159,9 +160,20 @@ struct ScreenUiState {
     // The picker a game type's pages share, so the figures and the piece counts on them are read for
     // one selection and change together as it moves. Both axes open on kStatAxisAll - the mode's own
     // aggregate - and statsPickerRow is which axis the cursor is on.
+    //
+    // The level axis also carries the per-mode heart scope, once heart has been unlocked: positions
+    // 0-9 are the cartridge levels and 10-19 the same numbers played in heart mode
+    // (totalsForSelection, systems/stats.cpp). So a mode page needs no separate scope field.
     std::uint8_t statsLevel     = kStatAxisAll;
     std::uint8_t statsVariant   = kStatAxisAll;
     std::uint8_t statsPickerRow = 0;
+
+    // Which scope the All-Time branch is reading - all, normal, or heart. The per-mode branches carry
+    // their scope on the level axis above; the All-Time branch has no level picker, so its scope is
+    // chosen by the sub-menu the All-Time row opens (systems/stats_screens.h) and read by the
+    // all-time pages and their folds. It opens on ALL, which is what "all time includes all" means,
+    // and is reset there whenever a branch is chosen.
+    StatScope statsScope = StatScope::ALL;
 
     // Where the stacking screens came from, deepest last, and how many of them are on it.
     //

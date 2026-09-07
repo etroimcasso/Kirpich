@@ -228,12 +228,13 @@ TEST(StatsRecording, TheFoldsSumThePieceCountsToo) {
     constexpr auto kI = static_cast<std::size_t>(kirpich::PieceKind::I);
     constexpr auto kO = static_cast<std::size_t>(kirpich::PieceKind::O);
 
-    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_A).pieces[kI], 2u);
-    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_B).pieces[kI], 1u);
-    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_B).pieces[kO], 1u);
-    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_C).pieces[kO], 1u);
+    using kirpich::StatScope;
+    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_A, StatScope::NORMAL).pieces[kI], 2u);
+    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_B, StatScope::NORMAL).pieces[kI], 1u);
+    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_B, StatScope::NORMAL).pieces[kO], 1u);
+    EXPECT_EQ(kirpich::systems::totalsFor(game.stats, GameType::TYPE_C, StatScope::NORMAL).pieces[kO], 1u);
 
-    const StatSlice lifetime = kirpich::systems::lifetimeTotals(game.stats);
+    const StatSlice lifetime = kirpich::systems::lifetimeTotals(game.stats, StatScope::NORMAL);
     EXPECT_EQ(lifetime.pieces[kI], 3u);
     EXPECT_EQ(lifetime.pieces[kO], 2u);
     for (std::size_t kind = 0; kind < kirpich::kPieceKindCount; ++kind) {

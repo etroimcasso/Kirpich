@@ -40,6 +40,12 @@ constexpr std::string_view kNotBuiltYet = "not built yet";
 
 constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
 
+// The heart that marks heart mode: beside a heart level on the picker, and beside an all-time record
+// sourced from a heart round. It is a background-map tile rather than text - the glyph has no letter,
+// so writeMapText cannot spell it - and the stats screens draw their own opaque background, so the
+// tile shows on its own without the sprite the difficulty-screen indicator needs over borrowed art.
+constexpr auto kHeartGlyph = static_cast<std::uint8_t>(CharTile::HEART);
+
 // ── Short values, carried by value ────────────────────────────────────────────────────────────────
 //
 // A page's values are worked out as it is drawn and written straight into the map, so nothing has to
@@ -120,8 +126,19 @@ std::string_view musicName(MusicType type) {
 // Each row is one axis, and a row's positions are `all` followed by that axis's own values - so
 // position 0 folds the axis and position n + 1 is value n.
 
-std::size_t axisCount(std::size_t row) noexcept {
-    return row == 0 ? kStatLevels : kStatVariants;
+// The level axis (row 0) reaches twice as far once heart has been unlocked: positions 0-9 are the
+// cartridge levels, 10-19 the same numbers played in heart mode. The variant axis (row 1) is
+// unchanged. Below the gate the level axis is the ten it always was, so a player who has never
+// played a heart game sees exactly the picker they always have.
+std::size_t axisCount(std::size_t row, bool heartUnlocked) noexcept {
+    if (row != 0) return kStatVariants;
+    return heartUnlocked ? 2 * kStatLevels : kStatLevels;
+}
+
+// Whether a level-axis value is a heart level: one of the 10-19 positions the gate opens. This is
+// what draws the heart beside it, and it is only ever true once heart has been unlocked.
+bool isHeartLevel(std::size_t row, std::uint8_t value, bool heartUnlocked) noexcept {
+    return row == 0 && heartUnlocked && value >= kStatLevels && value < 2 * kStatLevels;
 }
 
 std::uint8_t axisValue(const ScreenUiState& ui, std::size_t row) noexcept {
@@ -145,9 +162,10 @@ std::string_view pickerLabel(StatsBranch branch, std::size_t row) noexcept {
     return branch == StatsBranch::MODE_C ? "rise" : "height";
 }
 
-ShortText pickerValueText(StatsBranch branch, const ScreenUiState& ui, std::size_t row) {
+ShortText pickerValueText(StatsBranch branch, const ScreenUiState& ui, std::size_t row,
+                          bool heartUnlocked) {
     const std::uint8_t value = axisValue(ui, row);
-    if (value >= axisCount(row)) {
+    if (value >= axisCount(row, heartUnlocked)) {
         ShortText text;
         text.chars = {'a', 'l', 'l'};
         text.size  = 3;
@@ -156,23 +174,35 @@ ShortText pickerValueText(StatsBranch branch, const ScreenUiState& ui, std::size
     if (row == 1 && branch == StatsBranch::MODE_C) {
         return numberText(riseValueAt(value));
     }
+    // A heart level reads as its own number - the heart is the glyph paintPicker draws after it, not
+    // part of the number itself.
+    if (isHeartLevel(row, value, heartUnlocked)) {
+        return numberText(value - kStatLevels);
+    }
     return numberText(value);
 }
 
 // The picker's rows, in the settings screen's own scroller columns: the label, the value, an arrow
 // at each end there is somewhere to go, and the cursor beside the row the player is on.
 void paintPicker(GameContext& game, StatsBranch branch) {
-    const ScreenUiState& ui   = game.screens;
-    BackgroundMap&       map  = game.display.displayedMap();
-    const std::size_t    rows = statsPickerRowCount(branch);
+    const ScreenUiState& ui            = game.screens;
+    BackgroundMap&       map           = game.display.displayedMap();
+    const std::size_t    rows          = statsPickerRowCount(branch);
+    const bool           heartUnlocked = heartEverRecorded(game.stats);
 
     for (std::size_t row = 0; row < rows; ++row) {
         const std::size_t line = kStatsPickerFirstRow + kStatsPickerStride * row;
 
         writeMapText(map, line, kStatsLabelCol, pickerLabel(branch, row));
-        writeMapText(map, line, kOptionValueCol, pickerValueText(branch, ui, row).view());
+        const ShortText value = pickerValueText(branch, ui, row, heartUnlocked);
+        writeMapText(map, line, kOptionValueCol, value.view());
 
-        const std::size_t count    = axisCount(row);
+        // A heart level wears the heart in the cell after its number.
+        if (isHeartLevel(row, axisValue(ui, row), heartUnlocked)) {
+            map[line][kOptionValueCol + value.size] = kHeartGlyph;
+        }
+
+        const std::size_t count    = axisCount(row, heartUnlocked);
         const std::size_t position = axisPosition(axisValue(ui, row), count);
         placeScrollerArrows(game, row * 2, line, position > 0, position + 1 <= count);
 
@@ -193,26 +223,45 @@ void paintPieceCounts(BackgroundMap& map, const std::array<std::uint32_t, kPiece
     }
 }
 
-void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t page) {
-    const StatSlice life = lifetimeTotals(stats);
+// The heart that marks an all-time record as a single heart round's. It sits one cell past the shared
+// value column, in the right margin every value stops short of, and is drawn only under the combined
+// view - under a normal or heart view the whole page is one scope and a per-record mark would say
+// nothing.
+void markAllTimeHeart(BackgroundMap& map, std::size_t line) {
+    map[line][kStatsValueEndCol + 1] = kHeartGlyph;
+}
+
+void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t page,
+                      StatScope scope) {
+    const StatSlice life    = lifetimeTotals(stats, scope);
+    const bool      combined = scope == StatScope::ALL;
 
     switch (page) {
         case 0: {
-            const LongestRound best = longestRound(stats);
-            statTextLine(map, kStatsFirstLine + 0, "program",
-                         formatDuration(stats.applicationSeconds).view());
-            statTextLine(map, kStatsFirstLine + 1, "rounds", formatDuration(life.seconds).view());
-            statTextLine(map, kStatsFirstLine + 2, "longest",
-                         formatDuration(best.seconds).view());
-            statTextLine(map, kStatsFirstLine + 3, "at",
-                         best.any ? combinationText(best.at).view() : kNothingYet);
+            const LongestRound best = longestRound(stats, scope);
+            std::size_t        line = kStatsFirstLine;
+            // Program time is the whole application's - the title, the menus, every round of every
+            // kind - so it belongs to no single scope. It shows on the combined view only; a normal or
+            // heart view leads with that scope's own round time instead. Every other figure here (the
+            // round time, the longest round and its combination) is the scope's own.
+            if (combined) {
+                statTextLine(map, line++, "program",
+                             formatDuration(stats.applicationSeconds).view());
+            }
+            statTextLine(map, line++, "rounds", formatDuration(life.seconds).view());
+            statTextLine(map, line++, "longest", formatDuration(best.seconds).view());
+            statTextLine(map, line, "at", best.any ? combinationText(best.at).view() : kNothingYet);
+            // The longest round wears the heart when the combined view's winner is a heart round.
+            if (combined && best.any && best.at.heart) {
+                markAllTimeHeart(map, line);
+            }
             return;
         }
         case 1:
             statLine(map, kStatsFirstLine + 0, "rounds", life.rounds, 3);
-            statLine(map, kStatsFirstLine + 1, "mode a", roundsFor(stats, GameType::TYPE_A), 3);
-            statLine(map, kStatsFirstLine + 2, "mode b", roundsFor(stats, GameType::TYPE_B), 3);
-            statLine(map, kStatsFirstLine + 3, "mode c", roundsFor(stats, GameType::TYPE_C), 3);
+            statLine(map, kStatsFirstLine + 1, "mode a", roundsFor(stats, GameType::TYPE_A, scope), 3);
+            statLine(map, kStatsFirstLine + 2, "mode b", roundsFor(stats, GameType::TYPE_B, scope), 3);
+            statLine(map, kStatsFirstLine + 3, "mode c", roundsFor(stats, GameType::TYPE_C, scope), 3);
             return;
         case 2:
             statLine(map, kStatsFirstLine + 0, "score", life.score, 5);
@@ -231,17 +280,22 @@ void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t p
         default: break;
     }
 
-    const FavouriteMode  mode  = favouriteMode(stats);
+    const FavouriteMode  mode  = favouriteMode(stats, scope);
     const FavouriteMusic music = favouriteMusic(stats);
-    const PreferredLevel level = preferredLevel(stats);
+    const PreferredLevel level = preferredLevel(stats, scope);
 
     const char letter = typeLetter(mode.type);
+    // Favourite mode is a game type and favourite music is global, so neither is heart-split and
+    // neither wears the heart. Only the preferred level, which is one identifiable level, does.
     statTextLine(map, kStatsFirstLine + 0, "mode",
                  mode.any ? std::string_view{&letter, 1} : kNothingYet);
     statTextLine(map, kStatsFirstLine + 1, "music",
                  music.any ? musicName(music.type) : kNothingYet);
     statTextLine(map, kStatsFirstLine + 2, "level",
                  level.any ? numberText(level.level).view() : kNothingYet);
+    if (combined && level.any && level.heart) {
+        markAllTimeHeart(map, kStatsFirstLine + 2);
+    }
 }
 
 void paintModePage(GameContext& game, StatsBranch branch, std::size_t page) {
@@ -269,7 +323,8 @@ void paintStatsPage(GameContext& game, std::size_t page) {
 
     switch (branch) {
         case StatsBranch::ALL_TIME:
-            paintAllTimePage(game.display.displayedMap(), game.stats, page);
+            paintAllTimePage(game.display.displayedMap(), game.stats, page,
+                             game.screens.statsScope);
             return;
         case StatsBranch::ACHIEVEMENTS:
             writeMapText(game.display.displayedMap(), kStatsFirstLine, kStatsLabelCol, kNotBuiltYet);
@@ -335,7 +390,7 @@ void adjustStatsPicker(GameContext& game, std::size_t /*page*/, int delta) {
     ScreenUiState&    ui  = game.screens;
     const std::size_t row = std::min<std::size_t>(ui.statsPickerRow, statsPickerRowCount(branch) - 1);
 
-    const std::size_t count    = axisCount(row);
+    const std::size_t count = axisCount(row, heartEverRecorded(game.stats));
     const int         position = static_cast<int>(axisPosition(axisValue(ui, row), count)) + delta;
     if (position < 0 || position > static_cast<int>(count)) {
         return;
@@ -420,7 +475,7 @@ std::array<std::uint32_t, kPieceKindCount> statsPieceCounts(const StatsState&   
     if (statsBranchIsMode(branch)) {
         return totalsForSelection(stats, statsSelection(ui, branch)).pieces;
     }
-    return lifetimeTotals(stats).pieces;
+    return lifetimeTotals(stats, ui.statsScope).pieces;
 }
 
 void statLine(BackgroundMap& map, std::size_t line, std::string_view label, std::uint32_t value,
