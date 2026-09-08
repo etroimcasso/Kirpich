@@ -140,6 +140,10 @@ void beginRound(GameContext& game, std::uint64_t nowNanos) {
     // inactive is the whole of the exclusion: every other call below does nothing while inactive.
     if (game.demo.activeDemo != ActiveDemo::NONE) return;
 
+    // Arm the round's achievement observations. Reached only for a real round (a demo returned above),
+    // which is what keeps the achievement check off attract play, exactly as this round latch does.
+    beginAchievementRound(game.achievements);
+
     const RoundCombination at    = combinationOf(game.flow);
     RoundInProgress&       round = game.stats.round;
 
@@ -219,7 +223,13 @@ void recordLineClear(GameContext& game, std::uint8_t rows) {
         case 1:  addSaturating(slice.singles, 1); break;
         case 2:  addSaturating(slice.doubles, 1); break;
         case 3:  addSaturating(slice.triples, 1); break;
-        default: addSaturating(slice.tetrises, 1); break;
+        default:
+            addSaturating(slice.tetrises, 1);
+            // The same four-line clear counts toward this round's tetris tally, which an achievement
+            // reads at round end. It lives on the achievement round block, not on the slice, so it
+            // survives endRound's clear; the round.active gate above keeps it off attract play.
+            noteRoundTetris(game.achievements);
+            break;
     }
 }
 

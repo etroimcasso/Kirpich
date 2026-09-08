@@ -450,6 +450,10 @@ void initGameOver(GameContext& game, const NowNanos& now) {
     // screens after it do not change it, but this is the point play stopped.
     endRound(game, nowFrom(now));
 
+    // The round concluded by topping out (not a Type B win). This arms the achievement check; the
+    // check itself runs when the game-over screen is left, by when any earned rocket scene has run.
+    noteRoundConcluded(game.achievements, /*wonTypeB=*/false);
+
     setPieceSpritesHidden(game.spriteRenderer, kHidden);
     renderActivePieceSprite(game);   // (:4581) — the curtain falls over an emptied object layer
     renderPreviewPieceSprite(game);  // (:4582)
@@ -492,11 +496,17 @@ void gameOverCurtain(GameContext& game) {
     game.flow.gameState = GameState::GAME_OVER_SCREEN;
 }
 
-void gameOverScreen(GameContext& game) {
+void gameOverScreen(GameContext& game, const RoundEndHook& roundEnded) {
     if (!pressed(game, Action::RotateClockwise) && !pressed(game, Action::Start)) {
         return;
     }
     game.flow.wipeCounter = 0;
+
+    // The round truly ends here for every path but the rocket: a top-out, a Type B loss, and a Type B
+    // win (which reaches this screen after its tally). Any bonus scene has already run, so the
+    // achievement check reads a complete round. The rocket path leaves through the bonus scene and
+    // fires this seam there instead.
+    if (roundEnded) roundEnded(game);
 
     if (game.multiplayer.isMultiplayer) {
         game.flow.gameState = GameState::INIT_2P_DIFFICULTY;
@@ -543,7 +553,9 @@ void installGameplayHandlers(GameStateDispatcher& dispatcher, GameplayWiring wir
     dispatcher.setHandler(GameState::INIT_GAME_OVER,
                           [wiring](GameContext& g) { initGameOver(g, wiring.now); });
     dispatcher.setHandler(GameState::GAME_OVER_CURTAIN, gameOverCurtain);
-    dispatcher.setHandler(GameState::GAME_OVER_SCREEN, gameOverScreen);
+    dispatcher.setHandler(GameState::GAME_OVER_SCREEN, [roundEnded = wiring.roundEnded](GameContext& g) {
+        gameOverScreen(g, roundEnded);
+    });
     dispatcher.setHandler(GameState::INIT_TYPE_B_SCOREBOARD, initTypeBScoreboard);
     dispatcher.setHandler(GameState::STATE_0C_UNKNOWN, state0CUnknown);
 }

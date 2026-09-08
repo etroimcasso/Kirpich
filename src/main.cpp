@@ -17,6 +17,7 @@
 // engine's run loop, so those writes have nothing to reach. docs/contracts/boot.md §4 accounts for
 // every line of the original's startup routine and what became of it.
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -61,9 +62,11 @@
 #include "render/type_c_difficulty.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
+#include "state/achievement_persistence.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
+#include "systems/achievements.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/enhancement_screens.h"
@@ -236,6 +239,27 @@ int main(int /*argc*/, char* /*argv*/[]) {
         return static_cast<std::uint64_t>(clock.now().count());
     };
 
+    // The calendar date an achievement is stamped with. The engine's clock is monotonic and cannot
+    // report a date, so the port reads the system clock here - injected, like nowNanos, rather than
+    // called inline, so an unlock date is pinned by a test like everything else. Read only at an
+    // unlock, never per frame.
+    const auto nowDate = [] {
+        const auto today = std::chrono::year_month_day{
+            std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
+        return kirpich::AchievementDate{
+            .year  = static_cast<std::uint16_t>(static_cast<int>(today.year())),
+            .month = static_cast<std::uint8_t>(static_cast<unsigned>(today.month())),
+            .day   = static_cast<std::uint8_t>(static_cast<unsigned>(today.day()))};
+    };
+
+    // The round-end check, fired at every point a round truly ends. The game-over screen and the
+    // rocket scene both hand it this same closure; the reset and quit paths below call the same check
+    // on the game directly. The check does nothing unless a round has concluded, so a firing point
+    // reached without one is harmless.
+    const auto roundEnded = [nowDate](kirpich::systems::GameContext& g) {
+        kirpich::systems::evaluateRoundEnd(g, nowDate);
+    };
+
     // ── The machine ──────────────────────────────────────────────────────────
     // ONE virtual machine, shared. The piece randomizer and the garbage fill both read the divider,
     // and a Type B round init draws its pieces and then fills its garbage in the same frame — so the
@@ -278,10 +302,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The dispatcher's own reset goes with it: the original's startup clears the held-buttons byte, so
     // the frame after a reset derives its presses against nothing and every button still down reads as
     // freshly pressed. That is also what makes a chord held down keep resetting until it is released.
-    const auto reset = [&game, &dispatcher, nowNanos] {
+    const auto reset = [&game, &dispatcher, nowNanos, nowDate] {
         // A round in progress ends here rather than leaking its time into whatever the player does
         // after the reset. The statistics themselves survive the reset, as the top scores do.
         kirpich::systems::endRound(game, nowNanos());
+        // A round that had concluded but not yet been checked (a chord reset from the game-over screen)
+        // is checked before the reset wipes its state. A mid-round reset has nothing pending, so this
+        // is a no-op there.
+        kirpich::systems::evaluateRoundEnd(game, nowDate);
         kirpich::systems::softReset(game);
         dispatcher.reset();
     };
@@ -315,6 +343,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
         kirpich::systems::bankApplicationTime(game, nowNanos());
         kirpich::saveStats(game.stats, saves);
         kirpich::saveStatsHeart(game.stats, saves);
+        // The unlocked achievements go down beside the statistics: a round that just earned one is
+        // recorded at the same points a round's statistics are.
+        kirpich::saveAchievements(game.achievements, saves);
     };
 
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
@@ -373,7 +404,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The two bonus endings. Without these the dance's height-5 fork and the game-over chain's
     // 100 000-point fork both write a state nothing implements, and the game stops where it should
     // launch something.
-    kirpich::systems::installLaunchSceneHandlers(dispatcher);
+    kirpich::systems::installLaunchSceneHandlers(dispatcher, roundEnded);
 
     // Both seams take the machine's raw byte source: the round's piece selection and the garbage
     // fill's per-cell pick each own their own logic and only ask the divider for a number.
@@ -388,6 +419,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
                             [&garbageFold] { return garbageFold(); }),
                         .softReset   = reset,
                         .now         = nowNanos,
+                        // The achievement check runs when the game-over screen is left - after any
+                        // rocket scene, so a topped-out round that earned one is seen. The rocket
+                        // path leaves through the bonus scene, which fires the same seam.
+                        .roundEnded  = roundEnded,
                     });
 
     // Start the machine: the boot path, then the player's saved top scores read back over the tables
@@ -405,8 +440,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // drives this guard at a frame boundary before tearing down. A round still being played is closed
     // into its own combination first, so quitting mid-game records the round rather than discarding
     // it, and the session's time goes down with it.
-    loop.exitAction([&game, nowNanos, persistStats] {
+    loop.exitAction([&game, nowNanos, nowDate, persistStats] {
         kirpich::systems::endRound(game, nowNanos());
+        // A round that had concluded but not yet been checked (quitting from the game-over screen
+        // before pressing on) is checked before the records are written, so a last-round unlock is
+        // saved. A mid-round quit has nothing pending.
+        kirpich::systems::evaluateRoundEnd(game, nowDate);
         persistStats();
         return retropp::ExitVerdict::Proceed;
     });

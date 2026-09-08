@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
@@ -10,6 +11,7 @@
 
 #include "data/music.h"          // MusicId
 #include "data/scene_sprites.h"  // buranLaunchSprites, rocketLaunchSprites
+#include "data/scoring.h"        // kBonusEndings
 #include "data/sfx.h"            // NoiseSfxId, SquareSfxId
 #include "data/tilemaps.h"       // kBuranBackdropTilemap, the tower strips, kCongratulationsTilemap
 #include "state/display_state.h"
@@ -222,6 +224,10 @@ void leaveLaunchScene(GameContext& game, GameState next) {
 // ── The Buran chain ─────────────────────────────────────────────────────────────────────────────────
 
 void initBuran(GameContext& game) {
+    // The Buran scene ran this round, which is the COSMONAUT achievement's whole condition. Reached
+    // only by a Height-5 Type B win, so no further test is needed.
+    noteBuranScene(game.achievements);
+
     buildLaunchPad(game);
 
     // The Buran pad carries a second tower and the launch hardware between them (:2696-2711).
@@ -350,6 +356,12 @@ void initRocketLaunch(GameContext& game) {
 
     loadSceneSprites(game.spriteRenderer, rocketLaunchSprites());
 
+    // The rocket scene ran this round (LIFTOFF), and whether it is the highest-tier rocket the biggest
+    // scores earn (ESCAPE VELOCITY). The tier is read from the recorded sprite before it is consumed
+    // below; kBonusEndings is ordered by descending threshold, so its first row is the top tier.
+    noteRocketScene(game.achievements,
+                    game.flow.rocketSpriteIndex == kBonusEndings.front().rocket_sprite);
+
     // The score earned one of three rockets; the game-over chain recorded which (:2945-2946), and this
     // consumes the record (:2949-2950).
     game.spriteRenderer.slots[kVehicleSlot].spriteId = game.flow.rocketSpriteIndex;
@@ -401,15 +413,21 @@ void rocketMainEngineFire(GameContext& game) {
     game.flow.gameState = GameState::END_OF_BONUS_SCENE;
 }
 
-void endOfBonusScene(GameContext& game) {
+void endOfBonusScene(GameContext& game, const RoundEndHook& roundEnded) {
     // No timer gate, unlike every other handler in either chain (:3056-3065).
     game.audioCues.resetRequested = true;  // (:3059)
+
+    // A rocket round leaves through here, not the game-over screen, so this is where its round truly
+    // ends and the achievement check runs. By now the rocket scene has run, so LIFTOFF and ESCAPE
+    // VELOCITY are decided; the round's score is untouched by the scene.
+    if (roundEnded) roundEnded(game);
+
     leaveLaunchScene(game, GameState::INIT_TYPE_A_DIFFICULTY);
 }
 
 // ── Installer ───────────────────────────────────────────────────────────────────────────────────────
 
-void installLaunchSceneHandlers(GameStateDispatcher& dispatcher) {
+void installLaunchSceneHandlers(GameStateDispatcher& dispatcher, RoundEndHook roundEnded) {
     dispatcher.setHandler(GameState::INIT_BURAN, initBuran);
     dispatcher.setHandler(GameState::PREPARE_BURAN_LAUNCH, prepareBuranLaunch);
     dispatcher.setHandler(GameState::BURAN_IGNITION, buranIgnition);
@@ -425,7 +443,10 @@ void installLaunchSceneHandlers(GameStateDispatcher& dispatcher) {
     dispatcher.setHandler(GameState::ROCKET_IGNITION, rocketIgnition);
     dispatcher.setHandler(GameState::ROCKET_LIFTOFF, rocketLiftoff);
     dispatcher.setHandler(GameState::ROCKET_MAIN_ENGINE_FIRE, rocketMainEngineFire);
-    dispatcher.setHandler(GameState::END_OF_BONUS_SCENE, endOfBonusScene);
+    dispatcher.setHandler(GameState::END_OF_BONUS_SCENE,
+                          [roundEnded = std::move(roundEnded)](GameContext& g) {
+                              endOfBonusScene(g, roundEnded);
+                          });
 }
 
 }  // namespace kirpich::systems

@@ -11,9 +11,11 @@ add_library(kirpich-lib STATIC
     data/charmap.cpp
     data/gravity.cpp
     data/scoring.cpp
+    state/achievement_persistence.cpp
     state/high_score_persistence.cpp
     state/settings.cpp
     state/stats_persistence.cpp
+    systems/achievements.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/boot.cpp

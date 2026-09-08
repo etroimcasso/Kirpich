@@ -14,6 +14,9 @@
 // no member here by design — it lives on the VM side, not in the game's state image (see
 // docs/contracts/audio-state.md).
 
+#include <functional>
+
+#include "state/achievement_state.h"
 #include "state/demo_state.h"
 #include "state/display_state.h"
 #include "state/engine_state.h"
@@ -41,6 +44,7 @@ struct GameContext {
     DisplayState        display;         // which tile art the background draws through
     ScreenUiState       screens;         // the port's own screens (no cartridge counterpart)
     StatsState          stats;           // what has been played, per difficulty combination
+    AchievementState    achievements;    // what has been earned, and this round's observations
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)
@@ -70,5 +74,11 @@ struct GameContext {
 [[nodiscard]] inline bool heartModeActive(const GameContext& game) noexcept {
     return game.flow.heartMode != 0 && game.demo.activeDemo == ActiveDemo::NONE;
 }
+
+// A round has finished and the game has left it. Fired at the points a round truly ends - the game-over
+// screen's exit and the rocket scene's exit - after the round's numbers are final and any bonus scene
+// has run. The achievement round-end check hangs off this; the host supplies the closure. A generic
+// seam so a later round-end consumer (an end-of-round notice) rides the same wiring.
+using RoundEndHook = std::function<void(GameContext&)>;
 
 }  // namespace kirpich::systems
