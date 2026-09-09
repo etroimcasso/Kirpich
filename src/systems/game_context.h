@@ -17,6 +17,7 @@
 #include <functional>
 
 #include "state/achievement_state.h"
+#include "state/achievements_screen_state.h"
 #include "state/demo_state.h"
 #include "state/display_state.h"
 #include "state/engine_state.h"
@@ -45,6 +46,11 @@ struct GameContext {
     ScreenUiState       screens;         // the port's own screens (no cartridge counterpart)
     StatsState          stats;           // what has been played, per difficulty combination
     AchievementState    achievements;    // what has been earned, and this round's observations
+
+    // The achievements screen's own state - which section page is up, where its cursor is, which
+    // badge is open. Its own struct rather than more fields on ScreenUiState: that screen owns its
+    // whole state space in one place (see state/achievements_screen_state.h).
+    AchievementScreenState achievementScreen;
 
     JoypadState joypad;                  // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)

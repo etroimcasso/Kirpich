@@ -184,6 +184,17 @@ TEST(StatsScreens, EveryRowOfTheStatsScreenLeadsSomewhere) {
 
         dispatcher.tick(game, retropp::ActionSet{});
         dispatcher.tick(game, actionSet({Action::Confirm}));
+
+        // The achievements are a screen of their own - a grid of badges rather than a page of
+        // figures - so that row opens it instead of the paged readout the other four share. The rest
+        // of this case is about those pages, so it ends here for that row.
+        if (kirpich::systems::statsBranchOf(static_cast<std::uint8_t>(row)) ==
+            kirpich::systems::StatsBranch::ACHIEVEMENTS) {
+            EXPECT_EQ(game.flow.gameState, GameState::INIT_ACHIEVEMENTS)
+                << kRows[row] << " did not open its own screen";
+            continue;
+        }
+
         EXPECT_EQ(game.flow.gameState, GameState::INIT_STATS_PAGE)
             << kRows[row] << " did not open its branch";
         EXPECT_EQ(game.screens.statsBranch, row) << "the branch that opened is not the row taken";

@@ -54,6 +54,7 @@
 
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
+#include "render/achievements/screen.h"
 #include "render/background.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
@@ -84,6 +85,7 @@
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/stats.h"
+#include "systems/achievements_screen.h"
 #include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -392,6 +394,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // binds belong to the unit (systems/stats_screens.h); what arrives from here is the settings and
     // the seam a change fires, the same one every settings row uses.
     kirpich::systems::installStatsScreens(dispatcher, settings, settingChanged, settingsWiring);
+    kirpich::systems::installAchievementsScreen(dispatcher);
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -549,6 +552,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
+        // The achievements screen is built from its own components: it hands back the layers it is,
+        // so its frame is those rather than the background map and the object buffer every screen the
+        // cartridge had goes through. Nothing below runs for it, and it writes neither of them.
+        if (kirpich::render::achievementScreenShown(game.flow.gameState)) {
+            retropp::FrameDrawState screen;
+            screen.layers = kirpich::render::AchievementsScreen(
+                game.achievementScreen, game.achievements, game.screens.cursorVisible, tiles,
+                settings.shadeRamp);
+            renderer.renderFrame(screen);
+            return;
+        }
+
         kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
                                         tiles, sprites, settings.shadeRamp);

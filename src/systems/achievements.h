@@ -93,16 +93,20 @@ struct Condition {
     friend constexpr bool operator==(const Condition&, const Condition&) = default;
 };
 
-// One achievement. `name` is a placeholder to be copy-passed later; the id is the stable identity and
-// the name is data, so it can be rewritten without touching logic or the save format. `hidden` decides
-// only what the screen draws for a locked achievement - it does not affect how the condition is
-// evaluated or stamped.
+// One achievement: what it is called, what it asks for, and the condition that decides it.
+//
+// `title` names it and `description` states its criterion in words - the two the screen shows when a
+// badge is opened. Both are data beside the id, which is the stable identity, so either can be
+// rewritten without touching logic or the save format; the condition is what is actually evaluated,
+// and the description is the same requirement said in the font's own vocabulary. `hidden` decides only
+// what the screen draws for a locked achievement; it changes nothing about how one is earned.
 struct AchievementDef {
     AchievementId      id{};
     AchievementSection section{};
     std::uint8_t       tier   = 1;  // 1 Casual .. 4 Mastery; display ordering only, no point value
     bool               hidden = true;
-    std::string_view   name{};
+    std::string_view   title{};
+    std::string_view   description{};
     Condition          condition{};
 };
 
