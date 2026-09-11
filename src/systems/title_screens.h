@@ -19,13 +19,35 @@
 // demo launch and the link-cable serial paths are seams other systems fill (see StartDemoHook below and
 // the contract).
 
+#include <cstddef>
 #include <functional>
+#include <string_view>
 
 #include "systems/game_context.h"
 
 namespace kirpich::systems {
 
 class GameStateDispatcher;
+
+// The two words the title screen's bottom row can hold: the settings item alone when the statistics
+// are switched off, and both items under the player-count columns when they are on.
+inline constexpr std::string_view kTitleSettingsWord = "settings";
+inline constexpr std::string_view kTitleStatsWord    = "stats";
+
+// The buffer entry the bottom row starts at, and the span it is given. The span is sized to the
+// longer of the two layouts - each item costs one object per cell of its word and one per cell of the
+// line under it - and the shorter layout simply leaves the rest of it empty.
+//
+// The row is given a fixed span so that what follows it keeps its entries. An object the game writes
+// into the buffer itself is named for the entry it sits in (src/render/sprites.cpp), so an entry that
+// changes hands between two frames is one the renderer can match to the last object there and glide
+// between the two positions - which is what the copyright line did, a letter at a time, whenever the
+// statistics were switched on or off.
+inline constexpr std::size_t kTitleFirstBottomObject = 1;
+inline constexpr std::size_t kTitleBottomRowObjects =
+    2 * (kTitleSettingsWord.size() + kTitleStatsWord.size());
+inline constexpr std::size_t kTitleCopyrightFirstObject =
+    kTitleFirstBottomObject + kTitleBottomRowObjects;
 
 // The seam the title screen fires when its attract countdown reaches zero, where the original launches an
 // attract demo (StartDemo). The default is a no-op — a build without the demo system idles at the title —

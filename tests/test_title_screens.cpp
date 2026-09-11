@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 #include <initializer_list>
+#include <vector>
 
 #include <kirpich/action.h>
 #include <kirpich/char_tile.h>
@@ -165,6 +166,69 @@ TEST(TitleScreens, CopyrightFlowVectors) {
 // ── Test 2: RingFillVectors ─────────────────────────────────────────────────────────────────────────
 // GameState_24 (tetris.asm:485-493): the 48 real demo entries are copied into the piece ring; the rest of
 // the ring is untouched (the original's over-copy is dropped).
+// The buffer entries a title screen's lowest row of objects sits in - the copyright line, which is
+// drawn below everything else on the panel. Found by its own row rather than by an entry number, so
+// the case says where the copyright IS rather than where it is expected to be written.
+std::vector<std::size_t> lowestRowEntries(const GameContext& game) {
+    std::uint8_t lowest = 0;
+    for (const OamEntry& e : game.engine.oam) {
+        if (e == OamEntry{}) continue;
+        lowest = std::max(lowest, e.y);
+    }
+
+    std::vector<std::size_t> entries;
+    for (std::size_t i = 0; i < game.engine.oam.size(); ++i) {
+        if (game.engine.oam[i] != OamEntry{} && game.engine.oam[i].y == lowest) {
+            entries.push_back(i);
+        }
+    }
+    return entries;
+}
+
+TEST(TitleScreens, TheCopyrightKeepsItsObjectsWhicheverBottomRowIsDrawn) {
+    // An object the game writes into the buffer itself is named for the entry it sits in
+    // (src/render/sprites.cpp), so an entry that changes hands between two frames is one the renderer
+    // can match to the last object there and glide between the two positions. Turning the statistics
+    // on adds a second item to the bottom row; the copyright underneath it must keep its own entries,
+    // or every letter of it slides across the screen on the frame the row changes.
+    GameContext oneItem;
+    kirpich::systems::initTitleScreen(oneItem, [] { return false; });
+
+    GameContext twoItems;
+    kirpich::systems::initTitleScreen(twoItems, [] { return true; });
+
+    const std::vector<std::size_t> before = lowestRowEntries(oneItem);
+    const std::vector<std::size_t> after  = lowestRowEntries(twoItems);
+
+    ASSERT_FALSE(before.empty()) << "the copyright line draws nothing";
+    EXPECT_EQ(before, after) << "the copyright moved along the buffer when the bottom row grew";
+
+    // And it is the same copyright in both: same tile at the same place, entry for entry.
+    for (const std::size_t entry : before) {
+        EXPECT_EQ(oneItem.engine.oam[entry], twoItems.engine.oam[entry])
+            << "the object at entry " << entry << " is not the same one in both layouts";
+    }
+}
+
+TEST(TitleScreens, TheBottomRowWritesOnlyItsOwnEntries) {
+    // The two layouts differ only where the row itself is drawn. Everything the two buffers disagree
+    // about has to sit in one contiguous run at the front, ahead of the copyright's entries.
+    GameContext oneItem;
+    kirpich::systems::initTitleScreen(oneItem, [] { return false; });
+
+    GameContext twoItems;
+    kirpich::systems::initTitleScreen(twoItems, [] { return true; });
+
+    const std::vector<std::size_t> copyright = lowestRowEntries(oneItem);
+    ASSERT_FALSE(copyright.empty());
+
+    for (std::size_t i = 0; i < oneItem.engine.oam.size(); ++i) {
+        if (oneItem.engine.oam[i] == twoItems.engine.oam[i]) continue;
+        EXPECT_LT(i, copyright.front())
+            << "entry " << i << " differs between the layouts but sits at or past the copyright";
+    }
+}
+
 TEST(TitleScreens, RingFillVectors) {
     GameContext game;
     constexpr Piece kSentinel{0xEE};
@@ -264,7 +328,9 @@ TEST(TitleScreens, TitleInitVectors) {
             EXPECT_EQ(game.display.map[kCopyrightRow][col], kSpace) << "copyright cell " << col;
         }
 
-        std::size_t entry = 17;
+        // The copyright starts after the bottom row's own reserved span, not after whatever that row
+        // happened to draw — see kTitleCopyrightFirstObject.
+        std::size_t entry = kirpich::systems::kTitleCopyrightFirstObject;
         for (std::size_t col = 0; col < kirpich::kTilemapScreenCols; ++col) {
             const std::uint8_t tile = kirpich::kTitleScreenTilemap[kCopyrightRow][col];
             if (tile == kSpace) continue;
@@ -275,7 +341,8 @@ TEST(TitleScreens, TitleInitVectors) {
                 << "copyright object for column " << col;
             ++entry;
         }
-        EXPECT_EQ(entry, 28u) << "the copyright line is eleven drawn cells";
+        EXPECT_EQ(entry, kirpich::systems::kTitleCopyrightFirstObject + 11u)
+            << "the copyright line is eleven drawn cells";
 
         // Nothing past it: the clear ran and only these refilled the buffer.
         for (; entry < game.engine.oam.size(); ++entry) {
