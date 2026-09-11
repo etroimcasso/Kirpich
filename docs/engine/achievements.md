@@ -257,7 +257,10 @@ nothing pending and the call is a no-op.
 ## Where it is shown elsewhere
 
 The statistics chooser's achievements row opens this screen directly and carries how many have been
-earned; the All-Time page's combined view carries the same figure on an `earned` line. Both read
+earned; the All-Time page's combined view carries the same figure on an `achieved` line — the label
+names what is counted, because alone on a page of durations and rounds a bare verb has no subject, and
+it has to stay inside `kStatsLabelCol` through `kStatsValueEndCol` less the figure's own cells, which
+a `static_assert` holds. Both read
 `achievementsUnlocked` / `achievementsTotal`. The font has no slash, so the figure is joined by the
 hyphen it does have.
 

@@ -623,6 +623,10 @@ std::uint8_t digit(char c) {
     return static_cast<std::uint8_t>(static_cast<int>(kirpich::CharTile::DIGIT_0) + (c - '0'));
 }
 
+std::uint8_t letter(char c) {
+    return static_cast<std::uint8_t>(static_cast<int>(kirpich::CharTile::LETTER_A) + (c - 'a'));
+}
+
 }  // namespace
 
 TEST(AchievementsScreen, TheChooserRowSaysHowManyHaveBeenEarned) {
@@ -658,12 +662,17 @@ TEST(AchievementsScreen, TheAllTimePageSaysHowMuchOfTheSetIsEarned) {
     game.flow.gameState      = GameState::INIT_STATS_PAGE;
     dispatcher.tick(game, retropp::ActionSet{});
 
-    // "earned", and the figure of two parts ending at the column every value on the page ends at.
+    // The label, and the figure of two parts ending at the column every value on the page ends at.
     const std::size_t line = kirpich::systems::kStatsFirstLine + 4;
     const auto&       map  = game.display.displayedMap();
 
-    EXPECT_EQ(map[line][kirpich::systems::kStatsLabelCol],
-              static_cast<std::uint8_t>(kirpich::CharTile::LETTER_E));
+    // The whole word, not its first letter: the label has to name what is being counted, and a page
+    // of durations and rounds gives "earned" no subject.
+    const std::string_view label = "achieved";
+    for (std::size_t i = 0; i < label.size(); ++i) {
+        EXPECT_EQ(map[line][kirpich::systems::kStatsLabelCol + i], letter(label[i]))
+            << "label mismatch at character " << i;
+    }
 
     const std::string_view expected = "3-36";
     const std::size_t      start = kirpich::systems::kStatsValueEndCol - expected.size() + 1;

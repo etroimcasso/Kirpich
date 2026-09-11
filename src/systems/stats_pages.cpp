@@ -64,6 +64,16 @@ ShortText numberText(std::uint32_t value) {
     return text;
 }
 
+// What the achievements figure is labelled, and the width it has to stay inside: the label runs from
+// kStatsLabelCol and the figure is right-aligned to kStatsValueEndCol, so anything past that is
+// overwritten by the figure rather than wrapped or dropped.
+constexpr std::string_view kAchievementsLabel = "achieved";
+constexpr std::size_t      kUnlockedTextCells = 5;  // "12-36"
+
+static_assert(kAchievementsLabel.size() <= kStatsValueEndCol + 1 - kStatsLabelCol -
+                                               kUnlockedTextCells,
+              "the label has to clear the cells the figure's own two parts take");
+
 // How much of the achievement set has been earned, as one figure of two parts. The font has no
 // slash, so the two are joined by the hyphen it does have.
 ShortText unlockedText(std::size_t unlocked, std::size_t total) {
@@ -263,11 +273,17 @@ void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t p
             if (combined && best.any && best.at.heart) {
                 markAllTimeHeart(map, line);
             }
-            // How much of the set has been earned. Like the program time above it, it belongs to the
-            // whole game rather than to one scope, so it shows on the combined view alone. The font
-            // has no slash, so it reads as one figure of two parts.
+            // How much of the achievement set has been earned. Like the program time above it, it
+            // belongs to the whole game rather than to one scope, so it shows on the combined view
+            // alone. The font has no slash, so it reads as one figure of two parts.
+            //
+            // The label names what is counted rather than the act of counting it: alone on a page of
+            // durations and rounds, "earned" has no subject. It is the widest the line takes - the
+            // label owns kStatsLabelCol through kStatsValueEndCol less the figure's own five cells,
+            // and anything longer is overwritten by the figure.
             if (combined) {
-                statTextLine(map, line + 1, "earned", unlockedText(unlocked, total).view());
+                statTextLine(map, line + 1, kAchievementsLabel,
+                             unlockedText(unlocked, total).view());
             }
             return;
         }
