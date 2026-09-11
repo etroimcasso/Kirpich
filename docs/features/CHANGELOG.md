@@ -8,6 +8,23 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-09-10
+
+- **Achievements** ⬜ → 🟡. Thirty-six things worth doing across nine themed sections, awarded when a
+  round ends and kept across launches in their own save document. There are no points and no
+  completion score: an achievement is a thing you did, named and dated, and the tier field orders the
+  display rather than valuing anything. Every condition reads a finished round's own state, the bonus
+  scenes it reached, or the lifetime totals the statistics already keep, so the simulation is untouched
+  — and the attract demo earns nothing by construction, since the round is armed by the same call that
+  turns a demo away. Most of the set is hidden until earned, and a hidden one says so rather than
+  showing a bare badge. The screen is the port's first built as declarative components: one section to
+  a page, a badge grid whose cursor turns the page when it walks off the top or bottom, a corner
+  selector sized to the badge under it, and a panel with the criterion in words and the date it was
+  earned. The statistics chooser's achievements row opens it and carries how many have been earned;
+  the All-Time combined view carries the same figure. **In progress rather than delivered:** the
+  notice shown when one is earned is not built, and every badge still wears its section's emblem until
+  the art pass.
+
 ## 2026-09-06
 
 - **Statistics** ✅, **Heart Mode** ✅ — heart mode reaches the stats screens. Once a heart game has
