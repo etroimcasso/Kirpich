@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -245,13 +246,27 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // report a date, so the port reads the system clock here - injected, like nowNanos, rather than
     // called inline, so an unlock date is pinned by a test like everything else. Read only at an
     // unlock, never per frame.
+    //
+    // The date is the player's own, not UTC: the system clock counts from an epoch and carries no
+    // zone, so it is converted through the machine's local time. Taking the UTC day directly would
+    // stamp an evening's play with tomorrow's date anywhere west of Greenwich. The conversion goes
+    // through the C library rather than a time zone from <chrono>, whose database is not dependably
+    // present across the platforms this builds on; the reentrant form spells differently on Windows.
     const auto nowDate = [] {
-        const auto today = std::chrono::year_month_day{
-            std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
+        const std::time_t now = std::chrono::system_clock::to_time_t(
+            std::chrono::system_clock::now());
+
+        std::tm local{};
+#ifdef _WIN32
+        localtime_s(&local, &now);
+#else
+        localtime_r(&now, &local);
+#endif
+
         return kirpich::AchievementDate{
-            .year  = static_cast<std::uint16_t>(static_cast<int>(today.year())),
-            .month = static_cast<std::uint8_t>(static_cast<unsigned>(today.month())),
-            .day   = static_cast<std::uint8_t>(static_cast<unsigned>(today.day()))};
+            .year  = static_cast<std::uint16_t>(local.tm_year + 1900),
+            .month = static_cast<std::uint8_t>(local.tm_mon + 1),
+            .day   = static_cast<std::uint8_t>(local.tm_mday)};
     };
 
     // The round-end check, fired at every point a round truly ends. The game-over screen and the

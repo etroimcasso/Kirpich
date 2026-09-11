@@ -5,9 +5,10 @@
 // is a function of this state, built by the components under src/render/achievements/.
 //
 // One section is on the page at a time. The cursor walks that section's badges; walking off the
-// bottom turns to the next section and off the top to the previous, so the whole set is one
-// continuous walk whose only end stops are the first section's top and the last section's bottom. A
-// opens the badge under the cursor, B closes an open badge or leaves the screen.
+// bottom turns to the next section and off the top to the previous, keeping its column and landing in
+// the row it stepped into, so the whole set is one continuous grid whose only end stops are the first
+// section's top and the last section's bottom. A opens the badge under the cursor, B closes an open
+// badge or leaves the screen.
 //
 // Input is a dispatch table - one table per mode, mapping an action to what it does to the state -
 // so what a button does is data a reader sees in one place.

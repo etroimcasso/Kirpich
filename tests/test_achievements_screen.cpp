@@ -180,19 +180,84 @@ TEST(AchievementsScreen, WalkingOffTheBottomTurnsToTheNextSection) {
     EXPECT_EQ(game.achievementScreen.cursor, 0) << "and lands on the first badge of the next section";
 }
 
-TEST(AchievementsScreen, WalkingOffTheTopTurnsBackToThePreviousSectionsLastBadge) {
+TEST(AchievementsScreen, WalkingOffTheTopKeepsItsColumnInTheRowAbove) {
     GameStateDispatcher dispatcher;
     kirpich::systems::installAchievementsScreen(dispatcher);
     GameContext game = openScreen(dispatcher);
 
+    constexpr std::size_t kCols = kirpich::systems::kAchievementGridCols;
+
+    // A column that is neither the first nor the last badge of the row it lands in. The last would
+    // be indistinguishable from landing on the section's final badge, which is the behaviour this
+    // case exists to rule out.
+    constexpr std::size_t kColumn = 1;
+
+    const std::size_t above   = sectionSize(AchievementSection::ASCENT);
+    const std::size_t lastRow = (above - 1) / kCols;
+    ASSERT_LT(lastRow * kCols + kColumn, above - 1)
+        << "this case needs a column strictly inside the last row of the section above";
+
+    // The second section's top row, one column in.
     game.achievementScreen.section = 1;
-    game.achievementScreen.cursor  = 0;
+    game.achievementScreen.cursor  = static_cast<std::uint8_t>(kColumn);
 
     press(dispatcher, game, Action::MenuUp);
 
     EXPECT_EQ(game.achievementScreen.section, 0);
-    EXPECT_EQ(game.achievementScreen.cursor, sectionSize(AchievementSection::ASCENT) - 1)
-        << "coming back up lands on the last badge of the section above";
+    EXPECT_EQ(game.achievementScreen.cursor, lastRow * kCols + kColumn)
+        << "up lands in the last row of the section above, in the column it left";
+}
+
+TEST(AchievementsScreen, WalkingOffTheBottomKeepsItsColumnInTheRowBelow) {
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installAchievementsScreen(dispatcher);
+    GameContext game = openScreen(dispatcher);
+
+    constexpr std::size_t kCols   = kirpich::systems::kAchievementGridCols;
+    constexpr std::size_t kColumn = 2;
+
+    const std::size_t here    = sectionSize(AchievementSection::ASCENT);
+    const std::size_t lastRow = (here - 1) / kCols;
+    ASSERT_LT(lastRow * kCols + kColumn, here)
+        << "this case needs to start from that column in this section's last row";
+    ASSERT_GT(sectionSize(AchievementSection::ENDURANCE), kColumn)
+        << "this case needs the section below to reach that column in its first row";
+
+    game.achievementScreen.section = 0;
+    game.achievementScreen.cursor  = static_cast<std::uint8_t>(lastRow * kCols + kColumn);
+
+    press(dispatcher, game, Action::MenuDown);
+
+    EXPECT_EQ(game.achievementScreen.section, 1);
+    EXPECT_EQ(game.achievementScreen.cursor, kColumn)
+        << "down lands in the first row of the section below, in the column it left";
+}
+
+TEST(AchievementsScreen, AShorterRowClampsTheColumnToItsLastBadge) {
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installAchievementsScreen(dispatcher);
+    GameContext game = openScreen(dispatcher);
+
+    constexpr std::size_t kCols   = kirpich::systems::kAchievementGridCols;
+    constexpr std::size_t kColumn = 2;
+
+    // A section whose last row stops short of that column: the cursor lands on the badge that is
+    // there rather than past the end of the section.
+    const std::size_t above   = sectionSize(AchievementSection::ENDURANCE);
+    const std::size_t lastRow = (above - 1) / kCols;
+    ASSERT_GE(lastRow * kCols + kColumn, above)
+        << "this case needs the section above to have a short last row";
+    ASSERT_GT(sectionSize(AchievementSection::THE_TETRIS), kColumn)
+        << "this case needs to start from that column";
+
+    game.achievementScreen.section = 2;
+    game.achievementScreen.cursor  = static_cast<std::uint8_t>(kColumn);
+
+    press(dispatcher, game, Action::MenuUp);
+
+    EXPECT_EQ(game.achievementScreen.section, 1);
+    EXPECT_EQ(game.achievementScreen.cursor, above - 1)
+        << "the column clamps to the last badge in the row it arrives at";
 }
 
 TEST(AchievementsScreen, TheWholeWalkHasExactlyTwoEndStops) {

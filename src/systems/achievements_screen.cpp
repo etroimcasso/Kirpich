@@ -62,16 +62,32 @@ SectionRange sectionRange(AchievementSection section) noexcept {
 std::size_t cursorRow(std::uint8_t cursor) noexcept { return cursor / kAchievementGridCols; }
 std::size_t cursorCol(std::uint8_t cursor) noexcept { return cursor % kAchievementGridCols; }
 
-// Turn to the section above or below, landing on the first badge of the next or the last of the
-// previous. An end - the first section's top, the last section's bottom - turns nothing.
+// Turn to the section above or below. The cursor keeps its column and lands in the row it would have
+// stepped into: the first row of the section below, the last row of the section above. A vertical
+// step therefore means the same thing at a section boundary as it does inside one, which is what
+// makes the whole set read as a single grid rather than as nine of them. An end - the first section's
+// top, the last section's bottom - turns nothing.
 void turnSection(GameContext& game, int delta) {
     AchievementScreenState& ui   = game.achievementScreen;
     const int               next = static_cast<int>(ui.section) + delta;
     if (next < 0 || next >= static_cast<int>(kAchievementSectionCount)) return;
 
+    const std::size_t column = cursorCol(ui.cursor);
+
     ui.section              = static_cast<std::uint8_t>(next);
     const std::size_t count = achievementSectionBadgeCount(achievementSectionAt(ui.section));
-    ui.cursor = static_cast<std::uint8_t>(delta > 0 || count == 0 ? 0 : count - 1);
+    if (count == 0) {
+        ui.cursor = 0;
+        moveCue(game);
+        return;
+    }
+
+    // The arriving row can be shorter than the one left, so the column clamps to the last badge in
+    // it rather than landing past the end of the section.
+    const std::size_t row  = delta > 0 ? 0 : (count - 1) / kAchievementGridCols;
+    const std::size_t slot = std::min(row * kAchievementGridCols + column, count - 1);
+
+    ui.cursor = static_cast<std::uint8_t>(slot);
     moveCue(game);
 }
 

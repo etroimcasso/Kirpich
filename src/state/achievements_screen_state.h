@@ -23,7 +23,8 @@ struct AchievementScreenState {
     std::uint8_t section = 0;
 
     // Which badge of that section the cursor is on, indexed into the section's own badges in id
-    // order. A section turn lands it on the first or last badge of the section it arrives at.
+    // order. A section turn keeps the column and lands in the row it stepped into - the first row of
+    // the section below, the last row of the section above - clamped when that row is shorter.
     std::uint8_t cursor = 0;
 
     // Whether a badge's description is open, and which one. `openId` is meaningful only while `open`
