@@ -18,7 +18,8 @@
 #include "systems/boot.h"  // softReset
 #include "systems/game_state_dispatcher.h"
 #include "systems/menu_screens.h"  // clearOamObjects
-#include "systems/screen.h"        // writeMapText
+#include "systems/screen.h"         // writeMapText
+#include "systems/title_screens.h"  // refreshTitleScreenObjects
 
 namespace kirpich::systems {
 
@@ -321,10 +322,23 @@ void drawConfirmCursor(BackgroundMap& map, const ScreenUiState& ui) {
 }
 
 // Put the caller's screen back and hand control to whichever state opened this one.
-void leaveSettings(GameContext& game) {
+void leaveSettings(GameContext& game, const SettingsWiring& wiring) {
     restoreCallerScreen(game);
     game.flow.gameState   = game.screens.settingsReturn;
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+
+    // The title screen's objects are derived from the settings rather than remembered, and the
+    // snapshot just put back was taken before the player changed them. Lay them down again for the
+    // settings as they now stand.
+    //
+    // The title screen redraws them itself every frame - but not until its next tick, and frames are
+    // submitted in between. Those would carry the row the player left, with the stats item still
+    // standing or still missing, and a directly-written object is named for the entry it sits in, so
+    // the renderer matches the two rows and glides one word into the other's place.
+    if (game.flow.gameState == GameState::TITLE_SCREEN ||
+        game.flow.gameState == GameState::INIT_TITLE_SCREEN) {
+        refreshTitleScreenObjects(game, wiring.current().showStats);
+    }
 }
 
 // Move the cursor one row. Returns whether that crossed onto the other page, which is the caller's
@@ -480,7 +494,7 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
     blinkScreenCursor(game);
 
     if (pressed(game, Action::Back)) {
-        leaveSettings(game);
+        leaveSettings(game, wiring);
         return;
     }
 

@@ -49,6 +49,16 @@ inline constexpr std::size_t kTitleBottomRowObjects =
 inline constexpr std::size_t kTitleCopyrightFirstObject =
     kTitleFirstBottomObject + kTitleBottomRowObjects;
 
+// Lay the title screen's own objects down for the setting as it now stands: the bottom row, the
+// copyright line under it, and the selector over it.
+//
+// The title screen does this itself every frame, so it is not something that screen needs. It is for a
+// screen RETURNING to the title after changing whether the statistics are offered. A screen that saved
+// the object buffer on its way in puts back the row the player left, and the title's own redraw does
+// not happen until its next tick - so the frames in between show the old row, and the renderer glides
+// its words to the new one. Calling this on the way out leaves the first frame back already correct.
+void refreshTitleScreenObjects(GameContext& game, bool twoItems);
+
 // The seam the title screen fires when its attract countdown reaches zero, where the original launches an
 // attract demo (StartDemo). The default is a no-op — a build without the demo system idles at the title —
 // and the demo system installs the real launch; tests pass a probe to confirm the seam fires at the right

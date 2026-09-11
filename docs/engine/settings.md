@@ -103,6 +103,17 @@ return to and enters `GameState::INIT_SETTINGS`. The title screen and the pause 
 frame timer into `ScreenUiState` (`src/state/screen_ui_state.h`), and leaving puts all three back.
 That is why returning to a paused round is exact — the paused screen is restored rather than rebuilt.
 
+**Returning to the title screen is the exception: its objects are re-derived, not put back.** The
+title's bottom row is a function of `Settings::showStats`, and that is one of the things this screen
+changes — so the snapshot is the row the player arrived with. Leaving calls
+`refreshTitleScreenObjects` (`src/systems/title_screens.h`) for the settings as they now stand.
+
+Re-deriving on the way out rather than leaving it to the title screen's own per-frame redraw matters
+because that redraw does not happen until the title's next tick, and frames are submitted before it.
+Those frames would carry the old row — and an object the game writes into the buffer itself is named
+for the entry it sits in (`src/render/sprites.cpp`), so the renderer matches the two rows and glides
+one word into the other's place.
+
 It paints on **whichever map is displayed**, so it never covers the map something else is writing:
 at the title screen that is the first map, and in a paused round it is the second.
 

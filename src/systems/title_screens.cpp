@@ -299,6 +299,11 @@ void toggleHeartMode(GameContext& game) {
 
 }  // namespace
 
+void refreshTitleScreenObjects(GameContext& game, bool twoItems) {
+    drawTitleObjects(game, twoItems);
+    placeTitleCursor(game, twoItems);
+}
+
 void initCopyrightScreen(GameContext& game) {
     // GameState_24 (tetris.asm:479-500). The LCD toggle is render mechanism (:480, :494-495).
     loadTileSheet(game.display, TileSheet::COPYRIGHT_TITLE);              // (:481)

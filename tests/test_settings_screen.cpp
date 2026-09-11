@@ -1009,8 +1009,18 @@ TEST(SettingsScreen, LeavingRestoresTheCallerExactly) {
 
         EXPECT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
         EXPECT_TRUE(game.display.map == before.display.map);
-        EXPECT_TRUE(game.engine.oam == before.engine.oam);
         EXPECT_EQ(game.flow.timer1, before.flow.timer1);
+
+        // The objects are the exception, and deliberately so. The title screen's are derived from the
+        // settings, and the player may have changed those while this screen was up - so they are laid
+        // down again for the settings as they now stand rather than put back as they were found.
+        //
+        // Asserted as a fixed point: laying them down again changes nothing. The snapshot is not one,
+        // which is what makes this fail if the buffer is ever restored verbatim again.
+        GameContext relaid = game;
+        kirpich::systems::refreshTitleScreenObjects(relaid, probe.settings.showStats);
+        EXPECT_TRUE(game.engine.oam == relaid.engine.oam)
+            << "the title's objects are not the row the current settings ask for";
     }
 
     // From a paused round: the second map is the one shown, so that is the one saved and restored,
@@ -1058,6 +1068,44 @@ TEST(SettingsScreen, LeavingRestoresTheCallerExactly) {
 // own and not a demo, so without the lift every sound it makes would be swallowed for the rest of
 // the session. The restore matters equally: the byte is the alternation's memory, and a settings
 // visit must not reset which demo plays next.
+TEST(SettingsScreen, LeavingForTheTitleLaysItsRowDownForTheSettingsAsTheyNowStand) {
+    // The defect this guards: the object buffer is snapshotted on the way in and put back on the way
+    // out, so a statistics toggle made while the screen was up came back to the row the player left.
+    // The title screen redraws its own row every frame, but not until its next tick - and the frames
+    // submitted before that showed the old row. A directly-written object is named for the entry it
+    // sits in, so the renderer matched the two rows and slid one word into the other's place.
+    //
+    // Both directions, because the row grows one way and shrinks the other.
+    for (const bool startOn : {false, true}) {
+        GameContext game;
+        Probe       probe;
+        probe.settings.showStats = startOn;
+        const auto wiring        = probe.wiring();
+
+        // The title screen as it stands with the setting where the player left it.
+        game.flow.gameState = GameState::TITLE_SCREEN;
+        kirpich::systems::refreshTitleScreenObjects(game, startOn);
+
+        openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+        // The toggle happens while the screen is up, after the snapshot was taken.
+        probe.settings.showStats = !startOn;
+
+        press(game, {Action::Back});
+        kirpich::systems::settingsScreen(game, wiring);
+
+        ASSERT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
+
+        GameContext wanted;
+        wanted.flow.gameState = GameState::TITLE_SCREEN;
+        kirpich::systems::refreshTitleScreenObjects(wanted, !startOn);
+
+        EXPECT_TRUE(game.engine.oam == wanted.engine.oam)
+            << "leaving with the setting " << (startOn ? "off" : "on")
+            << " left the row the player arrived with";
+    }
+}
+
 TEST(SettingsScreen, TheScreenLiftsTheDemoGateWhileItIsUp) {
     GameContext game;
     Probe       probe;
