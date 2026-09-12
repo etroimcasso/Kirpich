@@ -14,8 +14,9 @@ are written. `../FEATURES.md` holds current status; this file holds history.
   screen — the badge, its title, its criterion under the title — and a press for the next. It comes
   after everything else the round does, a Type B tally and a bonus scene included, and before the
   top-score name entry each difficulty screen forks into, because there is no room to say it mid-round
-  and a distraction during a game is not wanted. No sound and no heading: a badge and its name say what
-  happened. Both ways a round can end go through one seam that takes where the round was headed and
+  and a distraction during a game is not wanted. No heading: a badge and its name say what happened.
+  Each banner arrives on the level-up cue, the game's own reward sound; the press that ends the notice
+  is silent, because nothing arrives on it. Both ways a round can end go through one seam that takes where the round was headed and
   returns where it actually goes, so the rocket path is covered too — which matters, because the two
   biggest score achievements are defined by scores that earn a rocket and that path never passes
   through the game-over screen. Its screen has one state and no init, the first entered by a seam

@@ -149,8 +149,12 @@ Neither handler knows a notice exists, and the name-entry fork downstream is unt
 ### One badge at a time, a press, and nothing else
 
 Several achievements can land in one round, and they are shown one after another rather than stacked:
-a badge, its title, its criterion, and a press for the next. No sound and no heading: a badge and its
-name say what has happened.
+a badge, its title, its criterion, and a press for the next. No heading: a badge and its name say what
+has happened.
+
+Each banner arrives on the level-up cue — the game's own reward sound, and an achievement is the same
+kind of event. Only an arriving banner cues; the press that ends the notice does not, because nothing
+arrives on it.
 
 ### A Type C round that flies the rocket comes back to its own picker
 

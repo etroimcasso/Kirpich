@@ -5,6 +5,7 @@
 
 #include <kirpich/action.h>
 
+#include "data/sfx.h"       // SquareSfxId
 #include "retropp/input.h"  // actionId
 #include "systems/game_state_dispatcher.h"
 
@@ -16,13 +17,19 @@ bool pressed(const GameContext& game, Action action) {
     return game.joypad.pressed.test(retropp::actionId(action));
 }
 
+// Every banner arrives on the sound a level-up arrives on. It is the game's own reward cue, and an
+// achievement is the same kind of event: something gained rather than something that merely happened.
+void badgeCue(GameContext& game) { game.audioCues.square = SquareSfxId::LEVEL_UP; }
+
 // Step past the badge on screen. Past the last one the queue is empty, and the round is released to
-// the destination it was headed for when the notice took the frame.
+// the destination it was headed for when the notice took the frame - no cue there, because no banner
+// arrives.
 void advance(GameContext& game) {
     AchievementNoticeState& notice = game.achievementNotice;
 
     if (static_cast<std::size_t>(notice.shown) + 1 < notice.pending.size()) {
         ++notice.shown;
+        badgeCue(game);
         return;
     }
 
@@ -65,6 +72,7 @@ GameState achievementNoticeExit(GameContext& game, GameState destination) {
 
     game.achievementNotice.shown  = 0;
     game.achievementNotice.resume = destination;
+    badgeCue(game);  // the first banner arrives on the same cue every later one does
     return GameState::ACHIEVEMENT_NOTICE;
 }
 

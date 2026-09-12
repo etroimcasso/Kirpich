@@ -23,6 +23,7 @@
 #include <kirpich/game_type.h>
 
 #include "data/bounded_vec.h"
+#include "data/sfx.h"  // SquareSfxId
 #include "render/achievements/badge.h"  // badgeExtent
 #include "render/achievements/banner.h"
 #include "render/achievements/notice.h"
@@ -234,6 +235,43 @@ TEST(AchievementNotice, EachPressStepsToTheNextBadge) {
         EXPECT_EQ(kirpich::systems::achievementOnNotice(game), queued[i]);
         dispatcher.tick(game, retropp::ActionSet{});  // release, so the next press is an edge
     }
+}
+
+// (4b) Every banner arrives on the level-up cue, and the press that ends the notice does not cue -
+// nothing arrives on it. The mailbox is cleared before each step the way the audio tick drains it, so
+// every assertion reads what that frame put there rather than what an earlier one left.
+TEST(AchievementNotice, EveryBannerArrivesOnTheLevelUpCue) {
+    GameStateDispatcher dispatcher;
+    kirpich::systems::installAchievementNotice(dispatcher);
+
+    GameContext game;
+    playTypeARound(game, /*score=*/30000);
+
+    game.audioCues.square = kirpich::SquareSfxId::NONE;
+    game.flow.gameState =
+        kirpich::systems::achievementNoticeExit(game, GameState::INIT_TYPE_A_DIFFICULTY);
+    ASSERT_EQ(game.flow.gameState, GameState::ACHIEVEMENT_NOTICE);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::LEVEL_UP)
+        << "the first banner cues as it arrives";
+
+    const std::size_t queued = game.achievementNotice.pending.size();
+    ASSERT_GE(queued, 2u);
+
+    for (std::size_t i = 1; i < queued; ++i) {
+        dispatcher.tick(game, retropp::ActionSet{});  // release, so the next press is an edge
+        game.audioCues.square = kirpich::SquareSfxId::NONE;
+        dispatcher.tick(game, actionSet({Action::Confirm}));
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::LEVEL_UP)
+            << "and so does every later one, banner " << i;
+    }
+
+    // The press past the last badge shows no banner, so it cues nothing.
+    dispatcher.tick(game, retropp::ActionSet{});
+    game.audioCues.square = kirpich::SquareSfxId::NONE;
+    dispatcher.tick(game, actionSet({Action::Confirm}));
+    EXPECT_EQ(game.flow.gameState, GameState::INIT_TYPE_A_DIFFICULTY);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE)
+        << "leaving the notice is not an arrival";
 }
 
 // (5) The press past the last badge empties the queue and releases the round to where it was headed.

@@ -254,7 +254,8 @@ than being cut mid-word.
 ## The end-of-round notice
 
 What a finished round just earned, shown before the player is returned to a difficulty screen. One
-badge to a screen, a press for the next; there is no sound and no heading, just the banner.
+badge to a screen, a press for the next; no heading, just the banner, and each banner arrives on the
+level-up cue.
 
 ### How a round reaches it
 
@@ -320,6 +321,10 @@ reveals it, and the placeholder copy belongs to the screen that lists what has n
 A press steps to the next; the press past the last empties the queue and writes the held destination.
 `Confirm` and `Start` both do it — the two the game-over screen accepts, so a player carrying on
 pressing A steps through what they earned without learning a second button.
+
+Every arriving banner writes `SquareSfxId::LEVEL_UP` to the cue mailbox, including the first, which
+the exit cues as it routes. The press that ends the notice writes nothing: a cue marks an arrival, and
+nothing arrives there.
 
 ## Where each call is wired
 
