@@ -8,6 +8,19 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-09-12
+
+- **Settings screen** ✅ — the erase row becomes four, on a page of their own. There are three kinds
+  of saved record and only the high-score tables had a way to clear them; the statistics and the
+  achievements had none, so a player who wanted one gone had to delete the whole user directory and
+  lose the other two with it. Each row now clears its own record and writes its own documents, heart
+  tables included, and leaves the other two untouched; the fourth is the three at once. A round in
+  progress survives all four, because the screen opens from a pause and clearing the latch a round
+  records through would leave that round counted nowhere. Erasing the statistics zeroes the play-time
+  total but keeps the point that clock is measured from — cleared, it reads as the beginning of time
+  and the next measurement puts a large number straight back into the total just emptied. Twelve rows
+  at four to a page makes the third page exactly the resets, so no constant moved.
+
 ## 2026-09-11
 
 - **Achievements** 🟡 → ✅. A round that earns something announces it on the way out: one badge to a

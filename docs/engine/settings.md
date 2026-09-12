@@ -87,12 +87,17 @@ kirpich::systems::installSettingsHandlers(
                     .apply      = [&](const Settings& s) { /* put s into effect */ },
                     .save       = [&](const Settings& s) { kirpich::saveSettings(s, saves); },
                     .saveScores = [&](const HighScoreState& h) { kirpich::saveTopScores(h, saves); },
+                    .saveStats  = [&](const StatsState& s) { kirpich::saveStats(s, saves); },
+                    .saveAchievements =
+                        [&](const AchievementState& a) { kirpich::saveAchievements(a, saves); },
                     .exit       = [&] { loop.exitRequest(); },
                 });
 ```
 
-Every seam defaults to inert. `apply` and `save` fire on each change; `saveScores` fires when the
-confirm is answered yes for the score reset; `exit` fires when it is answered yes for quitting.
+Every seam defaults to inert. `apply` and `save` fire on each change; `exit` fires when the confirm is
+answered yes for quitting. The three save seams each fire for their own reset row, and for the
+all-in row they all fire — a record and its documents go together, which is what lets one row clear
+one kind and leave the others alone.
 
 `openSettings(GameContext&)` is how the screen is entered — it records the current state as the one to
 return to and enters `GameState::INIT_SETTINGS`. The title screen and the pause handler both call it.
@@ -119,29 +124,37 @@ at the title screen that is the first map, and in a paused round it is the secon
 
 ### Rows and pages
 
-`SettingsRow` is the walk order; `kSettingsFirstPageRows` is how many of them the first page holds.
+`SettingsRow` is the walk order, and **the declaration order is the layout**: a page holds
+`kSettingsRowsPerPage` consecutive rows, so where a row sits follows from where it is declared.
 
 ```cpp
 enum class SettingsRow : std::uint8_t {
-    FULLSCREEN, WINDOW_SCALE, SHADE_RAMP, EXIT_GAME,     // settings 1
-    GHOST_PIECE, NEW_MODES, FIXES, RESET_SCORES          // enhancements 1
+    FULLSCREEN, WINDOW_SCALE, SHADE_RAMP, EXIT_GAME,                      // settings 1
+    GHOST_PIECE, NEW_MODES, FIXES, STATS,                                 // enhancements 1
+    RESET_SCORES, RESET_STATS, RESET_ACHIEVEMENTS, RESET_ALL              // enhancements 2
 };
 ```
 
-`kSettingsFirstPageRows` is 4, so the first four enumerators draw on the first page and the rest on
-the second. The header names each page for what it holds — `settings 1` for the window's own
-choices, `enhancements 1` for the screens and switches the cartridge never had — and each family
-counts from one. `paintSettingsValues` takes the page and paints only that page's values; the
-enhancements page has none, because every row on it opens a screen or acts.
+`kSettingsRowsPerPage` is 4 and `kSettingsPageCount` is derived from it and `kSettingsRowCount`, so
+there is no split point to keep in step — `settingsPageOf` is a division and `settingsRowWithinPage`
+the remainder. The header names each page for what it holds: `settings 1` for the window's own
+choices, then `enhancements 1` and `enhancements 2` for the screens, switches and resets the cartridge
+never had, each family counting from one. `paintSettingsValues` takes the page and paints only that
+page's values; the two enhancement pages have none, because every row on them opens a screen or acts.
 
-**To add a row:** add an enumerator in the position it should be walked, give it a label in
-`labelFor`, and handle it in `changeValue` (a value), in the Confirm/Start branch of
-`settingsScreen` (an action), or in that branch's `openScreen` switch (a row that opens a screen —
-the ghost, new-modes and fixes rows are these; each also returns a right-only `reachOf`, the arrow
-that points at the screen it leads to). A value row needs an entry in `reachOf`, which is what
-decides whether it draws a scroll arrow on each side, and a line in `paintSettingsValues` under its
-page. Raising `kSettingsFirstPageRows` moves the page boundary; the page a row lands on and the
-arrow that advertises the other page both follow from it.
+**To add a row:** add an enumerator in the position it should be walked and give it a label in
+`labelFor`. Then handle it as exactly one kind:
+
+- **A value** — a case in `changeValue`, an entry in `reachOf` deciding which scroll arrows it draws,
+  and a line in `paintSettingsValues` under its page.
+- **A screen opener** — a case in the `openScreen` switch, plus a right-only `reachOf` so the arrow
+  points at the screen it leads to.
+- **An action** — a row in `confirmFor`, which maps a row to the `ConfirmAction` it raises, and a
+  question for that action in `confirmContentFor`. Nothing else: the confirm screen itself is general,
+  and the branch that acts on `yes` is the only other place an action is named.
+
+The page a row lands on, and the arrow that advertises the page beyond it, both follow from the
+enumerator's position. Adding four rows adds a page without any constant changing.
 
 A label runs from `kLabelCol` (3) to the left scroll arrow at `kOptionLeftArrowCol` (13), so **ten
 cells is the most a label can be**. The existing labels are terse for that reason — the window-size

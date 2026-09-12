@@ -392,6 +392,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 kirpich::saveTopScores(scores, saves);
                 kirpich::saveTopScoresHeart(scores, saves);
             },
+        // The other two reset rows, each writing only its own documents. These do not bank the
+        // application clock the way the round-end save does: the row has just cleared the total it
+        // would bank into.
+        .saveStats =
+            [&saves](const kirpich::StatsState& stats) {
+                kirpich::saveStats(stats, saves);
+                kirpich::saveStatsHeart(stats, saves);
+            },
+        .saveAchievements =
+            [&saves](const kirpich::AchievementState& earned) {
+                kirpich::saveAchievements(earned, saves);
+            },
         // Submitted rather than performed: the engine ends the run at the next frame boundary, so
         // the frame the player answered on finishes drawing first.
         .exit = [&loop] { loop.exitRequest(); },

@@ -21,8 +21,10 @@
 
 #include <functional>
 
+#include "state/achievement_state.h"
 #include "state/high_score_state.h"
 #include "state/settings.h"
+#include "state/stats_state.h"
 #include "systems/game_context.h"
 
 namespace kirpich::systems {
@@ -93,6 +95,12 @@ struct SettingsWiring {
     std::function<void(const Settings&)>       apply;
     std::function<void(const Settings&)>       save;
     std::function<void(const HighScoreState&)> saveScores;
+
+    // The other two records a reset row can clear. Each is persisted in its own document, so clearing
+    // one writes only that one and leaves the others as they are - which is the whole reason the rows
+    // are separate.
+    std::function<void(const StatsState&)>       saveStats;
+    std::function<void(const AchievementState&)> saveAchievements;
 
     // Ends the run. The confirm calls it once the player has answered yes; what ending the run means
     // is the host's business, and a build without one simply has an Exit row that does nothing.

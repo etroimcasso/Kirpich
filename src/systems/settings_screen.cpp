@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -92,6 +93,9 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
             return {.left = false, .right = true};
         case SettingsRow::EXIT_GAME:
         case SettingsRow::RESET_SCORES:
+        case SettingsRow::RESET_STATS:
+        case SettingsRow::RESET_ACHIEVEMENTS:
+        case SettingsRow::RESET_ALL:
             return {};  // an action has nothing to scroll through
     }
     return {};
@@ -193,6 +197,11 @@ std::string_view labelFor(SettingsRow row) {
         case SettingsRow::FIXES:        return "fixes";
         case SettingsRow::STATS:        return "stats";
         case SettingsRow::RESET_SCORES: return "reset scores";
+        // A label has ten cells (see above), so the achievements row is abbreviated to fit. The three
+        // siblings read as one group because they all start with the verb.
+        case SettingsRow::RESET_STATS:        return "reset stats";
+        case SettingsRow::RESET_ACHIEVEMENTS: return "reset achvmnts";
+        case SettingsRow::RESET_ALL:          return "reset all";
         // "exit game", not "exit": on its own the word reads as leaving this screen, which is what
         // Back does, and a player reaching for it would be asked to quit instead.
         case SettingsRow::EXIT_GAME:    return "exit game";
@@ -255,6 +264,83 @@ struct ConfirmContent {
     std::string_view rightChoice;
 };
 
+// What each reset costs. Three records, three documents, three rows - so each of these clears one
+// kind and writes one document, and the all-in row is the three of them run together rather than a
+// fourth thing that knows how to clear everything.
+//
+// Each leaves the round in progress alone. The settings screen opens from a paused round, so a reset
+// taken mid-round would otherwise drop the latch the round records through, and the round would end
+// up counted nowhere. Clearing what has been recorded and letting the current round go on to be
+// recorded is the answer that does what the row says.
+
+void eraseScores(GameContext& game, const SettingsWiring& wiring) {
+    // Every table, back to the state a machine that has never been played holds - the heart tables
+    // with the cartridge ones, since "erase all high scores" means all of them. A cleared name is six
+    // zero bytes, which is what the top-score printer reads as no name at all. saveScores writes both
+    // documents, so the cleared heart tables are persisted too.
+    game.highScores.typeA      = {};
+    game.highScores.typeB      = {};
+    game.highScores.typeC      = {};
+    game.highScores.typeAHeart = {};
+    game.highScores.typeBHeart = {};
+    game.highScores.typeCHeart = {};
+    if (wiring.saveScores) {
+        wiring.saveScores(game.highScores);
+    }
+}
+
+void eraseStats(GameContext& game, const SettingsWiring& wiring) {
+    // The six slice tables and the two figures that are not folds over them. The application total
+    // goes back to zero with the rest: it is the count of time spent, and a player erasing what they
+    // have played is erasing that too.
+    //
+    // The stamp is NOT cleared with it. It is the point the application clock was last banked from,
+    // and a zero stamp makes the next bank read the whole monotonic clock as time just played and add
+    // it to the total that was meant to be empty. Keeping it means the next bank adds only the
+    // fraction of a second since the last one, which is the time the player has genuinely spent since
+    // answering yes.
+    const RoundInProgress round = game.stats.round;
+    const std::uint64_t   stamp = game.stats.applicationStampNanos;
+
+    game.stats                       = StatsState{};
+    game.stats.round                 = round;
+    game.stats.applicationStampNanos = stamp;
+
+    if (wiring.saveStats) {
+        wiring.saveStats(game.stats);
+    }
+}
+
+void eraseAchievements(GameContext& game, const SettingsWiring& wiring) {
+    // The unlock records only. The round's own observations are this round's bookkeeping, not a
+    // record of anything earned, and the round is still being played.
+    game.achievements.unlocked = {};
+    if (wiring.saveAchievements) {
+        wiring.saveAchievements(game.achievements);
+    }
+}
+
+// Which confirm a row opens, or nothing when the row is not an action. One table rather than a chain
+// of comparisons, so adding an action row is a row here and a question below.
+std::optional<ConfirmAction> confirmFor(SettingsRow row) noexcept {
+    switch (row) {
+        case SettingsRow::RESET_SCORES:       return ConfirmAction::ERASE_SCORES;
+        case SettingsRow::RESET_STATS:        return ConfirmAction::ERASE_STATS;
+        case SettingsRow::RESET_ACHIEVEMENTS: return ConfirmAction::ERASE_ACHIEVEMENTS;
+        case SettingsRow::RESET_ALL:          return ConfirmAction::ERASE_EVERYTHING;
+        case SettingsRow::EXIT_GAME:          return ConfirmAction::EXIT_GAME;
+        case SettingsRow::FULLSCREEN:
+        case SettingsRow::WINDOW_SCALE:
+        case SettingsRow::SHADE_RAMP:
+        case SettingsRow::GHOST_PIECE:
+        case SettingsRow::NEW_MODES:
+        case SettingsRow::FIXES:
+        case SettingsRow::STATS:
+            break;
+    }
+    return std::nullopt;
+}
+
 // Whether leaving for the title screen is a thing this confirm can offer. It is not when the settings
 // screen was opened from the title screen itself: there is no round to leave and nowhere to go, so the
 // exit confirm asks the plain question it asks when the game is not being played.
@@ -268,6 +354,29 @@ ConfirmContent confirmContentFor(ConfirmAction action, bool canReturnToTitle) {
             return {.title       = "reset scores",
                     .first       = "erase all",
                     .second      = "high scores",
+                    .leftChoice  = "no",
+                    .rightChoice = "yes"};
+        case ConfirmAction::ERASE_STATS:
+            return {.title       = "reset stats",
+                    .first       = "erase everything",
+                    .second      = "played so far",
+                    .leftChoice  = "no",
+                    .rightChoice = "yes"};
+        case ConfirmAction::ERASE_ACHIEVEMENTS:
+            // The question says "achievements" where the row says "achvmnts". A row label starts at
+            // column 3 and the word does not fit in what is left; these lines are centred across the
+            // whole width, so here it does, and the screen that asks should use the real word.
+            return {.title       = "reset achievements",
+                    .first       = "erase every",
+                    .second      = "achievement earned",
+                    .leftChoice  = "no",
+                    .rightChoice = "yes"};
+        case ConfirmAction::ERASE_EVERYTHING:
+            // Named for what it costs rather than for the row, because this is the one answer a
+            // player cannot take back a piece at a time.
+            return {.title       = "reset all",
+                    .first       = "erase scores stats",
+                    .second      = "and achievements",
                     .leftChoice  = "no",
                     .rightChoice = "yes"};
         case ConfirmAction::EXIT_GAME:
@@ -377,6 +486,9 @@ void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
         case SettingsRow::FIXES:
         case SettingsRow::STATS:
         case SettingsRow::RESET_SCORES:
+        case SettingsRow::RESET_STATS:
+        case SettingsRow::RESET_ACHIEVEMENTS:
+        case SettingsRow::RESET_ALL:
         case SettingsRow::EXIT_GAME:
             return;  // an action, not a value
     }
@@ -498,15 +610,13 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         return;
     }
 
-    // The action rows. The two that end something go through the same confirm, which asks about
-    // whichever one opened it — neither happens on a single press. The new-modes row opens a screen of
-    // its own instead, because what it turns on needs more explaining than a value in a field.
+    // The action rows. Each goes through the same confirm, which asks about whichever one opened it —
+    // none of them happens on a single press. A row that is not in the table is not an action; the
+    // new-modes row opens a screen of its own instead, because what it turns on needs more explaining
+    // than a value in a field.
     if (pressed(game, Action::Confirm) || pressed(game, Action::Start)) {
-        const SettingsRow row = game.screens.settingsRow;
-        if (row == SettingsRow::RESET_SCORES || row == SettingsRow::EXIT_GAME) {
-            game.screens.pendingConfirm = row == SettingsRow::RESET_SCORES
-                                              ? ConfirmAction::ERASE_SCORES
-                                              : ConfirmAction::EXIT_GAME;
+        if (const std::optional<ConfirmAction> action = confirmFor(game.screens.settingsRow)) {
+            game.screens.pendingConfirm = *action;
             game.audioCues.square       = SquareSfxId::CHANGE_SCREEN;
             game.flow.gameState         = GameState::INIT_RESET_CONFIRM;
             return;
@@ -646,18 +756,17 @@ void resetConfirmScreen(GameContext& game, const SettingsWiring& wiring) {
         }
 
         if (ui.confirmRight) {
-            // Every table, back to the state a machine that has never been played holds - the heart
-            // tables with the cartridge ones, since "erase all high scores" means all of them. A
-            // cleared name is six zero bytes, which is what the top-score printer reads as no name at
-            // all. saveScores writes both documents, so the cleared heart tables are persisted too.
-            game.highScores.typeA = {};
-            game.highScores.typeB = {};
-            game.highScores.typeC = {};
-            game.highScores.typeAHeart = {};
-            game.highScores.typeBHeart = {};
-            game.highScores.typeCHeart = {};
-            if (wiring.saveScores) {
-                wiring.saveScores(game.highScores);
+            const ConfirmAction action = ui.pendingConfirm;
+            const bool everything      = action == ConfirmAction::ERASE_EVERYTHING;
+
+            if (everything || action == ConfirmAction::ERASE_SCORES) {
+                eraseScores(game, wiring);
+            }
+            if (everything || action == ConfirmAction::ERASE_STATS) {
+                eraseStats(game, wiring);
+            }
+            if (everything || action == ConfirmAction::ERASE_ACHIEVEMENTS) {
+                eraseAchievements(game, wiring);
             }
         }
         returnToSettings(game, wiring);
