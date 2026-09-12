@@ -1,8 +1,8 @@
 # Achievements
 
-**Date:** 2026-09-10
-**Status:** In progress — the set, the awarding and the screen are complete. The notice shown when
-one is earned is not built.
+**Date:** 2026-09-11
+**Status:** Complete — the set, the awarding, the screen and the end-of-round notice. Badge art, the
+names and the hidden split are data and want a content pass.
 
 ## Concept
 
@@ -79,13 +79,17 @@ exactly; without one the date is zero, which reads as "no date" rather than as a
 An unlock also captures the whole-application play time at that moment, which is a figure the
 statistics already keep.
 
-### Most of the set is hidden
+### Hidden means it would spoil a discovery
 
-`hidden` is per achievement rather than a property of a tier or a section, and most of the set carries
-it. A small visible starter tier gives a new player something to aim at; the rest are found.
+`hidden` is per achievement rather than a property of a tier or a section, and it defaults to shown.
+Three of the thirty-six are kept back: the launch scenes, because the rocket and the Buran are the
+game's secret endings and naming them on a page tells the player what they were meant to find.
 
-A hidden one that has not been earned still shows its badge and says *hidden — revealed when earned*.
-Showing the badge alone reads as a page that failed to draw rather than as a secret.
+Everything else is a rung on a ladder — a score tier, a line count, a level, a Type B height — and a
+ladder is there to be aimed at. A target a player cannot see is not one.
+
+A hidden one that has not been earned still shows its badge and says *hidden — revealed when earned*,
+rather than showing the badge alone.
 
 `hidden` decides only what the screen draws. It has no bearing on how an achievement is awarded, so
 nothing about the condition or the save changes if one is revealed later.
@@ -115,7 +119,7 @@ four tiles, a bar of four across, a standing figure three tall. A fixed box fits
 and earned-ness compete for the same channel, and it is the overdraw the engine's model exists to
 avoid.
 
-### It is the port's first declarative screen
+### They are the port's first declarative screens
 
 Every screen before this one is the cartridge's: it writes tiles into a background map and entries
 into an object buffer, and a bridge turns those into layers. This one is built the way the engine
@@ -127,6 +131,37 @@ return types, a run of text as sprites, a plain backdrop, the two layer aggregat
 selector — sit at the render layer where any screen can use them, so the eventual sweep of the older
 screens has something already built to copy.
 
+### The player is told at the end of the round, not during it
+
+There is no room to announce an unlock mid-round, and a distraction during a game is not wanted
+anyway. So a round that earned something shows it on the way out, after everything else the round
+does — after a Type B tally, after a bonus scene — and before the top-score name entry, which each
+difficulty screen forks into from its own init.
+
+That lands on one point: the transition out of a finished round. There are two of them, because a
+round that flies a rocket never passes through the game-over screen, and the two biggest score
+achievements are *defined* by scores that earn a rocket — a notice spliced only at the game-over
+screen would never once appear for them.
+
+Both go through one seam that takes where the round was headed and returns where it actually goes.
+Neither handler knows a notice exists, and the name-entry fork downstream is untouched.
+
+### One badge at a time, a press, and nothing else
+
+Several achievements can land in one round, and they are shown one after another rather than stacked:
+a badge, its title, its criterion, and a press for the next. No sound and no heading: a badge and its
+name say what has happened.
+
+### A Type C round that flies the rocket comes back to its own picker
+
+The cartridge sends every rocket round to the Type A difficulty screen, which is right there because
+Type A is the only mode it has that earns one. This port gives Type C the same score boundaries, so a
+Type C round flies the rocket too and has its own picker to come back to. The exit forks on the mode
+that was played. Type B never reaches it: its ending is the Buran, which leaves through the tally.
+
+The fork also decides which leaderboard a new top score enters its name over, since each difficulty
+screen paints its own and forks into name entry from its own init.
+
 ## Implementation details
 
 | Unit | Where |
@@ -137,6 +172,9 @@ screens has something already built to copy.
 | The screen's state | `src/state/achievements_screen_state.h` |
 | The screen's logic | `src/systems/achievements_screen.{h,cpp}` |
 | The screen's components | `src/render/achievements/` |
+| The notice's state | `src/state/achievement_notice_state.h` |
+| The notice's logic and the round exit | `src/systems/achievement_notice.{h,cpp}` |
+| The notice's components | `src/render/achievements/banner.*`, `notice.*`, `notice_layout.h` |
 | The shared render layer | `src/render/types.h`, `glyphs`, `backdrop`, `background_layer`, `sprite_layer`, `selection_corners` |
 
 Full surface, wiring table and the recipes for adding one are in
@@ -156,17 +194,12 @@ screens draw — the font has the letters, the digits, a period and a hyphen, an
 
 ## Open questions / future work
 
-- **The end-of-round notice is not built.** When an achievement is earned the player is told nothing
-  until they go and look. The UX is still to design; it splices through one helper covering the
-  game-over exit and the rocket path.
 - **Badge art is a placeholder.** `artFor` gives one emblem per *section*, so every badge in a section
   wears the same one. It is data in `src/render/achievements/badge.cpp` — changing it touches no logic
   and no saved byte — and it wants a pass that gives each achievement its own.
 - **Names and the hidden split want a content pass.** Both are data beside the id and neither is
   load-bearing; the set can be renamed wholesale without a migration.
-- **A Type C round that earns the rocket returns to the Type A difficulty screen.** Found while
-  wiring the scene observations, unrelated to achievements, and left as it was rather than fixed in a
-  feature's diff.
-- **What the screen looks like is owed by hand.** The components are tested on what they return, and
+- **What the screens look like is owed by hand.** The components are tested on what they return, and
   the logic on what it does to state; both are headless. A badge grid appearing, a selector sitting
-  where it should, and a panel reading correctly are verified on a running build.
+  where it should, a panel reading correctly, and a banner whose title and description sit well beside
+  their badge are verified on a running build.

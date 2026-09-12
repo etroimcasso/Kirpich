@@ -55,4 +55,23 @@ Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& 
     return out;
 }
 
+std::vector<std::string_view> wrapText(std::string_view text, std::size_t width) {
+    std::vector<std::string_view> lines;
+    std::size_t                   start = 0;
+
+    while (start < text.size()) {
+        if (text.size() - start <= width) {
+            lines.push_back(text.substr(start));
+            break;
+        }
+        std::size_t cut = text.rfind(' ', start + width);
+        if (cut == std::string_view::npos || cut <= start) {
+            cut = start + width;  // one long word: let it take the whole line
+        }
+        lines.push_back(text.substr(start, cut - start));
+        start = cut < text.size() && text[cut] == ' ' ? cut + 1 : cut;
+    }
+    return lines;
+}
+
 }  // namespace kirpich::render

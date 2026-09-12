@@ -104,19 +104,22 @@ Namespace `kirpich::render`. The only code that knows both Kirpich's types and t
 const kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
 ```
 
-Uploads all four extracted sheets and all five palettes, once, and returns their handles. Call it
-after the assets are present and before the first frame. It throws whatever the engine's loaders throw
-when a file is missing or will not decode.
+Uploads all four extracted sheets and every palette, once, and returns their handles. Call it after
+the assets are present and before the first frame. It throws whatever the engine's loaders throw when
+a file is missing or will not decode.
 
-`TileAtlas` holds four `retropp::AtlasId`s and five `retropp::PaletteId`s:
+`TileAtlas` holds four `retropp::AtlasId`s and, per shade ramp, a `RampPalettes` of seven
+`retropp::PaletteId`s:
 
 | Palette | Entries | Used by |
 |---|---|---|
-| `fontPalette` | 2 | background cells drawn from the font |
-| `contentPalette` | 4 | background cells drawn from either content sheet |
-| `fontSpritePalette` | 2 | objects drawn from the font |
-| `spritePalette0` | 4 | objects, plain ramp |
-| `spritePalette1` | 4 | objects, the variant the ending's dancers select |
+| `font` | 2 | background cells drawn from the font |
+| `content` | 4 | background cells drawn from either content sheet |
+| `fontDim` | 2 | the font inked in the light shade — how a screen greys a choice that is not selected |
+| `fontSprite` | 2 | objects drawn from the font |
+| `sprite0` | 4 | objects, plain ramp |
+| `sprite1` | 4 | objects, the variant the ending's dancers select |
+| `fontSpriteDim`, `spriteDim` | 2, 4 | objects inked in the light shade — an object present but not active |
 
 Backgrounds and objects cannot share a palette: an object's lowest hardware colour is see-through
 rather than a shade. Which entry that is follows from the decode inverting — the see-through colour is
@@ -124,7 +127,13 @@ the **last** entry of each object ramp, never the first. The two object ramps di
 variant draws the second-darkest colour lightest. The font needs no variant, because its tiles carry
 only the darkest colour and the see-through one, on which both object palettes agree.
 
-`multiplayerBuran` is uploaded but unused — no screen that currently draws selects it.
+**The dim pair fades within the ramp rather than swapping to another one**, which is what makes the
+distinction hold for every ramp. Twenty-nine of the eighty declare `mayBottomOutAtBlack`; on those, an
+object drawn through some other ramp's darkest shade is the same black as one drawn through this
+ramp's, so a difference carried by hue alone is not visible at all.
+
+Each ramp's set is built and uploaded at startup, so switching ramps is choosing between sets — nothing
+is uploaded or released when a player changes one.
 
 ### Resolving a tile index
 
@@ -135,13 +144,18 @@ const kirpich::render::ResolvedTile art =
 const kirpich::render::ResolvedTile obj =
     kirpich::render::resolveSpriteTile(index, game.display.sheet, entry.palette1, tiles);
 // .atlas, .cell, .palette
+
+const kirpich::render::ResolvedTile faded =
+    kirpich::render::resolveDimSpriteTile(index, game.display.sheet, tiles, ramp);
 ```
 
-Both are `noexcept` and neither can fail: an index with no art under the current regime resolves to
+All three are `noexcept` and none can fail: an index with no art under the current regime resolves to
 the empty cell rather than throwing, because the original draws whatever its tile block happens to
 hold. `resolveSpriteTile` picks the same sheet and cell as `resolveTile` — objects index the same tile
-block — and differs only in the palette, which follows `palette1`. `locateTile(index, sheet)` is the
-pure part both are built on and returns `TileLocation { TileSource source; std::uint16_t cell; }`.
+block — and differs only in the palette, which follows `palette1`. `resolveDimSpriteTile` differs from
+it only in taking the ramp's dim object palette, for an object that is present but not active — a
+badge not yet earned is the one caller. `locateTile(index, sheet)` is the pure part all three are
+built on and returns `TileLocation { TileSource source; std::uint16_t cell; }`.
 
 The relation, and the constants that express it:
 

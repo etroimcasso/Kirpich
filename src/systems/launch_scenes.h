@@ -97,18 +97,18 @@ void rocketLiftoff(GameContext& game);
 void rocketMainEngineFire(GameContext& game);
 
 // GameState_33 — restore the gameplay tile art, re-initialise the sound driver, clear the line-clear
-// list, switch back to the first map, and hand off to the Type A difficulty screen. Runs on its first
-// frame: unlike every other handler here, it has no timer gate. `roundEnded` fires here - a rocket
-// round leaves through this scene rather than the game-over screen, so this is where its achievement
-// check runs.
-void endOfBonusScene(GameContext& game, const RoundEndHook& roundEnded = {});
+// list, switch back to the first map, and hand off to the difficulty screen for the mode just played.
+// Runs on its first frame: unlike every other handler here, it has no timer gate. `roundExit` decides
+// where it actually leads - a rocket round leaves through this scene rather than the game-over screen,
+// so this is where its achievement check and any notice run.
+void endOfBonusScene(GameContext& game, const RoundExit& roundExit = {});
 
 // ── Installer ───────────────────────────────────────────────────────────────────────────────────────
 
 // Install all fifteen launch-scene handlers into their dispatch slots. Both entry states — the Buran
 // fork out of the ending dance and the game-over chain's bonus state — resolve to real handlers only
-// after this runs. `roundEnded` is fired when the rocket scene exits, the point a rocket round truly
-// ends; inert by default.
-void installLaunchSceneHandlers(GameStateDispatcher& dispatcher, RoundEndHook roundEnded = {});
+// after this runs. `roundExit` carries the rocket scene's exit, the point a rocket round truly ends;
+// unset, that exit goes straight to the difficulty screen.
+void installLaunchSceneHandlers(GameStateDispatcher& dispatcher, RoundExit roundExit = {});
 
 }  // namespace kirpich::systems

@@ -81,10 +81,11 @@ void initGameOver(GameContext& game, const NowNanos& now = {});
 void gameOverCurtain(GameContext& game);
 
 // GameState_04 — the game-over screen: wait for A or Start, then return to the difficulty screen the
-// round came from. `roundEnded` fires on the way out - this is where a topped-out round (and every
-// Type B win, which reaches here after its tally) truly ends, so the achievement check runs here for
-// every path except the rocket, which leaves through the bonus scene instead.
-void gameOverScreen(GameContext& game, const RoundEndHook& roundEnded = {});
+// round came from. `roundExit` decides where that press actually leads - this is where a topped-out
+// round (and every Type B win, which reaches here after its tally) truly ends, so the achievement
+// check and the notice it may raise run here for every path except the rocket, which leaves through
+// the bonus scene instead. Unset, the player goes to the difficulty screen directly.
+void gameOverScreen(GameContext& game, const RoundExit& roundExit = {});
 
 // GameState_0B — re-arm one unit of the Type B results count-up: once the timer expires, set the
 // count-up phase and reload the timer.
@@ -136,9 +137,10 @@ struct GameplayWiring {
     // everything else about the round is still counted.
     NowNanos now{};
 
-    // Fired when the game-over screen is left - a round has truly ended. The achievement round-end
-    // check hangs off it; inert by default.
-    RoundEndHook roundEnded{};
+    // How the game-over screen is left - a round has truly ended, and this decides where the player
+    // goes. The achievement round-end check and its notice hang off it; unset, the destination the
+    // screen picked stands.
+    RoundExit roundExit{};
 };
 
 // Install the seven gameplay handlers into their dispatch slots ($0A, $00, $01, $0D, $04, $0B, $0C).

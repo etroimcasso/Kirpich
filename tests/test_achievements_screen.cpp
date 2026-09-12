@@ -56,7 +56,7 @@ retropp::ActionSet actionSet(std::initializer_list<Action> as) {
     return s;
 }
 
-// A shade ramp the player might have chosen, distinct from the greyscale a locked badge falls back to.
+// A shade ramp the player might have chosen, away from the greyscale a build starts out drawing in.
 constexpr std::uint8_t kPlayerRamp = 7;
 
 // An atlas whose handles say which sheet and which ramp a resolved tile came from, so a palette
@@ -78,6 +78,8 @@ TileAtlas makeAtlas() {
         atlas.palettes[ramp].fontSprite = id(4);
         atlas.palettes[ramp].sprite0    = id(5);
         atlas.palettes[ramp].sprite1    = id(6);
+        atlas.palettes[ramp].fontSpriteDim = id(7);
+        atlas.palettes[ramp].spriteDim     = id(8);
     }
     return atlas;
 }
@@ -443,17 +445,36 @@ TEST(AchievementsScreen, EarnedAndLockedBadgesDrawThroughDifferentPalettes) {
     EXPECT_EQ(locked[0].tile, earned[0].tile) << "locking is not a different picture";
 }
 
-TEST(AchievementsScreen, ALockedBadgeIgnoresThePlayersChosenRamp) {
+// A locked badge fades within the player's own ramp rather than falling back to a fixed one. Swept
+// over every ramp, because the rule exists for the ramps whose darkest shade is black: on those, a
+// locked badge drawn through some other ramp's black is the same black an earned one draws in, and
+// the two are indistinguishable on screen. Fading cannot collide that way at any ramp.
+TEST(AchievementsScreen, ALockedBadgeFadesWithinThePlayersOwnRamp) {
     const AchievementId id = kirpich::systems::achievementSectionBadge(AchievementSection::ASCENT, 0).id;
 
-    const kirpich::render::Sprites one =
-        kirpich::render::AchievementBadge(id, 0, 0, /*unlocked=*/false, kAtlas, /*ramp=*/2);
-    const kirpich::render::Sprites other =
-        kirpich::render::AchievementBadge(id, 0, 0, /*unlocked=*/false, kAtlas, /*ramp=*/9);
+    for (std::uint8_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+        const kirpich::render::Sprites locked =
+            kirpich::render::AchievementBadge(id, 0, 0, /*unlocked=*/false, kAtlas, ramp);
+        const kirpich::render::Sprites earned =
+            kirpich::render::AchievementBadge(id, 0, 0, /*unlocked=*/true, kAtlas, ramp);
 
-    ASSERT_FALSE(one.empty());
-    EXPECT_EQ(one[0].palette, other[0].palette)
-        << "a locked badge is grey whatever colours the player picked";
+        ASSERT_FALSE(locked.empty());
+        EXPECT_EQ(locked[0].palette,
+                  kirpich::render::resolveDimSpriteTile(0x30, kirpich::TileSheet::GAMEPLAY, kAtlas,
+                                                        ramp)
+                      .palette)
+            << "locked draws through this ramp's own dim palette, ramp " << int{ramp};
+        EXPECT_NE(locked[0].palette, earned[0].palette)
+            << "and is never the palette an earned one draws in, ramp " << int{ramp};
+    }
+
+    // Two different ramps give a locked badge two different palettes - it follows the player's
+    // choice rather than ignoring it.
+    const kirpich::render::Sprites atTwo =
+        kirpich::render::AchievementBadge(id, 0, 0, /*unlocked=*/false, kAtlas, /*ramp=*/2);
+    const kirpich::render::Sprites atNine =
+        kirpich::render::AchievementBadge(id, 0, 0, /*unlocked=*/false, kAtlas, /*ramp=*/9);
+    EXPECT_NE(atTwo[0].palette, atNine[0].palette);
 }
 
 // The cursor is drawn around the badge, not into it: what is selected keeps its own colours, so a

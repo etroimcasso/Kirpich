@@ -8,6 +8,7 @@
 
 #include <cstddef>
 
+#include "render/background.h"            // kVisibleRows
 #include "systems/achievements_screen.h"  // kAchievementGridCols
 
 namespace kirpich::render {
@@ -28,15 +29,33 @@ inline constexpr int kAchGridStepY = 40;
 // An open badge's panel: the badge, then its title, the description of what it asks for, and when it
 // was earned. The description wraps, so it has a line step and a width to wrap at - the width is in
 // characters, which at the glyph pitch is what fits between the text's left edge and the screen's.
+//
+// The vertical run is derived rather than restated, so a row cannot drift into the one above it. The
+// badge hangs a clear cell below the heading; the title clears the tallest badge the set has (a
+// standing figure, three tiles); and the description opens a wider gap than it keeps between its own
+// lines, so the title reads as a heading for it rather than as its first line.
 inline constexpr int kAchPanelBadgeX = 16;
-inline constexpr int kAchPanelBadgeY = 24;
 inline constexpr int kAchPanelTextX  = 16;
-inline constexpr int kAchPanelTitleY = 56;
-inline constexpr int kAchPanelDescY  = 72;
-inline constexpr int kAchPanelStampY = 120;
+
+inline constexpr int kAchPanelHeadingGap = kAchCell;      // heading to badge
+inline constexpr int kAchPanelBadgeSpan  = 3 * kAchCell;  // the tallest badge art in the set
+inline constexpr int kAchPanelBadgeGap   = kAchCell;      // badge to title
+inline constexpr int kAchPanelTitleGap   = 20;            // title to the description under it
 
 inline constexpr int         kAchPanelLineStep  = 12;
 inline constexpr std::size_t kAchPanelTextCells = 18;
+inline constexpr std::size_t kAchPanelDescLines = 3;  // the longest description in the set wraps to 3
+
+inline constexpr int kAchPanelBadgeY = kAchHeadingY + kAchCell + kAchPanelHeadingGap;
+inline constexpr int kAchPanelTitleY = kAchPanelBadgeY + kAchPanelBadgeSpan + kAchPanelBadgeGap;
+inline constexpr int kAchPanelDescY  = kAchPanelTitleY + kAchPanelTitleGap;
+inline constexpr int kAchPanelStampY =
+    kAchPanelDescY + static_cast<int>(kAchPanelDescLines) * kAchPanelLineStep + kAchCell;
+
+// The whole run has to land on the screen: opening a gap anywhere above pushes the stamp down, and
+// there is no scroll to absorb it.
+static_assert(kAchPanelStampY + kAchCell <= static_cast<int>(kVisibleRows) * kAchCell,
+              "the panel's unlock stamp runs off the bottom of the screen");
 
 // Badges ride above the backdrop; text above the badges, so a name over a panel badge stays legible.
 inline constexpr int kAchBadgeZ = 10;

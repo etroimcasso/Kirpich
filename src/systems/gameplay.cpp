@@ -496,34 +496,35 @@ void gameOverCurtain(GameContext& game) {
     game.flow.gameState = GameState::GAME_OVER_SCREEN;
 }
 
-void gameOverScreen(GameContext& game, const RoundEndHook& roundEnded) {
+void gameOverScreen(GameContext& game, const RoundExit& roundExit) {
     if (!pressed(game, Action::RotateClockwise) && !pressed(game, Action::Start)) {
         return;
     }
     game.flow.wipeCounter = 0;
 
+    // Back to the difficulty screen the round came from, one per mode.
+    GameState destination = GameState::INIT_TYPE_A_DIFFICULTY;
+    if (game.multiplayer.isMultiplayer) {
+        destination = GameState::INIT_2P_DIFFICULTY;
+    } else {
+        switch (game.flow.gameType) {
+            case GameType::TYPE_B:
+                destination = GameState::INIT_TYPE_B_DIFFICULTY;
+                break;
+            case GameType::TYPE_C:
+                destination = GameState::INIT_TYPE_C_DIFFICULTY;
+                break;
+            default:
+                break;
+        }
+    }
+
     // The round truly ends here for every path but the rocket: a top-out, a Type B loss, and a Type B
     // win (which reaches this screen after its tally). Any bonus scene has already run, so the
-    // achievement check reads a complete round. The rocket path leaves through the bonus scene and
-    // fires this seam there instead.
-    if (roundEnded) roundEnded(game);
-
-    if (game.multiplayer.isMultiplayer) {
-        game.flow.gameState = GameState::INIT_2P_DIFFICULTY;
-        return;
-    }
-    // Back to the difficulty screen the round came from, one per mode.
-    switch (game.flow.gameType) {
-        case GameType::TYPE_B:
-            game.flow.gameState = GameState::INIT_TYPE_B_DIFFICULTY;
-            break;
-        case GameType::TYPE_C:
-            game.flow.gameState = GameState::INIT_TYPE_C_DIFFICULTY;
-            break;
-        default:
-            game.flow.gameState = GameState::INIT_TYPE_A_DIFFICULTY;
-            break;
-    }
+    // achievement check reads a complete round, and anything it awards is shown before the player
+    // reaches the destination above. The rocket path leaves through the bonus scene and takes this
+    // same seam there instead.
+    game.flow.gameState = roundExit ? roundExit(game, destination) : destination;
 }
 
 void initTypeBScoreboard(GameContext& game) {
@@ -553,8 +554,8 @@ void installGameplayHandlers(GameStateDispatcher& dispatcher, GameplayWiring wir
     dispatcher.setHandler(GameState::INIT_GAME_OVER,
                           [wiring](GameContext& g) { initGameOver(g, wiring.now); });
     dispatcher.setHandler(GameState::GAME_OVER_CURTAIN, gameOverCurtain);
-    dispatcher.setHandler(GameState::GAME_OVER_SCREEN, [roundEnded = wiring.roundEnded](GameContext& g) {
-        gameOverScreen(g, roundEnded);
+    dispatcher.setHandler(GameState::GAME_OVER_SCREEN, [roundExit = wiring.roundExit](GameContext& g) {
+        gameOverScreen(g, roundExit);
     });
     dispatcher.setHandler(GameState::INIT_TYPE_B_SCOREBOARD, initTypeBScoreboard);
     dispatcher.setHandler(GameState::STATE_0C_UNKNOWN, state0CUnknown);

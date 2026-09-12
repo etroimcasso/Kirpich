@@ -121,6 +121,13 @@ struct RampPalettes {
     retropp::PaletteId fontSprite{};  // font art drawn as an object; serves both object palettes
     retropp::PaletteId sprite0{};     // the plain ramp
     retropp::PaletteId sprite1{};     // the variant the dancers select
+
+    // The object palettes again, inked in the light shade - what the dim font is to the font. They
+    // say an object is present but not active, the way the config screen says a choice is not the
+    // selected one. Fading within the ramp rather than swapping to another ramp is what makes the
+    // difference hold for every ramp, including one whose darkest shade is black.
+    retropp::PaletteId fontSpriteDim{};
+    retropp::PaletteId spriteDim{};
 };
 
 struct TileAtlas {
@@ -166,5 +173,14 @@ struct ResolvedTile {
 [[nodiscard]] ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
                                              const TileAtlas& atlas,
                                              std::uint8_t ramp = kDefaultShadeRamp) noexcept;
+
+// The same again, faded - the same sheet and cell through the ramp's dim object palette. It is for an
+// object that is present but not active, such as a badge not yet earned, and it fades within the
+// player's own ramp rather than falling back to another one: a ramp whose darkest shade is black is
+// indistinguishable from any other ramp's black, so a difference carried by hue alone is no
+// difference at all on those.
+[[nodiscard]] ResolvedTile resolveDimSpriteTile(std::uint8_t index, TileSheet sheet,
+                                                const TileAtlas& atlas,
+                                                std::uint8_t ramp = kDefaultShadeRamp) noexcept;
 
 }  // namespace kirpich::render

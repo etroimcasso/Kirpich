@@ -14,19 +14,27 @@ struct AchievementDef {
     AchievementId      id{};
     AchievementSection section{};
     std::uint8_t       tier   = 1;   // 1..4, display ordering only — there are no points
-    bool               hidden = true;
+    bool               hidden = false;
     std::string_view   title{};
     std::string_view   description{};
     Condition          condition{};
 };
 
 std::span<const AchievementDef> achievementSet();
+const AchievementDef& achievementDef(AchievementId id) noexcept;
 ```
+
+The set is one table in id order, so an id indexes it; `achievementDef` is the lookup every surface
+that draws an achievement goes through.
 
 `title` and `description` are data beside the id, so either can be rewritten without touching logic
 or the save format. The description states the criterion in words; the condition is what is actually
 evaluated. `hidden` changes only what the screen draws for one not yet earned — it has no bearing on
 how it is awarded.
+
+**`hidden` means naming it would spoil a discovery, so it defaults to shown.** Three of the set carry
+it, the launch scenes: the rocket and the Buran are the game's secret endings. The rest is a ladder,
+and a ladder is there to be aimed at.
 
 `AchievementSection` is the themed grouping, nine of them, one to a page on the screen. The set is
 grouped by section in id order, so **a section is one contiguous run of the table** — the screen's
@@ -81,6 +89,10 @@ Three properties worth knowing before adding a firing point:
   `beginAchievementRound`, which the recording layer calls only for a real round; `noteRoundConcluded`
   sets `pendingEval` only while `active`.
 - **It clears the round's observations when it returns**, which is what makes it once-per-round.
+
+Whatever it awards it also queues on `AchievementNoticeState`, in the set's order, emptying that queue
+first — so a round that earns nothing leaves nothing to announce rather than repeating the round
+before it. That queue is what the end-of-round notice shows.
 
 ### What the round observes
 
@@ -203,9 +215,11 @@ bool    achievementScreenShown(GameState) noexcept;
 ```
 
 An earned badge and a locked one are the same art through a different palette: a locked one draws
-through the plain greyscale ramp whatever colours the player has chosen, so an earned one is the
-coloured one. A badge does not know whether it is selected — the cursor is its own object drawn
-around it — so a grid reads the same however it is being walked.
+faded, through the player's own ramp inked in its light shade, so an earned one is the solid one. It
+fades **within** the ramp rather than falling back to a fixed one — twenty-nine of the eighty ramps
+declare `mayBottomOutAtBlack`, and on those a badge drawn through another ramp's black is the same
+black an earned one draws in. A badge does not know whether it is selected — the cursor is its own
+object drawn around it — so a grid reads the same however it is being walked.
 
 Three things a change here depends on:
 
@@ -233,8 +247,79 @@ than showing a bare badge, which would read as a page that failed to draw. One t
 that has been earned, shows its title and description; an earned one also shows the date and the play
 time it was earned at.
 
-A description wraps to `kAchPanelTextCells` on word boundaries. A word longer than the width takes
-its own line rather than being cut mid-word.
+A description wraps to `kAchPanelTextCells` through the shared `wrapText`
+(`src/render/glyphs.h`), on word boundaries; a word longer than the width takes its own line rather
+than being cut mid-word.
+
+## The end-of-round notice
+
+What a finished round just earned, shown before the player is returned to a difficulty screen. One
+badge to a screen, a press for the next; there is no sound and no heading, just the banner.
+
+### How a round reaches it
+
+A round ends in one of two places — the game-over screen, which every top-out and every Type B win
+reaches, and the rocket scene, which a Type A or Type C round scoring past the first rocket boundary
+leaves through instead. Both hand their destination to one seam and take back where the player
+actually goes (`src/systems/game_context.h`):
+
+```cpp
+using RoundExit = std::function<GameState(GameContext& game, GameState destination)>;
+```
+
+`main.cpp` composes the check and the routing into the closure both are given. Unset, each handler
+goes to its own destination unchanged, which is what every test that does not care about achievements
+relies on.
+
+```cpp
+GameState achievementNoticeExit(GameContext& game, GameState destination);
+AchievementId achievementOnNotice(const GameContext& game) noexcept;
+void achievementNotice(GameContext& game);
+void installAchievementNotice(GameStateDispatcher&);
+```
+
+`achievementNoticeExit` returns `destination` when the queue is empty. Otherwise it holds that
+destination, points at the head of the queue, and returns `GameState::ACHIEVEMENT_NOTICE`.
+
+### Its state
+
+```cpp
+struct AchievementNoticeState {
+    BoundedVec<AchievementId, kAchievementCount> pending{};
+    std::uint8_t shown  = 0;
+    GameState    resume = GameState::INIT_TYPE_A_DIFFICULTY;
+};
+```
+
+The queue is the one record of what was just earned — what is on screen is `pending[shown]`, never a
+second copy — and it is written in exactly one place, the round-end check. It is not persisted: it
+means nothing after the program stops, and **a soft reset clears it**, so a reset taken mid-round
+cannot leave badges to be announced after the next one. What was earned at all does persist, in the
+records above.
+
+The notice has one state and no init, because the exit that routed to it has already set everything
+it needs.
+
+### The banner
+
+```cpp
+Sprites AchievementBanner(AchievementId, int x, int y, const TileAtlas&, std::uint8_t ramp);
+Layers  AchievementNotice(AchievementId, const TileAtlas&, std::uint8_t ramp);
+bool    achievementNoticeShown(GameState) noexcept;
+```
+
+The badge on the left, the title beside it, the description wrapped under the title;
+`notice_layout.h` holds every position. **The text hangs off the badge's own width** rather than a
+fixed column, and the wrap width is derived from where the text actually starts — the emblems are
+different shapes, and a bar four tiles across would run under a title placed at a constant offset.
+
+The badge draws earned, because a banner is only ever shown for one that has just been earned. That
+is also why a hidden achievement shows its real title and description here: being earned is what
+reveals it, and the placeholder copy belongs to the screen that lists what has not been.
+
+A press steps to the next; the press past the last empties the queue and writes the held destination.
+`Confirm` and `Start` both do it — the two the game-over screen accepts, so a player carrying on
+pressing A steps through what they earned without learning a second button.
 
 ## Where each call is wired
 
@@ -244,11 +329,12 @@ its own line rather than being cut mid-word.
 | `noteRoundTetris` | the per-kind tally (`src/systems/stats.cpp`) |
 | `noteRoundConcluded` | `initGameOver` (`src/systems/gameplay.cpp`), and both won-Type-B states (`src/systems/type_b_ending.cpp`) |
 | `noteRocketScene`, `noteBuranScene` | the two scene handlers (`src/systems/launch_scenes.cpp`) |
-| `evaluateRoundEnd` | one closure in `src/main.cpp`, handed to `gameOverScreen` and `endOfBonusScene` as a `RoundEndHook`; the reset closure and the exit guard call it directly |
-| `installAchievementsScreen` | `src/main.cpp` |
+| `evaluateRoundEnd` | one closure in `src/main.cpp`, handed to `gameOverScreen` and `endOfBonusScene` as a `RoundExit`; the reset closure and the exit guard call it directly |
+| `achievementNoticeExit` | the same closure, immediately after the check |
+| `installAchievementsScreen`, `installAchievementNotice` | `src/main.cpp` |
 | `loadAchievements` | `bootGame` (`src/systems/boot.cpp`) |
 | `saveAchievements` | `src/main.cpp`, beside the statistics |
-| the screen's frame | the render loop's first branch (`src/main.cpp`) |
+| the screen's frame, the notice's frame | the render loop's first two branches (`src/main.cpp`) |
 
 The two direct calls cover a round that had concluded but not yet been checked — a chord reset or a
 quit from the game-over screen — so a last-round unlock is not lost. A mid-round reset or quit has
@@ -273,7 +359,8 @@ The row's count is why `ListWiring::paintRow` is handed the game
 2. Add its row to the set, in id order, inside its section's contiguous run.
 3. Give it a condition. If no existing `ConditionKind` expresses it, add a kind and its branch in
    `conditionMet`; otherwise the evaluator is untouched.
-4. Nothing else. `kAchievementCount` follows the enum, the image size follows the count, and the
+4. Leave `hidden` alone unless naming the achievement would spoil a discovery, in which case set it.
+5. Nothing else. `kAchievementCount` follows the enum, the image size follows the count, and the
    screen's page count and grid follow the set.
 
 A set that outgrows the current schema needs a version bump and a migration that pads older records

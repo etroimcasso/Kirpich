@@ -5,10 +5,10 @@
 // composed sprite holds between one and kMaxSpriteParts parts, for instance - where a plain
 // std::array would force every row to the maximum and std::vector would forbid constexpr use.
 //
-// Construct one from a braced list; the element count must not exceed N (a longer list is a compile
-// error in a constant expression, a debug assert at run time). Iterate the live prefix with a
-// range-for, index it with operator[], compare two with ==. Trailing unused slots are value-
-// initialized, so equality reflects only the live elements.
+// Construct one from a braced list, or start empty and append with push_back; either way the element
+// count must not exceed N (a longer list is a compile error in a constant expression, a debug assert
+// at run time). Iterate the live prefix with a range-for, index it with operator[], compare two with
+// ==. Trailing unused slots are value-initialized, so equality reflects only the live elements.
 
 #include <array>
 #include <cassert>
@@ -27,6 +27,14 @@ public:
         for (const T& value : init) {
             data_[size_++] = value;
         }
+    }
+
+    // Append one element. The caller keeps the count below the capacity; appending past it is a
+    // programming error, not a condition to recover from, so it asserts rather than returning a
+    // failure a caller would have to check.
+    constexpr void push_back(const T& value) {
+        assert(size_ < N && "BoundedVec push_back exceeds capacity");
+        data_[size_++] = value;
     }
 
     [[nodiscard]] constexpr std::size_t size() const { return size_; }

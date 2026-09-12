@@ -55,6 +55,7 @@
 
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
+#include "render/achievements/notice.h"
 #include "render/achievements/screen.h"
 #include "render/background.h"
 #include "render/ghost_piece.h"
@@ -86,6 +87,7 @@
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/stats.h"
+#include "systems/achievement_notice.h"
 #include "systems/achievements_screen.h"
 #include "systems/stats_screens.h"
 #include "systems/title_screens.h"
@@ -269,12 +271,15 @@ int main(int /*argc*/, char* /*argv*/[]) {
             .day   = static_cast<std::uint8_t>(local.tm_mday)};
     };
 
-    // The round-end check, fired at every point a round truly ends. The game-over screen and the
-    // rocket scene both hand it this same closure; the reset and quit paths below call the same check
-    // on the game directly. The check does nothing unless a round has concluded, so a firing point
-    // reached without one is harmless.
-    const auto roundEnded = [nowDate](kirpich::systems::GameContext& g) {
+    // How a finished round leaves, at every point one truly ends. The game-over screen and the rocket
+    // scene both hand it this same closure: the round-end check runs, and then anything it awarded is
+    // announced before the player reaches the screen the round was headed for. The reset and quit
+    // paths below call the check on the game directly, since neither has a player to announce anything
+    // to. The check does nothing unless a round has concluded, so a firing point reached without one
+    // passes the destination straight through.
+    const auto roundExit = [nowDate](kirpich::systems::GameContext& g, kirpich::GameState destination) {
         kirpich::systems::evaluateRoundEnd(g, nowDate);
+        return kirpich::systems::achievementNoticeExit(g, destination);
     };
 
     // ── The machine ──────────────────────────────────────────────────────────
@@ -411,6 +416,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installStatsScreens(dispatcher, settings, settingChanged, settingsWiring);
     kirpich::systems::installAchievementsScreen(dispatcher);
 
+    // The screen a round that earned something leaves through, before it reaches its difficulty
+    // screen. It is entered from the round exit below rather than from a menu, so nothing else
+    // installs beside it.
+    kirpich::systems::installAchievementNotice(dispatcher);
+
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
 
@@ -422,7 +432,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The two bonus endings. Without these the dance's height-5 fork and the game-over chain's
     // 100 000-point fork both write a state nothing implements, and the game stops where it should
     // launch something.
-    kirpich::systems::installLaunchSceneHandlers(dispatcher, roundEnded);
+    kirpich::systems::installLaunchSceneHandlers(dispatcher, roundExit);
 
     // Both seams take the machine's raw byte source: the round's piece selection and the garbage
     // fill's per-cell pick each own their own logic and only ask the divider for a number.
@@ -439,8 +449,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
                         .now         = nowNanos,
                         // The achievement check runs when the game-over screen is left - after any
                         // rocket scene, so a topped-out round that earned one is seen. The rocket
-                        // path leaves through the bonus scene, which fires the same seam.
-                        .roundEnded  = roundEnded,
+                        // path leaves through the bonus scene, which takes the same seam.
+                        .roundExit   = roundExit,
                     });
 
     // Start the machine: the boot path, then the player's saved top scores read back over the tables
@@ -575,6 +585,15 @@ int main(int /*argc*/, char* /*argv*/[]) {
             screen.layers = kirpich::render::AchievementsScreen(
                 game.achievementScreen, game.achievements, game.screens.cursorVisible, tiles,
                 settings.shadeRamp);
+            renderer.renderFrame(screen);
+            return;
+        }
+
+        // The end-of-round notice is built the same way, from what the round-end check queued.
+        if (kirpich::render::achievementNoticeShown(game.flow.gameState)) {
+            retropp::FrameDrawState screen;
+            screen.layers = kirpich::render::AchievementNotice(
+                kirpich::systems::achievementOnNotice(game), tiles, settings.shadeRamp);
             renderer.renderFrame(screen);
             return;
         }

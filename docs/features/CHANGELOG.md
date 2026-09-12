@@ -8,6 +8,25 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-09-11
+
+- **Achievements** 🟡 → ✅. A round that earns something announces it on the way out: one badge to a
+  screen — the badge, its title, its criterion under the title — and a press for the next. It comes
+  after everything else the round does, a Type B tally and a bonus scene included, and before the
+  top-score name entry each difficulty screen forks into, because there is no room to say it mid-round
+  and a distraction during a game is not wanted. No sound and no heading: a badge and its name say what
+  happened. Both ways a round can end go through one seam that takes where the round was headed and
+  returns where it actually goes, so the rocket path is covered too — which matters, because the two
+  biggest score achievements are defined by scores that earn a rocket and that path never passes
+  through the game-over screen. Its screen has one state and no init, the first entered by a seam
+  rather than from a menu. **Riding with it:** a Type C round that flies the rocket now comes back to
+  the Type C picker instead of the Type A one, which had also been putting a new Type C top score's
+  name entry over the Type A leaderboard. **And the hidden split now has a rule behind it:** hidden
+  means naming it would spoil a discovery, so a badge is shown unless it does, and only the Liftoff
+  section carries it — the rocket and the Buran are the game's secret endings, and everything else is
+  a rung on a ladder that is there to be aimed at. Three of thirty-six rather than thirty-three. Badge
+  art and the names remain data and want a content pass.
+
 ## 2026-09-10
 
 - **Achievements** ⬜ → 🟡. Thirty-six things worth doing across nine themed sections, awarded when a

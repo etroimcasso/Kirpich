@@ -2,8 +2,11 @@
 
 // One achievement's badge: the sprites that are its icon.
 //
-// Earned and locked are the same art through a different palette. A locked badge draws through the
-// plain greyscale ramp whatever colours the player has chosen, so an earned one is the coloured one.
+// Earned and locked are the same art through a different palette. A locked badge draws faded - the
+// player's own ramp inked in its light shade, the way the config screen greys a choice that is not
+// the selected one - so an earned one is the solid one. It fades within the ramp rather than falling
+// back to another ramp, because a ramp whose darkest shade is black is indistinguishable from any
+// other ramp's black: a difference carried by hue alone disappears on those.
 //
 // A badge does not know whether it is selected: the cursor is its own object drawn around it
 // (render/selection_corners.h), so a grid reads the same however it is being walked.

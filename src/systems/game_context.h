@@ -16,6 +16,9 @@
 
 #include <functional>
 
+#include <kirpich/game_state.h>
+
+#include "state/achievement_notice_state.h"
 #include "state/achievement_state.h"
 #include "state/achievements_screen_state.h"
 #include "state/demo_state.h"
@@ -52,7 +55,11 @@ struct GameContext {
     // whole state space in one place (see state/achievements_screen_state.h).
     AchievementScreenState achievementScreen;
 
-    JoypadState joypad;                  // this tick's held/pressed snapshot
+    // The end-of-round notice's own state - what a finished round just earned and has still to show,
+    // and where it was going when the notice took the frame (see state/achievement_notice_state.h).
+    AchievementNoticeState achievementNotice;
+
+    JoypadState joypad;                // this tick's held/pressed snapshot
     AudioCues   audioCues;               // the frame's pending audio cues (game -> driver mailbox)
 
     // Not machine state: a record of what the renderer drew into each object-buffer entry, so the
@@ -81,10 +88,12 @@ struct GameContext {
     return game.flow.heartMode != 0 && game.demo.activeDemo == ActiveDemo::NONE;
 }
 
-// A round has finished and the game has left it. Fired at the points a round truly ends - the game-over
-// screen's exit and the rocket scene's exit - after the round's numbers are final and any bonus scene
-// has run. The achievement round-end check hangs off this; the host supplies the closure. A generic
-// seam so a later round-end consumer (an end-of-round notice) rides the same wiring.
-using RoundEndHook = std::function<void(GameContext&)>;
+// How a finished round leaves. Called at the points a round truly ends - the game-over screen's exit
+// and the rocket scene's exit - once the round's numbers are final and any bonus scene has run. It is
+// handed the state the caller was about to go to and returns the state to go to instead, so a
+// consumer can put a screen between the round and its destination without either handler knowing what
+// that screen is. The achievement round-end check and the end-of-round notice hang off this; the host
+// supplies the closure, and an unset seam sends the player to the destination unchanged.
+using RoundExit = std::function<GameState(GameContext& game, GameState destination)>;
 
 }  // namespace kirpich::systems

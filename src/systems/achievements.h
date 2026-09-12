@@ -104,7 +104,11 @@ struct AchievementDef {
     AchievementId      id{};
     AchievementSection section{};
     std::uint8_t       tier   = 1;  // 1 Casual .. 4 Mastery; display ordering only, no point value
-    bool               hidden = true;
+
+    // Whether the screen keeps this one to itself until it is earned. Hidden means naming it would
+    // spoil a discovery, which is why it defaults to shown: most of the set is a ladder, and a target
+    // a player cannot see is not one to aim at.
+    bool hidden = false;
     std::string_view   title{};
     std::string_view   description{};
     Condition          condition{};
@@ -113,10 +117,18 @@ struct AchievementDef {
 // The whole set, in AchievementId order. Static, because it is definitions, not state.
 [[nodiscard]] std::span<const AchievementDef> achievementSet();
 
+// One achievement's definition. The set is one table in id order, so an id indexes it; this is the
+// lookup every surface that draws an achievement goes through.
+[[nodiscard]] const AchievementDef& achievementDef(AchievementId id) noexcept;
+
 // Run the round-end check: walk the set, and for every condition met by the just-finished round that
 // is not already unlocked, stamp it with `now`'s date and the current play time. Does nothing unless a
 // round has concluded and is awaiting the check (so a second call from another exit is a no-op, and a
 // demo - never armed - earns nothing); clears the round's observations when it returns.
+//
+// Whatever it awards it also queues on the notice state, in the set's order, replacing whatever was
+// queued before. That queue is what the end-of-round notice shows; a caller that is not a round exit
+// - the reset chord, the quit close-out - simply never reads it, and a soft reset clears it.
 void evaluateRoundEnd(GameContext& game, const NowDate& now);
 
 // How many achievements the player has unlocked, and how many there are. The screen's "Achievements

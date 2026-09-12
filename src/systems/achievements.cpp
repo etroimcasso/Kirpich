@@ -14,13 +14,17 @@ namespace kirpich::systems {
 namespace {
 
 // The set, in AchievementId order. Names are placeholders (data, not identity - the id is stable) to
-// be copy-passed later; hidden is true for all but a small visible starter tier so a new player sees
-// there is something to chase. Every threshold is a fact about the game, decided against what the port
+// be copy-passed later. Every threshold is a fact about the game, decided against what the port
 // already records.
+//
+// Almost everything here is shown from the start, because almost everything here is a ladder and a
+// ladder is there to be aimed at. Only the launch scenes are hidden: the rocket and the Buran are the
+// game's two secret endings, and naming them on a page is telling the player what they were meant to
+// find.
 constexpr std::array<AchievementDef, kAchievementCount> kSet{{
     // The Ascent - Type A score
     {.id = AchievementId::GETTING_WARM, .section = AchievementSection::ASCENT, .tier = 1,
-     .hidden = false, .title = "getting warm", .description = "score 5000 in a-type",
+     .title = "getting warm", .description = "score 5000 in a-type",
      .condition = {.kind = ConditionKind::ScoreAtLeast, .type = GameType::TYPE_A, .threshold = 5000}},
     {.id = AchievementId::STACKING_UP, .section = AchievementSection::ASCENT, .tier = 1,
      .title = "stacking up", .description = "score 25000 in a-type",
@@ -57,7 +61,7 @@ constexpr std::array<AchievementDef, kAchievementCount> kSet{{
 
     // The Tetris - four at once
     {.id = AchievementId::FOUR_AT_ONCE, .section = AchievementSection::THE_TETRIS, .tier = 1,
-     .hidden = false, .title = "four at once", .description = "clear your first tetris",
+     .title = "four at once", .description = "clear your first tetris",
      .condition = {.kind = ConditionKind::LifetimeTetrises, .threshold = 1}},
     {.id = AchievementId::TETRIS_TIMES_TEN, .section = AchievementSection::THE_TETRIS, .tier = 3,
      .title = "tetris times ten", .description = "land 10 tetrises in one game",
@@ -110,7 +114,7 @@ constexpr std::array<AchievementDef, kAchievementCount> kSet{{
 
     // Have A Heart - heart mode
     {.id = AchievementId::HAVE_A_HEART, .section = AchievementSection::HAVE_A_HEART, .tier = 1,
-     .hidden = false, .title = "have a heart", .description = "finish a game in heart mode",
+     .title = "have a heart", .description = "finish a game in heart mode",
      .condition = {.kind = ConditionKind::HeartRoundFinished}},
     {.id = AchievementId::HEART_OF_STEEL, .section = AchievementSection::HAVE_A_HEART, .tier = 4,
      .title = "heart of steel", .description = "score 100000 in a-type in heart mode",
@@ -123,13 +127,13 @@ constexpr std::array<AchievementDef, kAchievementCount> kSet{{
 
     // Liftoff - the bonus scenes
     {.id = AchievementId::LIFTOFF, .section = AchievementSection::LIFTOFF, .tier = 3,
-     .title = "liftoff", .description = "trigger the rocket launch",
+     .hidden = true, .title = "liftoff", .description = "trigger the rocket launch",
      .condition = {.kind = ConditionKind::SceneReached, .scene = Scene::ROCKET}},
     {.id = AchievementId::ESCAPE_VELOCITY, .section = AchievementSection::LIFTOFF, .tier = 4,
-     .title = "escape velocity", .description = "trigger the biggest rocket",
+     .hidden = true, .title = "escape velocity", .description = "trigger the biggest rocket",
      .condition = {.kind = ConditionKind::SceneReached, .scene = Scene::TOP_ROCKET}},
     {.id = AchievementId::COSMONAUT, .section = AchievementSection::LIFTOFF, .tier = 4,
-     .title = "cosmonaut", .description = "reach the buran launch",
+     .hidden = true, .title = "cosmonaut", .description = "reach the buran launch",
      .condition = {.kind = ConditionKind::SceneReached, .scene = Scene::BURAN}},
 
     // The Long Game - dedication
@@ -261,6 +265,10 @@ bool conditionMet(const Condition& cond, const RoundView& rv, const LifetimeView
 
 std::span<const AchievementDef> achievementSet() { return kSet; }
 
+const AchievementDef& achievementDef(AchievementId id) noexcept {
+    return kSet[achievementIndex(id)];
+}
+
 void evaluateRoundEnd(GameContext& game, const NowDate& now) {
     AchievementState& state = game.achievements;
     if (!state.round.pendingEval) return;  // no concluded round awaiting the check
@@ -270,6 +278,10 @@ void evaluateRoundEnd(GameContext& game, const NowDate& now) {
     const std::uint32_t datePacked  = packAchievementDate(now ? now() : AchievementDate{});
     const std::uint32_t playSeconds = game.stats.applicationSeconds;
 
+    // What this round awards, for the notice to show. Emptied first, so a round that earns nothing
+    // leaves nothing to show rather than repeating the round before it.
+    game.achievementNotice = AchievementNoticeState{};
+
     for (const AchievementDef& def : kSet) {
         AchievementUnlock& record = state.unlocked[achievementIndex(def.id)];
         if (record.unlocked) continue;  // first unlock wins; never overwrite an existing stamp
@@ -277,6 +289,7 @@ void evaluateRoundEnd(GameContext& game, const NowDate& now) {
             record = {.unlocked            = true,
                       .datePacked          = datePacked,
                       .playSecondsAtUnlock = playSeconds};
+            game.achievementNotice.pending.push_back(def.id);
         }
     }
 

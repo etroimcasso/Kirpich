@@ -15,6 +15,7 @@ add_library(kirpich-lib STATIC
     state/high_score_persistence.cpp
     state/settings.cpp
     state/stats_persistence.cpp
+    systems/achievement_notice.cpp
     systems/achievements.cpp
     systems/achievements_screen.cpp
     systems/input.cpp
@@ -55,6 +56,8 @@ add_library(kirpich-lib STATIC
     render/achievements/badge.cpp
     render/achievements/badge_grid.cpp
     render/achievements/badge_panel.cpp
+    render/achievements/banner.cpp
+    render/achievements/notice.cpp
     render/achievements/screen.cpp
     render/settings_overlay.cpp
     render/stats_pages.cpp

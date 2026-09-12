@@ -7,23 +7,14 @@
 
 #include "data/sprites.h"                // getSprite
 #include "render/achievements/layout.h"  // kAchBadgeZ
-#include "systems/achievements.h"        // the set, for a badge's section
+#include "systems/achievements.h"        // achievementDef, for a badge's section
 
 namespace kirpich::render {
 
 namespace {
 
-// A locked badge draws through the plain greyscale ramp whatever colours the player has chosen, so an
-// earned one is the coloured one.
-constexpr std::uint8_t kLockedRamp = kDefaultShadeRamp;
-
 // One part of a composed sprite is one tile.
 constexpr int kBadgeTilePx = 8;
-
-// The set is one table in AchievementId order, so an id indexes it.
-[[nodiscard]] const systems::AchievementDef& defOf(AchievementId id) noexcept {
-    return systems::achievementSet()[achievementIndex(id)];
-}
 
 // The art a badge wears: its section's emblem, from art the game already has. Data - changing it
 // changes no logic and no saved byte.
@@ -37,7 +28,7 @@ struct BadgeArt {
 };
 
 [[nodiscard]] BadgeArt artFor(AchievementId id) noexcept {
-    switch (defOf(id).section) {
+    switch (systems::achievementDef(id).section) {
         case systems::AchievementSection::ASCENT:        return {SpriteId::T_0};
         case systems::AchievementSection::ENDURANCE:     return {SpriteId::I_0};
         case systems::AchievementSection::THE_TETRIS:    return {SpriteId::O_0};
@@ -73,17 +64,17 @@ struct PartOrigin {
 
 Sprites AchievementBadge(AchievementId id, int x, int y, bool unlocked, const TileAtlas& atlas,
                          std::uint8_t ramp) {
-    const std::uint8_t     drawnRamp = unlocked ? ramp : kLockedRamp;
-    const BadgeArt         emblem    = artFor(id);
-    const kirpich::Sprite& art       = getSprite(emblem.id);
-    const PartOrigin       least     = smallestOffsets(art);
+    const BadgeArt         emblem = artFor(id);
+    const kirpich::Sprite& art    = getSprite(emblem.id);
+    const PartOrigin       least  = smallestOffsets(art);
 
     Sprites     out;
     std::size_t part = 0;
     out.reserve(art.parts.size());
     for (const kirpich::SpritePart& p : art.parts) {
         const ResolvedTile tile =
-            resolveSpriteTile(p.tile, emblem.sheet, /*palette1=*/false, atlas, drawnRamp);
+            unlocked ? resolveSpriteTile(p.tile, emblem.sheet, /*palette1=*/false, atlas, ramp)
+                     : resolveDimSpriteTile(p.tile, emblem.sheet, atlas, ramp);
         // A badge is named for which achievement it is, which part of its art this is, AND where it
         // is drawn. The same achievement appears in the grid and again, larger, on its own panel;
         // those are two different objects, and keying them alike makes the engine reconcile them as

@@ -84,6 +84,7 @@ can use them.
 ```cpp
 Sprites Glyphs(std::string_view text, int x, int y, int pitch,
                const TileAtlas& atlas, std::uint8_t ramp);
+std::vector<std::string_view> wrapText(std::string_view text, std::size_t width);
 Cells   Backdrop(const TileAtlas& atlas, std::uint8_t ramp);
 Regions SelectionCorners(std::string_view key, float x, float y, float w, float h,
                          retropp::Rgba8 colour);
@@ -94,6 +95,11 @@ cell grid, drawn through an object palette so only the ink lands. **The font has
 digits, a period and a hyphen and nothing else** — a character it cannot spell keeps its place in the
 run and draws nothing. Each glyph is named for where it sits, so a run holds its identity between
 frames without the caller naming it.
+
+`wrapText` breaks a passage into lines of at most `width` characters on word boundaries, for a caller
+that then draws each line with `Glyphs`. A word longer than the width takes a line to itself and runs
+past the edge rather than being cut mid-word. The lines point into the text it was given, so that text
+has to outlive them.
 
 `Backdrop` is the plain field of cells behind everything else — the one part of such a screen that is
 tiles rather than sprites.
@@ -172,9 +178,30 @@ The background compose and the sprite compose below it do not run, and the scree
 background map nor the object buffer. Its init empties the object buffer, because whichever screen
 was up before left its own entries there.
 
+## A screen with one state
+
+A screen needs an init only when something has to be set up before its first frame — the achievements
+screen seeds its section and cursor there, and empties the object buffer the previous screen left. A
+screen whose state is already set when it is reached needs neither, and has one state rather than two.
+
+The end-of-round notice is the port's example (`src/systems/achievement_notice.h`). It is not opened
+from a menu: a finished round is routed to it by a seam that has already filled its queue, so an init
+would be a handler with nothing to do. It does not empty the object buffer either — its frame is its
+own layers, so whatever the screen before it left there is simply not drawn.
+
+```cpp
+GameState achievementNoticeExit(GameContext& game, GameState destination);
+```
+
+The pattern is worth naming: **a screen can be entered by returning its state from a seam**, rather
+than by a handler writing it. The caller passes where it was going, the seam holds that destination
+and returns the screen's state instead, and the screen writes the held destination back when it is
+done. Neither of the two handlers that call it knows the screen exists.
+
 ## Adding a screen
 
-1. Mint the two game states — an init and a loop — and raise `kGameStateCount`.
+1. Mint the game states — an init and a loop, or a loop alone (see above) — and raise
+   `kGameStateCount`.
 2. Add the screen's state as a `GameContext` member, with `reset()` and a defaulted `operator==`.
 3. Write the logic module: the cursor law, the input tables, the two handlers, the installer. No
    drawing type appears in it.

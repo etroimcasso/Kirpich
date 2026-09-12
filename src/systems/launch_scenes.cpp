@@ -413,21 +413,28 @@ void rocketMainEngineFire(GameContext& game) {
     game.flow.gameState = GameState::END_OF_BONUS_SCENE;
 }
 
-void endOfBonusScene(GameContext& game, const RoundEndHook& roundEnded) {
+void endOfBonusScene(GameContext& game, const RoundExit& roundExit) {
     // No timer gate, unlike every other handler in either chain (:3056-3065).
     game.audioCues.resetRequested = true;  // (:3059)
+
+    // Back to the difficulty screen for the mode just played. The cartridge names Type A here
+    // (:3056-3065) because Type A is the only mode it has that earns a rocket; this port gives Type C
+    // the same score boundaries (gameplay.cpp), so a Type C round flies the rocket too and has its own
+    // picker to return to. A Type B round never reaches this handler - its ending is the Buran, which
+    // leaves through the tally and the game-over screen.
+    const GameState destination = game.flow.gameType == GameType::TYPE_C
+                                      ? GameState::INIT_TYPE_C_DIFFICULTY
+                                      : GameState::INIT_TYPE_A_DIFFICULTY;
 
     // A rocket round leaves through here, not the game-over screen, so this is where its round truly
     // ends and the achievement check runs. By now the rocket scene has run, so LIFTOFF and ESCAPE
     // VELOCITY are decided; the round's score is untouched by the scene.
-    if (roundEnded) roundEnded(game);
-
-    leaveLaunchScene(game, GameState::INIT_TYPE_A_DIFFICULTY);
+    leaveLaunchScene(game, roundExit ? roundExit(game, destination) : destination);
 }
 
 // ── Installer ───────────────────────────────────────────────────────────────────────────────────────
 
-void installLaunchSceneHandlers(GameStateDispatcher& dispatcher, RoundEndHook roundEnded) {
+void installLaunchSceneHandlers(GameStateDispatcher& dispatcher, RoundExit roundExit) {
     dispatcher.setHandler(GameState::INIT_BURAN, initBuran);
     dispatcher.setHandler(GameState::PREPARE_BURAN_LAUNCH, prepareBuranLaunch);
     dispatcher.setHandler(GameState::BURAN_IGNITION, buranIgnition);
@@ -444,8 +451,8 @@ void installLaunchSceneHandlers(GameStateDispatcher& dispatcher, RoundEndHook ro
     dispatcher.setHandler(GameState::ROCKET_LIFTOFF, rocketLiftoff);
     dispatcher.setHandler(GameState::ROCKET_MAIN_ENGINE_FIRE, rocketMainEngineFire);
     dispatcher.setHandler(GameState::END_OF_BONUS_SCENE,
-                          [roundEnded = std::move(roundEnded)](GameContext& g) {
-                              endOfBonusScene(g, roundEnded);
+                          [roundExit = std::move(roundExit)](GameContext& g) {
+                              endOfBonusScene(g, roundExit);
                           });
 }
 
