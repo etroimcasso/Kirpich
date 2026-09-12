@@ -1,5 +1,7 @@
 #include "systems/stats_pages.h"
 
+#include "systems/achievements.h"  // achievementsUnlocked / achievementsTotal
+
 #include <algorithm>
 #include <cstdio>
 #include <iterator>
@@ -34,10 +36,6 @@ constexpr std::size_t kModePiecesPage    = 1;
 // slot shown as though it did would read as a real one.
 constexpr std::string_view kNothingYet = "none";
 
-// What the branch says until achievements are built. The row exists and leads somewhere; what it
-// leads to is honest about being unfinished.
-constexpr std::string_view kNotBuiltYet = "not built yet";
-
 constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
 
 // The heart that marks heart mode: beside a heart level on the picker, and beside an all-time record
@@ -62,6 +60,26 @@ ShortText numberText(std::uint32_t value) {
     ShortText text;
     const int written = std::snprintf(text.chars.data(), text.chars.size(), "%u",
                                       static_cast<unsigned>(value));
+    text.size         = written > 0 ? static_cast<std::uint8_t>(written) : 0;
+    return text;
+}
+
+// What the achievements figure is labelled, and the width it has to stay inside: the label runs from
+// kStatsLabelCol and the figure is right-aligned to kStatsValueEndCol, so anything past that is
+// overwritten by the figure rather than wrapped or dropped.
+constexpr std::string_view kAchievementsLabel = "achieved";
+constexpr std::size_t      kUnlockedTextCells = 5;  // "12-36"
+
+static_assert(kAchievementsLabel.size() <= kStatsValueEndCol + 1 - kStatsLabelCol -
+                                               kUnlockedTextCells,
+              "the label has to clear the cells the figure's own two parts take");
+
+// How much of the achievement set has been earned, as one figure of two parts. The font has no
+// slash, so the two are joined by the hyphen it does have.
+ShortText unlockedText(std::size_t unlocked, std::size_t total) {
+    ShortText text;
+    const int written = std::snprintf(text.chars.data(), text.chars.size(), "%u-%u",
+                                      static_cast<unsigned>(unlocked), static_cast<unsigned>(total));
     text.size         = written > 0 ? static_cast<std::uint8_t>(written) : 0;
     return text;
 }
@@ -231,8 +249,8 @@ void markAllTimeHeart(BackgroundMap& map, std::size_t line) {
     map[line][kStatsValueEndCol + 1] = kHeartGlyph;
 }
 
-void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t page,
-                      StatScope scope) {
+void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t page, StatScope scope,
+                      std::size_t unlocked, std::size_t total) {
     const StatSlice life    = lifetimeTotals(stats, scope);
     const bool      combined = scope == StatScope::ALL;
 
@@ -254,6 +272,18 @@ void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t p
             // The longest round wears the heart when the combined view's winner is a heart round.
             if (combined && best.any && best.at.heart) {
                 markAllTimeHeart(map, line);
+            }
+            // How much of the achievement set has been earned. Like the program time above it, it
+            // belongs to the whole game rather than to one scope, so it shows on the combined view
+            // alone. The font has no slash, so it reads as one figure of two parts.
+            //
+            // The label names what is counted rather than the act of counting it: alone on a page of
+            // durations and rounds, "earned" has no subject. It is the widest the line takes - the
+            // label owns kStatsLabelCol through kStatsValueEndCol less the figure's own five cells,
+            // and anything longer is overwritten by the figure.
+            if (combined) {
+                statTextLine(map, line + 1, kAchievementsLabel,
+                             unlockedText(unlocked, total).view());
             }
             return;
         }
@@ -324,10 +354,12 @@ void paintStatsPage(GameContext& game, std::size_t page) {
     switch (branch) {
         case StatsBranch::ALL_TIME:
             paintAllTimePage(game.display.displayedMap(), game.stats, page,
-                             game.screens.statsScope);
+                             game.screens.statsScope, achievementsUnlocked(game),
+                             achievementsTotal());
             return;
         case StatsBranch::ACHIEVEMENTS:
-            writeMapText(game.display.displayedMap(), kStatsFirstLine, kStatsLabelCol, kNotBuiltYet);
+            // The achievements are their own screen (systems/achievements_screen.h), which the
+            // chooser opens directly, so this branch never reaches the paged readout.
             return;
         case StatsBranch::MODE_A:
         case StatsBranch::MODE_B:

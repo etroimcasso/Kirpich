@@ -472,7 +472,7 @@ TEST(StatsPages, ThePiecesPageShowsTheSelectionsSevenCounts) {
 
 // (9) A fold with nothing behind it says so rather than showing a first slot as though it were a real
 // answer, and the achievements branch is honest about being unbuilt.
-TEST(StatsPages, NothingPlayedSaysSoAndAchievementsSayTheyAreNotBuilt) {
+TEST(StatsPages, NothingPlayedSaysSo) {
     Screen screen;
     screen.open(StatsBranch::ALL_TIME);
     screen.game.screens.statsPage = 5;
@@ -492,11 +492,6 @@ TEST(StatsPages, NothingPlayedSaysSoAndAchievementsSayTheyAreNotBuilt) {
     EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 0, "c"));
     EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 1, "b"));
     EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 2, "7"));
-
-    Screen achievements;
-    achievements.open(StatsBranch::ACHIEVEMENTS);
-    EXPECT_TRUE(holdsText(achievements.map(), kStatsFirstLine, kStatsLabelCol, "not built yet"));
-    EXPECT_EQ(achievements.game.screens.statsPageCount, 1u);
 }
 
 // (10) The shapes are drawn on a pieces page and nowhere else, swept over every state the byte can

@@ -62,6 +62,8 @@ of routines that need one. Where a page says "the engine", it means Polyrhythm; 
 | [type-b-ending.md](type-b-ending.md) | What a won Type B round shows — the scoreboard that totals the round, and the dance the hardest level earns first; the two field-shaped screens and the wipe they arm, the per-performer animation and the one performer who jumps, the query that holds the dance until its jingle ends, where they live, and what to edit to change the hold timings, the animation speeds, or how many performers a starting height reveals. |
 | [launch-scenes.md](launch-scenes.md) | The two bonus endings — the Buran a height-5 Type B win earns and the rocket a 100 000-point Type A game earns; the pad both scenes build on the second background map, the timed steps each chain runs, the climb whose coordinate wraps past zero, the congratulations message and its cursor, the three places the chains deliberately differ, where they live, and what to edit to change a timing or a placement. |
 | [boot.md](boot.md) | How the machine starts and what the four-button reset chord runs — the cold boot, the soft reset that keeps the top-score tables, the startup ordering that lets a launch load a player's saved scores, the two seams the reset installs into, and the parts of the original's startup the engine owns instead; where they live, and what to edit to change what a boot leaves behind or what a reset preserves. |
+| [declarative-screens.md](declarative-screens.md) | How a screen the port writes itself puts a picture together — the component return types, the two layer aggregates and the options they forward, the lifetime rule behind a layer's spans, the components any screen can use (a run of text, its word wrap, a backdrop, a corner selector), how a screen declares its layers and how it reaches the frame, the one-state screen entered by a seam rather than a menu; where they live, and what adding a screen takes. |
+| [achievements.md](achievements.md) | What the player has earned — the definition set and its closed condition vocabulary, the round-end check that awards one and the observations a round gathers for it, the unlock records and their save document, the screen that shows them (sections, the continuous cursor walk, the badge grid and panel, the hidden reveal), the end-of-round notice and the seam both round exits take to reach it, where each call is wired, and what adding an achievement or a section takes. |
 
 Pages group into subdirectories once there are enough of them to warrant it — for now the
 surface is small enough that a flat list is easier to scan.
@@ -76,10 +78,16 @@ layer, the game-state dispatcher framework, the piece system, the line-clear pip
 scoring pipeline, the whole pre-game flow, the gameplay session, the Type B starting
 garbage, the Type B ending, the two bonus-ending launch scenes, the attract demos, the
 high-score recording, the boot path and its reset chord, the settings screen, the statistics
-the game keeps of what has been played, and the sound,
+the game keeps of what has been played, the achievements it awards for them, and the sound,
 which hosts the game's own driver and is audible. A solo round runs end to end — from the
 title screen, through play, to the game-over screen on a loss or the scoreboard on a Type B
 win, and on to a launch when one is earned.
+
+Screens are built one of two ways. The cartridge's own write tiles into a background map and
+entries into an object buffer, which a bridge turns into layers; the achievements screen is
+built as components that return what they are and is handed the whole frame while it is up.
+The second is how the engine is meant to be consumed and is the model the others will move
+to — [declarative-screens.md](declarative-screens.md) covers it.
 
 Backgrounds and objects both draw: the screens, the menus, the playing field and the blocks
 as they stack, along with the falling piece, the next-piece preview, the menu cursors and

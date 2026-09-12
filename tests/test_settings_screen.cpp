@@ -108,9 +108,11 @@ void expectGlyphs(const BackgroundMap& map, std::size_t row, std::size_t col,
 struct Probe {
     Settings settings{};
     Settings lastApplied{};
-    int      applied    = 0;
-    int      saved      = 0;
-    int      savedScores = 0;
+    int      applied           = 0;
+    int      saved             = 0;
+    int      savedScores       = 0;
+    int      savedStats        = 0;
+    int      savedAchievements = 0;
 
     SettingsWiring wiring() {
         return SettingsWiring{
@@ -118,6 +120,9 @@ struct Probe {
             .apply    = [this](const Settings& s) { ++applied; lastApplied = s; },
             .save     = [this](const Settings&) { ++saved; },
             .saveScores = [this](const HighScoreState&) { ++savedScores; },
+            .saveStats  = [this](const kirpich::StatsState&) { ++savedStats; },
+            .saveAchievements =
+                [this](const kirpich::AchievementState&) { ++savedAchievements; },
         };
     }
 };
@@ -332,10 +337,9 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
     EXPECT_EQ(game.display.map[kStatsRow][kCursorCol], kCursor);
 
-    // Down again crosses onto the third page, which holds the erase on its own. Its label stands on
-    // the first row of the page rather than on the fourth, and every line the second page used below
-    // it is empty - which is what says the second page's rows are gone, since this page is short
-    // enough for emptiness to prove it.
+    // Down again crosses onto the third page, which is the four resets. The page is full, so
+    // emptiness cannot say the second page's rows are gone - the labels do, and more strongly: every
+    // one of the four lines reads a reset rather than the enhancement row that stood there.
     step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
@@ -345,10 +349,19 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
         expectGlyphs(map, kResetRow, kLabelCol,
                      {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
                       C::LETTER_S, C::LETTER_C, C::LETTER_O, C::LETTER_R, C::LETTER_E, C::LETTER_S});
+        expectGlyphs(map, kNewModesRow, kLabelCol,
+                     {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
+                      C::LETTER_S, C::LETTER_T, C::LETTER_A, C::LETTER_T, C::LETTER_S});
+        expectGlyphs(map, kFixesRow, kLabelCol,
+                     {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
+                      C::LETTER_A, C::LETTER_C, C::LETTER_H, C::LETTER_V, C::LETTER_M, C::LETTER_N,
+                      C::LETTER_T, C::LETTER_S});
+        expectGlyphs(map, kStatsRow, kLabelCol,
+                     {C::LETTER_R, C::LETTER_E, C::LETTER_S, C::LETTER_E, C::LETTER_T, C::SPACE,
+                      C::LETTER_A, C::LETTER_L, C::LETTER_L});
         EXPECT_EQ(map[kResetRow][kCursorCol], kCursor);
         for (const std::size_t row : {kNewModesRow, kFixesRow, kStatsRow}) {
-            EXPECT_EQ(map[row][kLabelCol], kSpace) << "row " << row << " belongs to no page";
-            EXPECT_EQ(map[row][kCursorCol], kSpace) << "row " << row;
+            EXPECT_EQ(map[row][kCursorCol], kSpace) << "one cursor on the page, row " << row;
         }
         // The enhancements family counts up; the settings family is untouched by it.
         expectGlyphs(map, kTitleRow, 3,
@@ -357,12 +370,20 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
                       C::SPACE, C::DIGIT_2});
     }
 
+    // Down through the rest of the reset page to its end stop.
+    step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_STATS);
+    step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_ACHIEVEMENTS);
+    step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_ALL);
+
     step(Action::MenuDown);  // the bottom end stop
-    EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_ALL);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
 
     // Back up, across both page boundaries, to the top.
-    for (int i = 0; i < 8; ++i) step(Action::MenuUp);
+    for (int i = 0; i < 11; ++i) step(Action::MenuUp);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::FULLSCREEN);
     {
         using C = CharTile;
@@ -789,6 +810,94 @@ TEST(SettingsScreen, ConfirmActsOnYesAndOnlyOnYes) {
     }
 }
 
+// (10a-ii) Each reset row clears its own record and leaves the other two alone - they are kept in
+// separate documents, and the rows exist because wanting one gone is not wanting all three. The
+// all-in row is the three of them at once.
+TEST(SettingsScreen, EachResetRowClearsItsOwnRecordAndNoOther) {
+    struct Case {
+        SettingsRow row;
+        bool        scores;
+        bool        stats;
+        bool        achievements;
+    };
+    const Case cases[] = {
+        {SettingsRow::RESET_SCORES, true, false, false},
+        {SettingsRow::RESET_STATS, false, true, false},
+        {SettingsRow::RESET_ACHIEVEMENTS, false, false, true},
+        {SettingsRow::RESET_ALL, true, true, true},
+    };
+
+    for (const Case& c : cases) {
+        GameContext game;
+        Probe       probe;
+        const auto  wiring = probe.wiring();
+        openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+        game.highScores.typeA[3][0].score = 12345u;
+        game.stats.typeA[3].rounds        = 7u;
+        game.stats.applicationSeconds     = 900u;
+        game.achievements.unlocked[0]     = {.unlocked = true, .datePacked = 20260911u};
+
+        // Open the confirm the way the row does, so the row-to-question mapping is exercised too.
+        game.screens.settingsRow = c.row;
+        press(game, {Action::Confirm});
+        kirpich::systems::settingsScreen(game, wiring);
+        ASSERT_EQ(game.flow.gameState, GameState::INIT_RESET_CONFIRM) << "row " << int(c.row);
+        kirpich::systems::initResetConfirmScreen(game);
+
+        press(game, {Action::MenuRight});
+        kirpich::systems::resetConfirmScreen(game, wiring);
+        press(game, {Action::Confirm});
+        kirpich::systems::resetConfirmScreen(game, wiring);
+
+        const auto tag = [&c](const char* what) {
+            return std::string{what} + " for row " + std::to_string(int(c.row));
+        };
+
+        EXPECT_EQ(game.highScores.typeA[3][0].score, c.scores ? 0u : 12345u) << tag("scores");
+        EXPECT_EQ(probe.savedScores, c.scores ? 1 : 0) << tag("score writes");
+
+        EXPECT_EQ(game.stats.typeA[3].rounds, c.stats ? 0u : 7u) << tag("stats");
+        EXPECT_EQ(game.stats.applicationSeconds, c.stats ? 0u : 900u) << tag("play time");
+        EXPECT_EQ(probe.savedStats, c.stats ? 1 : 0) << tag("stat writes");
+
+        EXPECT_EQ(game.achievements.unlocked[0].unlocked, !c.achievements) << tag("badges");
+        EXPECT_EQ(probe.savedAchievements, c.achievements ? 1 : 0) << tag("badge writes");
+    }
+}
+
+// (10a-iii) Erasing the statistics keeps the point the application clock was last banked from. A
+// cleared stamp reads as the epoch, so the next bank counts the whole monotonic clock as time just
+// played and puts it straight back into the total the player asked to empty.
+TEST(SettingsScreen, ErasingStatsKeepsTheClocksBankingPoint) {
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+    openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+    constexpr std::uint64_t kStamp = 900u * 1'000'000'000u;
+    game.stats.applicationSeconds     = 900u;
+    game.stats.applicationStampNanos  = kStamp;
+    game.stats.applicationBankedNanos = 500u;
+
+    game.screens.settingsRow = SettingsRow::RESET_STATS;
+    press(game, {Action::Confirm});
+    kirpich::systems::settingsScreen(game, wiring);
+    kirpich::systems::initResetConfirmScreen(game);
+    press(game, {Action::MenuRight});
+    kirpich::systems::resetConfirmScreen(game, wiring);
+    press(game, {Action::Confirm});
+    kirpich::systems::resetConfirmScreen(game, wiring);
+
+    EXPECT_EQ(game.stats.applicationSeconds, 0u);
+    EXPECT_EQ(game.stats.applicationBankedNanos, 0u) << "the erased remainder goes with the total";
+    EXPECT_EQ(game.stats.applicationStampNanos, kStamp) << "but the banking point stays";
+
+    // One second later the total is one second, not fifteen minutes.
+    kirpich::systems::bankApplicationTime(game, kStamp + 1'000'000'000u);
+    EXPECT_EQ(game.stats.applicationSeconds, 1u);
+}
+
 // (10b) The exit confirm asks a different question depending on where the settings screen was opened
 // from. Mid-round there are two places to go and both answers act; from the title screen there is only
 // one, so it asks the plain question and "no" is an answer again.
@@ -1009,8 +1118,18 @@ TEST(SettingsScreen, LeavingRestoresTheCallerExactly) {
 
         EXPECT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
         EXPECT_TRUE(game.display.map == before.display.map);
-        EXPECT_TRUE(game.engine.oam == before.engine.oam);
         EXPECT_EQ(game.flow.timer1, before.flow.timer1);
+
+        // The objects are the exception, and deliberately so. The title screen's are derived from the
+        // settings, and the player may have changed those while this screen was up - so they are laid
+        // down again for the settings as they now stand rather than put back as they were found.
+        //
+        // Asserted as a fixed point: laying them down again changes nothing. The snapshot is not one,
+        // which is what makes this fail if the buffer is ever restored verbatim again.
+        GameContext relaid = game;
+        kirpich::systems::refreshTitleScreenObjects(relaid, probe.settings.showStats);
+        EXPECT_TRUE(game.engine.oam == relaid.engine.oam)
+            << "the title's objects are not the row the current settings ask for";
     }
 
     // From a paused round: the second map is the one shown, so that is the one saved and restored,
@@ -1058,6 +1177,44 @@ TEST(SettingsScreen, LeavingRestoresTheCallerExactly) {
 // own and not a demo, so without the lift every sound it makes would be swallowed for the rest of
 // the session. The restore matters equally: the byte is the alternation's memory, and a settings
 // visit must not reset which demo plays next.
+TEST(SettingsScreen, LeavingForTheTitleLaysItsRowDownForTheSettingsAsTheyNowStand) {
+    // The defect this guards: the object buffer is snapshotted on the way in and put back on the way
+    // out, so a statistics toggle made while the screen was up came back to the row the player left.
+    // The title screen redraws its own row every frame, but not until its next tick - and the frames
+    // submitted before that showed the old row. A directly-written object is named for the entry it
+    // sits in, so the renderer matched the two rows and slid one word into the other's place.
+    //
+    // Both directions, because the row grows one way and shrinks the other.
+    for (const bool startOn : {false, true}) {
+        GameContext game;
+        Probe       probe;
+        probe.settings.showStats = startOn;
+        const auto wiring        = probe.wiring();
+
+        // The title screen as it stands with the setting where the player left it.
+        game.flow.gameState = GameState::TITLE_SCREEN;
+        kirpich::systems::refreshTitleScreenObjects(game, startOn);
+
+        openFrom(game, wiring, GameState::TITLE_SCREEN);
+
+        // The toggle happens while the screen is up, after the snapshot was taken.
+        probe.settings.showStats = !startOn;
+
+        press(game, {Action::Back});
+        kirpich::systems::settingsScreen(game, wiring);
+
+        ASSERT_EQ(game.flow.gameState, GameState::TITLE_SCREEN);
+
+        GameContext wanted;
+        wanted.flow.gameState = GameState::TITLE_SCREEN;
+        kirpich::systems::refreshTitleScreenObjects(wanted, !startOn);
+
+        EXPECT_TRUE(game.engine.oam == wanted.engine.oam)
+            << "leaving with the setting " << (startOn ? "off" : "on")
+            << " left the row the player arrived with";
+    }
+}
+
 TEST(SettingsScreen, TheScreenLiftsTheDemoGateWhileItIsUp) {
     GameContext game;
     Probe       probe;

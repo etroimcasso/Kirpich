@@ -17,8 +17,10 @@
 // engine's run loop, so those writes have nothing to reach. docs/contracts/boot.md §4 accounts for
 // every line of the original's startup routine and what became of it.
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -53,6 +55,8 @@
 
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
+#include "render/achievements/notice.h"
+#include "render/achievements/screen.h"
 #include "render/background.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
@@ -61,9 +65,11 @@
 #include "render/type_c_difficulty.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
+#include "state/achievement_persistence.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
+#include "systems/achievements.h"
 #include "systems/boot.h"
 #include "systems/demo.h"
 #include "systems/enhancement_screens.h"
@@ -81,6 +87,8 @@
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/stats.h"
+#include "systems/achievement_notice.h"
+#include "systems/achievements_screen.h"
 #include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -236,6 +244,44 @@ int main(int /*argc*/, char* /*argv*/[]) {
         return static_cast<std::uint64_t>(clock.now().count());
     };
 
+    // The calendar date an achievement is stamped with. The engine's clock is monotonic and cannot
+    // report a date, so the port reads the system clock here - injected, like nowNanos, rather than
+    // called inline, so an unlock date is pinned by a test like everything else. Read only at an
+    // unlock, never per frame.
+    //
+    // The date is the player's own, not UTC: the system clock counts from an epoch and carries no
+    // zone, so it is converted through the machine's local time. Taking the UTC day directly would
+    // stamp an evening's play with tomorrow's date anywhere west of Greenwich. The conversion goes
+    // through the C library rather than a time zone from <chrono>, whose database is not dependably
+    // present across the platforms this builds on; the reentrant form spells differently on Windows.
+    const auto nowDate = [] {
+        const std::time_t now = std::chrono::system_clock::to_time_t(
+            std::chrono::system_clock::now());
+
+        std::tm local{};
+#ifdef _WIN32
+        localtime_s(&local, &now);
+#else
+        localtime_r(&now, &local);
+#endif
+
+        return kirpich::AchievementDate{
+            .year  = static_cast<std::uint16_t>(local.tm_year + 1900),
+            .month = static_cast<std::uint8_t>(local.tm_mon + 1),
+            .day   = static_cast<std::uint8_t>(local.tm_mday)};
+    };
+
+    // How a finished round leaves, at every point one truly ends. The game-over screen and the rocket
+    // scene both hand it this same closure: the round-end check runs, and then anything it awarded is
+    // announced before the player reaches the screen the round was headed for. The reset and quit
+    // paths below call the check on the game directly, since neither has a player to announce anything
+    // to. The check does nothing unless a round has concluded, so a firing point reached without one
+    // passes the destination straight through.
+    const auto roundExit = [nowDate](kirpich::systems::GameContext& g, kirpich::GameState destination) {
+        kirpich::systems::evaluateRoundEnd(g, nowDate);
+        return kirpich::systems::achievementNoticeExit(g, destination);
+    };
+
     // ── The machine ──────────────────────────────────────────────────────────
     // ONE virtual machine, shared. The piece randomizer and the garbage fill both read the divider,
     // and a Type B round init draws its pieces and then fills its garbage in the same frame — so the
@@ -278,10 +324,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The dispatcher's own reset goes with it: the original's startup clears the held-buttons byte, so
     // the frame after a reset derives its presses against nothing and every button still down reads as
     // freshly pressed. That is also what makes a chord held down keep resetting until it is released.
-    const auto reset = [&game, &dispatcher, nowNanos] {
+    const auto reset = [&game, &dispatcher, nowNanos, nowDate] {
         // A round in progress ends here rather than leaking its time into whatever the player does
         // after the reset. The statistics themselves survive the reset, as the top scores do.
         kirpich::systems::endRound(game, nowNanos());
+        // A round that had concluded but not yet been checked (a chord reset from the game-over screen)
+        // is checked before the reset wipes its state. A mid-round reset has nothing pending, so this
+        // is a no-op there.
+        kirpich::systems::evaluateRoundEnd(game, nowDate);
         kirpich::systems::softReset(game);
         dispatcher.reset();
     };
@@ -315,6 +365,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
         kirpich::systems::bankApplicationTime(game, nowNanos());
         kirpich::saveStats(game.stats, saves);
         kirpich::saveStatsHeart(game.stats, saves);
+        // The unlocked achievements go down beside the statistics: a round that just earned one is
+        // recorded at the same points a round's statistics are.
+        kirpich::saveAchievements(game.achievements, saves);
     };
 
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
@@ -339,6 +392,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 kirpich::saveTopScores(scores, saves);
                 kirpich::saveTopScoresHeart(scores, saves);
             },
+        // The other two reset rows, each writing only its own documents. These do not bank the
+        // application clock the way the round-end save does: the row has just cleared the total it
+        // would bank into.
+        .saveStats =
+            [&saves](const kirpich::StatsState& stats) {
+                kirpich::saveStats(stats, saves);
+                kirpich::saveStatsHeart(stats, saves);
+            },
+        .saveAchievements =
+            [&saves](const kirpich::AchievementState& earned) {
+                kirpich::saveAchievements(earned, saves);
+            },
         // Submitted rather than performed: the engine ends the run at the next frame boundary, so
         // the frame the player answered on finishes drawing first.
         .exit = [&loop] { loop.exitRequest(); },
@@ -361,6 +426,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // binds belong to the unit (systems/stats_screens.h); what arrives from here is the settings and
     // the seam a change fires, the same one every settings row uses.
     kirpich::systems::installStatsScreens(dispatcher, settings, settingChanged, settingsWiring);
+    kirpich::systems::installAchievementsScreen(dispatcher);
+
+    // The screen a round that earned something leaves through, before it reaches its difficulty
+    // screen. It is entered from the round exit below rather than from a menu, so nothing else
+    // installs beside it.
+    kirpich::systems::installAchievementNotice(dispatcher);
 
     kirpich::systems::SoundSystem sound;
     kirpich::systems::installSoundTick(dispatcher, sound, game);
@@ -373,7 +444,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // The two bonus endings. Without these the dance's height-5 fork and the game-over chain's
     // 100 000-point fork both write a state nothing implements, and the game stops where it should
     // launch something.
-    kirpich::systems::installLaunchSceneHandlers(dispatcher);
+    kirpich::systems::installLaunchSceneHandlers(dispatcher, roundExit);
 
     // Both seams take the machine's raw byte source: the round's piece selection and the garbage
     // fill's per-cell pick each own their own logic and only ask the divider for a number.
@@ -388,6 +459,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
                             [&garbageFold] { return garbageFold(); }),
                         .softReset   = reset,
                         .now         = nowNanos,
+                        // The achievement check runs when the game-over screen is left - after any
+                        // rocket scene, so a topped-out round that earned one is seen. The rocket
+                        // path leaves through the bonus scene, which takes the same seam.
+                        .roundExit   = roundExit,
                     });
 
     // Start the machine: the boot path, then the player's saved top scores read back over the tables
@@ -405,8 +480,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // drives this guard at a frame boundary before tearing down. A round still being played is closed
     // into its own combination first, so quitting mid-game records the round rather than discarding
     // it, and the session's time goes down with it.
-    loop.exitAction([&game, nowNanos, persistStats] {
+    loop.exitAction([&game, nowNanos, nowDate, persistStats] {
         kirpich::systems::endRound(game, nowNanos());
+        // A round that had concluded but not yet been checked (quitting from the game-over screen
+        // before pressing on) is checked before the records are written, so a last-round unlock is
+        // saved. A mid-round quit has nothing pending.
+        kirpich::systems::evaluateRoundEnd(game, nowDate);
         persistStats();
         return retropp::ExitVerdict::Proceed;
     });
@@ -510,6 +589,27 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
+        // The achievements screen is built from its own components: it hands back the layers it is,
+        // so its frame is those rather than the background map and the object buffer every screen the
+        // cartridge had goes through. Nothing below runs for it, and it writes neither of them.
+        if (kirpich::render::achievementScreenShown(game.flow.gameState)) {
+            retropp::FrameDrawState screen;
+            screen.layers = kirpich::render::AchievementsScreen(
+                game.achievementScreen, game.achievements, game.screens.cursorVisible, tiles,
+                settings.shadeRamp);
+            renderer.renderFrame(screen);
+            return;
+        }
+
+        // The end-of-round notice is built the same way, from what the round-end check queued.
+        if (kirpich::render::achievementNoticeShown(game.flow.gameState)) {
+            retropp::FrameDrawState screen;
+            screen.layers = kirpich::render::AchievementNotice(
+                kirpich::systems::achievementOnNotice(game), tiles, settings.shadeRamp);
+            renderer.renderFrame(screen);
+            return;
+        }
+
         kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
                                         tiles, sprites, settings.shadeRamp);

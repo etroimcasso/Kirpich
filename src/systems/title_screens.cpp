@@ -72,9 +72,10 @@ constexpr std::uint8_t kSettingsCursorX = 0x30;  // one cell left of the word
 
 // The two words the bottom row can hold. With the statistics switched off it carries the first
 // alone, centred where it has always been; with them on it carries both, one under each player-count
-// column.
-constexpr std::string_view kSettingsWord = "settings";
-constexpr std::string_view kStatsWord    = "stats";
+// column. Declared in the header beside the span they size, which the copyright's placement depends
+// on.
+constexpr std::string_view kSettingsWord = kTitleSettingsWord;
+constexpr std::string_view kStatsWord    = kTitleStatsWord;
 
 // A bottom-row item's word starts one cell to the right of its cursor, which is how the player
 // options above it are laid out.
@@ -97,6 +98,9 @@ static_assert(kBottomRightTextCol + kStatsWord.size() <= kTilemapScreenCols,
 // are underlined with the same line.
 constexpr std::uint8_t kUnderlineTile = 0x9A;
 
+static_assert(kTitleBottomRowObjects >= 2 * kSettingsWord.size(),
+              "the reserved span must hold the one-item layout as well as the two-item one");
+
 // The stored screen's copyright row. Its cell is cleared and the line is redrawn as objects one
 // pixel higher than any cell could put it, so the panel keeps a margin under the notice instead of
 // running it into the bottom of the screen.
@@ -105,7 +109,7 @@ constexpr std::uint8_t kCopyrightY   = 135 + kObjectOriginY;
 
 // The object entries the bottom row and the copyright line occupy. Entry 0 stays the selector, as
 // the stored screen has it, and everything from here up is redrawn together each frame.
-constexpr std::size_t kSettingsFirstObject = 1;
+constexpr std::size_t kSettingsFirstObject = kTitleFirstBottomObject;
 
 // Frame counts: the title screen's attract timer (125) and the copyright screen's display timer
 // (250 = 4*60 + 10).
@@ -168,13 +172,15 @@ std::size_t drawBottomItem(GameContext& game, std::size_t entry, std::size_t col
 }
 
 // The bottom row: the settings item alone, centred where it has always been, or that item and the
-// stats item under the two player-count columns.
-std::size_t drawBottomRow(GameContext& game, std::size_t entry, bool twoItems) {
+// stats item under the two player-count columns. Written inside kBottomRowObjects either way, so what
+// follows it in the buffer keeps its entries.
+void drawBottomRow(GameContext& game, std::size_t entry, bool twoItems) {
     if (!twoItems) {
-        return drawBottomItem(game, entry, kSettingsTextCol, kSettingsWord);
+        drawBottomItem(game, entry, kSettingsTextCol, kSettingsWord);
+        return;
     }
     entry = drawBottomItem(game, entry, kBottomLeftTextCol, kSettingsWord);
-    return drawBottomItem(game, entry, kBottomRightTextCol, kStatsWord);
+    drawBottomItem(game, entry, kBottomRightTextCol, kStatsWord);
 }
 
 // The copyright line, redrawn from the stored screen's own row at the pixel height that leaves a
@@ -205,7 +211,8 @@ void drawTitleObjects(GameContext& game, bool twoItems) {
     for (std::size_t entry = kSettingsFirstObject; entry < game.engine.oam.size(); ++entry) {
         game.engine.oam[entry] = OamEntry{};
     }
-    drawCopyrightLine(game, drawBottomRow(game, kSettingsFirstObject, twoItems));
+    drawBottomRow(game, kSettingsFirstObject, twoItems);
+    drawCopyrightLine(game, kTitleCopyrightFirstObject);
 }
 
 // Derive the selector's whole appearance - its glyph, its row and its column - from the current
@@ -291,6 +298,11 @@ void toggleHeartMode(GameContext& game) {
 }
 
 }  // namespace
+
+void refreshTitleScreenObjects(GameContext& game, bool twoItems) {
+    drawTitleObjects(game, twoItems);
+    placeTitleCursor(game, twoItems);
+}
 
 void initCopyrightScreen(GameContext& game) {
     // GameState_24 (tetris.asm:479-500). The LCD toggle is render mechanism (:480, :494-495).

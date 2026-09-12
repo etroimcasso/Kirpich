@@ -48,12 +48,19 @@ enum class SettingsRow : std::uint8_t {
     NEW_MODES    = 5,
     FIXES        = 6,
     STATS        = 7,
-    RESET_SCORES = 8,
+
+    // The four resets share the last page. Each clears one kind of saved record and nothing else,
+    // because they are kept in separate documents and a player who wants one gone rarely wants all
+    // three; the fourth is there so wanting all three is one answer rather than three.
+    RESET_SCORES       = 8,
+    RESET_STATS        = 9,
+    RESET_ACHIEVEMENTS = 10,
+    RESET_ALL          = 11,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.
 inline constexpr std::uint8_t kSettingsRowCount =
-    static_cast<std::uint8_t>(SettingsRow::RESET_SCORES) + 1;
+    static_cast<std::uint8_t>(SettingsRow::RESET_ALL) + 1;
 
 // How many rows a page holds, and how many pages that makes. Every page lays out the same way, so
 // the count is one number rather than a split point per page; the last page carries the remainder.
@@ -89,8 +96,11 @@ inline constexpr std::uint8_t kStatAxisAll = 0xFF;
 // What the confirm screen is currently guarding. Both of its actions are ones a player cannot undo,
 // which is why neither happens without it.
 enum class ConfirmAction : std::uint8_t {
-    ERASE_SCORES = 0,
-    EXIT_GAME    = 1,
+    ERASE_SCORES       = 0,
+    EXIT_GAME          = 1,
+    ERASE_STATS        = 2,
+    ERASE_ACHIEVEMENTS = 3,
+    ERASE_EVERYTHING   = 4,
 };
 
 struct ScreenUiState {

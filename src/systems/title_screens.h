@@ -19,13 +19,45 @@
 // demo launch and the link-cable serial paths are seams other systems fill (see StartDemoHook below and
 // the contract).
 
+#include <cstddef>
 #include <functional>
+#include <string_view>
 
 #include "systems/game_context.h"
 
 namespace kirpich::systems {
 
 class GameStateDispatcher;
+
+// The two words the title screen's bottom row can hold: the settings item alone when the statistics
+// are switched off, and both items under the player-count columns when they are on.
+inline constexpr std::string_view kTitleSettingsWord = "settings";
+inline constexpr std::string_view kTitleStatsWord    = "stats";
+
+// The buffer entry the bottom row starts at, and the span it is given. The span is sized to the
+// longer of the two layouts - each item costs one object per cell of its word and one per cell of the
+// line under it - and the shorter layout simply leaves the rest of it empty.
+//
+// The row is given a fixed span so that what follows it keeps its entries. An object the game writes
+// into the buffer itself is named for the entry it sits in (src/render/sprites.cpp), so an entry that
+// changes hands between two frames is one the renderer can match to the last object there and glide
+// between the two positions - which is what the copyright line did, a letter at a time, whenever the
+// statistics were switched on or off.
+inline constexpr std::size_t kTitleFirstBottomObject = 1;
+inline constexpr std::size_t kTitleBottomRowObjects =
+    2 * (kTitleSettingsWord.size() + kTitleStatsWord.size());
+inline constexpr std::size_t kTitleCopyrightFirstObject =
+    kTitleFirstBottomObject + kTitleBottomRowObjects;
+
+// Lay the title screen's own objects down for the setting as it now stands: the bottom row, the
+// copyright line under it, and the selector over it.
+//
+// The title screen does this itself every frame, so it is not something that screen needs. It is for a
+// screen RETURNING to the title after changing whether the statistics are offered. A screen that saved
+// the object buffer on its way in puts back the row the player left, and the title's own redraw does
+// not happen until its next tick - so the frames in between show the old row, and the renderer glides
+// its words to the new one. Calling this on the way out leaves the first frame back already correct.
+void refreshTitleScreenObjects(GameContext& game, bool twoItems);
 
 // The seam the title screen fires when its attract countdown reaches zero, where the original launches an
 // attract demo (StartDemo). The default is a no-op — a build without the demo system idles at the title —

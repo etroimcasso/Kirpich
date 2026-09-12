@@ -41,18 +41,45 @@ Each family's header counts from one: `settings 1`, `enhancements 1`.
 | enhancements 1 | `ghost` | `►`, opens the ghost piece's own screen |
 | enhancements 1 | `new modes` | `►`, opens a screen of its own |
 | enhancements 1 | `fixes` | `►`, opens the fixes carousel |
-| enhancements 1 | `reset scores` | asks first |
+| enhancements 1 | `stats` | `►`, opens the statistics switch's own screen |
+| enhancements 2 | `reset scores` | asks first |
+| enhancements 2 | `reset stats` | asks first |
+| enhancements 2 | `reset achvmnts` | asks first |
+| enhancements 2 | `reset all` | asks first |
 
-Every row on the enhancements page opens a screen or acts; none carries an inline value. Two rows
-end something and go through the same confirm, which opens on `no` every time — a player who
-arrives at one by accident leaves it by pressing whatever brought them. The three openers each lead
-to a screen with the room to say what the switch does: `ghost` and `fixes` run on the carousel
-([`fixes-screen.md`](fixes-screen.md)), `new modes` on the mode screen that preceded it. Each
-opener's arrow points right, toward the screen it leads to, and pressing right opens it just as
-Confirm and Start do.
+Every row past the first page opens a screen or acts; none carries an inline value. The four openers
+each lead to a screen with the room to say what the switch does: `ghost` and `fixes` run on the
+carousel ([`fixes-screen.md`](fixes-screen.md)), `new modes` on the mode screen that preceded it, and
+`stats` on its own. Each opener's arrow points right, toward the screen it leads to, and pressing
+right opens it just as Confirm and Start do.
 
-Erasing the scores sits at the end of the second page deliberately: it is the one thing on the screen
-a player cannot undo, and it should not be one press away from the row above it.
+Every row that ends something goes through the same confirm, which opens on `no` every time — a
+player who arrives at one by accident leaves it by pressing whatever brought them.
+
+### The four resets have a page to themselves
+
+There are three kinds of saved record — the high-score tables, the statistics, and the achievements —
+and each is kept in its own document. So each gets its own row, because wanting one gone is rarely
+wanting all three: a player clearing the leaderboard before handing the game to someone else is not
+asking to lose what they have earned. The fourth row is the other three at once, so wanting all of it
+is one answer rather than three.
+
+Each row clears its own record and writes its own documents, the heart tables included, and leaves
+the other two untouched. A round in progress survives all four: the settings screen opens from a
+pause, and clearing the latch a round records through would leave that round counted nowhere.
+
+Erasing the statistics zeroes the play-time total along with the tables, but keeps the point that
+clock was last measured from. That point is not a figure a player sees; it is where the next
+measurement starts. Cleared, it reads as the beginning of time, and the next measurement counts
+everything since as time just played — putting a large number straight back into the total the player
+asked to empty.
+
+Putting the four on a page of their own is deliberate. They are the things on the screen a player
+cannot undo, and none of them should sit one press below a row that merely changes a colour.
+
+The row for the achievements reads `reset achvmnts` because a label starts at column 3 and the full
+word needs one cell more than the row has. The confirm it opens is centred across the whole width, so
+that screen asks in full.
 
 ## Design decisions
 

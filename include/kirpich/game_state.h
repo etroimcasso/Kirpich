@@ -101,6 +101,9 @@ enum class GameState : uint8_t {
     STATS_PAGE             = 0x53,  // A page of statistics
     INIT_STATS_SCOPE       = 0x54,  // Lay out the all-time scope sub-menu (all / normal / heart)
     STATS_SCOPE            = 0x55,  // The all-time scope sub-menu
+    INIT_ACHIEVEMENTS      = 0x56,  // Open the achievements screen
+    ACHIEVEMENTS           = 0x57,  // The achievements screen
+    ACHIEVEMENT_NOTICE     = 0x58,  // What a finished round just earned, one badge at a time
 };
 
 }  // namespace kirpich

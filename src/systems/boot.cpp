@@ -5,6 +5,7 @@
 #include <kirpich/game_type.h>
 #include <kirpich/music_type.h>
 
+#include "state/achievement_persistence.h"
 #include "state/high_score_persistence.h"
 #include "state/stats_persistence.h"
 
@@ -85,6 +86,12 @@ void softReset(GameContext& game) {
     // ride along with no extra handling.
     auto stats = game.stats;
 
+    // The unlocked achievements keep the same company for the same reason: they are the player's, they
+    // outlive a launch, and a reset that emptied them would let the next round-end write destroy the
+    // file. Only the records are kept - the round block returns to boot with everything else, which is
+    // correct, because a reset ends any round in progress.
+    auto achievements = game.achievements.unlocked;
+
     coldBoot(game);
 
     game.highScores.typeA = typeA;
@@ -93,7 +100,8 @@ void softReset(GameContext& game) {
     game.highScores.typeAHeart = typeAHeart;
     game.highScores.typeBHeart = typeBHeart;
     game.highScores.typeCHeart = typeCHeart;
-    game.stats            = stats;
+    game.stats                 = stats;
+    game.achievements.unlocked = achievements;
 }
 
 void bootGame(GameContext& game, retropp::SaveStore& saves) {
@@ -105,6 +113,10 @@ void bootGame(GameContext& game, retropp::SaveStore& saves) {
     // document is ordinary until the first heart round is recorded).
     loadTopScoresHeart(saves, game.highScores);
     loadStatsHeart(saves, game.stats);
+    // The achievements document loads beside the others; its loader sets the store's version to its
+    // own immediately before its read, so reading it after the four above is safe (an absent document
+    // is ordinary until the first achievement is earned).
+    loadAchievements(saves, game.achievements);
 }
 
 }  // namespace kirpich::systems

@@ -29,6 +29,23 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   the game plays exactly as the cartridge does until the player opts in.
 - **Persistent high scores.** A qualifying round is ranked, named on the original letter-wheel
   entry screen, and kept across launches — the cartridge lost its tables at power-off.
+- **Statistics, if you want them.** Kirpich keeps a record of itself from the first launch: rounds
+  played, time at the well, pieces dropped, score, lines and how they were cleared, each of the seven
+  shapes, and the longest single round — all of it per difficulty combination and kept across
+  launches. A settings switch decides whether you ever see it. Turn it on and the title screen grows
+  a fourth item leading to five branches: the whole game's totals, and one for each mode with a
+  picker that moves the figures under it. Because the recording never waited for the switch, turning
+  it on a month from now shows you a history that was already there. Attract-mode rounds are never
+  counted, and quitting in the middle of a round still records the round.
+- **Achievements.** Thirty-six of them across nine themed sections — the score and line ladders, both
+  hidden endings, the harder B-Type and C-Type combinations, and a few that only turn up if you play
+  every mode the game has. Each is drawn from the game's own art and shaded to show whether it is
+  earned; opening one gives its description, the date it was unlocked and how many hours in you were.
+  A round that earns something announces it on the way out. The idea, and the sense of what is worth
+  rewarding in this game, comes from [RetroAchievements](https://retroachievements.org). Nothing is
+  taken from their implementation: every condition is written against the statistics this port
+  already records for itself, and the names, the descriptions and the badge art are original. Kirpich is not
+  affiliated with RetroAchievements and does not connect to their service.
 - **Attract mode.** Left idle, the title screen plays the cartridge's two recorded demonstration
   rounds, alternating between them.
 - **Preserved behavior throughout**, including the original's quirks: the reset chord
@@ -36,32 +53,36 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   clear duplicates its top row, and the unused stereo panning data remains unused. These are
   reproduced deliberately rather than corrected; see [`docs/DESIGN.md`](docs/DESIGN.md).
 - **A settings screen** for fullscreen (Alt+Enter / Cmd+Enter also toggles it), window scaling, the
-  palette selection, the ghost piece, the extra game types, a fixes screen that offers the
-  cartridge's own quirks back — off by default, fidelity until you ask otherwise — and a confirmed
-  high-score reset. Settings persist alongside the score tables and apply before the window opens.
+  palette selection, the ghost piece, the extra game types, the statistics, and a fixes screen that
+  offers the cartridge's own quirks back — off by default, fidelity until you ask otherwise. A page of
+  its own holds the four resets: the high scores, the statistics, the achievements, or all three, each
+  asking before it acts and each leaving the other two alone. Settings persist alongside the score
+  tables and apply before the window opens.
 
 <p align="center">
-  <img src="docs/media/title-pal-2.png" width="270" alt="Title screen — the original handheld's green">
-  <img src="docs/media/title-pal-67.png" width="270" alt="Title screen — melon">
-  <img src="docs/media/title-pal-12.png" width="270" alt="Title screen — sunset">
+  <img src="docs/media/title-with-stats/title-pal-2.png" width="270" alt="Title screen — the original handheld's green">
+  <img src="docs/media/title-with-stats/title-pal-67.png" width="270" alt="Title screen — melon">
+  <img src="docs/media/title-with-stats/title-pal-12.png" width="270" alt="Title screen — sunset">
+  <img src="docs/media/title-with-stats/title-pal-73.png" width="270" alt="Title screen — harbor dawn">
+  <img src="docs/media/title-with-stats/title-pal-24.png" width="270" alt="Title screen — aurora">
+  <img src="docs/media/title-with-stats/title-pal-66.png" width="270" alt="Title screen — kingfisher">
+  <img src="docs/media/title-with-stats/title-pal-71.png" width="270" alt="Title screen — poison">
+  <img src="docs/media/title-with-stats/title-pal-49.png" width="270" alt="Title screen — synthwave">
+  <img src="docs/media/title-with-stats/title-pal-30.png" width="270" alt="Title screen — plasma power saver">
+  <img src="docs/media/title-with-stats/title-pal-7.png" width="270" alt="Title screen — sea">
+  <img src="docs/media/title-with-stats/title-pal-14.png" width="270" alt="Title screen — forest">
+  <img src="docs/media/title-with-stats/title-pal-61.png" width="270" alt="Title screen — lichen">
 </p>
-<p align="center">
-  <img src="docs/media/title-pal-73.png" width="270" alt="Title screen — harbor dawn">
-  <img src="docs/media/title-pal-24.png" width="270" alt="Title screen — aurora">
-  <img src="docs/media/title-pal-66.png" width="270" alt="Title screen — kingfisher">
-</p>
-<p align="center">
-  <img src="docs/media/title-pal-71.png" width="270" alt="Title screen — poison">
-  <img src="docs/media/title-pal-49.png" width="270" alt="Title screen — synthwave">
-  <img src="docs/media/title-hotdog-palette.png" width="270" alt="Title screen — the Windows 3.1 Hot Dog Stand scheme">
-</p>
-<p align="center"><em>Nine of the eighty palettes: the original green, melon, sunset, harbor dawn, aurora, kingfisher, poison, synthwave, and Windows 3.1's Hot Dog Stand.</em></p>
+<p align="center"><em>Twelve of the eighty palettes: the original green, melon, sunset, harbor dawn, aurora, kingfisher, poison, synthwave, plasma power saver, sea, forest, and lichen.</em></p>
 
 <p align="center">
   <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
   <img src="docs/media/gameplay-ghost-pal-2.png" width="320" alt="Gameplay, ghost piece enabled — the landing shadow visible at the base of the well">
 </p>
 <p align="center"><em>The same frame with the ghost piece off and on.</em></p>
+
+<p align="center"><img src="docs/media/stats-pal-1.png" width="320" alt="The statistics menu — all-time totals, one branch per mode, and the achievements"></p>
+<p align="center"><em>The statistics menu: the whole game's totals, a branch for each mode, and the achievements.</em></p>
 
 ## Download
 

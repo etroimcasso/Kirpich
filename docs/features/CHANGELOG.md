@@ -8,6 +8,56 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-09-12
+
+- **Settings screen** ✅ — the erase row becomes four, on a page of their own. There are three kinds
+  of saved record and only the high-score tables had a way to clear them; the statistics and the
+  achievements had none, so a player who wanted one gone had to delete the whole user directory and
+  lose the other two with it. Each row now clears its own record and writes its own documents, heart
+  tables included, and leaves the other two untouched; the fourth is the three at once. A round in
+  progress survives all four, because the screen opens from a pause and clearing the latch a round
+  records through would leave that round counted nowhere. Erasing the statistics zeroes the play-time
+  total but keeps the point that clock is measured from — cleared, it reads as the beginning of time
+  and the next measurement puts a large number straight back into the total just emptied. Twelve rows
+  at four to a page makes the third page exactly the resets, so no constant moved.
+
+## 2026-09-11
+
+- **Achievements** 🟡 → ✅. A round that earns something announces it on the way out: one badge to a
+  screen — the badge, its title, its criterion under the title — and a press for the next. It comes
+  after everything else the round does, a Type B tally and a bonus scene included, and before the
+  top-score name entry each difficulty screen forks into, because there is no room to say it mid-round
+  and a distraction during a game is not wanted. No heading: a badge and its name say what happened.
+  Each banner arrives on the level-up cue, the game's own reward sound; the press that ends the notice
+  is silent, because nothing arrives on it. Both ways a round can end go through one seam that takes where the round was headed and
+  returns where it actually goes, so the rocket path is covered too — which matters, because the two
+  biggest score achievements are defined by scores that earn a rocket and that path never passes
+  through the game-over screen. Its screen has one state and no init, the first entered by a seam
+  rather than from a menu. **Riding with it:** a Type C round that flies the rocket now comes back to
+  the Type C picker instead of the Type A one, which had also been putting a new Type C top score's
+  name entry over the Type A leaderboard. **And the hidden split now has a rule behind it:** hidden
+  means naming it would spoil a discovery, so a badge is shown unless it does, and only the Liftoff
+  section carries it — the rocket and the Buran are the game's secret endings, and everything else is
+  a rung on a ladder that is there to be aimed at. Three of thirty-six rather than thirty-three. Badge
+  art and the names remain data and want a content pass.
+
+## 2026-09-10
+
+- **Achievements** ⬜ → 🟡. Thirty-six things worth doing across nine themed sections, awarded when a
+  round ends and kept across launches in their own save document. There are no points and no
+  completion score: an achievement is a thing you did, named and dated, and the tier field orders the
+  display rather than valuing anything. Every condition reads a finished round's own state, the bonus
+  scenes it reached, or the lifetime totals the statistics already keep, so the simulation is untouched
+  — and the attract demo earns nothing by construction, since the round is armed by the same call that
+  turns a demo away. Most of the set is hidden until earned, and a hidden one says so rather than
+  showing a bare badge. The screen is the port's first built as declarative components: one section to
+  a page, a badge grid whose cursor turns the page when it walks off the top or bottom, a corner
+  selector sized to the badge under it, and a panel with the criterion in words and the date it was
+  earned. The statistics chooser's achievements row opens it and carries how many have been earned;
+  the All-Time combined view carries the same figure. **In progress rather than delivered:** the
+  notice shown when one is earned is not built, and every badge still wears its section's emblem until
+  the art pass.
+
 ## 2026-09-06
 
 - **Statistics** ✅, **Heart Mode** ✅ — heart mode reaches the stats screens. Once a heart game has

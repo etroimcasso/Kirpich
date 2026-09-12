@@ -70,16 +70,18 @@ static_assert(kListLastRow < kPageDownArrowRow,
 // Everything one instance needs from outside the game state.
 //
 // `title` and `count` are asked each frame, so an instance can name itself from what the player chose
-// on the screen before it and can show a list whose length is not fixed. `paintRow` is handed the map
-// and the line to write, and owns everything from kListTextCol rightwards. `chose` is the row the
+// on the screen before it and can show a list whose length is not fixed. `paintRow` is handed the
+// game, the map and the line to write, and owns everything from kListTextCol rightwards - the game,
+// because a row can carry a figure read from it rather than a fixed string. `chose` is the row the
 // player acted on. `back` is what B does; a wiring that leaves it unset pops the navigation stack,
 // which is what every list in the statistics tree wants.
 struct ListWiring {
-    std::function<std::string_view()>                                      title;
-    std::function<std::size_t()>                                           count;
-    std::function<void(BackgroundMap&, std::size_t row, std::size_t line)> paintRow;
-    std::function<void(GameContext&, std::size_t row)>                     chose;
-    std::function<void(GameContext&)>                                      back;
+    std::function<std::string_view()> title;
+    std::function<std::size_t()>      count;
+    std::function<void(const GameContext&, BackgroundMap&, std::size_t row, std::size_t line)>
+                                                       paintRow;
+    std::function<void(GameContext&, std::size_t row)> chose;
+    std::function<void(GameContext&)>                  back;
 };
 
 // ── State handlers ────────────────────────────────────────────────────────────────────────────────

@@ -86,7 +86,7 @@ struct Probe {
             .title = [] { return std::string_view{"list"}; },
             .count = [this] { return rows; },
             .paintRow =
-                [this](BackgroundMap& map, std::size_t row, std::size_t line) {
+                [this](const GameContext&, BackgroundMap& map, std::size_t row, std::size_t line) {
                     painted.push_back({row, line});
                     const auto zero = static_cast<std::uint8_t>(CharTile::DIGIT_0);
                     map[line][kTextCol] = static_cast<std::uint8_t>(zero + (row / 10) % 10);

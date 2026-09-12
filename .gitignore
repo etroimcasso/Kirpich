@@ -106,3 +106,6 @@ baserom.*
 # Private working docs — local only, never pushed to any remote.
 docs-internal/
 /CLAUDE.md
+
+# Scratch at the repo root — screenshots, captures, whatever a session needs to put somewhere.
+/tmp/

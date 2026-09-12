@@ -117,6 +117,11 @@ void typeBVictoryJingle(GameContext& game, const NowNanos& now) {
     // nothing on the frames after the first.
     endRound(game, now ? now() : 0);
 
+    // A Type B win concluded. Set at both win-recording states, harmlessly, so the achievement check
+    // sees a won round whichever one a win enters through; it runs later, when the game-over screen is
+    // left after the tally.
+    noteRoundConcluded(game.achievements, /*wonTypeB=*/true);
+
     if (game.flow.timer1 != 0) {
         return;
     }
@@ -146,6 +151,7 @@ void typeBVictoryJingle(GameContext& game, const NowNanos& now) {
 void initBonusEnding(GameContext& game, const NowNanos& now) {
     // A level 9 win comes here rather than to the scoreboard, so the round closes here as well.
     endRound(game, now ? now() : 0);
+    noteRoundConcluded(game.achievements, /*wonTypeB=*/true);
 
     if (game.flow.timer1 != 0) {
         return;

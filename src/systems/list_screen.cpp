@@ -102,7 +102,7 @@ void paintListScreen(GameContext& game, const ListWiring& wiring) {
     for (std::size_t offset = 0; offset < shown; ++offset) {
         const std::size_t row = ui.listTop + offset;
         if (wiring.paintRow) {
-            wiring.paintRow(map, row, listRowLine(offset));
+            wiring.paintRow(game, map, row, listRowLine(offset));
         }
     }
 

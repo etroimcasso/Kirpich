@@ -7,10 +7,13 @@
 #include <tuple>
 #include <utility>
 
+#include <cstdio>
+
 #include <kirpich/char_tile.h>  // CharTile::HEART
 #include <kirpich/game_state.h>
 
 #include "data/sfx.h"  // SquareSfxId
+#include "systems/achievements.h"  // achievementsUnlocked
 #include "systems/carousel_screen.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/list_screen.h"
@@ -78,8 +81,22 @@ ListWiring chooserWiring() {
         .title = [] { return kChooserTitle; },
         .count = [] { return std::size(kChooserRows); },
         .paintRow =
-            [](BackgroundMap& map, std::size_t row, std::size_t line) {
+            [](const GameContext& game, BackgroundMap& map, std::size_t row, std::size_t line) {
                 writeMapText(map, line, kListTextCol, kChooserRows[row]);
+
+                // The achievements row carries how many of them have been earned, so the count is
+                // read where the player decides whether to go and look.
+                if (statsBranchOf(static_cast<std::uint8_t>(row)) != StatsBranch::ACHIEVEMENTS) {
+                    return;
+                }
+                char       count[8] = {};
+                const int  written  = std::snprintf(count, sizeof count, "%u",
+                                                   static_cast<unsigned>(achievementsUnlocked(game)));
+                if (written <= 0) {
+                    return;
+                }
+                writeMapText(map, line, kListTextCol + kChooserRows[row].size() + 1,
+                             std::string_view{count, static_cast<std::size_t>(written)});
             },
         .chose =
             [](GameContext& game, std::size_t row) {
@@ -96,14 +113,21 @@ ListWiring chooserWiring() {
 
                 game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
 
+                const StatsBranch branch = statsBranchOf(static_cast<std::uint8_t>(row));
+
+                // The achievements are a screen of their own - a grid of badges rather than a page of
+                // figures - so that row opens it instead of the paged readout the others share.
+                if (branch == StatsBranch::ACHIEVEMENTS) {
+                    pushScreen(game, GameState::INIT_ACHIEVEMENTS);
+                    return;
+                }
+
                 // The All-Time branch picks a scope first, once heart has been unlocked - all, normal
                 // or heart. Before that, and for the per-mode branches (whose scope rides their level
                 // axis), there is nothing to pick, so the page opens directly; a one-real-choice
                 // sub-menu would be noise, since with no heart data "all" and "normal" are the same
                 // page.
-                const bool allTime = statsBranchOf(static_cast<std::uint8_t>(row)) ==
-                                     StatsBranch::ALL_TIME;
-                pushScreen(game, allTime && heartEverRecorded(game.stats)
+                pushScreen(game, branch == StatsBranch::ALL_TIME && heartEverRecorded(game.stats)
                                      ? GameState::INIT_STATS_SCOPE
                                      : GameState::INIT_STATS_PAGE);
             },
@@ -147,7 +171,7 @@ ListWiring scopeWiring() {
         .title = [] { return kScopeTitle; },
         .count = [] { return std::size(kScopeRows); },
         .paintRow =
-            [](BackgroundMap& map, std::size_t row, std::size_t line) {
+            [](const GameContext&, BackgroundMap& map, std::size_t row, std::size_t line) {
                 writeMapText(map, line, kListTextCol, kScopeRows[row]);
                 if (row == kScopeHeartRow) {
                     // The heart wears its glyph, one cell past the word. It is a tile write, not text:

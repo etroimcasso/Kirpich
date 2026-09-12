@@ -124,6 +124,12 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
         const std::array<retropp::Rgba8, 4> sprite1{shades.darkest, shades.lightest, shades.light,
                                                     kShadeTransparent};
 
+        // The dim pair. Every shade that would have been ink becomes the light one, so the art keeps
+        // its shape and loses its weight - the same relation the dim font has to the font.
+        const std::array<retropp::Rgba8, 2> fontSpriteDim{shades.light, kShadeTransparent};
+        const std::array<retropp::Rgba8, 4> spriteDim{shades.light, shades.light, shades.lightest,
+                                                      kShadeTransparent};
+
         atlas.palettes[i] = RampPalettes{
             .font       = renderer.uploadPalette(std::span<const retropp::Rgba8>(font)),
             .content    = renderer.uploadPalette(std::span<const retropp::Rgba8>(content)),
@@ -131,6 +137,9 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
             .fontSprite = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSprite)),
             .sprite0    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite0)),
             .sprite1    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite1)),
+            .fontSpriteDim =
+                renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSpriteDim)),
+            .spriteDim = renderer.uploadPalette(std::span<const retropp::Rgba8>(spriteDim)),
         };
     }
 
@@ -158,24 +167,41 @@ ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& a
     return ResolvedTile{.atlas = atlas.gameplay, .cell = where.cell, .palette = palettes.content};
 }
 
-ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
-                               const TileAtlas& atlas, std::uint8_t ramp) noexcept {
-    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
-    const TileLocation  where    = locateTile(index, sheet);
-    // The font's two colours are the same under either object palette, so its art needs no variant.
+namespace {
+
+// A tile drawn as an object: the sheet its art sits on, and the palette named for it. The font is the
+// one source with a palette of its own, because its expansion writes only the darkest colour and the
+// see-through one, so the two object variants agree on it and it needs no variant of its own.
+[[nodiscard]] ResolvedTile spriteTileThrough(std::uint8_t index, TileSheet sheet,
+                                             const TileAtlas& atlas, retropp::PaletteId fontPalette,
+                                             retropp::PaletteId contentPalette) noexcept {
+    const TileLocation where = locateTile(index, sheet);
     if (where.source == TileSource::FONT) {
-        return ResolvedTile{
-            .atlas = atlas.font, .cell = where.cell, .palette = palettes.fontSprite};
+        return ResolvedTile{.atlas = atlas.font, .cell = where.cell, .palette = fontPalette};
     }
 
-    const retropp::PaletteId palette = palette1 ? palettes.sprite1 : palettes.sprite0;
-    retropp::AtlasId         source  = atlas.gameplay;
+    retropp::AtlasId source = atlas.gameplay;
     if (where.source == TileSource::COPYRIGHT_TITLE) {
         source = atlas.copyrightTitle;
     } else if (where.source == TileSource::MULTIPLAYER_BURAN) {
         source = atlas.multiplayerBuran;
     }
-    return ResolvedTile{.atlas = source, .cell = where.cell, .palette = palette};
+    return ResolvedTile{.atlas = source, .cell = where.cell, .palette = contentPalette};
+}
+
+}  // namespace
+
+ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
+                               const TileAtlas& atlas, std::uint8_t ramp) noexcept {
+    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    return spriteTileThrough(index, sheet, atlas, palettes.fontSprite,
+                             palette1 ? palettes.sprite1 : palettes.sprite0);
+}
+
+ResolvedTile resolveDimSpriteTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
+                                  std::uint8_t ramp) noexcept {
+    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    return spriteTileThrough(index, sheet, atlas, palettes.fontSpriteDim, palettes.spriteDim);
 }
 
 }  // namespace kirpich::render
