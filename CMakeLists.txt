@@ -13,7 +13,7 @@ if(APPLE)
 endif()
 
 project(kirpich
-    VERSION 0.9.5
+    VERSION 0.10
     DESCRIPTION "C++ port of kaspermeerts/tetris (Game Boy DMG)"
     LANGUAGES CXX
 )
