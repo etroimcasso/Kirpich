@@ -194,13 +194,9 @@ The build defaults to a lean Release configuration.
 
 ## License
 
-Kirpich's own code is licensed under the [GNU Affero General Public License v3.0](LICENSE). It links
-the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm), which is licensed under
-**PolyForm Noncommercial 1.0.0** — free for noncommercial use only. Kirpich is distributed as an AGPL
-combined work under a grant from Polyrhythm's author permitting that combination; the grant covers this
-distribution and does not extend to forks. You may study, modify, and share Kirpich noncommercially —
-but the engine it is built on forbids commercial use, so no one may sell a build of Kirpich or anything
-derived from it. The upstream disassembly is published without a license.
+Kirpich is licensed under the [GNU Affero General Public License v3.0](LICENSE) and uses the
+[Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm), which is licensed under PolyForm
+Noncommercial, with commercial licensing available.
 
 Tetris is a trademark of Tetris Holding, LLC. This project is unaffiliated with and unendorsed by
 the trademark holder, distributes no copyrighted content, and requires the user's own ROM.
