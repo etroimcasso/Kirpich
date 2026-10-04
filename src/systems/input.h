@@ -88,11 +88,8 @@ bool keyRepeatFire(std::uint8_t& timer, bool pressed, bool held);
 // system that introduces it.
 retropp::ActionSet heldActions(const retropp::InputState& in);
 
-// The default keyboard + gamepad bindings for the piece-control actions. Keyboard follows the
-// emulator convention (Z / X for the two rotations, arrows for movement); the two rotation buttons
-// bind to the pad's printed A / B so the glyph matches the original Game Boy button on every pad
-// family. A rebind surface is future work; the map is a value a settings screen can edit and
-// resubmit.
+// The action map for the default controls: actionMapFor(kDefaultControls) (src/systems/controls.h,
+// src/state/controls.h). The player's own controls replace it at startup once they are loaded.
 retropp::ActionMap defaultActionMap();
 
 }  // namespace kirpich::systems

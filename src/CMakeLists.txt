@@ -12,12 +12,14 @@ add_library(kirpich-lib STATIC
     data/gravity.cpp
     data/scoring.cpp
     state/achievement_persistence.cpp
+    state/controls.cpp
     state/high_score_persistence.cpp
     state/settings.cpp
     state/stats_persistence.cpp
     systems/achievement_notice.cpp
     systems/achievements.cpp
     systems/achievements_screen.cpp
+    systems/controls.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/boot.cpp

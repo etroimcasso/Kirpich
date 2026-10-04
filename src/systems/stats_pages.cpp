@@ -23,7 +23,7 @@ namespace {
 // Written without commas or apostrophes, and in one case, because that is what the font has.
 
 constexpr std::string_view kAllTimeTitles[] = {
-    "play time", "rounds", "score", "clears", "pieces", "favourites",
+    "play time", "rounds", "score", "clears", "pieces", "favorites",
 };
 constexpr std::string_view kModeTitles[]         = {"figures", "pieces"};
 constexpr std::string_view kAchievementsTitles[] = {"achievements"};
@@ -310,12 +310,12 @@ void paintAllTimePage(BackgroundMap& map, const StatsState& stats, std::size_t p
         default: break;
     }
 
-    const FavouriteMode  mode  = favouriteMode(stats, scope);
-    const FavouriteMusic music = favouriteMusic(stats);
+    const FavoriteMode  mode  = favoriteMode(stats, scope);
+    const FavoriteMusic music = favoriteMusic(stats);
     const PreferredLevel level = preferredLevel(stats, scope);
 
     const char letter = typeLetter(mode.type);
-    // Favourite mode is a game type and favourite music is global, so neither is heart-split and
+    // Favorite mode is a game type and favorite music is global, so neither is heart-split and
     // neither wears the heart. Only the preferred level, which is one identifiable level, does.
     statTextLine(map, kStatsFirstLine + 0, "mode",
                  mode.any ? std::string_view{&letter, 1} : kNothingYet);

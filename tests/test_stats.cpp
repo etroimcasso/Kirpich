@@ -400,9 +400,9 @@ TEST(Stats, DurationTextReadsInHoursOrMinutes) {
     EXPECT_EQ(text(360000), "100h 00m");
 }
 
-// (11) The favourite game type is the one more rounds have been played in than any other, counted
+// (11) The favorite game type is the one more rounds have been played in than any other, counted
 // over the whole of that type's table, and a tie keeps the earlier type in the walk.
-TEST(Stats, FavouriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
+TEST(Stats, FavoriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
     StatsState stats;
     stats.typeA[0].rounds    = 3;
     stats.typeB[2][1].rounds = 4;
@@ -414,7 +414,7 @@ TEST(Stats, FavouriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
         << "a type's rounds are the sum over its whole table";
     EXPECT_EQ(kirpich::systems::roundsFor(stats, GameType::TYPE_C, kirpich::StatScope::NORMAL), 2u);
 
-    const auto best = kirpich::systems::favouriteMode(stats, kirpich::StatScope::NORMAL);
+    const auto best = kirpich::systems::favoriteMode(stats, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(best.any);
     EXPECT_EQ(best.type, GameType::TYPE_B);
     EXPECT_EQ(best.rounds, 5u);
@@ -423,21 +423,21 @@ TEST(Stats, FavouriteModeIsAnArgmaxOverRoundsWithTiesToTypeA) {
     StatsState tied;
     tied.typeA[0].rounds    = 6;
     tied.typeC[0][0].rounds = 6;
-    const auto tiedBest = kirpich::systems::favouriteMode(tied, kirpich::StatScope::NORMAL);
+    const auto tiedBest = kirpich::systems::favoriteMode(tied, kirpich::StatScope::NORMAL);
     ASSERT_TRUE(tiedBest.any);
     EXPECT_EQ(tiedBest.type, GameType::TYPE_A) << "a tie goes to the earlier type in the walk";
 }
 
-// (12) The favourite music is an argmax over the per-selection round counts, which sit outside the
+// (12) The favorite music is an argmax over the per-selection round counts, which sit outside the
 // slice table because a song is not part of a combination. The byte the flow holds before a
 // selection has been made has no slot at all, so it can never win.
-TEST(Stats, FavouriteMusicIsAnArgmaxOverTheSelectionCounts) {
+TEST(Stats, FavoriteMusicIsAnArgmaxOverTheSelectionCounts) {
     StatsState stats;
     stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_A)] = 2;
     stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_C)] = 9;
     stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::OFF)]     = 4;
 
-    const auto best = kirpich::systems::favouriteMusic(stats);
+    const auto best = kirpich::systems::favoriteMusic(stats);
     ASSERT_TRUE(best.any);
     EXPECT_EQ(best.type, kirpich::MusicType::MUSIC_C);
     EXPECT_EQ(best.rounds, 9u);
@@ -449,7 +449,7 @@ TEST(Stats, FavouriteMusicIsAnArgmaxOverTheSelectionCounts) {
     StatsState tied;
     tied.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_B)] = 7;
     tied.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::OFF)]     = 7;
-    const auto tiedBest = kirpich::systems::favouriteMusic(tied);
+    const auto tiedBest = kirpich::systems::favoriteMusic(tied);
     ASSERT_TRUE(tiedBest.any);
     EXPECT_EQ(tiedBest.type, kirpich::MusicType::MUSIC_B)
         << "a tie goes to the earlier selection in the walk";
@@ -483,8 +483,8 @@ TEST(Stats, PreferredLevelCountsALevelAcrossEveryGameType) {
 TEST(Stats, TheFoldsReportNothingPlayedAndFoldBothAxesToTheTypeTotal) {
     const StatsState empty;
 
-    EXPECT_FALSE(kirpich::systems::favouriteMode(empty, kirpich::StatScope::NORMAL).any);
-    EXPECT_FALSE(kirpich::systems::favouriteMusic(empty).any);
+    EXPECT_FALSE(kirpich::systems::favoriteMode(empty, kirpich::StatScope::NORMAL).any);
+    EXPECT_FALSE(kirpich::systems::favoriteMusic(empty).any);
     EXPECT_FALSE(kirpich::systems::preferredLevel(empty, kirpich::StatScope::NORMAL).any);
     EXPECT_FALSE(kirpich::systems::longestRound(empty, kirpich::StatScope::NORMAL).any);
     EXPECT_EQ(kirpich::systems::roundsFor(empty, GameType::TYPE_B, kirpich::StatScope::NORMAL), 0u);
@@ -748,19 +748,19 @@ TEST(Stats, PreferredLevelReadsItsScopeAndMarksAHeartLevel) {
     EXPECT_FALSE(t.heart) << "a cross-set tie keeps the cartridge level";
 }
 
-// (22) The favourite mode reads its scope; the favourite music takes none, because music is global
+// (22) The favorite mode reads its scope; the favorite music takes none, because music is global
 // and not split by heart.
-TEST(Stats, FavouriteModeReadsItsScopeWhileMusicStaysGlobal) {
+TEST(Stats, FavoriteModeReadsItsScopeWhileMusicStaysGlobal) {
     StatsState stats;
     stats.typeA[0].rounds       = 6;
     stats.typeB[0][0].rounds    = 2;
     stats.typeCHeart[0][0].rounds = 9;
 
-    EXPECT_EQ(kirpich::systems::favouriteMode(stats, StatScope::NORMAL).type, GameType::TYPE_A);
-    EXPECT_EQ(kirpich::systems::favouriteMode(stats, StatScope::HEART).type, GameType::TYPE_C);
-    EXPECT_EQ(kirpich::systems::favouriteMode(stats, StatScope::ALL).type, GameType::TYPE_C)
+    EXPECT_EQ(kirpich::systems::favoriteMode(stats, StatScope::NORMAL).type, GameType::TYPE_A);
+    EXPECT_EQ(kirpich::systems::favoriteMode(stats, StatScope::HEART).type, GameType::TYPE_C);
+    EXPECT_EQ(kirpich::systems::favoriteMode(stats, StatScope::ALL).type, GameType::TYPE_C)
         << "nine heart Type C rounds outweigh six normal Type A";
 
     stats.musicRounds[kirpich::musicTypeIndex(kirpich::MusicType::MUSIC_B)] = 3;
-    EXPECT_EQ(kirpich::systems::favouriteMusic(stats).type, kirpich::MusicType::MUSIC_B);
+    EXPECT_EQ(kirpich::systems::favoriteMusic(stats).type, kirpich::MusicType::MUSIC_B);
 }

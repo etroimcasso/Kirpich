@@ -80,7 +80,7 @@ void bankApplicationTime(GameContext& game, std::uint64_t nowNanos);
 // ALL folds both. The scope is an explicit argument rather than a default so that every call site
 // states which tables it means. The all-time pages carry it from the scope sub-menu the player picked
 // (systems/stats_screens.h); the per-mode pages carry it on the level axis instead (see
-// totalsForSelection). favouriteMusic below takes no scope: music is not part of a combination and is
+// totalsForSelection). favoriteMusic below takes no scope: music is not part of a combination and is
 // not split by heart, so it is always the whole game's.
 
 // One game type's totals, and the whole game's. Both are folds over the slices - the nine running
@@ -114,26 +114,26 @@ struct LongestRound {
 // reached with heart mode already switched on.
 [[nodiscard]] bool heartEverRecorded(const StatsState& stats);
 
-// The three answers the all-time favourites page gives, each an argmax over rounds played.
+// The three answers the all-time favorites page gives, each an argmax over rounds played.
 //
 // A tie goes to the first in walk order, which is the rule longestRound already follows: game types
 // in the order A, B, C; levels from 0 up; music selections from A up. `any` is false when nothing has
 // been played at all, and the page then says so rather than showing a first-slot default that reads
 // as a real answer.
-struct FavouriteMode {
+struct FavoriteMode {
     GameType      type{};
     std::uint32_t rounds = 0;
     bool          any    = false;
 
-    friend constexpr bool operator==(const FavouriteMode&, const FavouriteMode&) = default;
+    friend constexpr bool operator==(const FavoriteMode&, const FavoriteMode&) = default;
 };
 
-struct FavouriteMusic {
+struct FavoriteMusic {
     MusicType     type{};
     std::uint32_t rounds = 0;
     bool          any    = false;
 
-    friend constexpr bool operator==(const FavouriteMusic&, const FavouriteMusic&) = default;
+    friend constexpr bool operator==(const FavoriteMusic&, const FavoriteMusic&) = default;
 };
 
 struct PreferredLevel {
@@ -151,10 +151,10 @@ struct PreferredLevel {
     friend constexpr bool operator==(const PreferredLevel&, const PreferredLevel&) = default;
 };
 
-// The favourite game type and the preferred starting level take a scope; the favourite music does
+// The favorite game type and the preferred starting level take a scope; the favorite music does
 // not, because music is global and not heart-split.
-[[nodiscard]] FavouriteMode  favouriteMode(const StatsState& stats, StatScope scope);
-[[nodiscard]] FavouriteMusic favouriteMusic(const StatsState& stats);
+[[nodiscard]] FavoriteMode  favoriteMode(const StatsState& stats, StatScope scope);
+[[nodiscard]] FavoriteMusic favoriteMusic(const StatsState& stats);
 
 // Across all three game types: the starting level more rounds have been played at than any other.
 // Under ALL a normal level and a heart level are counted separately, so a heart level can win in its

@@ -66,11 +66,13 @@
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/achievement_persistence.h"
+#include "state/controls.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
 #include "systems/achievements.h"
 #include "systems/boot.h"
+#include "systems/controls.h"
 #include "systems/demo.h"
 #include "systems/enhancement_screens.h"
 #include "systems/game_context.h"
@@ -210,6 +212,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
     retropp::SaveStore saves = retropp::SaveStore::atPath(retropp::userDataDir(identity));
     kirpich::Settings  settings;
     kirpich::loadSettings(saves, settings);
+    kirpich::Controls controls = kirpich::kDefaultControls;
+    kirpich::loadControls(saves, controls);
 
     const retropp::EngineConfig config{
         .identity     = identity,
@@ -491,8 +495,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     });
 
     // ── Input ────────────────────────────────────────────────────────────────
-    retropp::ActionMap actions = kirpich::systems::defaultActionMap();
-    platform.actions(actions);
+    platform.actions(kirpich::systems::actionMapFor(controls));
 
     // ── The loop ─────────────────────────────────────────────────────────────
     // Counted once per simulation tick and handed to the sprite bridge, where it goes into every
@@ -559,12 +562,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // sequence degenerates into a counter.
         vm.advanceClock(config.timing.cpuCyclesPerTick());
 
-        // Enter is also the Start button. The chord is a chord, not a press of Start, so Start is
-        // withheld for as long as the chord's key is down — otherwise taking the game fullscreen
-        // also starts a round, pauses one, or skips a screen.
+        // Enter is also a Game Boy button - Start, unless the player moved it. The chord is a chord,
+        // not a press of that button, so its actions are withheld for as long as the chord's key is
+        // down — otherwise taking the game fullscreen also starts a round, pauses one, or skips a
+        // screen.
         retropp::ActionSet held = kirpich::systems::heldActions(in);
         if (chord || chordSwallowsEnter) {
-            held.set(retropp::actionId(kirpich::Action::Start), false);
+            const retropp::ActionSet onEnter =
+                kirpich::systems::actionsOnKey(controls, SDL_SCANCODE_RETURN);
+            for (int a = 0; a < retropp::kMaxActions; ++a) {
+                const auto id = static_cast<retropp::ActionId>(a);
+                if (onEnter.test(id)) held.set(id, false);
+            }
         }
         dispatcher.tick(game, held);
 

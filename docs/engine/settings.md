@@ -18,6 +18,9 @@ struct Settings {
     std::uint8_t windowScale = kDefaultWindowScale;  // 4
     std::uint8_t shadeRamp   = 0;                    // the greyscale ramp
     bool         ghostPiece  = false;                // the falling piece's landing shadow
+    bool         newModes    = false;                // the game types the cartridge never had
+    bool         fixAudio    = false;                // the title music returns after a demo
+    bool         showStats   = false;                // the statistics are offered on the title screen
 };
 ```
 
@@ -39,16 +42,16 @@ offers. Both are applied on the way in from disk, so a stored value can never na
 
 ### The save document
 
-`"settings"`, **version 4**, six bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
-then the ghost-piece, new-modes and audio-fix flags, each as 0 or 1.
+`"settings"`, **version 5**, seven bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
+then the ghost-piece, new-modes, audio-fix and show-stats flags, each as 0 or 1.
 
 Each earlier version was one byte shorter — version 1 stopped after the ramp, version 2 added the
-ghost-piece flag, version 3 the new-modes flag — and each step's migration
-(`migrateSettingsV1ToV2` / `V2ToV3` / `V3ToV4`) appends its flag as off. `loadSettings` registers
-all three on the store before reading, so a document written at any released version reaches the
-decoder at version 4's length.
+ghost-piece flag, version 3 the new-modes flag, version 4 the audio-fix flag — and each step's
+migration (`migrateSettingsV1ToV2` / `V2ToV3` / `V3ToV4` / `V4ToV5`) appends its flag as off.
+`loadSettings` registers all four on the store before reading, so a document written at any released
+version reaches the decoder at version 5's length.
 
-`decodeSettings` accepts an image **shorter** than six bytes and leaves every value the image does not
+`decodeSettings` accepts an image **shorter** than seven bytes and leaves every value the image does not
 carry at its default, which keeps a truncated file costing one setting rather than all of them. It
 refuses an empty image and one longer than this build writes.
 
@@ -68,13 +71,14 @@ keeps a *damaged* file cheap, not what carries a format change.
 ### One version and one migration chain per store, not per document
 
 `SaveStore::setCurrentVersion` and `registerMigration` are properties of the **store**, and this port
-keeps the settings and the top scores in the same store. Declaring version 4 therefore changes the
-terms every document in that store is read under.
+keeps every document it saves in the same store — the settings, the controls, the top scores, the
+statistics and the achievements. Declaring one version therefore changes the terms every document in
+that store is read under.
 
 What keeps them apart is that each loader names its own version immediately before its own read —
-`loadSettings` sets 4 and registers its chain, `loadTopScores` sets 2 and registers its own — so a
-document is never read under another document's version. Any new document type in this store follows
-the same rule.
+`loadSettings` sets 5 and registers its chain, `loadControls` sets 1, `loadTopScores` sets 3 and
+registers its own — so a document is never read under another document's version. Any new document
+type in this store follows the same rule.
 
 ## The screens
 
