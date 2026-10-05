@@ -145,21 +145,27 @@ inside the engine:
 
 ### Built on Polyrhythm
 
-Kirpich is a complete consumer of the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm) and
-exercises most of its surface:
+Kirpich is a complete consumer of the [Polyrhythm engine](https://github.com/RetroPlusPlus/Polyrhythm).
+These are the engine surfaces it uses:
 
-| Engine capability | How Kirpich uses it |
+| Engine surface | How Kirpich uses it |
 |---|---|
-| Declarative rendering — tile and sprite layers, per-frame submission, shape-confined regions | The two screen buffers, the object layer, the settings screen's drawn overlays, and the ghost piece's silhouette regions |
-| Palette system — indexed atlases, uploaded palettes | All eighty color ramps resident at once; switching palettes selects between uploaded handles |
-| Sprite geometry queries | The ghost piece derives its shape from the falling piece's own placed sprites |
-| Emulated SM83 virtual machine, surgical routine hosting | The piece randomizer and the procedural garbage fill — B-Type's starting rows and C-Type's rising floor — sharing one machine so the round init's piece draws advance the divider its garbage fill then reads |
-| Hosted audio driver on an emulated audio unit | The cartridge's sound driver, running at its original addresses |
-| Action-mapped input | Keyboard and gamepad bindings over the game's own press-edge and auto-repeat logic |
-| Versioned save store with schema migration | Settings and high-score persistence, each at its own schema version and migrated forward across releases |
-| Per-user file store | Extracted assets live beside the save data, independent of where the binary sits |
-| Run loop at a configurable timing profile | The DMG's 59.7275 Hz simulation rate, decoupled from display refresh |
-| Cross-platform windowing and packaging | One codebase shipping on five platform targets |
+| Run loop and timing profile — `RunLoop`, `TimingProfile::GameBoy`, separate simulation and render callbacks, interpolation between ticks | The DMG's 59.7275 Hz simulation rate, decoupled from the display's refresh rate |
+| Exit handling — `exitAction` / `exitRequest` | The window's close button, the platform's quit, and the game's own quit all pass through one guard, so quitting mid-round still records the round |
+| Platform and windowing — `SdlPlatform`, `WindowedHost`, `EngineConfig`, `Window` | The window's title, scale and fullscreen state, presented at the Game Boy's 160 × 144 |
+| Injectable clock — `Clock`, `SteadyClock` | Play time and session time for the statistics, testable against a clock the tests control |
+| Declarative renderer — `FrameDrawState`, tile and sprite `DrawLayer`s, `ObjectKey` | Every screen, submitted whole each frame; the cartridge's screens through the two background maps and the object layer, the port's own screens as layers built from components |
+| Sprite transforms — flips, quarter-turn `Rotation`, `Transform` | The game's own selector arrow, flipped for a left arrow and stood on end for a page arrow; the ghost piece moved down to where the piece would land |
+| Sprite geometry queries — `Sprite::maskShape` | The ghost piece's silhouette, taken from the falling piece's own placed sprites |
+| Regions and screen-space effects — `Region`, `ShapePoints`, `ColorFill` | The ghost piece, the palette swatch, and the achievements screen's cursor |
+| Atlases and palettes — `loadAtlas`, `uploadPalette`, indexed tilesets, object palettes with a see-through entry | The cartridge's art as decoded from the player's ROM, with all eighty color ramps resident at once so switching palettes selects between uploaded handles |
+| Asset registry and policies — `assetRoot`, `AssetPolicy::Embed` / `LoadFromPath`, build-time embedding | Kirpich's own routines baked into the binary; the player's extracted assets read from disk |
+| Application identity and per-user files — `AppIdentity`, `userDataDir`, `UserFiles` | Extracted assets, saves and the log, in the player's own data directory wherever the binary sits |
+| Versioned save store — `SaveStore` documents with schema migration | Settings, controls, top scores, statistics and achievements, each its own document at its own version, migrated forward across releases |
+| Conductor, the SM83 virtual machine — `Vm`, routine registration and bindings, `advanceClock` | The piece randomizer and the procedural garbage fill — B-Type's starting rows and C-Type's rising floor — sharing one machine, so the round init's piece draws advance the divider its garbage fill then reads |
+| Hosted audio drivers — `AudioLibrary::registerDriver`, `HostedDriverBinding`, `AudioSystem::GB`, `HostedDriver` | The cartridge's own sound driver, running at its original addresses on an emulated audio unit, started by a small routine of Kirpich's own; music and effects are cued through its shared bytes |
+| Action-mapped input — `ActionMap`, `ActionSet`, `PadButton`, `ControllerType` | The player's keyboard and controller bindings for the Game Boy's eight buttons, with controller buttons bound by their position on the pad, under the game's own press-edge and auto-repeat logic |
+| Build integration — the engine's CMake target, with SDL3 and SameBoy | One codebase shipping on five platform targets |
 
 ### Repository layout
 
