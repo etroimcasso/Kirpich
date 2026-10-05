@@ -1,6 +1,7 @@
-// The settings screen's drawn parts — behavioral tests over src/render/settings_overlay.h.
+// The shade ramps, and the page arrows of the screens drawn into the map — behavioral tests over
+// src/render/palettes.h and src/render/settings_overlay.h.
 //
-// Device-free: the overlay is a pure function from the screen's state to a list of regions, with no
+// Device-free: the arrows are a pure function from the screen's state to a list of sprites, with no
 // renderer and no device. These are the port's own screens, so every asserted value comes from the
 // surface's stated contract rather than from tetris.asm.
 
@@ -22,20 +23,6 @@ using kirpich::ScreenUiState;
 using kirpich::SettingsRow;
 using kirpich::render::kShadeRampCount;
 using kirpich::render::TileAtlas;
-
-constexpr int kViewportWidth = 160;
-
-// A shape's vertex count says what it is. Only the preview squares are shapes now — every arrow on
-// the screen is the game's own selector tile, drawn as an object or a sprite.
-constexpr std::size_t kSquarePoints = 4;
-
-std::size_t countWith(const std::vector<retropp::Region>& regions, std::size_t points) {
-    std::size_t n = 0;
-    for (const auto& region : regions) {
-        if (region.shape.points.size() == points) ++n;
-    }
-    return n;
-}
 
 ScreenUiState on(SettingsRow row) {
     ScreenUiState ui;
@@ -131,40 +118,6 @@ TEST(ShadeRamps, DefaultIsTheHardwareGreyscale) {
     EXPECT_EQ(grey.back().r, 0xFF);
 }
 
-// (1) The preview strip is the chosen ramp's four colours, in ramp order, opaque — and the squares
-// abut, which is what makes the strip read as one palette rather than as four blocks. Swept over
-// every ramp, so a ramp whose colours were routed wrong fails here.
-TEST(SettingsOverlay, PreviewShowsTheRampsFourColoursAdjacent) {
-    for (std::uint8_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
-        const auto regions = kirpich::render::settingsOverlay(on(SettingsRow::SHADE_RAMP), ramp,
-                                                              kViewportWidth);
-        const auto colours = kirpich::render::rampColours(ramp);
-
-        ASSERT_EQ(countWith(regions, kSquarePoints), colours.size()) << "ramp " << +ramp;
-
-        std::size_t seen = 0;
-        float       previousRight = 0.0f;
-        for (const auto& region : regions) {
-            if (region.shape.points.size() != kSquarePoints) continue;
-
-            ASSERT_EQ(region.effects.size(), 1u);
-            EXPECT_EQ(region.effects[0].kind, retropp::ScreenSpaceEffectKind::ColorFill);
-            EXPECT_EQ(region.effects[0].fill.r, colours[seen].r) << "ramp " << +ramp;
-            EXPECT_EQ(region.effects[0].fill.g, colours[seen].g) << "ramp " << +ramp;
-            EXPECT_EQ(region.effects[0].fill.b, colours[seen].b) << "ramp " << +ramp;
-            EXPECT_EQ(region.effects[0].fill.a, 255) << "a preview square is opaque";
-
-            const float left  = region.shape.points[0].x;
-            const float right = region.shape.points[1].x;
-            if (seen > 0) {
-                EXPECT_FLOAT_EQ(left, previousRight) << "square " << seen << " must touch the last";
-            }
-            previousRight = right;
-            ++seen;
-        }
-    }
-}
-
 // (3) The page arrow is the game's own selector tile stood on end, and it points at the page that is
 // actually there. It is a sprite because an object carries only the hardware's two flips, and no flip
 // stands a sideways triangle upright.
@@ -184,7 +137,7 @@ TEST(SettingsOverlay, PageArrowIsTheSelectorTurnedAQuarter) {
     // The first page: one arrow, turned to point down at the page below it.
     {
         const auto arrows =
-            kirpich::render::settingsPageArrows(on(SettingsRow::FULLSCREEN), 0, atlas);
+            kirpich::render::settingsPageArrows(on(SettingsRow::DISPLAY), 0, atlas);
         ASSERT_EQ(arrows.size(), 1u);
         EXPECT_EQ(arrows[0].tile, expected.cell) << "the game's own selector, not a new tile";
         EXPECT_EQ(arrows[0].atlas, expected.atlas);
@@ -206,7 +159,7 @@ TEST(SettingsOverlay, PageArrowIsTheSelectorTurnedAQuarter) {
     // Whichever ramp is on, the arrow is coloured by that ramp's object palette.
     for (std::uint8_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
         const auto arrows =
-            kirpich::render::settingsPageArrows(on(SettingsRow::FULLSCREEN), ramp, atlas);
+            kirpich::render::settingsPageArrows(on(SettingsRow::DISPLAY), ramp, atlas);
         ASSERT_EQ(arrows.size(), 1u);
         EXPECT_EQ(arrows[0].palette, static_cast<retropp::PaletteId>(70 + ramp))
             << "ramp " << +ramp;
@@ -233,7 +186,7 @@ TEST(SettingsOverlay, PageUpArrowStandsAboveTheHeading) {
         << "the page-up arrow stands above the heading, or it reads as the page's text scrolling";
 
     // The first page's arrow points down, and stands below the heading rather than over it.
-    const auto down = kirpich::render::settingsPageArrows(on(SettingsRow::FULLSCREEN), 0, atlas);
+    const auto down = kirpich::render::settingsPageArrows(on(SettingsRow::DISPLAY), 0, atlas);
     ASSERT_EQ(down.size(), 1u);
     EXPECT_EQ(down[0].rotation, retropp::Rotation::Rot90);
     EXPECT_GT(down[0].y, headingY);
@@ -241,35 +194,6 @@ TEST(SettingsOverlay, PageUpArrowStandsAboveTheHeading) {
     // The up arrow's row is derived from the heading's rather than written as a number of its own,
     // which is what stops a screen placing one under its heading.
     EXPECT_EQ(kirpich::systems::kPageUpArrowRow + 1, kirpich::systems::kScreenTitleRow);
-}
-
-// (3b) The second page carries no palette preview, since the row it previews is not on it.
-TEST(SettingsOverlay, SecondPageHasNoPreview) {
-    const auto regions =
-        kirpich::render::settingsOverlay(on(SettingsRow::RESET_SCORES), 3, kViewportWidth);
-    EXPECT_TRUE(regions.empty()) << "nothing on the second page is a shape";
-}
-
-// (4) The strip is centred across the viewport, whatever the viewport is.
-TEST(SettingsOverlay, PreviewIsCentredInTheViewport) {
-    for (const int width : {160, 240, 320}) {
-        const auto regions =
-            kirpich::render::settingsOverlay(on(SettingsRow::SHADE_RAMP), 0, width);
-
-        float left = 0.0f, right = 0.0f;
-        bool  first = true;
-        for (const auto& region : regions) {
-            if (region.shape.points.size() != kSquarePoints) continue;
-            if (first) {
-                left  = region.shape.points[0].x;
-                first = false;
-            }
-            right = region.shape.points[1].x;
-        }
-        ASSERT_FALSE(first) << "no preview squares at width " << width;
-        EXPECT_FLOAT_EQ(left, static_cast<float>((width - kirpich::render::kSwatchWidth) / 2));
-        EXPECT_FLOAT_EQ(right - left, static_cast<float>(kirpich::render::kSwatchWidth));
-    }
 }
 
 }  // namespace

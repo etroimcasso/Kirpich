@@ -16,9 +16,11 @@
 // Every glyph these screens draw comes from the font (tile indices $00-$26) or the empty cell
 // ($2F). Those mean the same picture under both tile regimes (src/render/tile_atlas.h), so one
 // layout reads correctly whether the screen was opened from the title screen or from a round. There
-// is no colon, no slash and no question mark in the font, which is why a row reads FULLSCREEN ON
-// and the confirm asks its question without one.
+// is no colon, no slash and no question mark in the font, which is why a page heading reads
+// "settings 1" and the confirm asks its question without one.
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 
 #include "state/achievement_state.h"
@@ -31,16 +33,16 @@ namespace kirpich::systems {
 
 class GameStateDispatcher;
 
-// ── Where the drawn parts of the screen sit ───────────────────────────────────────────────────────
+// ── Where the parts of the screen sit ─────────────────────────────────────────────────────────────
 //
-// Some of the screen is shape rather than text: the palette row's two scroll arrows, the preview
-// strip of the ramp they scroll through, and the arrow at the edge of a page that says another page
-// is there. The render bridge draws those (src/render/settings_overlay.h) and reads their geometry
-// from here, so the drawn parts and the written ones cannot drift apart.
+// The settings screen, the screens its rows open and the render components that draw those screens
+// all read their geometry from here, so a row on one of them lines up with a row on any other.
 //
 // Cells, not pixels: (row, column) in the background map, the same units the rest of the screen uses.
+// A component that places sprites multiplies by the cell's eight pixels (src/render/option_row.h).
 
-// An option row's place on its page. Every page lays its rows out the same way.
+// An option row's place on its page. Every page lays its rows out the same way, and so does every
+// screen the page opens.
 inline constexpr std::size_t kSettingsFirstRow  = 5;
 inline constexpr std::size_t kSettingsRowStride = 3;
 
@@ -48,25 +50,28 @@ inline constexpr std::size_t kSettingsRowStride = 3;
     return kSettingsFirstRow + kSettingsRowStride * settingsRowWithinPage(row);
 }
 
+// The label starts on column 3, and the cursor stands on column 1, two cells to its left.
+inline constexpr std::size_t kLabelCol  = 3;
+inline constexpr std::size_t kCursorCol = 1;
+
 // Every row that holds a choice is a scroller: an arrow, the value, an arrow. One geometry for all of
 // them, so the arrows line up down the screen instead of each row placing its own.
 //
-// The value starts at the field's first cell and runs right, so every value on the screen begins in
-// the same column and the rows read as one list - "off", "on", "4x" and a palette number all start
-// where "off" starts. A value shorter than the field leaves the cells after it empty.
+// The value starts at the field's first cell and runs right, so every value begins in the same column
+// and the rows read as one list - "off", "on", "4x" and a palette number all start where "off" starts.
+// A value shorter than the field leaves the cells after it empty.
 //
 // The arrows sit at fixed columns rather than beside the text, so they stay put as a value changes
-// width. A row whose value cannot go further that way simply has no arrow on that side.
-// The left arrow clears the longest label on the screen: "fullscreen" is ten cells from column 3 and
-// so ends on column 12.
+// width. A row whose value cannot go further that way simply has no arrow on that side. The left arrow
+// clears the longest label a scroller row carries: "fullscreen" is ten cells from column 3 and so ends
+// on column 12.
 inline constexpr std::size_t kOptionLeftArrowCol  = 13;
 inline constexpr std::size_t kOptionValueCol      = 15;
-inline constexpr std::size_t kOptionValueWidth    = 3;  // "off" is the widest value on the screen
+inline constexpr std::size_t kOptionValueWidth    = 3;  // "off" is the widest value a row carries
 inline constexpr std::size_t kOptionRightArrowCol = 19;
 
 // The last cell of the value field. A value never runs past it.
 inline constexpr std::size_t kOptionValueEnd = kOptionValueCol + kOptionValueWidth - 1;
-inline constexpr std::size_t kPaletteSwatchRow     = settingsRowLine(SettingsRow::SHADE_RAMP) + 1;
 
 // Every screen the settings screen owns or opens puts its heading on the same row, and the screens
 // that open from it match, so they read as siblings.
@@ -122,16 +127,27 @@ struct SettingsWiring {
 void placeScrollerArrows(GameContext& game, std::size_t entry, std::size_t line, bool left,
                          bool right);
 
-// Hold the cursor while the frame timer counts, then toggle it and reload the interval the game's own
-// selection screens blink on. The dispatcher decrements the timer after the handler runs.
+// The interval the cursor holds for between toggles, in frames - the one the game's own selection
+// screens blink on. A screen arms the frame timer with it as it opens.
+inline constexpr std::uint8_t kScreenBlinkFrames = 16;
+
+// Hold the cursor while the frame timer counts, then toggle it and reload kScreenBlinkFrames. The
+// dispatcher decrements the timer after the handler runs.
 //
 // One blink for every screen the port draws itself, because they all count the same timer and only
 // one of them is ever on screen (see ScreenUiState::cursorVisible).
 void blinkScreenCursor(GameContext& game);
 
-// Repaint the settings screen and hand control back to it. Used by the screens it opens — the
-// confirm and the New-mode screen — because re-entering the init would save their own picture as the
-// caller's screen and lose the real one.
+// Put a changed set of settings into effect: store it in `*wiring.settings`, cue the menu move, then
+// fire `apply` and `save` in that order. A change that lands on the settings already held is an end
+// stop - nothing is written, nothing is cued, and neither seam fires - and so is a wiring with no
+// settings behind it. Returns whether anything changed.
+bool changeSettings(GameContext& game, const SettingsWiring& wiring, const Settings& next);
+
+// Repaint the settings screen and hand control back to it, the cursor still on the row that opened the
+// screen being left. Used by the screens it opens — the confirm, the Display and Palette screens, the
+// carousels and the mode screen — because re-entering the init would save their own picture as the caller's
+// screen and lose the real one.
 void returnToSettings(GameContext& game, const SettingsWiring& wiring);
 
 // Take the caller's whole screen, and put it back.
@@ -168,9 +184,10 @@ void openSettings(GameContext& game);
 // settings screen over the map the display is reading. Enters SETTINGS.
 void initSettingsScreen(GameContext& game, const SettingsWiring& wiring);
 
-// SETTINGS — one frame of the screen: blink the cursor, walk it through the rows across both pages,
-// change the value on the row it is on, act on it if it is an action row (the confirm from the two
-// that end something, the mode screen from the one that opens a screen), or leave.
+// SETTINGS — one frame of the screen: blink the cursor, walk it through the rows across the pages,
+// open the screen a row points into (Right, Confirm or Start), open the confirm from a row that
+// erases something or ends the game, or leave. No row holds a value of its own; the values live on
+// the screens the rows open.
 void settingsScreen(GameContext& game, const SettingsWiring& wiring);
 
 // INIT_RESET_CONFIRM — paint the confirm over the same map, opening on "no". Enters RESET_CONFIRM.

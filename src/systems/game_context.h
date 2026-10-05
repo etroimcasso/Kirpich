@@ -22,6 +22,7 @@
 #include "state/achievement_state.h"
 #include "state/achievements_screen_state.h"
 #include "state/demo_state.h"
+#include "state/display_settings_state.h"
 #include "state/display_state.h"
 #include "state/engine_state.h"
 #include "state/game_flow_state.h"
@@ -54,6 +55,10 @@ struct GameContext {
     // badge is open. Its own struct rather than more fields on ScreenUiState: that screen owns its
     // whole state space in one place (see state/achievements_screen_state.h).
     AchievementScreenState achievementScreen;
+
+    // The Display settings screen's own state - which of its rows the cursor is on. The settings it
+    // edits are the player's and live outside the game state (see state/display_settings_state.h).
+    DisplaySettingsState displaySettings;
 
     // The end-of-round notice's own state - what a finished round just earned and has still to show,
     // and where it was going when the notice took the frame (see state/achievement_notice_state.h).

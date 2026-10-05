@@ -31,8 +31,9 @@ namespace kirpich {
 
 // The settings screen's option rows, in the order the cursor walks them.
 //
-// They span three pages: the window's own choices on the first, and on the two after them the ones
-// that change how the game is played and the one that erases the scores. The walk itself is
+// They span three pages. The first opens the screens that hold the window's settings, the palette and
+// the controls, and carries the row that leaves the game; the two after it hold the ones that change
+// how the game is played and the ones that erase what has been recorded. The walk itself is
 // continuous - going down past the last row of a page turns to the next one, and up past the first
 // row turns back - so a page is where a row is drawn rather than a mode the player has to switch
 // between.
@@ -40,9 +41,9 @@ namespace kirpich {
 // The declaration order IS the layout: a page holds kSettingsRowsPerPage consecutive rows, so moving
 // a row between pages means moving its enumerator rather than editing a table somewhere else.
 enum class SettingsRow : std::uint8_t {
-    FULLSCREEN   = 0,
-    WINDOW_SCALE = 1,
-    SHADE_RAMP   = 2,
+    DISPLAY      = 0,
+    PALETTE      = 1,
+    CONTROLS     = 2,
     EXIT_GAME    = 3,
     GHOST_PIECE  = 4,
     NEW_MODES    = 5,
@@ -116,7 +117,7 @@ struct ScreenUiState {
     bool titleStatsColumn = false;
 
     // Which option row the settings cursor is on.
-    SettingsRow settingsRow = SettingsRow::FULLSCREEN;
+    SettingsRow settingsRow = SettingsRow::DISPLAY;
 
     // The blink phase every screen the port draws itself shares: the settings screen's cursor, the
     // confirm's, and any screen either of them opens. One flag serves all of them because only one is

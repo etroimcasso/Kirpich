@@ -1,7 +1,8 @@
 # Rebindable controls
 
-**Status:** In progress — the bindings, their save document and the default controls are in place; the
-settings rework that reaches the controls, and the controls screen itself, are not built yet.
+**Status:** In progress — the bindings, their save document, the default controls and the settings
+page that reaches them are in place; the controls screen itself is not built yet, so the page's
+Controls row opens nothing.
 
 A player can choose which keyboard key and which controller button stands for each of the Game Boy's
 eight buttons — Up, Down, Left, Right, A, B, Start and Select. The choice is kept across launches, in
@@ -59,11 +60,15 @@ Alt+Enter (Cmd+Enter on macOS) toggles fullscreen, and Enter is also a Game Boy 
 the player moved it. While the shortcut is held, whichever button Enter is bound to is held back, so
 going fullscreen never also starts a round or pauses one.
 
+## The settings page
+
+The first settings page reads **Display**, **Palette**, **Controls** and **Exit Game**. Display opens a
+screen holding fullscreen and the window size; Palette opens a screen holding the palette selector, a
+swatch of the palette's four colors, and the seven pieces drawn in it, so a player sees the game's own
+art in the palette before leaving. Controls is on the page and does nothing yet.
+
 ## Still to come
 
-- The first settings page becomes **Display** (fullscreen and window size, on their own screen),
-  **Palette** (the palette selector with the seven pieces shown in the chosen colours), **Controls**,
-  and **Exit Game**.
-- The **controls screen**: the eight buttons in rows with a keyboard column and a controller column.
+- The **controls screen**, behind the page's Controls row: the eight buttons in rows with a keyboard column and a controller column.
   Choosing a cell waits for a press of that kind; Escape leaves the binding as it was. The engine
   captures the press, bound or not, and reports a controller button by its position on the pad.

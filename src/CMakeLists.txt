@@ -44,6 +44,8 @@ add_library(kirpich-lib STATIC
     systems/rising_floor.cpp
     systems/screen.cpp
     systems/settings_screen.cpp
+    systems/display_settings_screen.cpp
+    systems/palette_settings_screen.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
     systems/stats.cpp
@@ -54,6 +56,9 @@ add_library(kirpich-lib STATIC
     render/sprite_layer.cpp
     render/selection_corners.cpp
     render/glyphs.cpp
+    render/option_row.cpp
+    render/scroller_arrows.cpp
+    render/piece_shape.cpp
     render/sprites.cpp
     render/achievements/badge.cpp
     render/achievements/badge_grid.cpp
@@ -61,6 +66,10 @@ add_library(kirpich-lib STATIC
     render/achievements/banner.cpp
     render/achievements/notice.cpp
     render/achievements/screen.cpp
+    render/display_settings/screen.cpp
+    render/palette_settings/ramp_swatch.cpp
+    render/palette_settings/piece_preview.cpp
+    render/palette_settings/screen.cpp
     render/settings_overlay.cpp
     render/stats_pages.cpp
     render/config_section.cpp

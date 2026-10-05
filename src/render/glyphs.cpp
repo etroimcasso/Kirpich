@@ -43,7 +43,7 @@ Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& 
         const ResolvedTile art =
             resolveSpriteTile(*glyph, TileSheet::GAMEPLAY, /*palette1=*/false, atlas, ramp);
         out.push_back(retropp::Sprite{
-            .key     = retropp::ObjectKey{"ach-g-" + std::to_string(at) + "-" + std::to_string(y)},
+            .key     = retropp::ObjectKey{"glyph-" + std::to_string(at) + "-" + std::to_string(y)},
             .x       = at,
             .y       = y,
             .z       = kGlyphZ,

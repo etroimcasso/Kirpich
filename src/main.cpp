@@ -58,8 +58,10 @@
 #include "render/achievements/notice.h"
 #include "render/achievements/screen.h"
 #include "render/background.h"
+#include "render/display_settings/screen.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
+#include "render/palette_settings/screen.h"
 #include "render/settings_overlay.h"
 #include "render/stats_pages.h"
 #include "render/type_c_difficulty.h"
@@ -74,6 +76,7 @@
 #include "systems/boot.h"
 #include "systems/controls.h"
 #include "systems/demo.h"
+#include "systems/display_settings_screen.h"
 #include "systems/enhancement_screens.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
@@ -84,6 +87,7 @@
 #include "systems/line_clear.h"
 #include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
+#include "systems/palette_settings_screen.h"
 #include "systems/readouts.h"
 #include "systems/scoring.h"
 #include "systems/settings_screen.h"
@@ -414,6 +418,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
     kirpich::systems::installSettingsHandlers(dispatcher, settingsWiring);
 
+    // The screens the first settings page opens: the window's two settings, and the palette. They
+    // edit the same settings through the same wiring, so a change made on either is applied and
+    // written out exactly as one made anywhere else.
+    kirpich::systems::installDisplaySettingsScreen(dispatcher, settingsWiring);
+    kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring);
+
     // The screens a settings row opens: the ghost piece's, the fixes carousel, and the new-modes
     // screen. What each one says and which flag it binds belong to the unit
     // (systems/enhancement_screens.h); what arrives from here is the settings they edit and the
@@ -619,23 +629,41 @@ int main(int /*argc*/, char* /*argv*/[]) {
             return;
         }
 
+        // The screens built from their own components, picked by the state the game is in. Each one
+        // reads the settings it shows straight from the player's settings, so a change made from
+        // outside it - the fullscreen shortcut - is on the screen the frame it happens.
+        switch (game.flow.gameState) {
+            case kirpich::GameState::DISPLAY_SETTINGS: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::DisplaySettingsScreen(
+                    game.displaySettings, settings, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::PALETTE_SETTINGS: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::PaletteSettingsScreen(
+                    settings, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            default:
+                break;
+        }
+
         kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
                                         tiles, sprites, settings.shadeRamp);
 
-        // The settings screen's own drawn parts. Its page arrow is the game's selector tile stood on
-        // end, which an object cannot express — the hardware has two flips and no quarter turn — so it
-        // joins the object buffer's sprites here rather than going through it. Its palette preview is
-        // colour, which the art has no tile for at all, so that is a region over the finished frame.
+        // The settings screen's page arrow is the game's selector tile stood on end, which an object
+        // cannot express — the hardware has two flips and no quarter turn — so it joins the object
+        // buffer's sprites here rather than going through it.
         retropp::FrameDrawState frame;
 
         if (game.flow.gameState == kirpich::GameState::SETTINGS) {
             const auto arrows =
                 kirpich::render::settingsPageArrows(game.screens, settings.shadeRamp, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
-            const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
-                                                                  kViewport.width);
-            frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
         }
 
         // The heart-mode indicator, beside a difficulty screen's heading. Gated rather than written

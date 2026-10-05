@@ -27,16 +27,17 @@ at the settings.
 
 ## The screen
 
-Two pages, each named for what it holds: the window's own choices are settings, and the screens and
-switches the cartridge never had are enhancements. Down from the last row of a page turns to the
-next, up from the first turns back, and an arrow at the edge of a page says the other one is there.
-Each family's header counts from one: `settings 1`, `enhancements 1`.
+Three pages, each named for what it holds: the screens for the window, the palette and the controls
+are settings, and the screens, switches and resets the cartridge never had are enhancements. Down from
+the last row of a page turns to the next, up from the first turns back, and an arrow at the edge of a
+page says another one is there. Each family's header counts from one: `settings 1`, `enhancements 1`,
+`enhancements 2`.
 
 | Page | Row | Values |
 |---|---|---|
-| settings 1 | `fullscreen` | `on` / `off` |
-| settings 1 | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
-| settings 1 | `palette` | `◄ n ►`, eighty colour ramps, with the chosen one previewed beneath the row |
+| settings 1 | `display` | `►`, opens the Display screen |
+| settings 1 | `palette` | `►`, opens the Palette screen |
+| settings 1 | `controls` | nothing yet; the controls screen is to come ([`controls.md`](controls.md)) |
 | settings 1 | `exit game` | asks first |
 | enhancements 1 | `ghost` | `►`, opens the ghost piece's own screen |
 | enhancements 1 | `new modes` | `►`, opens a screen of its own |
@@ -47,8 +48,21 @@ Each family's header counts from one: `settings 1`, `enhancements 1`.
 | enhancements 2 | `reset achvmnts` | asks first |
 | enhancements 2 | `reset all` | asks first |
 
-Every row past the first page opens a screen or acts; none carries an inline value. The four openers
-each lead to a screen with the room to say what the switch does: `ghost` and `fixes` run on the
+No row carries an inline value; every row opens a screen or acts. The values live on the screens the
+rows open:
+
+| Screen | Row | Values |
+|---|---|---|
+| Display | `fullscreen` | `on` / `off` |
+| Display | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
+| Palette | `palette` | `◄ n ►`, eighty color ramps, with a swatch of the chosen one's four colors beneath the row and the seven pieces drawn in it below that |
+
+Each of the two is headed by its own name, lays its rows on the same lines and columns as the
+settings page, and returns to the settings page with B, its cursor still on the row that opened it.
+The Palette screen draws everything on it - the heading, the row, the pieces - through the palette
+being chosen, so the whole screen changes as the player steps through them.
+
+The enhancement openers each lead to a screen with the room to say what the switch does: `ghost` and `fixes` run on the
 carousel ([`fixes-screen.md`](fixes-screen.md)), `new modes` on the mode screen that preceded it, and
 `stats` on its own. Each opener's arrow points right, toward the screen it leads to, and pressing
 right opens it just as Confirm and Start do.
@@ -89,11 +103,15 @@ about ten punctuation glyphs — no colon, no slash, no question mark, no arrows
 and the page header reads `settings 1` rather than `settings/1`. Every string on the screen goes
 through the same character map the cartridge's own text does, which refuses anything it cannot spell.
 
-**Arrows and colour are shapes, not tiles.** The palette scroller's two arrows, the preview strip
-under it, and the page arrows are drawn as filled regions over the finished frame. The art has no
-arrow and no solid-colour tile, and a region is placed per pixel rather than per cell — which is also
-what lets the preview's four squares touch each other, so the strip reads as one palette instead of
-four blocks.
+**Arrows are the game's own; color is a shape.** Every arrow on these screens is the selector arrow
+the title screen points at the player count with - flipped for a left arrow, turned a quarter for a
+page arrow - so the screens draw in the game's own hand. The palette swatch is the one thing the art
+has nothing to draw with, so its four squares are filled regions. A region is placed per pixel rather
+than per cell, which is what lets the squares touch each other and read as one palette instead of four
+blocks.
+
+**A palette is chosen by looking at the game in it.** The Palette screen shows the seven pieces in the
+palette under the cursor, and the palettes carry numbers rather than names.
 
 **A palette changes what the four shades are, and nothing else.** The Game Boy draws everything
 through four shades; a ramp replaces those four colours and leaves every tile, every sample and every

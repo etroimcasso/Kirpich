@@ -14,10 +14,11 @@
 #include "data/sfx.h"        // SquareSfxId
 #include "retropp/input.h"   // actionId
 #include "state/display_state.h"
-#include "render/palettes.h"  // kShadeRampCount, clampShadeRamp
 #include "state/screen_ui_state.h"
 #include "systems/boot.h"  // softReset
+#include "systems/display_settings_screen.h"  // openDisplaySettings
 #include "systems/game_state_dispatcher.h"
+#include "systems/palette_settings_screen.h"  // openPaletteSettings
 #include "systems/menu_screens.h"  // clearOamObjects
 #include "systems/screen.h"         // writeMapText
 #include "systems/title_screens.h"  // refreshTitleScreenObjects
@@ -26,21 +27,9 @@ namespace kirpich::systems {
 
 namespace {
 
-// The cursor holds for this many frames between toggles - the interval the selection screens blink
-// their own cursors on (systems/menu_screens.cpp).
-constexpr std::uint8_t kBlinkFrames = 16;
-
 // The visible screen: the top-left corner of the background map, and the region these screens paint.
 constexpr std::size_t kScreenRows = 18;
 constexpr std::size_t kScreenCols = 20;
-
-// The settings screen. The option rows are evenly spaced so the cursor's walk reads as a column; the
-// value field is three cells wide because "off" is the widest thing that goes in it. The heading sits
-// on the row every screen in this family uses (kScreenTitleRow, settings_screen.h), which is also
-// what places the page-up arrow above it.
-constexpr std::size_t kLabelCol  = 3;
-constexpr std::size_t kCursorCol      = 1;
-
 
 // The confirm. Its question is two lines because the font has no question mark and "erase all high
 // scores" is one cell wider than the screen.
@@ -67,30 +56,24 @@ constexpr std::size_t kFirstArrowObject = 0;
 constexpr std::uint8_t kObjectOriginX = 8;
 constexpr std::uint8_t kObjectOriginY = 16;
 
-// Which way each scroller row can still go. A row at the end of its range loses that arrow, so the
-// ends of a range are visible rather than something a player finds by pressing.
+// Which arrows a row carries. No row on this screen holds a value of its own, so the only arrow is
+// the right one on a row that opens a screen: it says there is another screen through this row, and
+// pressing that way opens it.
 struct Reach {
     bool left  = false;
     bool right = false;
 };
 
-Reach reachOf(SettingsRow row, const Settings& settings) {
+Reach reachOf(SettingsRow row) {
     switch (row) {
-        case SettingsRow::FULLSCREEN:
-            return {.left = settings.fullscreen, .right = !settings.fullscreen};
-        case SettingsRow::WINDOW_SCALE:
-            return {.left  = settings.windowScale > kMinWindowScale,
-                    .right = settings.windowScale < kMaxWindowScale};
-        case SettingsRow::SHADE_RAMP:
-            return {.left  = settings.shadeRamp > 0,
-                    .right = settings.shadeRamp + 1 < render::kShadeRampCount};
+        case SettingsRow::DISPLAY:
+        case SettingsRow::PALETTE:
         case SettingsRow::GHOST_PIECE:
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
         case SettingsRow::STATS:
-            // Not a value, but it does go somewhere: the right arrow says there is another screen
-            // through this row, and pressing that way opens it.
             return {.left = false, .right = true};
+        case SettingsRow::CONTROLS:  // opens nothing yet
         case SettingsRow::EXIT_GAME:
         case SettingsRow::RESET_SCORES:
         case SettingsRow::RESET_STATS:
@@ -101,13 +84,12 @@ Reach reachOf(SettingsRow row, const Settings& settings) {
     return {};
 }
 
-// Place every scroller row's arrows, or take them away. Rows off the current page have none, and
-// neither does a row that is an action rather than a choice.
-void drawValueArrows(GameContext& game, const Settings& settings, std::uint8_t page) {
+// Place every row's arrows, or take them away. Rows off the current page have none, and neither does
+// a row that opens nothing.
+void drawValueArrows(GameContext& game, std::uint8_t page) {
     for (std::uint8_t i = 0; i < kSettingsRowCount; ++i) {
         const auto row = static_cast<SettingsRow>(i);
-        const Reach reach =
-            settingsPageOf(row) == page ? reachOf(row, settings) : Reach{};
+        const Reach reach = settingsPageOf(row) == page ? reachOf(row) : Reach{};
         placeScrollerArrows(game, kFirstArrowObject + std::size_t{2} * i, settingsRowLine(row),
                             reach.left, reach.right);
     }
@@ -130,50 +112,6 @@ void clearVisibleRegion(BackgroundMap& map) {
     }
 }
 
-// Write one row's value into the field, from its first cell, blanking whatever was there.
-void paintValue(BackgroundMap& map, SettingsRow row, std::string_view text) {
-    const std::size_t line = settingsRowLine(row);
-    for (std::size_t i = 0; i < kOptionValueWidth; ++i) {
-        map[line][kOptionValueCol + i] = kSpace;
-    }
-    if (text.size() > kOptionValueWidth) {
-        text = text.substr(0, kOptionValueWidth);
-    }
-    writeMapText(map, line, kOptionValueCol, text);
-}
-
-// The palette row's number: the ramp in effect, counted from one. It is the only text in the
-// scroller - the arrows either side of it and the preview strip below are shapes the render bridge
-// draws (src/render/settings_overlay.h), which is why the cells they sit in are cleared here.
-static_assert(render::kShadeRampCount <= 99,
-              "a ramp past the ninety-ninth has no room in the two cells the number is drawn in");
-
-void paintRampValue(BackgroundMap& map, std::uint8_t ramp) {
-    const int  number = render::clampShadeRamp(ramp) + 1;
-    const char digits[2] = {static_cast<char>('0' + number / 10),
-                            static_cast<char>('0' + number % 10)};
-    paintValue(map, SettingsRow::SHADE_RAMP,
-               number >= 10 ? std::string_view{digits, 2} : std::string_view{digits + 1, 1});
-}
-
-// Every value on the given page. Called on the way in and after every change - and a page paints only
-// its own rows, because the other page's lines hold whatever this one wrote there.
-void paintSettingsValues(BackgroundMap& map, const Settings& settings, std::uint8_t page) {
-    if (page == 0) {
-        paintValue(map, SettingsRow::FULLSCREEN, settings.fullscreen ? "on" : "off");
-
-        // One digit and an x - the scales this build offers are all single digits.
-        const char scale[2] = {static_cast<char>('0' + settings.windowScale), 'x'};
-        paintValue(map, SettingsRow::WINDOW_SCALE, std::string_view{scale, sizeof scale});
-
-        paintRampValue(map, settings.shadeRamp);
-        return;
-    }
-    // The second page's rows all open screens or act; none carries an inline value. The ghost
-    // switch lives on the ghost row's own screen, where there is room to say what it does.
-    (void)settings;
-}
-
 // Which rows the given page draws, in order.
 std::vector<SettingsRow> rowsOnPage(std::uint8_t page) {
     std::vector<SettingsRow> rows;
@@ -186,12 +124,12 @@ std::vector<SettingsRow> rowsOnPage(std::uint8_t page) {
 
 std::string_view labelFor(SettingsRow row) {
     switch (row) {
-        case SettingsRow::FULLSCREEN:   return "fullscreen";
-        case SettingsRow::WINDOW_SCALE: return "size";
-        case SettingsRow::SHADE_RAMP:   return "palette";
+        case SettingsRow::DISPLAY:      return "display";
+        case SettingsRow::PALETTE:      return "palette";
+        case SettingsRow::CONTROLS:     return "controls";
         // "ghost", not "ghost piece": a label runs from column 3 to the left arrow at column 13, so
         // ten cells is all there is, and the two-word form is eleven. The siblings are terse for the
-        // same reason - the size row is "size", not "window scale".
+        // same reason - the Display screen's size row is "size", not "window scale".
         case SettingsRow::GHOST_PIECE:  return "ghost";
         case SettingsRow::NEW_MODES:    return "new modes";
         case SettingsRow::FIXES:        return "fixes";
@@ -209,8 +147,8 @@ std::string_view labelFor(SettingsRow row) {
     return {};
 }
 
-// What each page is called. The name says what the page holds: the window's own choices are
-// settings, and the pages after them - the screens and switches the cartridge never had - are
+// What each page is called. The name says what the page holds: the screens for the window, the
+// palette and the controls are settings, and the pages after them - the screens and switches the cartridge never had - are
 // enhancements. Each family counts from one, so a family's pages are numbered within it rather than
 // across the whole screen. The font has no slash, so the name and the number sit a cell apart rather
 // than reading "settings/1".
@@ -223,7 +161,7 @@ std::string_view pageTitle(std::uint8_t page) {
     }
 }
 
-void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& settings) {
+void paintSettings(BackgroundMap& map, const ScreenUiState& ui) {
     const std::uint8_t page = settingsPageOf(ui.settingsRow);
 
     clearVisibleRegion(map);
@@ -234,8 +172,6 @@ void paintSettings(BackgroundMap& map, const ScreenUiState& ui, const Settings& 
     for (const SettingsRow row : rowsOnPage(page)) {
         writeMapText(map, settingsRowLine(row), kLabelCol, labelFor(row));
     }
-
-    paintSettingsValues(map, settings, page);
 }
 
 void drawSettingsCursor(BackgroundMap& map, const ScreenUiState& ui) {
@@ -329,9 +265,9 @@ std::optional<ConfirmAction> confirmFor(SettingsRow row) noexcept {
         case SettingsRow::RESET_ACHIEVEMENTS: return ConfirmAction::ERASE_ACHIEVEMENTS;
         case SettingsRow::RESET_ALL:          return ConfirmAction::ERASE_EVERYTHING;
         case SettingsRow::EXIT_GAME:          return ConfirmAction::EXIT_GAME;
-        case SettingsRow::FULLSCREEN:
-        case SettingsRow::WINDOW_SCALE:
-        case SettingsRow::SHADE_RAMP:
+        case SettingsRow::DISPLAY:
+        case SettingsRow::PALETTE:
+        case SettingsRow::CONTROLS:
         case SettingsRow::GHOST_PIECE:
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
@@ -463,51 +399,6 @@ bool moveCursor(GameContext& game, int delta) {
     return settingsPageOf(game.screens.settingsRow) != before;
 }
 
-// Change the value on the row the cursor is on. Right turns fullscreen on and steps the size up;
-// left does the opposite. A change that lands on the value already held is an end stop: nothing is
-// written, nothing is said, and neither seam fires.
-void changeValue(GameContext& game, const SettingsWiring& wiring, int delta) {
-    if (wiring.settings == nullptr) {
-        return;
-    }
-    Settings next = *wiring.settings;
-    switch (game.screens.settingsRow) {
-        case SettingsRow::FULLSCREEN:
-            next.fullscreen = delta > 0;
-            break;
-        case SettingsRow::WINDOW_SCALE:
-            next.windowScale = clampWindowScale(static_cast<int>(next.windowScale) + delta);
-            break;
-        case SettingsRow::SHADE_RAMP:
-            next.shadeRamp = render::clampShadeRamp(static_cast<int>(next.shadeRamp) + delta);
-            break;
-        case SettingsRow::GHOST_PIECE:
-        case SettingsRow::NEW_MODES:
-        case SettingsRow::FIXES:
-        case SettingsRow::STATS:
-        case SettingsRow::RESET_SCORES:
-        case SettingsRow::RESET_STATS:
-        case SettingsRow::RESET_ACHIEVEMENTS:
-        case SettingsRow::RESET_ALL:
-        case SettingsRow::EXIT_GAME:
-            return;  // an action, not a value
-    }
-    if (next == *wiring.settings) {
-        return;
-    }
-
-    *wiring.settings      = next;
-    game.audioCues.square = SquareSfxId::TINK;
-    paintSettingsValues(game.display.displayedMap(), next,
-                        settingsPageOf(game.screens.settingsRow));
-    if (wiring.apply) {
-        wiring.apply(next);
-    }
-    if (wiring.save) {
-        wiring.save(next);
-    }
-}
-
 }  // namespace
 
 void placeScrollerArrows(GameContext& game, std::size_t entry, std::size_t line, bool left,
@@ -526,8 +417,23 @@ void blinkScreenCursor(GameContext& game) {
     if (game.flow.timer1 != 0) {
         return;
     }
-    game.flow.timer1 = kBlinkFrames;
+    game.flow.timer1 = kScreenBlinkFrames;
     game.screens.cursorVisible = !game.screens.cursorVisible;
+}
+
+bool changeSettings(GameContext& game, const SettingsWiring& wiring, const Settings& next) {
+    if (wiring.settings == nullptr || next == *wiring.settings) {
+        return false;
+    }
+    *wiring.settings      = next;
+    game.audioCues.square = SquareSfxId::TINK;
+    if (wiring.apply) {
+        wiring.apply(next);
+    }
+    if (wiring.save) {
+        wiring.save(next);
+    }
+    return true;
 }
 
 void saveCallerScreen(GameContext& game) {
@@ -567,14 +473,14 @@ void restoreCallerScreen(GameContext& game) {
     game.demo.activeDemo = ui.savedActiveDemo;
 }
 
-void returnToSettings(GameContext& game, const SettingsWiring& wiring) {
+void returnToSettings(GameContext& game, const SettingsWiring& /*wiring*/) {
     BackgroundMap& map = game.display.displayedMap();
-    paintSettings(map, game.screens, wiring.current());
+    paintSettings(map, game.screens);
     game.screens.cursorVisible = true;
-    drawValueArrows(game, wiring.current(), settingsPageOf(game.screens.settingsRow));
+    drawValueArrows(game, settingsPageOf(game.screens.settingsRow));
     drawSettingsCursor(map, game.screens);
 
-    game.flow.timer1      = kBlinkFrames;
+    game.flow.timer1      = kScreenBlinkFrames;
     game.flow.gameState   = GameState::SETTINGS;
     game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
 }
@@ -585,20 +491,20 @@ void openSettings(GameContext& game) {
     game.audioCues.square       = SquareSfxId::CHANGE_SCREEN;
 }
 
-void initSettingsScreen(GameContext& game, const SettingsWiring& wiring) {
+void initSettingsScreen(GameContext& game, const SettingsWiring& /*wiring*/) {
     ScreenUiState& ui = game.screens;
 
     saveCallerScreen(game);
     BackgroundMap& map = game.display.displayedMap();
 
-    ui.settingsRow   = SettingsRow::FULLSCREEN;
+    ui.settingsRow   = SettingsRow::DISPLAY;
     ui.cursorVisible = true;
 
-    paintSettings(map, game.screens, wiring.current());
+    paintSettings(map, game.screens);
     drawSettingsCursor(map, ui);
-    drawValueArrows(game, wiring.current(), settingsPageOf(ui.settingsRow));
+    drawValueArrows(game, settingsPageOf(ui.settingsRow));
 
-    game.flow.timer1    = kBlinkFrames;
+    game.flow.timer1    = kScreenBlinkFrames;
     game.flow.gameState = GameState::SETTINGS;
 }
 
@@ -624,7 +530,8 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
     }
 
     // The screen-opening rows carry a right arrow rather than a value, so pressing that way opens
-    // the screen the row points into - the same thing Confirm and Start do from these rows.
+    // the screen the row points into - the same thing Confirm and Start do from these rows. The
+    // controls row opens nothing yet, so it matches no case and a press there says nothing.
     if (pressed(game, Action::Confirm) || pressed(game, Action::Start) ||
         pressed(game, Action::MenuRight)) {
         const auto openScreen = [&game](GameState init) {
@@ -632,6 +539,14 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
             game.flow.gameState   = init;
         };
         switch (game.screens.settingsRow) {
+            case SettingsRow::DISPLAY:
+                game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+                openDisplaySettings(game);
+                return;
+            case SettingsRow::PALETTE:
+                game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+                openPaletteSettings(game);
+                return;
             case SettingsRow::GHOST_PIECE:
                 openScreen(GameState::INIT_GHOST_SCREEN);
                 return;
@@ -649,12 +564,6 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
         }
     }
 
-    if (pressed(game, Action::MenuRight)) {
-        changeValue(game, wiring, 1);
-    } else if (pressed(game, Action::MenuLeft)) {
-        changeValue(game, wiring, -1);
-    }
-
     bool turnedPage = false;
     if (pressed(game, Action::MenuDown)) {
         turnedPage = moveCursor(game, 1);
@@ -667,14 +576,9 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
     // A page turn changes which labels are on screen, so the whole screen is laid out again rather
     // than only the cursor being moved.
     if (turnedPage) {
-        paintSettings(map, game.screens, wiring.current());
-    } else {
-        // The values are redrawn every frame, not only when this screen changes one: the fullscreen
-        // chord sets the same setting from outside, and a row showing what the chord just turned off
-        // is the whole point of having the row.
-        paintSettingsValues(map, wiring.current(), settingsPageOf(game.screens.settingsRow));
+        paintSettings(map, game.screens);
     }
-    drawValueArrows(game, wiring.current(), settingsPageOf(game.screens.settingsRow));
+    drawValueArrows(game, settingsPageOf(game.screens.settingsRow));
     drawSettingsCursor(map, game.screens);
 }
 
@@ -692,7 +596,7 @@ void initResetConfirmScreen(GameContext& game) {
         confirmContentFor(ui.pendingConfirm, offersReturnToTitle(ui));
     const ChoiceColumns cols = choiceColumns(content);
 
-    drawValueArrows(game, Settings{}, kSettingsPageCount);  // the confirm has no scrollers
+    drawValueArrows(game, kSettingsPageCount);  // the confirm has no scrollers
     clearVisibleRegion(map);
     writeMapText(map, kScreenTitleRow, centred(content.title.size()), content.title);
     // A question can be one line or two; an empty line is a row left blank rather than a row of
@@ -705,7 +609,7 @@ void initResetConfirmScreen(GameContext& game) {
     writeMapText(map, kChoiceRow, cols.right, content.rightChoice);
     drawConfirmCursor(map, ui);
 
-    game.flow.timer1    = kBlinkFrames;
+    game.flow.timer1    = kScreenBlinkFrames;
     game.flow.gameState = GameState::RESET_CONFIRM;
 }
 
