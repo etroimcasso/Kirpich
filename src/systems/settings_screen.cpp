@@ -16,6 +16,7 @@
 #include "state/display_state.h"
 #include "state/screen_ui_state.h"
 #include "systems/boot.h"  // softReset
+#include "systems/controls_screen.h"          // openControlsSettings
 #include "systems/display_settings_screen.h"  // openDisplaySettings
 #include "systems/game_state_dispatcher.h"
 #include "systems/palette_settings_screen.h"  // openPaletteSettings
@@ -68,12 +69,12 @@ Reach reachOf(SettingsRow row) {
     switch (row) {
         case SettingsRow::DISPLAY:
         case SettingsRow::PALETTE:
+        case SettingsRow::CONTROLS:
         case SettingsRow::GHOST_PIECE:
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
         case SettingsRow::STATS:
             return {.left = false, .right = true};
-        case SettingsRow::CONTROLS:  // opens nothing yet
         case SettingsRow::EXIT_GAME:
         case SettingsRow::RESET_SCORES:
         case SettingsRow::RESET_STATS:
@@ -530,8 +531,7 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
     }
 
     // The screen-opening rows carry a right arrow rather than a value, so pressing that way opens
-    // the screen the row points into - the same thing Confirm and Start do from these rows. The
-    // controls row opens nothing yet, so it matches no case and a press there says nothing.
+    // the screen the row points into - the same thing Confirm and Start do from these rows.
     if (pressed(game, Action::Confirm) || pressed(game, Action::Start) ||
         pressed(game, Action::MenuRight)) {
         const auto openScreen = [&game](GameState init) {
@@ -546,6 +546,10 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
             case SettingsRow::PALETTE:
                 game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
                 openPaletteSettings(game);
+                return;
+            case SettingsRow::CONTROLS:
+                game.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+                openControlsSettings(game);
                 return;
             case SettingsRow::GHOST_PIECE:
                 openScreen(GameState::INIT_GHOST_SCREEN);

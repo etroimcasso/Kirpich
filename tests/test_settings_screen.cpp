@@ -441,6 +441,7 @@ TEST(SettingsScreen, OnlyTheRowsThatOpenAScreenCarryAnArrow) {
         switch (row) {
             case SettingsRow::DISPLAY:
             case SettingsRow::PALETTE:
+            case SettingsRow::CONTROLS:
             case SettingsRow::GHOST_PIECE:
             case SettingsRow::NEW_MODES:
             case SettingsRow::FIXES:
@@ -468,7 +469,7 @@ TEST(SettingsScreen, OnlyTheRowsThatOpenAScreenCarryAnArrow) {
 }
 
 // (7) Only the action rows act on Confirm and Start by opening the confirm. The rows that open a
-// screen open that screen instead, and the controls row does nothing at all yet.
+// screen open that screen instead.
 TEST(SettingsScreen, OnlyTheResetRowOpensTheConfirm) {
     for (const Action act : {Action::Confirm, Action::Start}) {
         GameContext game;
@@ -533,25 +534,41 @@ TEST(SettingsScreen, DisplayAndPaletteRowsOpenTheirScreens) {
 }
 
 // (7b) The controls row is on the page, and pressing anything on it opens nothing and says nothing.
-TEST(SettingsScreen, TheControlsRowDoesNothingYet) {
-    for (const Action act :
-         {Action::MenuRight, Action::MenuLeft, Action::Confirm, Action::Start}) {
+TEST(SettingsScreen, TheControlsRowOpensItsScreen) {
+    for (const Action act : {Action::MenuRight, Action::Confirm, Action::Start}) {
         GameContext game;
         Probe       probe;
         const auto  wiring = probe.wiring();
         openFrom(game, wiring, GameState::TITLE_SCREEN);
 
+        // Whatever the last visit left, the screen opens on its first cell, idle.
+        game.controlsScreen.row       = kirpich::GbButton::SELECT;
+        game.controlsScreen.column    = kirpich::ControlsColumn::CONTROLLER;
+        game.controlsScreen.listening = true;
+        game.screens.cursorVisible    = false;
+
         game.screens.settingsRow = SettingsRow::CONTROLS;
-        game.audioCues           = kirpich::systems::AudioCues{};
         press(game, {act});
         kirpich::systems::settingsScreen(game, wiring);
 
-        EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
-        EXPECT_EQ(game.screens.settingsRow, SettingsRow::CONTROLS);
-        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
+        EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS) << "action " << int(act);
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+        EXPECT_EQ(game.controlsScreen, kirpich::ControlsScreenState{});
+        EXPECT_TRUE(game.screens.cursorVisible);
+        EXPECT_EQ(game.flow.timer1, kirpich::systems::kScreenBlinkFrames);
         EXPECT_EQ(probe.applied, 0);
         EXPECT_EQ(probe.saved, 0);
     }
+
+    // Left is not a way in: the row has nothing to its left.
+    GameContext game;
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+    openFrom(game, wiring, GameState::TITLE_SCREEN);
+    game.screens.settingsRow = SettingsRow::CONTROLS;
+    press(game, {Action::MenuLeft});
+    kirpich::systems::settingsScreen(game, wiring);
+    EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
 }
 
 // (8) The cursor blinks on the frame timer, composed through the dispatcher so the timer is

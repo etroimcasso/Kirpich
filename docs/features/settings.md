@@ -37,7 +37,7 @@ page says another one is there. Each family's header counts from one: `settings 
 |---|---|---|
 | settings 1 | `display` | `►`, opens the Display screen |
 | settings 1 | `palette` | `►`, opens the Palette screen |
-| settings 1 | `controls` | nothing yet; the controls screen is to come ([`controls.md`](controls.md)) |
+| settings 1 | `controls` | opens the controls screen: a key and a controller button for each of the Game Boy's eight buttons ([`controls.md`](controls.md)) |
 | settings 1 | `exit game` | asks first |
 | enhancements 1 | `ghost` | `►`, opens the ghost piece's own screen |
 | enhancements 1 | `new modes` | `►`, opens a screen of its own |

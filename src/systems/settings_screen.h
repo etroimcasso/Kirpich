@@ -145,8 +145,8 @@ void blinkScreenCursor(GameContext& game);
 bool changeSettings(GameContext& game, const SettingsWiring& wiring, const Settings& next);
 
 // Repaint the settings screen and hand control back to it, the cursor still on the row that opened the
-// screen being left. Used by the screens it opens — the confirm, the Display and Palette screens, the
-// carousels and the mode screen — because re-entering the init would save their own picture as the caller's
+// screen being left. Used by the screens it opens — the confirm, the Display, Palette and Controls
+// screens, the carousels and the mode screen — because re-entering the init would save their own picture as the caller's
 // screen and lose the real one.
 void returnToSettings(GameContext& game, const SettingsWiring& wiring);
 

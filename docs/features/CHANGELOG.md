@@ -8,6 +8,17 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-10-05
+
+- **Rebindable controls** 🟡 → ✅ — the settings page's Controls row opens the controls screen. The
+  eight Game Boy buttons stand in rows with a key column and a pad column; A or Start on a cell waits
+  for a press of that cell's kind, which the engine captures whether or not it is bound, and binds it at
+  once — put into effect and saved, swapping with any button that held it. Escape leaves the binding as
+  it was; a press of the other kind is ignored and the cell keeps waiting. After a binding the screen
+  reads no input until nothing is held, because the key just bound means something new the moment it is
+  bound and would otherwise act on the screen as a fresh press. Keys and controller buttons are named
+  in five cells of the game's font, the controller buttons as the connected pad prints them.
+
 ## 2026-09-12
 
 - **Settings screen** ✅ — the erase row becomes four, on a page of their own. There are three kinds

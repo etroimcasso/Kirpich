@@ -8,6 +8,7 @@ The player's display choices, the screens that edit them, and the color ramps th
 | The settings screen and its confirm | `src/systems/settings_screen.h` / `.cpp` |
 | The Display and Palette screens' logic | `src/systems/display_settings_screen.h`, `src/systems/palette_settings_screen.h` (and `.cpp`) |
 | The Display and Palette screens' components | `src/render/display_settings/`, `src/render/palette_settings/`, and the shared `src/render/option_row.h`, `scroller_arrows.h`, `piece_shape.h` |
+| The Controls screen | `src/systems/controls_screen.h` / `.cpp`, `src/state/controls_screen_state.h`, `src/render/controls/` |
 | The color ramps | `src/render/palettes.h` |
 | The page arrows of the screens drawn into the map | `src/render/settings_overlay.h` / `.cpp` |
 
@@ -153,9 +154,8 @@ the remainder. The header names each page for what it holds: `settings 1` for th
 the window's settings, the palette and the controls, then `enhancements 1` and `enhancements 2` for
 the screens, switches and resets the cartridge never had, each family counting from one.
 
-No row carries a value of its own. The first page's rows are `display` and `palette`, which open their
-screens; `controls`, which opens nothing yet — it draws no arrow, and a press on it neither moves to
-another state nor makes a sound; and `exit game`, which opens the confirm.
+No row carries a value of its own. The first page's rows are `display`, `palette` and `controls`, which
+open their screens, and `exit game`, which opens the confirm.
 
 **To add a row:** add an enumerator in the position it should be walked and give it a label in
 `labelFor`. Then handle it as exactly one kind:
@@ -359,6 +359,128 @@ frame the palette steps.
 **To add a screen like these:** mint its game state, write its logic as an `openX` function, a frame
 handler with a dispatch table, and an installer; write its screen function from the shared components
 with a `layout.h` derived from the shared grid; and add a case to the render callback's switch.
+
+## The Controls screen
+
+The first page's `controls` row opens the screen that rebinds the Game Boy's eight buttons. It is
+built the way the Display and Palette screens are: logic with no drawing types, a screen function that
+returns its layers, a case in the render callback's switch, and no initializing state. What it edits is
+the player's `Controls` (`src/state/controls.h`), and every binding goes through `assignKey` and
+`assignPad` (`src/systems/controls.h`). [`input.md`](input.md) covers those laws and the save document.
+
+### Wiring
+
+```cpp
+kirpich::systems::installControlsScreen(
+    dispatcher, settingsWiring,
+    kirpich::systems::ControlsWiring{
+        .controls = &controls,
+        .listen   = [&] { platform.captureRequest(); },
+        .captured = [&] { return platform.capturedSource(); },
+        .apply    = [&](const Controls& c) { platform.actions(kirpich::systems::actionMapFor(c)); },
+        .save     = [&](const Controls& c) { kirpich::saveControls(c, saves); },
+    });
+```
+
+The settings wiring is only for the way back: B calls `returnToSettings` with it. `controls` is the
+host's, like `settings`, because it outlives a reset and is saved. `listen` and `captured` are the
+platform's press capture; `apply` hands the platform the action map the new bindings derive, and
+`save` writes them out. `apply` then `save` fire once per binding. Every seam defaults to inert, and a
+wiring with no `controls` treats every captured press as a cancel.
+
+### Opening, walking and leaving
+
+`openControlsSettings(GameContext&)` resets the screen's state — the cursor on the keyboard cell of
+the Up row, not waiting — shows the cursor, arms the shared blink and enters
+`GameState::CONTROLS_SETTINGS`. The settings screen calls it from its row on Right, Confirm or Start,
+with the screen-change cue. Like the other two screens, it writes no background map and never saves or
+restores the caller's picture.
+
+| Action | Does |
+|---|---|
+| MenuUp / MenuDown | move between the eight rows, with end stops |
+| MenuLeft / MenuRight | move between the keyboard and controller columns, with end stops |
+| Confirm / Start | wait for a press on the cell the cursor is on |
+| Back | return to the settings screen on its Controls row |
+
+A move cues TINK; an end stop moves nothing and makes no sound. Starting to wait makes no sound.
+
+### Waiting for a press
+
+Confirm or Start sets `ControlsScreenState::listening` and calls `listen` once. The engine never
+answers with a press already down when it was asked, so the button that started the wait is not bound
+to the cell. While the screen waits, the frame reads `captured()` and does nothing else — no action of
+the screen's own runs, so B cannot leave it and the arrows cannot move it. What it does with an answer:
+
+| Captured | On the keyboard column | On the controller column |
+|---|---|---|
+| nothing yet | keep waiting | keep waiting |
+| Escape (`kCancelKey`) | stop waiting, bindings untouched | the same |
+| any other key | `assignKey`, then `apply`, `save`, TINK; stop waiting | ask again (`listen`) and keep waiting |
+| a controller button | ask again and keep waiting | `assignPad` with the pad's family, then `apply`, `save`, TINK; stop waiting |
+| a mouse button | ask again and keep waiting | the same |
+
+Asking again matters because the engine keeps its answer until it is asked for a new one: without the
+second `listen`, the screen would read the same unwanted press every frame.
+
+### The release guard
+
+Whenever the screen stops waiting, it sets `awaitingRelease`, and while that is set a frame does
+nothing but clear the flag once `GameContext::joypad.held` is empty. The game's press edge is
+per action — an action held this frame and not the last is a press (`src/systems/input.h`) — and a
+binding hands the platform a new action map between two frames. A key the player is still holding
+from the binding therefore reads, on the next frame, as a fresh press of whatever it now means: on the A
+row that is Confirm, which would start another wait on the same cell; a key taken from the B row
+becomes Back, which would leave the screen. Waiting for the release keeps the bound key from acting on
+the screen until the player lets go.
+
+### The picture
+
+```cpp
+Layers ControlsScreen(const ControlsScreenState& ui, const Controls& controls,
+                      retropp::ControllerType padFamily, bool blinkOn, const TileAtlas& atlas,
+                      std::uint8_t ramp);
+```
+
+Two layers: the backdrop, and a sprite layer holding the `controls` heading, the `key` and `pad`
+column heads, a row per button and the cursor. The rows stand one per line from the first option line,
+because the settings pages' three-line spacing cannot hold eight rows; the label starts on column 1,
+the key's name on column 9 and the controller button's name on column 15, each cursor in the cell
+before its name (`src/render/controls/layout.h`). The cursor blinks while the screen is idle and is
+held while it waits. While it waits, the waited-on cell reads `...`, line 15 reads `press a key` or
+`press a button`, and line 16 reads `esc cancels`.
+
+A name fits five cells and uses only what `Glyphs` draws:
+
+- `keyName(SDL_Scancode)` (`src/render/controls/names.h`) — letters and digits as themselves, a
+  short name for the common keys (`enter`, `bksp`, `space`, `lshft`, `lmeta`, `pgup`, `f1`, `kp0`,
+  `kpent`, …), and `k` with the scancode in decimal for anything else, the comma, slash and bracket
+  keys among them.
+- `padButtonName(PadButton, ControllerType)` — a face position takes the letter printed there on
+  `padFamily` (the east button is `a` on a Nintendo pad and `b` on an Xbox pad; PlayStation and pads
+  without letters take the Xbox letters), a lettered face button is its letter, shoulders, triggers
+  and stick clicks take the family's names (`lb` / `l1` / `l`, `lt` / `l2` / `zl`), and the rest
+  have one name each (`start`, `selct`, `home`, `share`, `up`, `lslft`, …).
+
+The host passes the family of the first connected pad, or `ControllerType::Standard` when none is
+connected, reading `platform.connectedGamepads()` each frame:
+
+```cpp
+case kirpich::GameState::CONTROLS_SETTINGS: {
+    const std::vector<retropp::GamepadInfo> pads = platform.connectedGamepads();
+    const retropp::ControllerType padFamily =
+        pads.empty() ? retropp::ControllerType::Standard : pads.front().family;
+    retropp::FrameDrawState screen;
+    screen.layers = kirpich::render::ControlsScreen(game.controlsScreen, controls, padFamily,
+                                                    game.screens.cursorVisible, tiles,
+                                                    settings.shadeRamp);
+    renderer.renderFrame(screen);
+    return;
+}
+```
+
+**To name another key,** add it to the table in `names.cpp`; a name longer than five characters, or one
+with a character the font cannot draw, fails `ControlsScreen.KeyNames`, which sweeps every scancode.
 
 ## The screens the opener rows lead to
 

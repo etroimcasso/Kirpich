@@ -13,8 +13,9 @@ is in [`../contracts/input.md`](../contracts/input.md); the design rationale is 
 | `src/systems/input.h` / `.cpp` | The `kirpich::systems` input surface — `JoypadState`, `InputSystem`, `keyRepeatFire` and its constants, `heldActions`, `defaultActionMap`. |
 | `src/state/controls.h` / `.cpp` | The player's controls — `GbButton`, `ButtonBinding`, `Controls`, `kDefaultControls`, `kCancelKey` — and their save document. |
 | `src/systems/controls.h` / `.cpp` | What a Game Boy button means to the game — `actionsFor`, `actionMapFor`, `actionsOnKey` — and the two rebinding calls, `assignKey` and `assignPad`. |
+| `src/systems/controls_screen.h` / `.cpp` | The Controls screen's logic: the press capture, the binding, and the release guard. |
 | `include/kirpich/action.h` | The `Action` enum — the game's input vocabulary: the five piece-control actions, Start and Select, and the six menu actions. |
-| `tests/test_input.cpp`, `tests/test_controls.cpp` | The behavioral tests. |
+| `tests/test_input.cpp`, `tests/test_controls.cpp`, `tests/test_controls_screen.cpp` | The behavioral tests. |
 
 The engine (Polyrhythm) owns physical polling, debounce, and per-tick sampling; it delivers input as
 action state keyed by the game's own `Action` enum. This layer turns that per-tick state into the
@@ -159,6 +160,25 @@ defaults, and leaves the file where it is.
 are down the host withholds `actionsOnKey(controls, SDL_SCANCODE_RETURN)`, so the chord never also
 presses whichever Game Boy button Enter is bound to.
 
+**The Controls screen** is where a player rebinds (`src/systems/controls_screen.h`; the screen itself
+is in [`settings.md`](settings.md#the-controls-screen)). It gets the press to bind from the engine's
+capture rather than from the action map, because the press it wants may be bound to nothing:
+
+```cpp
+.listen   = [&] { platform.captureRequest(); },      // arm: the next press becomes the answer
+.captured = [&] { return platform.capturedSource(); },  // the press, once it arrives
+.apply    = [&](const Controls& c) { platform.actions(kirpich::systems::actionMapFor(c)); },
+```
+
+A captured key goes to `assignKey`, a captured controller button to `assignPad` with
+`CapturedSource::device.family`, and Escape cancels; a press of the kind the chosen column cannot take
+asks for another press, since the engine keeps its answer until it is asked again.
+
+**A rebind changes what a held key means mid-press.** The pressed edge is per action, so after a
+binding hands over a new map, a key still held from the binding reads on the next tick as a fresh
+press of whatever it is now bound to. The screen ignores input after every binding until nothing is
+held. Anything else that rebinds while a key may be down has the same exposure.
+
 ## Using the snapshot
 
 Each tick, read the per-tick input state into a held set and turn it into the snapshot:
@@ -199,7 +219,7 @@ if (kirpich::systems::keyRepeatFire(flow.keyRepeatTimer, pressed, held)) { /* sh
 
 ```
 cmake --build build --parallel
-ctest --test-dir build -R '^(Input|Controls)\.'
+ctest --test-dir build -R '^(Input|Controls|ControlsScreen)\.'
 ```
 
 The tests are device-free except the controls' store case, which writes to a temporary directory: the

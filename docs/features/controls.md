@@ -1,8 +1,7 @@
 # Rebindable controls
 
-**Status:** In progress — the bindings, their save document, the default controls and the settings
-page that reaches them are in place; the controls screen itself is not built yet, so the page's
-Controls row opens nothing.
+**Status:** Complete — the bindings, their save document, the default controls, and the controls
+screen the settings page opens.
 
 A player can choose which keyboard key and which controller button stands for each of the Game Boy's
 eight buttons — Up, Down, Left, Right, A, B, Start and Select. The choice is kept across launches, in
@@ -65,10 +64,42 @@ going fullscreen never also starts a round or pauses one.
 The first settings page reads **Display**, **Palette**, **Controls** and **Exit Game**. Display opens a
 screen holding fullscreen and the window size; Palette opens a screen holding the palette selector, a
 swatch of the palette's four colors, and the seven pieces drawn in it, so a player sees the game's own
-art in the palette before leaving. Controls is on the page and does nothing yet.
+art in the palette before leaving. Controls opens the controls screen.
 
-## Still to come
+## The controls screen
 
-- The **controls screen**, behind the page's Controls row: the eight buttons in rows with a keyboard column and a controller column.
-  Choosing a cell waits for a press of that kind; Escape leaves the binding as it was. The engine
-  captures the press, bound or not, and reports a controller button by its position on the pad.
+The eight buttons stand in rows, one per line, with a **key** column and a **pad** column beside them.
+The arrows move a cursor between the cells; B goes back to the settings page.
+
+- **A or Start on a cell waits for a press of that cell's kind** — a key in the key column, a
+  controller button in the pad column. The cell reads `...` while it waits, and the bottom of the screen
+  says `press a key` or `press a button`, with `esc cancels` under it.
+- **The press is bound at once.** It works the moment it is bound and is saved as it is made, so a
+  player who rebinds and quits keeps the binding. A key or button another Game Boy button holds swaps
+  with it, as above.
+- **Escape leaves the binding as it was**, in either column.
+- **A press of the other kind is ignored** — a controller button while a key cell waits, a key while a
+  pad cell waits, or a mouse button — and the cell keeps waiting.
+- **The key just bound does nothing more until it is let go.** It may mean something new the moment it
+  is bound — the key bound to A is now A — so it would otherwise act on the screen as if it had been
+  pressed again: start another wait, or, taken from B, leave the screen. The screen waits until nothing
+  is held before it reads input again.
+- **Any controller button can be bound,** shoulders, triggers and stick directions included. The
+  player's own pad decides only what the names say.
+
+### How the cells read
+
+Each name fits five cells, in the game's font: lowercase letters, digits, a period and a hyphen.
+
+- **Keys:** letters and digits as themselves; short names for the common keys — `enter`, `esc`,
+  `bksp`, `tab`, `space`, `up`, `down`, `left`, `right`, `lshft`, `rshft`, `lctrl`, `rctrl`, `lalt`,
+  `ralt`, `lmeta`, `rmeta` (the Windows or Command keys), `caps`, `ins`, `del`, `home`, `end`, `pgup`,
+  `pgdn`, `f1` to `f12`, the keypad as `kp0` to `kp9`, `kpent`, `kp.`, `kp-`, `kpadd`, `kpmul` and
+  `kpdiv`, the minus key as `-` and the period key as `.`. Any other key reads `k` and its number,
+  because the font has no other punctuation to name it with.
+- **Controller buttons** read as they are printed on the pad that is connected: the face buttons by
+  their letter, so the same position reads `a` on a Nintendo pad and `b` on an Xbox pad; shoulders and
+  triggers as `lb` / `rt` on an Xbox pad, `l1` / `r2` on a PlayStation pad and `l` / `zr` on a Nintendo
+  pad; then `start`, `selct`, `home`, `share`, the d-pad by direction and the sticks as `lsup`, `rslft`
+  and the like. PlayStation pads have symbols rather than letters, which the font cannot draw, so their
+  face buttons read with the Xbox letters. With no pad connected, the names are the Xbox ones.

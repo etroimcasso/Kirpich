@@ -52,8 +52,12 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   (Start + Select + B + A) keeps the high-score tables and clears everything else, a multi-line
   clear duplicates its top row, and the unused stereo panning data remains unused. These are
   reproduced deliberately rather than corrected; see [`docs/DESIGN.md`](docs/DESIGN.md).
+- **Rebindable controls.** Each of the Game Boy's eight buttons takes a keyboard key and a controller
+  button of your choosing, rebound in-game by pressing the one you want. The game's actions follow
+  their button, so moving A moves both the clockwise rotation and the menu's confirm. Controller
+  buttons are bound by where they sit on the pad, and named as your pad prints them.
 - **A settings screen** for fullscreen (Alt+Enter / Cmd+Enter also toggles it), window scaling, the
-  palette selection, the ghost piece, the extra game types, the statistics, and a fixes screen that
+  palette selection, the controls, the ghost piece, the extra game types, the statistics, and a fixes screen that
   offers the cartridge's own quirks back — off by default, fidelity until you ask otherwise. A page of
   its own holds the four resets: the high scores, the statistics, the achievements, or all three, each
   asking before it acts and each leaving the other two alone. Settings persist alongside the score
@@ -99,7 +103,7 @@ the entire setup; subsequent launches start directly.
 
 ### Where your files live
 
-Everything Kirpich keeps for you — high scores, settings, the extracted assets, and the log — lives
+Everything Kirpich keeps for you — high scores, settings, controls, the extracted assets, and the log — lives
 in one per-user directory, independent of where the application itself sits:
 
 | Platform | Location |
@@ -165,6 +169,7 @@ These are the engine surfaces it uses:
 | Conductor, the SM83 virtual machine — `Vm`, routine registration and bindings, `advanceClock` | The piece randomizer and the procedural garbage fill — B-Type's starting rows and C-Type's rising floor — sharing one machine, so the round init's piece draws advance the divider its garbage fill then reads |
 | Hosted audio drivers — `AudioLibrary::registerDriver`, `HostedDriverBinding`, `AudioSystem::GB`, `HostedDriver` | The cartridge's own sound driver, running at its original addresses on an emulated audio unit, started by a small routine of Kirpich's own; music and effects are cued through its shared bytes |
 | Action-mapped input — `ActionMap`, `ActionSet`, `PadButton`, `ControllerType` | The player's keyboard and controller bindings for the Game Boy's eight buttons, with controller buttons bound by their position on the pad, under the game's own press-edge and auto-repeat logic |
+| Input capture — `captureRequest`, `capturedSource`, `CapturedSource` | The controls screen's rebinding: the next key or controller button pressed, bound or not, and the family of the pad it came from |
 | Build integration — the engine's CMake target, with SDL3 and SameBoy | One codebase shipping on five platform targets |
 
 ### Repository layout

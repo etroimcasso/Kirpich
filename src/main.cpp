@@ -58,6 +58,7 @@
 #include "render/achievements/notice.h"
 #include "render/achievements/screen.h"
 #include "render/background.h"
+#include "render/controls/screen.h"
 #include "render/display_settings/screen.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
@@ -75,6 +76,7 @@
 #include "systems/achievements.h"
 #include "systems/boot.h"
 #include "systems/controls.h"
+#include "systems/controls_screen.h"
 #include "systems/demo.h"
 #include "systems/display_settings_screen.h"
 #include "systems/enhancement_screens.h"
@@ -424,6 +426,24 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installDisplaySettingsScreen(dispatcher, settingsWiring);
     kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring);
 
+    // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
+    // the press to bind, and on every binding hands the platform the action map the bindings now derive
+    // and writes them out - so a moved button works the moment it is moved, and still does next launch.
+    kirpich::systems::installControlsScreen(
+        dispatcher, settingsWiring,
+        kirpich::systems::ControlsWiring{
+            .controls = &controls,
+            .listen   = [&platform] { platform.captureRequest(); },
+            .captured = [&platform] { return platform.capturedSource(); },
+            .apply =
+                [&platform](const kirpich::Controls& current) {
+                    platform.actions(kirpich::systems::actionMapFor(current));
+                },
+            .save = [&saves](const kirpich::Controls& current) {
+                kirpich::saveControls(current, saves);
+            },
+        });
+
     // The screens a settings row opens: the ghost piece's, the fixes carousel, and the new-modes
     // screen. What each one says and which flag it binds belong to the unit
     // (systems/enhancement_screens.h); what arrives from here is the settings they edit and the
@@ -644,6 +664,21 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 retropp::FrameDrawState screen;
                 screen.layers = kirpich::render::PaletteSettingsScreen(
                     settings, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::CONTROLS_SETTINGS: {
+                // Controller buttons are named as they are printed on the pad the player has
+                // connected - the first one, when there are several - and as on an Xbox pad when there
+                // is none.
+                const std::vector<retropp::GamepadInfo> pads = platform.connectedGamepads();
+                const retropp::ControllerType padFamily =
+                    pads.empty() ? retropp::ControllerType::Standard : pads.front().family;
+
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::ControlsScreen(
+                    game.controlsScreen, controls, padFamily, game.screens.cursorVisible, tiles,
+                    settings.shadeRamp);
                 renderer.renderFrame(screen);
                 return;
             }

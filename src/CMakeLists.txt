@@ -44,6 +44,7 @@ add_library(kirpich-lib STATIC
     systems/rising_floor.cpp
     systems/screen.cpp
     systems/settings_screen.cpp
+    systems/controls_screen.cpp
     systems/display_settings_screen.cpp
     systems/palette_settings_screen.cpp
     systems/sound.cpp
@@ -66,6 +67,8 @@ add_library(kirpich-lib STATIC
     render/achievements/banner.cpp
     render/achievements/notice.cpp
     render/achievements/screen.cpp
+    render/controls/names.cpp
+    render/controls/screen.cpp
     render/display_settings/screen.cpp
     render/palette_settings/ramp_swatch.cpp
     render/palette_settings/piece_preview.cpp
