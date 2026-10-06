@@ -92,7 +92,7 @@ the settings page.
   controller buttons alike — after asking. A or Start on it asks `restore every key and button`, the
   way the settings page's reset rows ask, opening on `no`; `yes` restores and saves at once, and `no`
   or B leaves everything as it was. When the bindings already are the defaults there is nothing to
-  restore, and it asks nothing.
+  restore: the row is dimmed, the way a locked achievement is, and pressing it does nothing.
 
 ### How the cells read
 

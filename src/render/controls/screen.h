@@ -4,7 +4,8 @@
 //
 // A backdrop of tiles, and over it the "controls" heading, the two column heads, a row for each Game
 // Boy button holding its name, its key's name and its controller button's name, and the "restore
-// defaults" row under them. The cursor is a hyphen in the cell before the name it marks - before the
+// defaults" row under them - dimmed while the bindings already are the defaults, since then it has
+// nothing to restore. The cursor is a hyphen in the cell before the name it marks - before the
 // label on the restore row - blinking while the screen is idle and held while it waits for a press.
 // While it waits, the cell it waits on reads "..." and the bottom of the screen says what kind of
 // press it wants and that Escape cancels. While it asks whether to restore the defaults, the question

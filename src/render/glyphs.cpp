@@ -28,10 +28,9 @@ constexpr int kGlyphZ = 20;
     return std::nullopt;
 }
 
-}  // namespace
-
-Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& atlas,
-               std::uint8_t ramp) {
+// Both forms: the run through the ramp's font sprite palette, or through its dim one.
+Sprites glyphRun(std::string_view text, int x, int y, int pitch, const TileAtlas& atlas,
+                 std::uint8_t ramp, bool dim) {
     Sprites out;
     out.reserve(text.size());
 
@@ -41,7 +40,8 @@ Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& 
 
         const int          at  = x + static_cast<int>(i) * pitch;
         const ResolvedTile art =
-            resolveSpriteTile(*glyph, TileSheet::GAMEPLAY, /*palette1=*/false, atlas, ramp);
+            dim ? resolveDimSpriteTile(*glyph, TileSheet::GAMEPLAY, atlas, ramp)
+                : resolveSpriteTile(*glyph, TileSheet::GAMEPLAY, /*palette1=*/false, atlas, ramp);
         out.push_back(retropp::Sprite{
             .key     = retropp::ObjectKey{"glyph-" + std::to_string(at) + "-" + std::to_string(y)},
             .x       = at,
@@ -53,6 +53,18 @@ Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& 
         });
     }
     return out;
+}
+
+}  // namespace
+
+Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& atlas,
+               std::uint8_t ramp) {
+    return glyphRun(text, x, y, pitch, atlas, ramp, /*dim=*/false);
+}
+
+Sprites DimGlyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& atlas,
+                  std::uint8_t ramp) {
+    return glyphRun(text, x, y, pitch, atlas, ramp, /*dim=*/true);
 }
 
 std::vector<std::string_view> wrapText(std::string_view text, std::size_t width) {

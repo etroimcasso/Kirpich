@@ -64,8 +64,10 @@ retropp::DrawLayer BindingsTable(const kirpich::ControlsScreenState& ui,
         Glyphs("key", kKeyNameX, kColumnHeadY, kPitch, atlas, ramp),
         Glyphs("pad", kControllerNameX, kColumnHeadY, kPitch, atlas, ramp),
         ButtonRows(ui, bindings, padFamily, atlas, ramp),
-        Glyphs(kRestoreLabel, kRestoreLabelX, rowY(kirpich::ControlsRow::RESTORE_DEFAULTS), kPitch,
-               atlas, ramp),
+        // Dimmed while there is nothing to restore - the row is there, and does nothing.
+        (bindings == kirpich::kDefaultControls ? DimGlyphs : Glyphs)(
+            kRestoreLabel, kRestoreLabelX, rowY(kirpich::ControlsRow::RESTORE_DEFAULTS), kPitch,
+            atlas, ramp),
         (blinkOn || ui.listening)
             ? Glyphs("-", cursorX(ui.row, ui.column), rowY(ui.row), kPitch, atlas, ramp)
             : Sprites{},
