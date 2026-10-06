@@ -1,38 +1,42 @@
 #include "render/controls/restore_confirm.h"
 
-#include <string_view>
+#include <cstddef>
 
 #include "render/controls/layout.h"
 #include "render/glyphs.h"
 #include "render/option_row.h"
+#include "render/sprite_layer.h"
 #include "systems/settings_screen.h"
 
 namespace kirpich::render {
 
 using namespace controls;
 
-Sprites RestoreConfirm(bool yes, bool blinkOn, const TileAtlas& atlas, std::uint8_t ramp) {
-    const systems::ConfirmChoiceColumns cols =
-        systems::confirmChoiceColumns(kConfirmNo.size(), kConfirmYes.size());
-    const std::size_t cursorCol = (yes ? cols.right : cols.left) - systems::kConfirmCursorGap;
+namespace {
 
-    Sprites sprites;
-    for (const Sprites& run :
-         {Glyphs(kRestoreLabel, optionHeadingX(kRestoreLabel.size()), kHeadingY, kPitch, atlas, ramp),
-          Glyphs(kConfirmFirstLine, optionHeadingX(kConfirmFirstLine.size()),
-                 optionPixels(systems::kConfirmQuestionFirstRow), kPitch, atlas, ramp),
-          Glyphs(kConfirmSecondLine, optionHeadingX(kConfirmSecondLine.size()),
-                 optionPixels(systems::kConfirmQuestionSecondRow), kPitch, atlas, ramp),
-          Glyphs(kConfirmNo, optionPixels(cols.left), optionPixels(systems::kConfirmChoiceRow),
-                 kPitch, atlas, ramp),
-          Glyphs(kConfirmYes, optionPixels(cols.right), optionPixels(systems::kConfirmChoiceRow),
-                 kPitch, atlas, ramp),
-          blinkOn ? Glyphs("-", optionPixels(cursorCol), optionPixels(systems::kConfirmChoiceRow),
-                           kPitch, atlas, ramp)
-                  : Sprites{}}) {
-        sprites.insert(sprites.end(), run.begin(), run.end());
-    }
-    return sprites;
+constexpr systems::ConfirmChoiceColumns kChoices =
+    systems::confirmChoiceColumns(kConfirmNo.size(), kConfirmYes.size());
+
+constexpr int kFirstLineY  = optionPixels(systems::kConfirmQuestionFirstRow);
+constexpr int kSecondLineY = optionPixels(systems::kConfirmQuestionSecondRow);
+constexpr int kChoiceY     = optionPixels(systems::kConfirmChoiceRow);
+
+}  // namespace
+
+retropp::DrawLayer RestoreConfirm(bool yes, bool blinkOn, const TileAtlas& atlas,
+                                  std::uint8_t ramp) {
+    const std::size_t cursorCol = (yes ? kChoices.right : kChoices.left) - systems::kConfirmCursorGap;
+
+    return SpriteLayer("controls-confirm", kContentZ, {
+        Glyphs(kRestoreLabel, optionHeadingX(kRestoreLabel.size()), kHeadingY, kPitch, atlas, ramp),
+        Glyphs(kConfirmFirstLine, optionHeadingX(kConfirmFirstLine.size()), kFirstLineY, kPitch,
+               atlas, ramp),
+        Glyphs(kConfirmSecondLine, optionHeadingX(kConfirmSecondLine.size()), kSecondLineY, kPitch,
+               atlas, ramp),
+        Glyphs(kConfirmNo, optionPixels(kChoices.left), kChoiceY, kPitch, atlas, ramp),
+        Glyphs(kConfirmYes, optionPixels(kChoices.right), kChoiceY, kPitch, atlas, ramp),
+        blinkOn ? Glyphs("-", optionPixels(cursorCol), kChoiceY, kPitch, atlas, ramp) : Sprites{},
+    });
 }
 
 }  // namespace kirpich::render

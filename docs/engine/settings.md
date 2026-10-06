@@ -433,7 +433,8 @@ The question is drawn on the cells every settings confirm uses — the title on 
 question on `kConfirmQuestionFirstRow` and `kConfirmQuestionSecondRow`, and the answers on
 `kConfirmChoiceRow` at `confirmChoiceColumns(...)`, all in `src/systems/settings_screen.h` — so it reads
 as those do. `RestoreConfirm(yes, blinkOn, atlas, ramp)` (`src/render/controls/restore_confirm.h`)
-returns it as sprites, and `ControlsScreen` draws it in place of the bindings while it is asked.
+returns it as a sprite layer of its own, and `ControlsScreen` returns that layer in place of the
+bindings' while it is asked.
 
 ### Waiting for a press
 

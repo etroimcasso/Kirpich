@@ -53,31 +53,37 @@ Sprites ButtonRows(const kirpich::ControlsScreenState& ui, const kirpich::Contro
     return rows;
 }
 
+// The bindings: the heading, the column heads, the button rows, the restore row, the cursor, and the
+// prompt while the screen waits for a press.
+retropp::DrawLayer BindingsTable(const kirpich::ControlsScreenState& ui,
+                                 const kirpich::Controls& bindings,
+                                 retropp::ControllerType padFamily, bool blinkOn,
+                                 const TileAtlas& atlas, std::uint8_t ramp) {
+    return SpriteLayer("controls-content", kContentZ, {
+        Glyphs(kHeading, kHeadingX, kHeadingY, kPitch, atlas, ramp),
+        Glyphs("key", kKeyNameX, kColumnHeadY, kPitch, atlas, ramp),
+        Glyphs("pad", kControllerNameX, kColumnHeadY, kPitch, atlas, ramp),
+        ButtonRows(ui, bindings, padFamily, atlas, ramp),
+        Glyphs(kRestoreLabel, kRestoreLabelX, rowY(kirpich::ControlsRow::RESTORE_DEFAULTS), kPitch,
+               atlas, ramp),
+        (blinkOn || ui.listening)
+            ? Glyphs("-", cursorX(ui.row, ui.column), rowY(ui.row), kPitch, atlas, ramp)
+            : Sprites{},
+        ui.listening ? Centered(prompt(ui.column), kPromptY, atlas, ramp) : Sprites{},
+        ui.listening ? Centered(kCancelHint, kCancelHintY, atlas, ramp) : Sprites{},
+    });
+}
+
 }  // namespace
 
 Layers ControlsScreen(const kirpich::ControlsScreenState& ui, const kirpich::Controls& bindings,
                       retropp::ControllerType padFamily, bool blinkOn, const TileAtlas& atlas,
                       std::uint8_t ramp) {
     // The restore question takes the whole screen while it is asked, as the settings confirms do.
-    const bool asking = ui.confirmingRestore;
-
     return {
         BackgroundLayer("controls-backdrop", 0, Backdrop(atlas, ramp)),
-        SpriteLayer("controls-content", kContentZ, {
-            asking ? RestoreConfirm(ui.confirmYes, blinkOn, atlas, ramp) : Sprites{},
-            asking ? Sprites{} : Glyphs(kHeading, kHeadingX, kHeadingY, kPitch, atlas, ramp),
-            asking ? Sprites{} : Glyphs("key", kKeyNameX, kColumnHeadY, kPitch, atlas, ramp),
-            asking ? Sprites{} : Glyphs("pad", kControllerNameX, kColumnHeadY, kPitch, atlas, ramp),
-            asking ? Sprites{} : ButtonRows(ui, bindings, padFamily, atlas, ramp),
-            asking ? Sprites{}
-                   : Glyphs(kRestoreLabel, kRestoreLabelX,
-                            rowY(kirpich::ControlsRow::RESTORE_DEFAULTS), kPitch, atlas, ramp),
-            !asking && (blinkOn || ui.listening)
-                ? Glyphs("-", cursorX(ui.row, ui.column), rowY(ui.row), kPitch, atlas, ramp)
-                : Sprites{},
-            ui.listening ? Centered(prompt(ui.column), kPromptY, atlas, ramp) : Sprites{},
-            ui.listening ? Centered(kCancelHint, kCancelHintY, atlas, ramp) : Sprites{},
-        }),
+        ui.confirmingRestore ? RestoreConfirm(ui.confirmYes, blinkOn, atlas, ramp)
+                             : BindingsTable(ui, bindings, padFamily, blinkOn, atlas, ramp),
     };
 }
 
