@@ -24,6 +24,9 @@ are written. `../FEATURES.md` holds current status; this file holds history.
   and `no` or B leaves the bindings as they were. With the bindings already the defaults it asks
   nothing. After a `yes` the screen waits for every key to be let go, as it does after a binding,
   because the key that answered may mean something else under the defaults.
+- **Rebindable controls** ✅ — `restore defaults` is dimmed while the bindings already are the
+  defaults, drawn faded the way a locked achievement is, so the row says it has nothing to do before the
+  player presses it and finds nothing happens.
 
 ## 2026-09-12
 

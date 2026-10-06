@@ -739,6 +739,44 @@ TEST(ControlsScreen, TheDefaultsReadOnTheScreensCells) {
     EXPECT_EQ(kirpich::render::controls::rowY(GbButton::SELECT), rowY(GbButton::SELECT));
 }
 
+// The restore row is dimmed while the bindings already are the defaults - it has nothing to restore -
+// and drawn in ink once any binding differs. Every glyph of the label follows, and the dim one is the
+// faded palette a locked achievement's badge is drawn through, not the ink one.
+TEST(ControlsScreen, TheRestoreRowDimsWhileThereIsNothingToRestore) {
+    const auto ink =
+        kirpich::render::Glyphs("r", 0, 0, 8, kAtlas, kPlayerRamp).front().palette;
+    const auto dim =
+        kirpich::render::DimGlyphs("r", 0, 0, 8, kAtlas, kPlayerRamp).front().palette;
+    ASSERT_NE(ink, dim);
+    EXPECT_EQ(dim, kAtlas.palettes[kPlayerRamp].fontSpriteDim);
+
+    const auto labelPalettes = [](const Controls& c) {
+        std::vector<retropp::PaletteId> palettes;
+        const auto content = contentOf(draw(ControlsScreenState{}, c));
+        for (std::size_t i = 0; i < std::string_view{"restore defaults"}.size(); ++i) {
+            if (const auto g = glyphAt(content, kRestoreLabelX + 8 * static_cast<int>(i), kRestoreY)) {
+                palettes.push_back(g->palette);
+            }
+        }
+        return palettes;
+    };
+
+    const auto atDefaults = labelPalettes(kirpich::kDefaultControls);
+    ASSERT_EQ(atDefaults.size(), 15u) << "fifteen glyphs and a space";
+    for (const auto p : atDefaults) EXPECT_EQ(p, dim);
+
+    Controls rebound          = kirpich::kDefaultControls;
+    rebound[GbButton::A].key  = SDL_SCANCODE_SPACE;
+    const auto afterRebinding = labelPalettes(rebound);
+    ASSERT_EQ(afterRebinding.size(), 15u);
+    for (const auto p : afterRebinding) EXPECT_EQ(p, ink);
+
+    // A controller binding alone counts too.
+    rebound                  = kirpich::kDefaultControls;
+    rebound[GbButton::B].pad = PadButton::ShoulderR;
+    for (const auto p : labelPalettes(rebound)) EXPECT_EQ(p, ink);
+}
+
 // A binding shows on the screen as the bindings it is handed, and a position is named for the pad the
 // player has: the east button reads a on a Nintendo pad and b on an Xbox pad.
 TEST(ControlsScreen, TheScreenDrawsTheBindingsAndThePadItIsHanded) {

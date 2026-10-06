@@ -23,6 +23,13 @@ namespace kirpich::render {
 [[nodiscard]] Sprites Glyphs(std::string_view text, int x, int y, int pitch, const TileAtlas& atlas,
                              std::uint8_t ramp);
 
+// The same run, faded: the ramp's dim object palette, inked in the light shade - the way a locked
+// achievement's badge is drawn. It is for text that is present but has nothing to do, such as a menu
+// item that cannot act right now. The glyphs are named as Glyphs names them, so a run that dims or
+// brightens keeps its identity.
+[[nodiscard]] Sprites DimGlyphs(std::string_view text, int x, int y, int pitch,
+                                const TileAtlas& atlas, std::uint8_t ramp);
+
 // Break a passage into lines of at most `width` characters, on word boundaries. A word longer than
 // the width takes a line to itself and runs past the edge rather than being cut in the middle. The
 // lines point into `text`, so it must outlive them.

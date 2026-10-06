@@ -480,7 +480,9 @@ per line from the first option line, because the settings pages' three-line spac
 rows; the label starts on column 1, the key's name on column 9 and the controller button's name on
 column 15, each cursor in the cell before its name (`src/render/controls/layout.h`). The restore row
 stands on line 14, a line below the buttons, laid out as a settings row is: label from column 3, cursor
-on column 1. The cursor blinks while the screen is idle and is held while it waits. While it waits, the
+on column 1. While the bindings already are the defaults the label is drawn through `DimGlyphs`
+(`src/render/glyphs.h`), the ramp's dim sprite palette a locked achievement badge uses, because the
+row has nothing to restore and a press on it does nothing. The cursor blinks while the screen is idle and is held while it waits. While it waits, the
 waited-on cell reads `...`, line 16 reads `press a key` or `press a button`, and line 17 reads
 `esc cancels`.
 
