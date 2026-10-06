@@ -18,6 +18,12 @@ are written. `../FEATURES.md` holds current status; this file holds history.
   reads no input until nothing is held, because the key just bound means something new the moment it is
   bound and would otherwise act on the screen as a fresh press. Keys and controller buttons are named
   in five cells of the game's font, the controller buttons as the connected pad prints them.
+- **Rebindable controls** ✅ — the controls screen gains `restore defaults`, a row below the eight
+  buttons that puts every key and controller button back to the shipped controls. A or Start on it asks
+  first, the way the settings page's reset rows do, opening on `no`; `yes` restores and saves at once,
+  and `no` or B leaves the bindings as they were. With the bindings already the defaults it asks
+  nothing. After a `yes` the screen waits for every key to be let go, as it does after a binding,
+  because the key that answered may mean something else under the defaults.
 
 ## 2026-09-12
 

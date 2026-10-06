@@ -542,7 +542,7 @@ TEST(SettingsScreen, TheControlsRowOpensItsScreen) {
         openFrom(game, wiring, GameState::TITLE_SCREEN);
 
         // Whatever the last visit left, the screen opens on its first cell, idle.
-        game.controlsScreen.row       = kirpich::GbButton::SELECT;
+        game.controlsScreen.row       = kirpich::ControlsRow::RESTORE_DEFAULTS;
         game.controlsScreen.column    = kirpich::ControlsColumn::CONTROLLER;
         game.controlsScreen.listening = true;
         game.screens.cursorVisible    = false;

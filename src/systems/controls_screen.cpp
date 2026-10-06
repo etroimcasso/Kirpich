@@ -24,15 +24,19 @@ bool pressed(const GameContext& game, Action action) {
 // nothing.
 void moveRow(GameContext& game, int delta) {
     const int next = static_cast<int>(game.controlsScreen.row) + delta;
-    if (next < 0 || next >= static_cast<int>(kGbButtonCount)) {
+    if (next < 0 || next >= static_cast<int>(kControlsRowCount)) {
         return;
     }
-    game.controlsScreen.row = static_cast<GbButton>(next);
+    game.controlsScreen.row = static_cast<ControlsRow>(next);
     game.audioCues.square   = SquareSfxId::TINK;
 }
 
-// One step of the cursor across the columns, the same way.
+// One step of the cursor across the columns, the same way. The restore row is one item, so on it
+// both sides are edges.
 void moveColumn(GameContext& game, int delta) {
+    if (game.controlsScreen.row == ControlsRow::RESTORE_DEFAULTS) {
+        return;
+    }
     const int next = static_cast<int>(game.controlsScreen.column) + delta;
     if (next < 0 || next >= static_cast<int>(kControlsColumnCount)) {
         return;
@@ -56,19 +60,82 @@ void stopListening(GameContext& game) {
     game.controlsScreen.awaitingRelease = true;
 }
 
+// Put a change to the bindings into effect and write it out, in that order, with the menu-move cue.
+// Input is then ignored until it is let go, because a key still held may now mean something else.
+void commit(GameContext& game, const ControlsWiring& wiring) {
+    if (wiring.apply) {
+        wiring.apply(*wiring.controls);
+    }
+    if (wiring.save) {
+        wiring.save(*wiring.controls);
+    }
+    game.audioCues.square               = SquareSfxId::TINK;
+    game.controlsScreen.awaitingRelease = true;
+}
+
 // Bind the captured press to the cell, if it is the cell's kind. Returns false for a press of the other
-// kind, which the cell cannot take.
+// kind, which the cell cannot take, and on the restore row, which has no cell.
 bool bind(const ControlsScreenState& ui, const retropp::CapturedSource& press, Controls& controls) {
+    const std::optional<GbButton> button = buttonOf(ui.row);
+    if (!button) {
+        return false;
+    }
     const retropp::Source& source = press.source;
     switch (ui.column) {
         case ControlsColumn::KEYBOARD:
             return source.kind == retropp::Source::Kind::Key &&
-                   assignKey(controls, ui.row, source.key);
+                   assignKey(controls, *button, source.key);
         case ControlsColumn::CONTROLLER:
             return source.kind == retropp::Source::Kind::Pad &&
-                   assignPad(controls, ui.row, source.pad, press.device.family);
+                   assignPad(controls, *button, source.pad, press.device.family);
     }
     return false;
+}
+
+// A or Start: on a button's row, wait for a press for the cell; on the restore row, put every binding
+// back to the defaults - after asking. Bindings that already are the defaults have nothing to restore,
+// so there the press is an end stop: no question, nothing cued.
+void choose(GameContext& game, const ControlsWiring& wiring) {
+    if (game.controlsScreen.row != ControlsRow::RESTORE_DEFAULTS) {
+        listen(game, wiring);
+        return;
+    }
+    if (wiring.controls == nullptr || *wiring.controls == kDefaultControls) {
+        return;
+    }
+    game.controlsScreen.confirmingRestore = true;
+    game.controlsScreen.confirmYes        = false;
+    game.screens.cursorVisible            = true;
+    game.flow.timer1                      = kScreenBlinkFrames;
+    game.audioCues.square                 = SquareSfxId::CHANGE_SCREEN;
+}
+
+// Leave the question, back to the bindings with the cursor still on the restore row.
+void closeConfirm(GameContext& game) {
+    game.controlsScreen.confirmingRestore = false;
+    game.controlsScreen.confirmYes        = false;
+    game.screens.cursorVisible            = true;
+    game.flow.timer1                      = kScreenBlinkFrames;
+    game.audioCues.square                 = SquareSfxId::CHANGE_SCREEN;
+}
+
+// Move the question's cursor to one answer. A press toward the answer already chosen is an edge.
+void pickAnswer(GameContext& game, bool yes) {
+    if (game.controlsScreen.confirmYes == yes) {
+        return;
+    }
+    game.controlsScreen.confirmYes = yes;
+    game.audioCues.square          = SquareSfxId::TINK;
+}
+
+// A or Start on the question: "yes" restores the defaults, put into effect and saved; "no" leaves the
+// bindings as they are. Either way the question closes.
+void answer(GameContext& game, const ControlsWiring& wiring) {
+    if (game.controlsScreen.confirmYes && wiring.controls != nullptr) {
+        *wiring.controls = kDefaultControls;
+        commit(game, wiring);
+    }
+    closeConfirm(game);
 }
 
 // One frame of waiting: read what the platform caught, if anything.
@@ -97,14 +164,8 @@ void readCapture(GameContext& game, const ControlsWiring& wiring) {
         return;
     }
 
-    if (wiring.apply) {
-        wiring.apply(*wiring.controls);
-    }
-    if (wiring.save) {
-        wiring.save(*wiring.controls);
-    }
-    game.audioCues.square = SquareSfxId::TINK;
-    stopListening(game);
+    game.controlsScreen.listening = false;
+    commit(game, wiring);
 }
 
 using Effect = void (*)(GameContext&, const SettingsWiring&, const ControlsWiring&);
@@ -124,13 +185,27 @@ constexpr std::array kBinds{
     Bind{Action::MenuRight,
          [](GameContext& g, const SettingsWiring&, const ControlsWiring&) { moveColumn(g, +1); }},
     Bind{Action::Confirm,
-         [](GameContext& g, const SettingsWiring&, const ControlsWiring& c) { listen(g, c); }},
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring& c) { choose(g, c); }},
     Bind{Action::Start,
-         [](GameContext& g, const SettingsWiring&, const ControlsWiring& c) { listen(g, c); }},
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring& c) { choose(g, c); }},
     Bind{Action::Back,
          [](GameContext& g, const SettingsWiring& s, const ControlsWiring&) {
              returnToSettings(g, s);
          }},
+};
+
+// The restore question's own table. B and "no" both leave it with the bindings untouched.
+constexpr std::array kConfirmBinds{
+    Bind{Action::MenuLeft,
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring&) { pickAnswer(g, false); }},
+    Bind{Action::MenuRight,
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring&) { pickAnswer(g, true); }},
+    Bind{Action::Confirm,
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring& c) { answer(g, c); }},
+    Bind{Action::Start,
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring& c) { answer(g, c); }},
+    Bind{Action::Back,
+         [](GameContext& g, const SettingsWiring&, const ControlsWiring&) { closeConfirm(g); }},
 };
 
 void dispatch(GameContext& game, const SettingsWiring& settings, const ControlsWiring& controls,
@@ -165,7 +240,11 @@ void controlsScreen(GameContext& game, const SettingsWiring& settings,
         return;
     }
     blinkScreenCursor(game);
-    dispatch(game, settings, controls, kBinds);
+    if (game.controlsScreen.confirmingRestore) {
+        dispatch(game, settings, controls, kConfirmBinds);
+    } else {
+        dispatch(game, settings, controls, kBinds);
+    }
 }
 
 void installControlsScreen(GameStateDispatcher& dispatcher, SettingsWiring settings,

@@ -68,8 +68,9 @@ art in the palette before leaving. Controls opens the controls screen.
 
 ## The controls screen
 
-The eight buttons stand in rows, one per line, with a **key** column and a **pad** column beside them.
-The arrows move a cursor between the cells; B goes back to the settings page.
+The eight buttons stand in rows, one per line, with a **key** column and a **pad** column beside them,
+and **restore defaults** stands below them. The arrows move a cursor between the cells; B goes back to
+the settings page.
 
 - **A or Start on a cell waits for a press of that cell's kind** — a key in the key column, a
   controller button in the pad column. The cell reads `...` while it waits, and the bottom of the screen
@@ -83,9 +84,15 @@ The arrows move a cursor between the cells; B goes back to the settings page.
 - **The key just bound does nothing more until it is let go.** It may mean something new the moment it
   is bound — the key bound to A is now A — so it would otherwise act on the screen as if it had been
   pressed again: start another wait, or, taken from B, leave the screen. The screen waits until nothing
-  is held before it reads input again.
+  is held before it reads input again. Restoring the defaults waits the same way, since the key that
+  answered may mean something else under the defaults.
 - **Any controller button can be bound,** shoulders, triggers and stick directions included. The
   player's own pad decides only what the names say.
+- **Restore defaults puts every binding back** to the controls the game ships with, keys and
+  controller buttons alike — after asking. A or Start on it asks `restore every key and button`, the
+  way the settings page's reset rows ask, opening on `no`; `yes` restores and saves at once, and `no`
+  or B leaves everything as it was. When the bindings already are the defaults there is nothing to
+  restore, and it asks nothing.
 
 ### How the cells read
 

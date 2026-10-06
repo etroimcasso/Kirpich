@@ -176,8 +176,8 @@ asks for another press, since the engine keeps its answer until it is asked agai
 
 **A rebind changes what a held key means mid-press.** The pressed edge is per action, so after a
 binding hands over a new map, a key still held from the binding reads on the next tick as a fresh
-press of whatever it is now bound to. The screen ignores input after every binding until nothing is
-held. Anything else that rebinds while a key may be down has the same exposure.
+press of whatever it is now bound to. The screen ignores input after every binding, and after a
+confirmed restore of the defaults, until nothing is held. Anything else that rebinds while a key may be down has the same exposure.
 
 ## Using the snapshot
 

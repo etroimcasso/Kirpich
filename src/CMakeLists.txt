@@ -68,6 +68,7 @@ add_library(kirpich-lib STATIC
     render/achievements/notice.cpp
     render/achievements/screen.cpp
     render/controls/names.cpp
+    render/controls/restore_confirm.cpp
     render/controls/screen.cpp
     render/display_settings/screen.cpp
     render/palette_settings/ramp_swatch.cpp

@@ -45,6 +45,7 @@ namespace {
 using kirpich::Action;
 using kirpich::Controls;
 using kirpich::ControlsColumn;
+using kirpich::ControlsRow;
 using kirpich::ControlsScreenState;
 using kirpich::GameState;
 using kirpich::GbButton;
@@ -62,20 +63,24 @@ constexpr std::uint8_t kPlayerRamp = 7;
 // The screen's cells, pinned here so the screen is held to them rather than to its own layout header:
 // the heading on line 2, the column heads on line 4, the buttons on lines 5 to 12, the labels from
 // column 1, the keyboard cursor on 8 and its names from 9, the controller cursor on 14 and its names
-// from 15, the prompt on line 15 and the cancel hint on line 16.
-constexpr int kHeadingX         = 6 * 8;  // "controls" - eight cells, centered in twenty
-constexpr int kHeadingY         = 2 * 8;
-constexpr int kColumnHeadY      = 4 * 8;
-constexpr int kFirstButtonY     = 5 * 8;
-constexpr int kLabelX           = 1 * 8;
-constexpr int kKeyCursorX       = 8 * 8;
-constexpr int kKeyNameX         = 9 * 8;
-constexpr int kPadCursorX       = 14 * 8;
-constexpr int kPadNameX         = 15 * 8;
-constexpr int kPromptY          = 15 * 8;
-constexpr int kCancelHintY      = 16 * 8;
-constexpr int kScreenWidth      = 160;
-constexpr int kScreenHeight     = 144;
+// from 15, the restore row on line 14 with its label from column 3 and its cursor on 1, the prompt on
+// line 16 and the cancel hint on line 17.
+constexpr int kHeadingX       = 6 * 8;  // "controls" - eight cells, centered in twenty
+constexpr int kHeadingY       = 2 * 8;
+constexpr int kColumnHeadY    = 4 * 8;
+constexpr int kFirstButtonY   = 5 * 8;
+constexpr int kLabelX         = 1 * 8;
+constexpr int kKeyCursorX     = 8 * 8;
+constexpr int kKeyNameX       = 9 * 8;
+constexpr int kPadCursorX     = 14 * 8;
+constexpr int kPadNameX       = 15 * 8;
+constexpr int kRestoreY       = 14 * 8;
+constexpr int kRestoreLabelX  = 3 * 8;
+constexpr int kRestoreCursorX = 1 * 8;
+constexpr int kPromptY        = 16 * 8;
+constexpr int kCancelHintY    = 17 * 8;
+constexpr int kScreenWidth    = 160;
+constexpr int kScreenHeight   = 144;
 
 int rowY(GbButton button) {
     return kFirstButtonY + 8 * static_cast<int>(button);
@@ -206,7 +211,7 @@ GameContext openControls(Probe& probe) {
 // The screen waiting on the cell (row, column), with nothing captured yet.
 GameContext listeningOn(Probe& probe, GbButton row, ControlsColumn column) {
     GameContext game          = openControls(probe);
-    game.controlsScreen.row    = row;
+    game.controlsScreen.row    = kirpich::rowOf(row);
     game.controlsScreen.column = column;
     frame(game, probe, {Action::Confirm});
     return game;
@@ -266,7 +271,7 @@ bool drawable(std::string_view text) {
 // the blink.
 TEST(ControlsScreen, OpeningResetsTheScreenAndArmsTheBlink) {
     GameContext game;
-    game.controlsScreen = ControlsScreenState{.row             = GbButton::START,
+    game.controlsScreen = ControlsScreenState{.row             = ControlsRow::START,
                                               .column          = ControlsColumn::CONTROLLER,
                                               .listening       = true,
                                               .awaitingRelease = true};
@@ -275,31 +280,44 @@ TEST(ControlsScreen, OpeningResetsTheScreenAndArmsTheBlink) {
     kirpich::systems::openControlsSettings(game);
 
     EXPECT_EQ(game.controlsScreen, ControlsScreenState{});
-    EXPECT_EQ(game.controlsScreen.row, GbButton::UP);
+    EXPECT_EQ(game.controlsScreen.row, ControlsRow::UP);
     EXPECT_EQ(game.controlsScreen.column, ControlsColumn::KEYBOARD);
     EXPECT_TRUE(game.screens.cursorVisible);
     EXPECT_EQ(game.flow.timer1, kirpich::systems::kScreenBlinkFrames);
     EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS);
 }
 
-// The cursor walks the eight rows and the two columns and stops at every edge. A move cues the menu
-// move; an edge moves nothing and says nothing.
+// The cursor walks the eight button rows and the restore row under them, and the two columns, and
+// stops at every edge. A move cues the menu move; an edge moves nothing and says nothing. The restore
+// row is one item, so Left and Right are edges on it, and the column a button row was on comes back
+// when the cursor leaves it.
 TEST(ControlsScreen, TheCursorWalksEveryCellAndStopsAtEachEdge) {
     Probe       probe;
     GameContext game = openControls(probe);
 
     frame(game, probe, {Action::MenuUp});
-    EXPECT_EQ(game.controlsScreen.row, GbButton::UP);
+    EXPECT_EQ(game.controlsScreen.row, ControlsRow::UP);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE) << "the top is an edge";
 
-    for (std::size_t i = 1; i < kirpich::kGbButtonCount; ++i) {
+    for (std::size_t i = 1; i < kirpich::kControlsRowCount; ++i) {
         frame(game, probe, {Action::MenuDown});
-        EXPECT_EQ(game.controlsScreen.row, static_cast<GbButton>(i));
+        EXPECT_EQ(game.controlsScreen.row, static_cast<ControlsRow>(i));
         EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
     }
+    ASSERT_EQ(game.controlsScreen.row, ControlsRow::RESTORE_DEFAULTS);
     frame(game, probe, {Action::MenuDown});
-    EXPECT_EQ(game.controlsScreen.row, GbButton::SELECT);
+    EXPECT_EQ(game.controlsScreen.row, ControlsRow::RESTORE_DEFAULTS);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE) << "the bottom is an edge";
+
+    for (const Action side : {Action::MenuRight, Action::MenuLeft}) {
+        frame(game, probe, {side});
+        EXPECT_EQ(game.controlsScreen.column, ControlsColumn::KEYBOARD);
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE)
+            << "the restore row has no columns to move between";
+    }
+
+    frame(game, probe, {Action::MenuUp});
+    EXPECT_EQ(game.controlsScreen.row, ControlsRow::SELECT);
 
     frame(game, probe, {Action::MenuLeft});
     EXPECT_EQ(game.controlsScreen.column, ControlsColumn::KEYBOARD);
@@ -316,6 +334,13 @@ TEST(ControlsScreen, TheCursorWalksEveryCellAndStopsAtEachEdge) {
     frame(game, probe, {Action::MenuLeft});
     EXPECT_EQ(game.controlsScreen.column, ControlsColumn::KEYBOARD);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+
+    // Through the restore row and back keeps the column.
+    frame(game, probe, {Action::MenuRight});
+    frame(game, probe, {Action::MenuDown});
+    frame(game, probe, {Action::MenuUp});
+    EXPECT_EQ(game.controlsScreen.row, ControlsRow::SELECT);
+    EXPECT_EQ(game.controlsScreen.column, ControlsColumn::CONTROLLER);
 
     EXPECT_EQ(probe.listens, 0) << "walking starts no wait";
     EXPECT_TRUE(probe.log.empty()) << "walking changes no binding";
@@ -340,7 +365,7 @@ TEST(ControlsScreen, ConfirmOrStartWaitsAndTheScreenIgnoresItsActionsWhileItWait
             EXPECT_TRUE(game.controlsScreen.listening) << "action " << int(act);
             EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS) << "action " << int(act);
         }
-        EXPECT_EQ(game.controlsScreen.row, GbButton::UP);
+        EXPECT_EQ(game.controlsScreen.row, ControlsRow::UP);
         EXPECT_EQ(game.controlsScreen.column, ControlsColumn::KEYBOARD);
         EXPECT_EQ(probe.listens, 1);
         EXPECT_TRUE(probe.log.empty());
@@ -461,7 +486,7 @@ TEST(ControlsScreen, TheKeyJustBoundDoesNotActOnTheScreenUntilItIsLetGo) {
     Probe                         probe;
     GameContext                   game = openControls(probe);
     kirpich::systems::InputSystem input;
-    game.controlsScreen.row = GbButton::A;
+    game.controlsScreen.row = ControlsRow::A;
 
     const auto step = [&](std::initializer_list<SDL_Scancode> keys) {
         game.joypad    = input.sample(heldUnder(probe.controls, keys));
@@ -502,7 +527,7 @@ TEST(ControlsScreen, AKeyThatBecomesBDoesNotLeaveTheScreen) {
     Probe                         probe;
     GameContext                   game = openControls(probe);
     kirpich::systems::InputSystem input;
-    game.controlsScreen.row = GbButton::B;
+    game.controlsScreen.row = ControlsRow::B;
 
     const auto step = [&](std::initializer_list<SDL_Scancode> keys) {
         game.joypad    = input.sample(heldUnder(probe.controls, keys));
@@ -519,6 +544,137 @@ TEST(ControlsScreen, AKeyThatBecomesBDoesNotLeaveTheScreen) {
     ASSERT_EQ(probe.controls[GbButton::A].key, SDL_SCANCODE_Z);
 
     step({SDL_SCANCODE_X});  // B under the new bindings
+    ASSERT_TRUE(game.joypad.pressed.test(retropp::actionId(Action::Back)));
+    EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS);
+}
+
+// A probe whose bindings are not the defaults, with the screen's cursor on the restore row.
+Probe rebound() {
+    Probe probe;
+    probe.controls[GbButton::A].key  = SDL_SCANCODE_SPACE;
+    probe.controls[GbButton::B].pad  = PadButton::ShoulderR;
+    probe.controls[GbButton::UP].key = SDL_SCANCODE_W;
+    return probe;
+}
+
+// A or Start on the restore row asks first: the question opens on "no" with the screen-change cue,
+// and nothing is restored, put into effect or saved yet. With the bindings already the defaults there
+// is nothing to restore, so the press asks nothing and says nothing.
+TEST(ControlsScreen, RestoringAsksFirstAndOpensOnNo) {
+    for (const Action act : {Action::Confirm, Action::Start}) {
+        Probe       probe   = rebound();
+        const Controls before = probe.controls;
+        GameContext game    = openControls(probe);
+        game.controlsScreen.row = ControlsRow::RESTORE_DEFAULTS;
+
+        frame(game, probe, {act});
+        EXPECT_TRUE(game.controlsScreen.confirmingRestore) << "action " << int(act);
+        EXPECT_FALSE(game.controlsScreen.confirmYes) << "the question opens on no";
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+        EXPECT_EQ(probe.controls, before);
+        EXPECT_TRUE(probe.log.empty());
+        EXPECT_EQ(probe.listens, 0);
+    }
+
+    Probe       probe;
+    GameContext game        = openControls(probe);
+    game.controlsScreen.row = ControlsRow::RESTORE_DEFAULTS;
+    frame(game, probe, {Action::Confirm});
+    EXPECT_FALSE(game.controlsScreen.confirmingRestore) << "nothing to restore, nothing to ask";
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
+    EXPECT_TRUE(probe.log.empty());
+}
+
+// Left and Right move between the answers, an edge saying nothing. "No", and B, close the question
+// with the bindings untouched, back on the restore row.
+TEST(ControlsScreen, NoAndBLeaveTheBindingsAlone) {
+    Probe          probe  = rebound();
+    const Controls before = probe.controls;
+    GameContext    game   = openControls(probe);
+    game.controlsScreen.row = ControlsRow::RESTORE_DEFAULTS;
+
+    frame(game, probe, {Action::Confirm});
+    frame(game, probe, {Action::MenuLeft});
+    EXPECT_FALSE(game.controlsScreen.confirmYes);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE) << "no is the left edge";
+    frame(game, probe, {Action::MenuRight});
+    EXPECT_TRUE(game.controlsScreen.confirmYes);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+    frame(game, probe, {Action::MenuRight});
+    EXPECT_TRUE(game.controlsScreen.confirmYes);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE) << "yes is the right edge";
+    frame(game, probe, {Action::MenuLeft});
+    EXPECT_FALSE(game.controlsScreen.confirmYes);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+
+    frame(game, probe, {Action::Confirm});  // on "no"
+    EXPECT_FALSE(game.controlsScreen.confirmingRestore);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+    EXPECT_EQ(probe.controls, before);
+    EXPECT_TRUE(probe.log.empty());
+    EXPECT_EQ(game.controlsScreen.row, ControlsRow::RESTORE_DEFAULTS);
+    EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS);
+
+    frame(game, probe, {Action::Confirm});
+    frame(game, probe, {Action::MenuRight});
+    frame(game, probe, {Action::Back});  // B, even with the cursor on "yes"
+    EXPECT_FALSE(game.controlsScreen.confirmingRestore);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+    EXPECT_EQ(probe.controls, before);
+    EXPECT_TRUE(probe.log.empty());
+    EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS) << "B leaves the question, not the screen";
+}
+
+// "Yes" puts every binding back to the defaults, put into effect and then saved, closes the question,
+// and holds input until it is let go - on A and on Start alike.
+TEST(ControlsScreen, YesPutsEveryBindingBack) {
+    for (const Action act : {Action::Confirm, Action::Start}) {
+        Probe       probe = rebound();
+        GameContext game  = openControls(probe);
+        game.controlsScreen.row = ControlsRow::RESTORE_DEFAULTS;
+
+        frame(game, probe, {act});
+        frame(game, probe, {Action::MenuRight});
+        frame(game, probe, {act});
+
+        EXPECT_EQ(probe.controls, kirpich::kDefaultControls) << "action " << int(act);
+        EXPECT_EQ(probe.log, (std::vector<std::string>{"apply", "save"}));
+        EXPECT_EQ(probe.lastApplied, kirpich::kDefaultControls);
+        EXPECT_EQ(probe.lastSaved, kirpich::kDefaultControls);
+        EXPECT_FALSE(game.controlsScreen.confirmingRestore);
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+        EXPECT_TRUE(game.controlsScreen.awaitingRelease);
+        EXPECT_EQ(game.controlsScreen.row, ControlsRow::RESTORE_DEFAULTS);
+        EXPECT_EQ(probe.listens, 0);
+    }
+}
+
+// The release guard covers a restore too. With A on Z and B on X, the player answers "yes" with Z -
+// which the defaults give to B. Still held on the next frame, it reads as B, and without the guard it
+// would leave the screen.
+TEST(ControlsScreen, RestoringDoesNotLetTheHeldKeyActOnTheScreen) {
+    Probe probe;
+    probe.controls[GbButton::A].key = SDL_SCANCODE_Z;
+    probe.controls[GbButton::B].key = SDL_SCANCODE_X;
+    GameContext                   game = openControls(probe);
+    kirpich::systems::InputSystem input;
+    game.controlsScreen.row = ControlsRow::RESTORE_DEFAULTS;
+
+    const auto step = [&](std::initializer_list<SDL_Scancode> keys) {
+        game.joypad    = input.sample(heldUnder(probe.controls, keys));
+        game.audioCues = kirpich::systems::AudioCues{};
+        kirpich::systems::controlsScreen(game, probe.settingsWiring(), probe.controlsWiring());
+    };
+
+    step({SDL_SCANCODE_Z});  // A under the player's bindings: ask
+    ASSERT_TRUE(game.controlsScreen.confirmingRestore);
+    step({});
+    step({SDL_SCANCODE_RIGHT});  // to "yes"
+    step({});
+    step({SDL_SCANCODE_Z});  // A: restore
+    ASSERT_EQ(probe.controls, kirpich::kDefaultControls);
+
+    step({SDL_SCANCODE_Z});  // B under the defaults
     ASSERT_TRUE(game.joypad.pressed.test(retropp::actionId(Action::Back)));
     EXPECT_EQ(game.flow.gameState, GameState::CONTROLS_SETTINGS);
 }
@@ -555,6 +711,7 @@ TEST(ControlsScreen, TheDefaultsReadOnTheScreensCells) {
     expectText(content, "controls", kHeadingX, kHeadingY);
     expectText(content, "key", kKeyNameX, kColumnHeadY);
     expectText(content, "pad", kPadNameX, kColumnHeadY);
+    expectText(content, "restore defaults", kRestoreLabelX, kRestoreY);
 
     struct Row {
         GbButton         button;
@@ -608,7 +765,7 @@ TEST(ControlsScreen, TheCursorAndTheWaitAreDrawn) {
     const Controls& c      = kirpich::kDefaultControls;
     const auto      hyphen = kirpich::render::Glyphs("-", 0, 0, 8, kAtlas, kPlayerRamp).front().tile;
 
-    const ControlsScreenState idleKey{.row = GbButton::B, .column = ControlsColumn::KEYBOARD};
+    const ControlsScreenState idleKey{.row = ControlsRow::B, .column = ControlsColumn::KEYBOARD};
     auto content = contentOf(draw(idleKey, c, ControllerType::Standard, true));
     ASSERT_TRUE(glyphAt(content, kKeyCursorX, rowY(GbButton::B)));
     EXPECT_EQ(glyphAt(content, kKeyCursorX, rowY(GbButton::B))->tile, hyphen);
@@ -616,7 +773,7 @@ TEST(ControlsScreen, TheCursorAndTheWaitAreDrawn) {
     EXPECT_FALSE(glyphAt(content, 32, kPromptY)) << "an idle screen asks for nothing";
     EXPECT_FALSE(glyphAt(content, 32, kCancelHintY));
 
-    const ControlsScreenState idlePad{.row = GbButton::B, .column = ControlsColumn::CONTROLLER};
+    const ControlsScreenState idlePad{.row = ControlsRow::B, .column = ControlsColumn::CONTROLLER};
     content = contentOf(draw(idlePad, c, ControllerType::Standard, true));
     EXPECT_TRUE(glyphAt(content, kPadCursorX, rowY(GbButton::B)));
     EXPECT_FALSE(glyphAt(content, kKeyCursorX, rowY(GbButton::B)));
@@ -640,14 +797,67 @@ TEST(ControlsScreen, TheCursorAndTheWaitAreDrawn) {
     expectText(content, "z", kKeyNameX, rowY(GbButton::B));
     expectText(content, "press a button", 3 * 8, kPromptY);
     expectText(content, "esc cancels", 4 * 8, kCancelHintY);
+
+    // On the restore row the cursor stands before its label, whichever column the buttons were on,
+    // and no button cell is marked.
+    for (const ControlsColumn column : {ControlsColumn::KEYBOARD, ControlsColumn::CONTROLLER}) {
+        const ControlsScreenState restore{.row = ControlsRow::RESTORE_DEFAULTS, .column = column};
+        content = contentOf(draw(restore, c, ControllerType::Standard, true));
+        ASSERT_TRUE(glyphAt(content, kRestoreCursorX, kRestoreY));
+        EXPECT_EQ(glyphAt(content, kRestoreCursorX, kRestoreY)->tile, hyphen);
+        for (std::size_t i = 0; i < kirpich::kGbButtonCount; ++i) {
+            const int y = rowY(static_cast<GbButton>(i));
+            EXPECT_FALSE(glyphAt(content, kKeyCursorX, y));
+            EXPECT_FALSE(glyphAt(content, kPadCursorX, y));
+        }
+    }
+}
+
+// The restore question takes the screen as the settings confirms do, on their cells: its title on the
+// heading line, the question on lines 5 and 7, "no" on column 6 and "yes" on column 12 of line 11, and
+// the cursor two cells before the answer chosen. Nothing of the bindings table is drawn under it.
+TEST(ControlsScreen, TheRestoreQuestionTakesTheScreen) {
+    const auto hyphen = kirpich::render::Glyphs("-", 0, 0, 8, kAtlas, kPlayerRamp).front().tile;
+    const ControlsScreenState onNo{.row               = ControlsRow::RESTORE_DEFAULTS,
+                                   .confirmingRestore = true,
+                                   .confirmYes        = false};
+
+    auto content = contentOf(draw(onNo, kirpich::kDefaultControls));
+    expectText(content, "restore defaults", 2 * 8, 2 * 8);
+    expectText(content, "restore every", 3 * 8, 5 * 8);
+    expectText(content, "key and button", 3 * 8, 7 * 8);
+    expectText(content, "no", 6 * 8, 11 * 8);
+    expectText(content, "yes", 12 * 8, 11 * 8);
+    ASSERT_TRUE(glyphAt(content, 4 * 8, 11 * 8));
+    EXPECT_EQ(glyphAt(content, 4 * 8, 11 * 8)->tile, hyphen);
+    EXPECT_FALSE(glyphAt(content, 10 * 8, 11 * 8));
+
+    EXPECT_FALSE(glyphAt(content, kLabelX, rowY(GbButton::UP))) << "the button rows are not drawn";
+    EXPECT_FALSE(glyphAt(content, kKeyNameX, kColumnHeadY)) << "the column heads are not drawn";
+    EXPECT_FALSE(glyphAt(content, kRestoreLabelX, kRestoreY)) << "the restore row is not drawn";
+
+    ControlsScreenState onYes = onNo;
+    onYes.confirmYes          = true;
+    content                   = contentOf(draw(onYes, kirpich::kDefaultControls));
+    EXPECT_TRUE(glyphAt(content, 10 * 8, 11 * 8));
+    EXPECT_FALSE(glyphAt(content, 4 * 8, 11 * 8));
+
+    content = contentOf(draw(onYes, kirpich::kDefaultControls, ControllerType::Standard, false));
+    EXPECT_FALSE(glyphAt(content, 10 * 8, 11 * 8)) << "the blink is off";
 }
 
 // Within one frame no two objects share a name, and every object is on the screen.
 TEST(ControlsScreen, EveryObjectHasItsOwnNameAndIsOnTheScreen) {
+    const ControlsScreenState states[] = {
+        {.row = ControlsRow::SELECT},
+        {.row = ControlsRow::SELECT, .listening = true},
+        {.row = ControlsRow::RESTORE_DEFAULTS},
+        {.row = ControlsRow::RESTORE_DEFAULTS, .confirmingRestore = true},
+        {.row = ControlsRow::RESTORE_DEFAULTS, .confirmingRestore = true, .confirmYes = true},
+    };
     for (const ControlsColumn column : {ControlsColumn::KEYBOARD, ControlsColumn::CONTROLLER}) {
-        for (const bool listening : {false, true}) {
-            const ControlsScreenState ui{
-                .row = GbButton::SELECT, .column = column, .listening = listening};
+        for (ControlsScreenState ui : states) {
+            ui.column = column;
             std::vector<std::string> keys;
             for (const retropp::Sprite& s : contentOf(draw(ui, kirpich::kDefaultControls))) {
                 EXPECT_GE(s.x, 0);

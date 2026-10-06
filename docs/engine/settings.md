@@ -385,8 +385,9 @@ kirpich::systems::installControlsScreen(
 The settings wiring is only for the way back: B calls `returnToSettings` with it. `controls` is the
 host's, like `settings`, because it outlives a reset and is saved. `listen` and `captured` are the
 platform's press capture; `apply` hands the platform the action map the new bindings derive, and
-`save` writes them out. `apply` then `save` fire once per binding. Every seam defaults to inert, and a
-wiring with no `controls` treats every captured press as a cancel.
+`save` writes them out. `apply` then `save` fire once per binding and once per confirmed restore. Every seam
+defaults to inert, and a wiring with no `controls` treats every captured press as a cancel and the
+restore row as an end stop.
 
 ### Opening, walking and leaving
 
@@ -398,12 +399,41 @@ restores the caller's picture.
 
 | Action | Does |
 |---|---|
-| MenuUp / MenuDown | move between the eight rows, with end stops |
-| MenuLeft / MenuRight | move between the keyboard and controller columns, with end stops |
-| Confirm / Start | wait for a press on the cell the cursor is on |
+| MenuUp / MenuDown | move between the eight button rows and the restore row under them, with end stops |
+| MenuLeft / MenuRight | move between the keyboard and controller columns, with end stops; on the restore row, both are end stops |
+| Confirm / Start | on a button row, wait for a press on the cell the cursor is on; on the restore row, ask whether to restore the defaults |
 | Back | return to the settings screen on its Controls row |
 
 A move cues TINK; an end stop moves nothing and makes no sound. Starting to wait makes no sound.
+
+The cursor's row is a `ControlsRow` (`src/state/controls_screen_state.h`): the eight `GbButton`s in
+order, then `RESTORE_DEFAULTS`. `rowOf(GbButton)` and `buttonOf(ControlsRow)` convert between them,
+`buttonOf` answering nothing for the restore row. The column is kept while the cursor is on the restore
+row, so going back up returns to the cell it left.
+
+### Restoring the defaults
+
+Confirm or Start on the restore row asks first, the way the settings screen's reset rows do. It sets
+`ControlsScreenState::confirmingRestore`, puts the answer on "no" (`confirmYes` false), arms the blink
+and cues the screen change. When the controls already are the defaults there is nothing to restore, so
+the press is an end stop instead: no question, nothing cued.
+
+While the question is up, the frame runs its own table:
+
+| Action | Does |
+|---|---|
+| MenuLeft / MenuRight | move to "no" / "yes", with TINK; a press toward the answer already chosen is an edge |
+| Confirm / Start | answer, and close the question with the screen-change cue |
+| Back | close the question as "no" |
+
+"Yes" sets the controls to `kDefaultControls`, then fires `apply`, then `save`, and sets
+`awaitingRelease` (below). "No" changes nothing. Either way the cursor is back on the restore row.
+
+The question is drawn on the cells every settings confirm uses — the title on the heading row, the
+question on `kConfirmQuestionFirstRow` and `kConfirmQuestionSecondRow`, and the answers on
+`kConfirmChoiceRow` at `confirmChoiceColumns(...)`, all in `src/systems/settings_screen.h` — so it reads
+as those do. `RestoreConfirm(yes, blinkOn, atlas, ramp)` (`src/render/controls/restore_confirm.h`)
+returns it as sprites, and `ControlsScreen` draws it in place of the bindings while it is asked.
 
 ### Waiting for a press
 
@@ -425,14 +455,15 @@ second `listen`, the screen would read the same unwanted press every frame.
 
 ### The release guard
 
-Whenever the screen stops waiting, it sets `awaitingRelease`, and while that is set a frame does
-nothing but clear the flag once `GameContext::joypad.held` is empty. The game's press edge is
-per action — an action held this frame and not the last is a press (`src/systems/input.h`) — and a
-binding hands the platform a new action map between two frames. A key the player is still holding
-from the binding therefore reads, on the next frame, as a fresh press of whatever it now means: on the A
-row that is Confirm, which would start another wait on the same cell; a key taken from the B row
-becomes Back, which would leave the screen. Waiting for the release keeps the bound key from acting on
-the screen until the player lets go.
+Whenever the screen stops waiting, and whenever "yes" restores the defaults, it sets `awaitingRelease`,
+and while that is set a frame does nothing but clear the flag once `GameContext::joypad.held` is empty.
+The game's press edge is per action — an action held this frame and not the last is a press
+(`src/systems/input.h`) — and a binding or a restore hands the platform a new action map between two
+frames. A key the player is still holding therefore reads, on the next frame, as a fresh press of
+whatever it now means: on the A row that is Confirm, which would start another wait on the same cell; a
+key taken from the B row becomes Back, which would leave the screen; and a "yes" pressed with a key the
+defaults give to B leaves the screen the same way. Waiting for the release keeps the key from
+acting on the screen until the player lets go.
 
 ### The picture
 
@@ -443,12 +474,14 @@ Layers ControlsScreen(const ControlsScreenState& ui, const Controls& controls,
 ```
 
 Two layers: the backdrop, and a sprite layer holding the `controls` heading, the `key` and `pad`
-column heads, a row per button and the cursor. The rows stand one per line from the first option line,
-because the settings pages' three-line spacing cannot hold eight rows; the label starts on column 1,
-the key's name on column 9 and the controller button's name on column 15, each cursor in the cell
-before its name (`src/render/controls/layout.h`). The cursor blinks while the screen is idle and is
-held while it waits. While it waits, the waited-on cell reads `...`, line 15 reads `press a key` or
-`press a button`, and line 16 reads `esc cancels`.
+column heads, a row per button, the `restore defaults` row and the cursor. The button rows stand one
+per line from the first option line, because the settings pages' three-line spacing cannot hold eight
+rows; the label starts on column 1, the key's name on column 9 and the controller button's name on
+column 15, each cursor in the cell before its name (`src/render/controls/layout.h`). The restore row
+stands on line 14, a line below the buttons, laid out as a settings row is: label from column 3, cursor
+on column 1. The cursor blinks while the screen is idle and is held while it waits. While it waits, the
+waited-on cell reads `...`, line 16 reads `press a key` or `press a button`, and line 17 reads
+`esc cancels`.
 
 A name fits five cells and uses only what `Glyphs` draws:
 

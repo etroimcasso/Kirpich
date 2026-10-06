@@ -32,14 +32,6 @@ namespace {
 constexpr std::size_t kScreenRows = 18;
 constexpr std::size_t kScreenCols = 20;
 
-// The confirm. Its question is two lines because the font has no question mark and "erase all high
-// scores" is one cell wider than the screen.
-constexpr std::size_t kConfirmRow1      = 5;
-constexpr std::size_t kConfirmRow2      = 7;
-constexpr std::size_t kChoiceRow        = 11;
-constexpr std::size_t kChoiceCursorGap  = 2;  // cells between the cursor and the word it points at
-constexpr std::size_t kChoiceGap        = 2;  // cells between one answer and the next one's cursor
-
 constexpr auto kSpace       = static_cast<std::uint8_t>(CharTile::SPACE);
 constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
 
@@ -338,32 +330,19 @@ ConfirmContent confirmContentFor(ConfirmAction action, bool canReturnToTitle) {
     return {};
 }
 
-// Where the two answers sit, and where each one's cursor goes.
-//
-// The pair is centred as a block — cursor, word, gap, cursor, word — rather than nailed to fixed
-// columns, so a pair of long answers still fits the screen. For "no" and "yes" the arithmetic lands on
-// columns 6 and 12, which is where that pair has always been drawn.
-struct ChoiceColumns {
-    std::size_t left;
-    std::size_t right;
-};
-
-ChoiceColumns choiceColumns(const ConfirmContent& content) {
-    const std::size_t block = kChoiceCursorGap + content.leftChoice.size() + kChoiceGap +
-                              kChoiceCursorGap + content.rightChoice.size();
-    const std::size_t start = block >= kScreenCols ? 0 : (kScreenCols - block) / 2;
-    const std::size_t left  = start + kChoiceCursorGap;
-    return {left, left + content.leftChoice.size() + kChoiceGap + kChoiceCursorGap};
+// Where the two answers sit (settings_screen.h).
+ConfirmChoiceColumns choiceColumns(const ConfirmContent& content) {
+    return confirmChoiceColumns(content.leftChoice.size(), content.rightChoice.size());
 }
 
 void drawConfirmCursor(BackgroundMap& map, const ScreenUiState& ui) {
-    const ChoiceColumns cols =
+    const ConfirmChoiceColumns cols =
         choiceColumns(confirmContentFor(ui.pendingConfirm, offersReturnToTitle(ui)));
-    map[kChoiceRow][cols.left - kChoiceCursorGap]  = kSpace;
-    map[kChoiceRow][cols.right - kChoiceCursorGap] = kSpace;
+    map[kConfirmChoiceRow][cols.left - kConfirmCursorGap]  = kSpace;
+    map[kConfirmChoiceRow][cols.right - kConfirmCursorGap] = kSpace;
     if (ui.cursorVisible) {
         const std::size_t col = ui.confirmRight ? cols.right : cols.left;
-        map[kChoiceRow][col - kChoiceCursorGap] = kCursorGlyph;
+        map[kConfirmChoiceRow][col - kConfirmCursorGap] = kCursorGlyph;
     }
 }
 
@@ -598,19 +577,20 @@ void initResetConfirmScreen(GameContext& game) {
 
     const ConfirmContent content =
         confirmContentFor(ui.pendingConfirm, offersReturnToTitle(ui));
-    const ChoiceColumns cols = choiceColumns(content);
+    const ConfirmChoiceColumns cols = choiceColumns(content);
 
     drawValueArrows(game, kSettingsPageCount);  // the confirm has no scrollers
     clearVisibleRegion(map);
     writeMapText(map, kScreenTitleRow, centred(content.title.size()), content.title);
     // A question can be one line or two; an empty line is a row left blank rather than a row of
     // nothing written at column ten.
-    writeMapText(map, kConfirmRow1, centred(content.first.size()), content.first);
+    writeMapText(map, kConfirmQuestionFirstRow, centred(content.first.size()), content.first);
     if (!content.second.empty()) {
-        writeMapText(map, kConfirmRow2, centred(content.second.size()), content.second);
+        writeMapText(map, kConfirmQuestionSecondRow, centred(content.second.size()),
+                     content.second);
     }
-    writeMapText(map, kChoiceRow, cols.left, content.leftChoice);
-    writeMapText(map, kChoiceRow, cols.right, content.rightChoice);
+    writeMapText(map, kConfirmChoiceRow, cols.left, content.leftChoice);
+    writeMapText(map, kConfirmChoiceRow, cols.right, content.rightChoice);
     drawConfirmCursor(map, ui);
 
     game.flow.timer1    = kScreenBlinkFrames;

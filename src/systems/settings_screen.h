@@ -88,6 +88,36 @@ inline constexpr std::size_t kPageArrowCol     = 10;
 inline constexpr std::size_t kPageUpArrowRow   = kScreenTitleRow - 1;
 inline constexpr std::size_t kPageDownArrowRow = 16;
 
+// A confirm: the question that guards a row whose effect cannot be taken back. Its title stands on the
+// heading row, its question on two lines below - two because the font has no question mark and
+// "erase all high scores" is one cell wider than the screen - and its two answers on one line, each
+// with a cursor two cells before it. Every confirm in the family is laid out from these, so every
+// question reads the same.
+inline constexpr std::size_t kConfirmQuestionFirstRow  = 5;
+inline constexpr std::size_t kConfirmQuestionSecondRow = 7;
+inline constexpr std::size_t kConfirmChoiceRow         = 11;
+inline constexpr std::size_t kConfirmCursorGap         = 2;  // cursor to the word it points at
+inline constexpr std::size_t kConfirmChoiceGap         = 2;  // one answer to the next one's cursor
+inline constexpr std::size_t kConfirmScreenCols        = 20;
+
+// Where a confirm's two answers start.
+struct ConfirmChoiceColumns {
+    std::size_t left;
+    std::size_t right;
+};
+
+// The pair is centered as a block - cursor, word, gap, cursor, word - rather than nailed to fixed
+// columns, so a pair of long answers still fits the screen. For "no" and "yes" it lands on columns 6
+// and 12; each answer's cursor stands kConfirmCursorGap cells before it.
+[[nodiscard]] constexpr ConfirmChoiceColumns confirmChoiceColumns(std::size_t leftLength,
+                                                                  std::size_t rightLength) noexcept {
+    const std::size_t block =
+        kConfirmCursorGap + leftLength + kConfirmChoiceGap + kConfirmCursorGap + rightLength;
+    const std::size_t start = block >= kConfirmScreenCols ? 0 : (kConfirmScreenCols - block) / 2;
+    const std::size_t left  = start + kConfirmCursorGap;
+    return {left, left + leftLength + kConfirmChoiceGap + kConfirmCursorGap};
+}
+
 // Everything the settings screens need from outside the game state.
 //
 // `settings` is the live value the screen edits — the host owns it, because it outlives a reset and
