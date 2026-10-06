@@ -77,7 +77,7 @@ The statistics item on the title screen opens the statistics themselves, not a m
 them: five rows — the whole game's figures, each game type's, and the achievements — so a player is
 one press from a number rather than three. Each row opens a branch whose screen is **paged**: related
 figures a page at a time, under a heading that names what the page holds. All time has six pages
-(play time, rounds, score, clears, pieces, favourites); a game type has two.
+(play time, rounds, score, clears, pieces, favorites); a game type has two.
 
 **A combination is a position on a picker, not a page of its own.** An earlier design gave every
 combination its own page, which is sixty-four page turns for Type B and the same again for Type C.
@@ -111,7 +111,7 @@ things appear: the All-Time branch gains a small `all | normal | heart` menu tha
 aggregates, and every game type's level selector reaches the heart levels (`0-9`, then `0-9` again
 each wearing a heart). In the combined all-time view, a single record that traces to a heart round —
 the longest round, or a preferred level that turns out to be a heart level — wears the heart; a total
-summed across many rounds, or the favourite mode or music, does not. Rejected: naming the filter rows
+summed across many rounds, or the favorite mode or music, does not. Rejected: naming the filter rows
 with a category noun, which would collide with the `mode a / b / c` rows one screen up; the three rows
 stand alone, the heart one wearing the glyph.
 

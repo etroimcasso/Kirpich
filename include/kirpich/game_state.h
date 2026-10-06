@@ -104,6 +104,9 @@ enum class GameState : uint8_t {
     INIT_ACHIEVEMENTS      = 0x56,  // Open the achievements screen
     ACHIEVEMENTS           = 0x57,  // The achievements screen
     ACHIEVEMENT_NOTICE     = 0x58,  // What a finished round just earned, one badge at a time
+    DISPLAY_SETTINGS       = 0x59,  // The window's settings: fullscreen and size
+    PALETTE_SETTINGS       = 0x5A,  // The palette, with the pieces drawn in it
+    CONTROLS_SETTINGS      = 0x5B,  // The player's key and controller button for each Game Boy button
 };
 
 }  // namespace kirpich

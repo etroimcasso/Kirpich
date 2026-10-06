@@ -115,7 +115,7 @@ std::span<const retropp::Sprite> spritesOf(const retropp::DrawLayer& layer) {
 std::vector<retropp::Sprite> glyphsOf(std::span<const retropp::Sprite> sprites) {
     std::vector<retropp::Sprite> out;
     for (const retropp::Sprite& s : sprites) {
-        if (std::string_view{s.key.value}.starts_with("ach-g-")) out.push_back(s);
+        if (std::string_view{s.key.value}.starts_with("glyph-")) out.push_back(s);
     }
     return out;
 }

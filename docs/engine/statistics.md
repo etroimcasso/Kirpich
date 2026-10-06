@@ -137,13 +137,13 @@ The whole-game folds answer the all-time page, and each is an argmax over rounds
 
 ```cpp
 std::uint32_t  roundsFor(const StatsState&, GameType, StatScope);
-FavouriteMode  favouriteMode(const StatsState&, StatScope);
-FavouriteMusic favouriteMusic(const StatsState&);                 // global: no scope
+FavoriteMode  favoriteMode(const StatsState&, StatScope);
+FavoriteMusic favoriteMusic(const StatsState&);                 // global: no scope
 PreferredLevel preferredLevel(const StatsState&, StatScope);      // across all three game types
 bool           heartEverRecorded(const StatsState&);
 ```
 
-`favouriteMusic` takes no scope: music is not part of a combination and is not split by heart, so it
+`favoriteMusic` takes no scope: music is not part of a combination and is not split by heart, so it
 is always the whole game's. `preferredLevel` under `ALL` counts a normal level and the heart level of
 the same number as separate candidates, so a heart level can win in its own right —
 `PreferredLevel::heart` then says so, and a cross-set tie keeps the cartridge level. `heartEverRecorded`
@@ -248,7 +248,7 @@ Once a heart game has been played (`heartEverRecorded`), two things open up:
 - **The All-Time scope sub-menu.** The All-Time row opens `all | normal | heart` and the chosen scope
   drives its folds. In the `all` view, a record that traces to a single heart round wears the heart:
   the longest round (its winning slice's heart-ness) and the preferred level (when its combined argmax
-  is a heart level). Summed totals, favourite mode (a game type) and favourite music (global) never do.
+  is a heart level). Summed totals, favorite mode (a game type) and favorite music (global) never do.
 - **The heart half of every per-mode level selector.** The `level` axis reaches twice as far —
   positions 0-9 are the cartridge levels, 10-19 the same numbers in heart mode — so a heart level's
   figures are read with the same picker. `axisCount(row 0)` is 10 below the gate and 20 above it; the

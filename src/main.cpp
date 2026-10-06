@@ -58,20 +58,27 @@
 #include "render/achievements/notice.h"
 #include "render/achievements/screen.h"
 #include "render/background.h"
+#include "render/controls/screen.h"
+#include "render/display_settings/screen.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
+#include "render/palette_settings/screen.h"
 #include "render/settings_overlay.h"
 #include "render/stats_pages.h"
 #include "render/type_c_difficulty.h"
 #include "render/sprites.h"
 #include "render/tile_atlas.h"
 #include "state/achievement_persistence.h"
+#include "state/controls.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
 #include "systems/achievements.h"
 #include "systems/boot.h"
+#include "systems/controls.h"
+#include "systems/controls_screen.h"
 #include "systems/demo.h"
+#include "systems/display_settings_screen.h"
 #include "systems/enhancement_screens.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
@@ -82,6 +89,7 @@
 #include "systems/line_clear.h"
 #include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
+#include "systems/palette_settings_screen.h"
 #include "systems/readouts.h"
 #include "systems/scoring.h"
 #include "systems/settings_screen.h"
@@ -210,6 +218,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
     retropp::SaveStore saves = retropp::SaveStore::atPath(retropp::userDataDir(identity));
     kirpich::Settings  settings;
     kirpich::loadSettings(saves, settings);
+    kirpich::Controls controls = kirpich::kDefaultControls;
+    kirpich::loadControls(saves, controls);
 
     const retropp::EngineConfig config{
         .identity     = identity,
@@ -410,6 +420,30 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
     kirpich::systems::installSettingsHandlers(dispatcher, settingsWiring);
 
+    // The screens the first settings page opens: the window's two settings, and the palette. They
+    // edit the same settings through the same wiring, so a change made on either is applied and
+    // written out exactly as one made anywhere else.
+    kirpich::systems::installDisplaySettingsScreen(dispatcher, settingsWiring);
+    kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring);
+
+    // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
+    // the press to bind, and on every binding hands the platform the action map the bindings now derive
+    // and writes them out - so a moved button works the moment it is moved, and still does next launch.
+    kirpich::systems::installControlsScreen(
+        dispatcher, settingsWiring,
+        kirpich::systems::ControlsWiring{
+            .controls = &controls,
+            .listen   = [&platform] { platform.captureRequest(); },
+            .captured = [&platform] { return platform.capturedSource(); },
+            .apply =
+                [&platform](const kirpich::Controls& current) {
+                    platform.actions(kirpich::systems::actionMapFor(current));
+                },
+            .save = [&saves](const kirpich::Controls& current) {
+                kirpich::saveControls(current, saves);
+            },
+        });
+
     // The screens a settings row opens: the ghost piece's, the fixes carousel, and the new-modes
     // screen. What each one says and which flag it binds belong to the unit
     // (systems/enhancement_screens.h); what arrives from here is the settings they edit and the
@@ -491,8 +525,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     });
 
     // ── Input ────────────────────────────────────────────────────────────────
-    retropp::ActionMap actions = kirpich::systems::defaultActionMap();
-    platform.actions(actions);
+    platform.actions(kirpich::systems::actionMapFor(controls));
 
     // ── The loop ─────────────────────────────────────────────────────────────
     // Counted once per simulation tick and handed to the sprite bridge, where it goes into every
@@ -559,12 +592,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // sequence degenerates into a counter.
         vm.advanceClock(config.timing.cpuCyclesPerTick());
 
-        // Enter is also the Start button. The chord is a chord, not a press of Start, so Start is
-        // withheld for as long as the chord's key is down — otherwise taking the game fullscreen
-        // also starts a round, pauses one, or skips a screen.
+        // Enter is also a Game Boy button - Start, unless the player moved it. The chord is a chord,
+        // not a press of that button, so its actions are withheld for as long as the chord's key is
+        // down — otherwise taking the game fullscreen also starts a round, pauses one, or skips a
+        // screen.
         retropp::ActionSet held = kirpich::systems::heldActions(in);
         if (chord || chordSwallowsEnter) {
-            held.set(retropp::actionId(kirpich::Action::Start), false);
+            const retropp::ActionSet onEnter =
+                kirpich::systems::actionsOnKey(controls, SDL_SCANCODE_RETURN);
+            for (int a = 0; a < retropp::kMaxActions; ++a) {
+                const auto id = static_cast<retropp::ActionId>(a);
+                if (onEnter.test(id)) held.set(id, false);
+            }
         }
         dispatcher.tick(game, held);
 
@@ -610,23 +649,56 @@ int main(int /*argc*/, char* /*argv*/[]) {
             return;
         }
 
+        // The screens built from their own components, picked by the state the game is in. Each one
+        // reads the settings it shows straight from the player's settings, so a change made from
+        // outside it - the fullscreen shortcut - is on the screen the frame it happens.
+        switch (game.flow.gameState) {
+            case kirpich::GameState::DISPLAY_SETTINGS: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::DisplaySettingsScreen(
+                    game.displaySettings, settings, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::PALETTE_SETTINGS: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::PaletteSettingsScreen(
+                    settings, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::CONTROLS_SETTINGS: {
+                // Controller buttons are named as they are printed on the pad the player has
+                // connected - the first one, when there are several - and as on an Xbox pad when there
+                // is none.
+                const std::vector<retropp::GamepadInfo> pads = platform.connectedGamepads();
+                const retropp::ControllerType padFamily =
+                    pads.empty() ? retropp::ControllerType::Standard : pads.front().family;
+
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::ControlsScreen(
+                    game.controlsScreen, controls, padFamily, game.screens.cursorVisible, tiles,
+                    settings.shadeRamp);
+                renderer.renderFrame(screen);
+                return;
+            }
+            default:
+                break;
+        }
+
         kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
                                         tiles, sprites, settings.shadeRamp);
 
-        // The settings screen's own drawn parts. Its page arrow is the game's selector tile stood on
-        // end, which an object cannot express — the hardware has two flips and no quarter turn — so it
-        // joins the object buffer's sprites here rather than going through it. Its palette preview is
-        // colour, which the art has no tile for at all, so that is a region over the finished frame.
+        // The settings screen's page arrow is the game's selector tile stood on end, which an object
+        // cannot express — the hardware has two flips and no quarter turn — so it joins the object
+        // buffer's sprites here rather than going through it.
         retropp::FrameDrawState frame;
 
         if (game.flow.gameState == kirpich::GameState::SETTINGS) {
             const auto arrows =
                 kirpich::render::settingsPageArrows(game.screens, settings.shadeRamp, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
-            const auto overlay = kirpich::render::settingsOverlay(game.screens, settings.shadeRamp,
-                                                                  kViewport.width);
-            frame.regions.insert(frame.regions.end(), overlay.begin(), overlay.end());
         }
 
         // The heart-mode indicator, beside a difficulty screen's heading. Gated rather than written

@@ -340,14 +340,14 @@ bool heartEverRecorded(const StatsState& stats) {
     return false;
 }
 
-FavouriteMode favouriteMode(const StatsState& stats, StatScope scope) {
-    FavouriteMode best;
+FavoriteMode favoriteMode(const StatsState& stats, StatScope scope) {
+    FavoriteMode best;
 
     // Strictly greater again, so the first type in this walk keeps a tie.
     const auto consider = [&best](GameType type, std::uint32_t rounds) {
         if (rounds == 0) return;
         if (best.any && rounds <= best.rounds) return;
-        best = FavouriteMode{.type = type, .rounds = rounds, .any = true};
+        best = FavoriteMode{.type = type, .rounds = rounds, .any = true};
     };
 
     consider(GameType::TYPE_A, roundsFor(stats, GameType::TYPE_A, scope));
@@ -356,8 +356,8 @@ FavouriteMode favouriteMode(const StatsState& stats, StatScope scope) {
     return best;
 }
 
-FavouriteMusic favouriteMusic(const StatsState& stats) {
-    FavouriteMusic best;
+FavoriteMusic favoriteMusic(const StatsState& stats) {
+    FavoriteMusic best;
 
     for (std::size_t music = 0; music < kMusicTypeCount; ++music) {
         const std::uint32_t rounds = stats.musicRounds[music];
@@ -367,7 +367,7 @@ FavouriteMusic favouriteMusic(const StatsState& stats) {
         // The four selections are contiguous from MUSIC_A, which is the arithmetic musicTypeIndex
         // performs in the other direction.
         const auto first = static_cast<std::uint8_t>(MusicType::MUSIC_A);
-        best             = FavouriteMusic{
+        best             = FavoriteMusic{
                         .type   = static_cast<MusicType>(first + static_cast<std::uint8_t>(music)),
                         .rounds = rounds,
                         .any    = true};

@@ -1,12 +1,11 @@
 #include "render/settings_overlay.h"
 
-#include <array>
 #include <string>
 #include <string_view>
 
-#include "render/palettes.h"
+#include "render/scroller_arrows.h"   // kSelectorTile
 #include "systems/list_screen.h"      // the list's window height
-#include "systems/settings_screen.h"  // the cell coordinates the drawn parts line up with
+#include "systems/settings_screen.h"  // the cell coordinates the arrows line up with
 
 namespace kirpich::render {
 
@@ -14,23 +13,8 @@ namespace {
 
 constexpr int kCell = 8;  // a background cell's side, in viewport pixels
 
-// The game's own selector arrow, the same tile the settings screen puts either side of the palette
-// number. It points right; a quarter turn stands it up.
-constexpr std::uint8_t kSelectorTile = 0x58;
-
 // Above every sprite the object buffer can produce, so a page arrow is never hidden behind one.
 constexpr std::int32_t kPageArrowZ = 100;
-
-retropp::Region filled(std::string key, retropp::ShapePoints shape, retropp::Rgba8 fill) {
-    return retropp::Region{
-        // Regions are not interpolated, so a key need only be present - one each keeps them distinct
-        // in anything that reports drawables by name.
-        .key     = retropp::ObjectKey{std::move(key)},
-        .shape   = std::move(shape),
-        .effects = {retropp::ScreenSpaceEffect{.kind = retropp::ScreenSpaceEffectKind::ColorFill,
-                                               .fill = fill}},
-    };
-}
 
 // One screen's two page arrows: the game's own selector tile stood on end, at the shared column, one
 // above the heading and one below the body.
@@ -106,47 +90,6 @@ std::vector<retropp::Sprite> statsPageArrows(const kirpich::ScreenUiState& ui, s
     // own count is a seam the render bridge cannot reach.
     const auto page = static_cast<std::size_t>(ui.statsPage);
     return pageArrows("stats-page", page > 0, page + 1 < ui.statsPageCount, ramp, atlas);
-}
-
-std::vector<retropp::Region> settingsOverlay(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
-                                             int viewportWidth) {
-    const std::uint8_t                  chosen  = clampShadeRamp(ramp);
-    const std::array<retropp::Rgba8, 4> colours = rampColours(chosen);
-    const std::uint8_t                  page    = kirpich::settingsPageOf(ui.settingsRow);
-
-    std::vector<retropp::Region> regions;
-    regions.reserve(colours.size());
-
-    // The two arrows either side of the palette number are objects the settings screen places, and the
-    // page arrow is a sprite (settingsPageArrows) - both are the game's own selector tile. What is
-    // left here is the one thing the art has no tile for: colour.
-    //
-    // The preview lives on the first page only, with the row it previews.
-    if (page != 0) {
-        return regions;
-    }
-
-    // The scroller's own two arrows are objects rather than shapes: the game already has a selector
-    // arrow of its own, and the left one is that tile flipped. The settings screen places them.
-
-    // The preview: four squares, darkest to lightest, abutting so the strip reads as one band of
-    // colour rather than as four separate blocks.
-    const int left = (viewportWidth - kSwatchWidth) / 2;
-    const auto top = static_cast<float>(systems::kPaletteSwatchRow * kCell);
-    for (std::size_t i = 0; i < colours.size(); ++i) {
-        const auto x = static_cast<float>(left + static_cast<int>(i) * kSwatchSquare);
-        const auto w = static_cast<float>(kSwatchSquare);
-
-        retropp::Rgba8 fill = colours[i];
-        fill.a              = 255;
-
-        regions.push_back(filled(
-            "palette-swatch-" + std::to_string(i),
-            retropp::ShapePoints{
-                .points = {{x, top}, {x + w, top}, {x + w, top + w}, {x, top + w}}},
-            fill));
-    }
-    return regions;
 }
 
 }  // namespace kirpich::render

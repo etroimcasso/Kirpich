@@ -12,12 +12,14 @@ add_library(kirpich-lib STATIC
     data/gravity.cpp
     data/scoring.cpp
     state/achievement_persistence.cpp
+    state/controls.cpp
     state/high_score_persistence.cpp
     state/settings.cpp
     state/stats_persistence.cpp
     systems/achievement_notice.cpp
     systems/achievements.cpp
     systems/achievements_screen.cpp
+    systems/controls.cpp
     systems/input.cpp
     systems/game_state_dispatcher.cpp
     systems/boot.cpp
@@ -42,6 +44,9 @@ add_library(kirpich-lib STATIC
     systems/rising_floor.cpp
     systems/screen.cpp
     systems/settings_screen.cpp
+    systems/controls_screen.cpp
+    systems/display_settings_screen.cpp
+    systems/palette_settings_screen.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
     systems/stats.cpp
@@ -52,6 +57,9 @@ add_library(kirpich-lib STATIC
     render/sprite_layer.cpp
     render/selection_corners.cpp
     render/glyphs.cpp
+    render/option_row.cpp
+    render/scroller_arrows.cpp
+    render/piece_shape.cpp
     render/sprites.cpp
     render/achievements/badge.cpp
     render/achievements/badge_grid.cpp
@@ -59,6 +67,13 @@ add_library(kirpich-lib STATIC
     render/achievements/banner.cpp
     render/achievements/notice.cpp
     render/achievements/screen.cpp
+    render/controls/names.cpp
+    render/controls/restore_confirm.cpp
+    render/controls/screen.cpp
+    render/display_settings/screen.cpp
+    render/palette_settings/ramp_swatch.cpp
+    render/palette_settings/piece_preview.cpp
+    render/palette_settings/screen.cpp
     render/settings_overlay.cpp
     render/stats_pages.cpp
     render/config_section.cpp

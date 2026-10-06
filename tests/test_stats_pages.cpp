@@ -166,7 +166,7 @@ TEST(StatsPages, EachBranchHasItsOwnPagesAndEachPageItsOwnHeading) {
     EXPECT_EQ(statsPageCount(StatsBranch::ACHIEVEMENTS), 1u);
 
     constexpr std::string_view kAllTime[] = {"play time", "rounds",  "score",
-                                             "clears",    "pieces",  "favourites"};
+                                             "clears",    "pieces",  "favorites"};
     for (std::size_t page = 0; page < std::size(kAllTime); ++page) {
         EXPECT_EQ(statsPageTitle(StatsBranch::ALL_TIME, page), kAllTime[page]) << "page " << page;
     }
@@ -742,13 +742,13 @@ TEST(StatsPages, TheAllTimePagesReadTheirScope) {
     EXPECT_EQ(figureAt(screen.map(), kStatsFirstLine + 0, 3), " 10002") << "all folds both";
 }
 
-// (17) The favourites page marks the preferred level with the heart when the combined argmax is a
+// (17) The favorites page marks the preferred level with the heart when the combined argmax is a
 // heart level.
 TEST(StatsPages, ThePreferredLevelWearsTheHeartWhenItIsAHeartLevel) {
     Screen screen;
     screen.game.stats.typeAHeart[7].rounds = 9;  // the most-played level anywhere is a heart level
     screen.open(StatsBranch::ALL_TIME);
-    screen.game.screens.statsPage = 5;  // the favourites page
+    screen.game.screens.statsPage = 5;  // the favorites page
     screen.step({});
 
     EXPECT_TRUE(holdsValue(screen.map(), kStatsFirstLine + 2, "7"));
