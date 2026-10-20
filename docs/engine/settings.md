@@ -492,7 +492,7 @@ They are built from shared components, each returning the primitives it is:
 | `ScrollerArrows(line, left, right, atlas, ramp)` (`render/components/scroller_arrows.h`) | the selector tile at `kOptionLeftArrowCol`, flipped, when `left` is set, and at `kOptionRightArrowCol` when `right` is set |
 | `PieceShape(kind, x, y, z, keyStem, atlas, ramp)` (`render/components/piece_shape.h`) | one piece at its spawn orientation, its top-left pixel at (x, y), each part named `keyStem` plus `-` and its index |
 | `RampSwatch(atlas, ramp)` (`render/screens/palette_settings/ramp_swatch.h`) | four opaque `ColorFill` squares, darkest to lightest, abutting, centered on the line under the palette row, in the colors `shadesOf` gives the index |
-| `PiecePreview(atlas, ramp)` (`render/screens/palette_settings/piece_preview.h`) | the seven shapes in two rows, L J I O over S Z T, each row centered from the shapes' own widths |
+| `PiecePreview(keyStem, atlas, ramp)` (`render/components/piece_preview.h`) | the seven shapes in two rows, L J I O over S Z T, each row centered from the shapes' own widths, at a fixed place (`kPiecePreviewFirstRowY`, `kPiecePreviewSecondRowY`); each part is named `<keyStem>-<kind>-<part>`, and the Palette screen's stem is `palette-piece` |
 
 An arrow is drawn only where the value can still move that way: no left arrow when fullscreen is off
 or at the smallest size or the first palette, no right arrow at the largest size or at the end of the
@@ -546,10 +546,12 @@ Everything it has lives in `src/render/screens/palette_editor/`:
 
 | File | Holds |
 |---|---|
-| `palette_editor_state.h` | `PaletteEditorState` — the row, the channel, the preset, the entered value and the question — and the enums it is made of |
-| `palette_editor.h` / `.cpp` | the logic: opening, the three input tables, the installer, and the answers the picture asks for |
-| `layout.h` | every position, in viewport pixels |
+| `palette_editor_state.h` | `PaletteEditorState` — the row, the channel, the preset, the entered value, the question and the held preview's flag — and the enums it is made of |
+| `palette_editor.h` / `.cpp` | the logic: opening, the Select level, the three input tables, the installer, and the answers the picture asks for |
+| `layout.h` | every position, in viewport pixels, and the held preview's two wall columns |
 | `screen.h` / `.cpp` | `PaletteEditorScreen`, the layers |
+| `preview_backdrop.h` / `.cpp` | `PreviewBackdrop`, the backdrop with the brick walls the held preview stands between |
+| `palette_preview.h` / `.cpp` | `PalettePreview`, the held preview's words and pieces |
 
 ### The rows
 
@@ -588,8 +590,14 @@ caller.
 
 ### Input
 
-Three dispatch tables, run after `blinkScreenCursor`: a question's while one is up, an entered value's
-while a value is entered, and the walk's otherwise.
+Each frame runs `blinkScreenCursor`, then reads Select as a level: `PaletteEditorState::previewing` is
+set to whether Select is held this frame, and while it is set the frame ends there. No table runs, so
+no press moves, steps, answers or leaves, nothing is cued and the key-repeat timer is untouched; on
+release the editor is where it was, a question still up and an entered value still entered at its
+place. A tap shows the preview for one frame. `reset()` and `openPaletteEditor` clear the flag.
+
+Otherwise one of three dispatch tables runs: a question's while one is up, an entered value's while a
+value is entered, and the walk's otherwise.
 
 | Mode | Up / Down | Left / Right | A / Start | B |
 |---|---|---|---|---|
@@ -644,8 +652,9 @@ Layers PaletteEditorScreen(const PaletteEditorState& ui, const Settings& s,
                            const CustomPalettes& palettes, bool blinkOn, const TileAtlas& atlas);
 ```
 
-Two layers: the backdrop (`editor-backdrop`, depth 0), and either `editor-content` or, while a
-question is up, `editor-question` — `YesNoQuestion` with the question's words:
+Two layers: the backdrop (`editor-backdrop`, depth 0), and one of `editor-preview` while the held
+preview is up (below), `editor-question` while a question is up — `YesNoQuestion` with the question's
+words — or `editor-content`:
 
 | Question | Title | Lines |
 |---|---|---|
@@ -665,7 +674,20 @@ palette's four colors as opaque `ColorFill` rectangles down the right of the sha
 
 **The editor draws through the built-in ramp underneath** — `clampShadeRamp(s.shadeRamp)`, never
 `paletteIndexOf(s)` — so stepping a value never recolors the editor itself. The band shows the working
-palette's colors directly. The host's render callback has the screen's case:
+palette's colors directly.
+
+**While `previewing` is set the held preview takes the screen**, from the editor and from any question.
+Its two layers are drawn entirely through the custom set, `kCustomRamp`, whatever the settings say,
+because the preview is where the palette is judged:
+
+| Layer | Holds |
+|---|---|
+| `editor-backdrop` | `PreviewBackdrop(atlas, kCustomRamp)`: the plain backdrop with columns `kWallLeftColumn` (0) and `kWallRightColumn` (19) replaced, row by row, by the playfield's own left wall from `kTypeAGameplayTilemap`, so the bricks repeat as they do beside the well. They are background cells through the content palette, which draws the brick's lightest shade as a color |
+| `editor-preview` | the heading and its asterisk, as the editor draws them, then `PalettePreview(atlas, kCustomRamp)`: `selected` through `SelectedGlyphs`, `unselected` through `Glyphs` and `dimmed` through `DimGlyphs`, each centered at `previewWordY(i)`, then `PiecePreview("preview-piece", …)` where the Palette screen draws its pieces. No regions |
+
+Nothing else is drawn while it is up: no arrow, no preset row, no labels, no shade rows, no cursor and
+no hint. The words and the pieces stand between the two walls; `kPreviewWordPitch` sets the words'
+spacing and moves nothing else. The host's render callback has the screen's case:
 
 ```cpp
 case kirpich::GameState::PALETTE_EDITOR: {

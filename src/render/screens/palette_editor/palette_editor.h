@@ -24,6 +24,11 @@
 // step that changes the value writes the working palette through the wiring's `apply` and then its
 // `save`. A keeps the value; B puts back the value it had when it was entered.
 //
+// Holding Select shows the held preview in every mode - the walk, an entered value, a question - for
+// exactly as long as the button is down. While it is up no table runs: no press moves, steps, answers
+// or leaves, and nothing is cued. On release the editor is where it was, a question still up and an
+// entered value still entered at its place.
+//
 // Input is one dispatch table per mode - the walk, an entered value, a question - so what a button
 // does is data a reader sees in one place. The screen's own state is GameContext::paletteEditor.
 
@@ -61,8 +66,9 @@ void openPaletteEditor(GameContext& game, const CustomPalettes* palettes);
 [[nodiscard]] bool paletteEditorActionCanAct(PaletteEditorRow action, std::uint8_t preset,
                                              const CustomPalettes* palettes) noexcept;
 
-// One frame: blink the cursor, then the question's table while a question is up, else the entered
-// value's frame while a value is entered, else the walk's table.
+// One frame: blink the cursor and record whether Select is held as PaletteEditorState::previewing.
+// While it is held the frame ends there; otherwise the question's table while a question is up, else
+// the entered value's frame while a value is entered, else the walk's table.
 void paletteEditor(GameContext& game, const SettingsWiring& settings,
                    const CustomPaletteWiring& palettes);
 

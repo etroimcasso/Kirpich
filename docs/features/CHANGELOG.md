@@ -8,6 +8,12 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-10-20
+
+- **Custom palettes** 🟡 → ✅ — the palette editor and its held preview complete the feature: the four
+  shades entered in decimal with load, save and clear on ninety-nine preset slots, and Select held on
+  the editor showing the palette on the pieces, the three text inks and the playfield's brick wall.
+
 ## 2026-10-19
 
 - **Custom palettes** ⬜ → 🟡 — the foundation: one live custom palette set beside the eighty ramps,

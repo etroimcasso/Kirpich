@@ -430,6 +430,10 @@ bool paletteEditorActionCanAct(PaletteEditorRow action, std::uint8_t preset,
 void paletteEditor(GameContext& game, const SettingsWiring& settings,
                    const CustomPaletteWiring& palettes) {
     blinkScreenCursor(game);
+    game.paletteEditor.previewing = held(game, Action::Select);
+    if (game.paletteEditor.previewing) {
+        return;
+    }
     if (game.paletteEditor.question != PaletteEditorQuestion::NONE) {
         dispatch(game, settings, palettes, kQuestionBinds);
     } else if (game.paletteEditor.entering) {

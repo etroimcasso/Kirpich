@@ -63,6 +63,7 @@ add_library(kirpich-lib STATIC
     render/components/page_arrows.cpp
     render/components/scroller_arrows.cpp
     render/components/piece_shape.cpp
+    render/components/piece_preview.cpp
     render/components/yes_no_question.cpp
     render/sprites.cpp
     render/screens/achievements/badge.cpp
@@ -76,9 +77,10 @@ add_library(kirpich-lib STATIC
     render/screens/controls/screen.cpp
     render/screens/display_settings/screen.cpp
     render/screens/palette_editor/palette_editor.cpp
+    render/screens/palette_editor/palette_preview.cpp
+    render/screens/palette_editor/preview_backdrop.cpp
     render/screens/palette_editor/screen.cpp
     render/screens/palette_settings/ramp_swatch.cpp
-    render/screens/palette_settings/piece_preview.cpp
     render/screens/palette_settings/screen.cpp
     render/settings_overlay.cpp
     render/stats_pages.cpp

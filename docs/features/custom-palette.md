@@ -1,8 +1,7 @@
 # Custom palettes
 
 **Date:** 2026-10-19
-**Status:** In progress — the palette set, the document, the Palette screen's selector and the palette
-editor with its load, save and clear are built; the held preview is still to come.
+**Status:** Complete
 
 ## Concept
 
@@ -13,8 +12,6 @@ ramp 80 through every slot a palette has been saved into, so a saved palette is 
 is.
 
 ## What the player gets
-
-When the feature is complete:
 
 - **The Palette screen** offers its eighty ramps and then every saved custom palette, in slot order.
   A saved palette reads `C` and its slot number, `C01` to `C99`. A custom palette in use that is saved
@@ -58,9 +55,16 @@ When the feature is complete:
   pick the place, Up and Down step the value by it - clamped to 0-255, repeating while held - A keeps
   it and B puts back what it was. `a confirms b cancels` stands at the bottom meanwhile. Every step is
   saved as it is made, so a palette being edited survives a relaunch.
+- **The held preview**: while Select is held, in any mode of the editor, the screen shows the working
+  palette as the game will use it — the heading, the words `selected`, `unselected` and `dimmed` in the
+  three inks text is drawn in, the seven pieces where the Palette screen shows them, and a column of
+  the playfield's brick wall down each edge of the screen. It lasts exactly as long as the button is
+  down; nothing on the editor moves, steps or answers meanwhile, and on release the editor is where it
+  was, an entered value still entered and a question still up.
 
 The editor itself is drawn through the built-in ramp underneath, so it never recolors while a value
-steps; the band shows the colors as they are.
+steps; the band shows the colors as they are. The held preview is drawn through the custom palette,
+whether or not it is the one in use.
 
 ## Design decisions
 
@@ -116,9 +120,25 @@ only slot would otherwise leave the Palette screen reading `C` with the colors s
 goes back to the built-in ramp the player chose underneath it, as stepping off the slots does; the
 working palette stays as it was.
 
-**Every position on the editor is a pixel.** Nothing on it is placed on the background's cell grid;
-its layout is its own, in `layout.h`, with the space between the shade rows and the arrows' distance
-from a digit each one number.
+**Every position on the editor is a pixel.** Nothing on it is placed on the background's cell grid but
+the held preview's two brick columns; its layout is its own, in `layout.h`, with the space between the
+shade rows, the arrows' distance from a digit and the space between the preview's words each one
+number.
+
+**The held preview is the one part of the editor drawn through the custom palette.** Every part of it
+— the backdrop, the bricks, the heading, the words and the pieces — draws through the custom set, so
+the player judges the palette in exactly the palettes the game will use. It is a level, read every
+frame, rather than a mode entered and left: holding Select shows it, releasing ends it, and no input
+table runs while it is up, so the editor resumes untouched. It reuses the Palette screen's piece
+preview rather than drawing its own.
+
+**The bricks stand at the two screen edges, as background cells.** The wall is the playfield's own left
+wall, read from the playfield's tilemap row by row, so its three tiles repeat exactly as they do beside
+the well. It is drawn as cells of the backdrop through the content palette, because the brick's
+lightest shade is a real color there; drawn as sprites through an object palette, that shade would be
+see-through. The two edges were chosen over the playfield's own columns because the heading and the
+widest row of pieces both cross where the well's right wall would stand; at the edges the bricks flank
+everything and touch nothing. These two columns are the one thing on the screen placed by cell.
 
 **The order of a step onto a slot.** The atlas is told the colors, then the document is written, then
 the setting is stored — so a frame never names colors the set does not yet hold.
@@ -138,6 +158,8 @@ are what draws. The clamp is the only check a value gets.
 | The Palette screen's walk | `src/systems/palette_settings_screen.h` — `CustomPaletteWiring`, `paletteCanStep` |
 | The Palette screen's picture | `src/render/screens/palette_settings/screen.cpp` — the `C<nn>` / `C` value, the arrows, every part through the palette in use |
 | The palette editor | `src/render/screens/palette_editor/` — `PaletteEditorState`, the logic (`openPaletteEditor`, `paletteEditor`, `steppedValue`, `presetCanStep`, `paletteEditorActionCanAct`), `layout.h`, `PaletteEditorScreen` |
+| The held preview | `PaletteEditorState::previewing`, set each frame from Select held in `paletteEditor`; `PreviewBackdrop` (`preview_backdrop.h`) and `PalettePreview` (`palette_preview.h`) beside the screen; `kPreviewWords`, `kPreviewWordPitch` and the wall columns in `layout.h` |
+| The seven pieces | `src/render/components/piece_preview.h` — `PiecePreview(keyStem, atlas, ramp)`, drawn by the Palette screen as `palette-piece` and by the held preview as `preview-piece` |
 | One channel of a palette | `src/state/custom_palettes.h` — `ColorChannel`, `channelValue`, `setChannelValue` |
 | The selected text ink and the asterisk | `src/render/tile_atlas.h` — `RampPalettes::fontSpriteSelected`, `TileAtlas::glyphExtras`; `src/render/glyph_extras.h`; `SelectedGlyphs` in `src/render/components/glyphs.h` |
 
@@ -150,7 +172,6 @@ The engine-side detail is in [`../engine/settings.md`](../engine/settings.md).
 
 ## Open questions / future work
 
-- The held preview: the pieces, the three text states (ink, dimmed and selected, each now a palette of
-  its own) and the wall tiles, which are background tiles and so are drawn as cells.
-- The editor's spacing — the distance between shade rows and the arrows' distance from a digit — and
-  the selected shade, are to be judged on a running build.
+- Three spacings are set by eye on a running build: the distance between shade rows
+  (`kEntryPitch`), the arrows' distance from a digit (`kArrowRise`) and the distance between the held
+  preview's words (`kPreviewWordPitch`).

@@ -96,6 +96,7 @@ Sprites Arrow(std::string key, int x, int y, ArrowDirection direction, std::int3
               const TileAtlas& atlas, std::uint8_t ramp);
 Sprites PageArrows(std::string_view keyStem, bool up, bool down,
                    const TileAtlas& atlas, std::uint8_t ramp);
+Sprites PiecePreview(std::string_view keyStem, const TileAtlas& atlas, std::uint8_t ramp);
 DrawLayer YesNoQuestion(std::string_view key, std::string_view title, std::string_view firstLine,
                         std::string_view secondLine, bool yes, bool blinkOn,
                         const TileAtlas& atlas, std::uint8_t ramp);
@@ -118,6 +119,10 @@ copyright-and-title art, pointing `RIGHT` as drawn, `LEFT` flipped, `UP` and `DO
 Every arrow the render layer draws is one. `PageArrows` is a screen's pair of page arrows built from
 it: `<keyStem>-up` above the heading and `<keyStem>-down` below the body, on the center column, each
 only while its flag is set, at `kPageArrowZ` (100).
+
+`PiecePreview` is the seven pieces at their spawn orientation in two centered rows, L J I O over S Z
+T, at a fixed place every screen shares (`kPiecePreviewFirstRowY`, `kPiecePreviewSecondRowY`), each
+part named `<keyStem>-<kind>-<part>`.
 
 `YesNoQuestion` is the question that guards an action that cannot be taken back, as the layer it takes
 the screen with (key `key`, depth `kQuestionZ`, 10): the title on the heading row, the question on two

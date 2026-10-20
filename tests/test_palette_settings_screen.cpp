@@ -807,8 +807,8 @@ TEST(PaletteSettingsScreen, TheSevenPiecesAreAllOnScreenInTwoCenteredRows) {
         const int right = boxes[last - 1].right;
         EXPECT_LE(std::abs(left - (kScreenWidth - right)), 1) << "the row starting " << first;
     };
-    checkRow(0, 4, layout::kPreviewFirstRowY);
-    checkRow(4, kirpich::kPieceKindCount, layout::kPreviewSecondRowY);
+    checkRow(0, 4, kirpich::render::kPiecePreviewFirstRowY);
+    checkRow(4, kirpich::kPieceKindCount, kirpich::render::kPiecePreviewSecondRowY);
 
     for (std::size_t a = 0; a < boxes.size(); ++a) {
         for (std::size_t b = a + 1; b < boxes.size(); ++b) {

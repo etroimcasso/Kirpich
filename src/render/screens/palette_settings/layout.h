@@ -4,8 +4,8 @@
 //
 // The heading, the palette row and the cursor are derived from the settings screens' shared cell grid
 // (systems/settings_screen.h, through render/components/option_row.h), so they sit where the settings screen puts
-// its own. The swatch and the piece preview are this screen's own, and their numbers are here. Shared
-// by the components that draw them and by the tests that read them back.
+// its own. The swatch is this screen's own, and its numbers are here. Shared by the components that
+// draw it and by the tests that read them back.
 
 #include <cstddef>
 #include <cstdint>
@@ -13,6 +13,7 @@
 
 #include "render/background.h"  // kVisibleCols, kVisibleRows
 #include "render/components/option_row.h"
+#include "render/components/piece_preview.h"  // kPiecePreviewFirstRowY
 #include "systems/settings_screen.h"
 
 namespace kirpich::render::palette_settings {
@@ -38,24 +39,12 @@ inline constexpr int kSwatchWidth   = kSwatchSquare * kSwatchSquares;
 inline constexpr int kSwatchX       = (kScreenWidth - kSwatchWidth) / 2;
 inline constexpr int kSwatchY       = optionPixels(kPaletteLine + 1);
 
-// The piece preview: the seven shapes in two rows, each row centered on the shapes' own widths with
-// a cell between neighbors. The rows are placed by their tops; every shape is at most two cells tall,
-// so the second row's top leaves a cell clear under the first.
-inline constexpr int         kPreviewFirstRowY  = 80;
-inline constexpr int         kPreviewSecondRowY = 104;
-inline constexpr int         kPreviewGap        = kOptionCell;
-inline constexpr int         kPreviewShapeSpan  = 2 * kOptionCell;  // the tallest spawn shape
-inline constexpr std::size_t kPreviewFirstRowCount = 4;  // L J I O, then S Z T
-
-static_assert(kPreviewFirstRowY >= kSwatchY + kSwatchSquare,
+// The piece preview stands at its own fixed place (render/components/piece_preview.h), under the
+// swatch.
+static_assert(kPiecePreviewFirstRowY >= kSwatchY + kSwatchSquare,
               "the piece preview runs into the swatch above it");
-static_assert(kPreviewSecondRowY >= kPreviewFirstRowY + kPreviewShapeSpan,
-              "the preview's two rows overlap");
-static_assert(kPreviewSecondRowY + kPreviewShapeSpan <= kScreenHeight,
-              "the preview runs off the bottom of the screen");
 
-// The content draws over the backdrop; within it the pieces sit under the text.
+// The content draws over the backdrop.
 inline constexpr std::int32_t kContentZ = 10;
-inline constexpr std::int32_t kPieceZ   = 10;
 
 }  // namespace kirpich::render::palette_settings

@@ -8,10 +8,10 @@
 #include "render/components/glyphs.h"
 #include "render/components/option_row.h"
 #include "render/components/page_arrows.h"
+#include "render/components/piece_preview.h"
 #include "render/components/sprite_layer.h"
 #include "render/palettes.h"                  // kShadeRampCount
 #include "render/screens/palette_settings/layout.h"
-#include "render/screens/palette_settings/piece_preview.h"
 #include "render/screens/palette_settings/ramp_swatch.h"
 #include "systems/palette_settings_screen.h"  // paletteCanStep
 
@@ -55,7 +55,7 @@ Layers PaletteSettingsScreen(const kirpich::Settings& s, const kirpich::CustomPa
                       systems::paletteCanStep(s, &palettes, -1),
                       systems::paletteCanStep(s, &palettes, +1), atlas, index),
             blinkOn ? Glyphs("-", kCursorX, kCursorY, kPitch, atlas, index) : Sprites{},
-            PiecePreview(atlas, index),
+            PiecePreview("palette-piece", atlas, index),
             PageArrows("palette", /*up=*/false, /*down=*/true, atlas, index),
         }, LayerOptions{.regions = RampSwatch(atlas, index)}),
     };

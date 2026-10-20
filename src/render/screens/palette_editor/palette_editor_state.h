@@ -1,7 +1,8 @@
 #pragma once
 
 // What the palette editor is currently showing: which row and channel the cursor is on, which preset
-// the actions name, whether a value is being entered, and which question is up.
+// the actions name, whether a value is being entered, which question is up, and whether the held
+// preview has taken the screen.
 //
 // This is the screen's own state, not the player's. The palettes it edits live in
 // state/custom_palettes.h and outlive a reset; where the cursor sits does not. It is a GameContext
@@ -94,6 +95,10 @@ struct PaletteEditorState {
     // The question up, and the answer the cursor is on. A question opens on "no".
     PaletteEditorQuestion question  = PaletteEditorQuestion::NONE;
     bool                  answerYes = false;
+
+    // The held preview is up: Select was held on the frame the handler last ran. While it is set no
+    // input table runs, so every other field keeps its value and the editor resumes on release.
+    bool previewing = false;
 
     void reset() { *this = PaletteEditorState{}; }
 

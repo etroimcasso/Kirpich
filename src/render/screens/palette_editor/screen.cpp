@@ -13,9 +13,11 @@
 #include "render/components/page_arrows.h"
 #include "render/components/sprite_layer.h"
 #include "render/components/yes_no_question.h"
-#include "render/palettes.h"                               // clampShadeRamp
+#include "render/palettes.h"                               // clampShadeRamp, kCustomRamp
 #include "render/screens/palette_editor/layout.h"
 #include "render/screens/palette_editor/palette_editor.h"  // the logic's own answers
+#include "render/screens/palette_editor/palette_preview.h"
+#include "render/screens/palette_editor/preview_backdrop.h"
 
 namespace kirpich::render {
 
@@ -194,15 +196,32 @@ Regions ShadeBand(const ShadeRamp& working) {
     return out;
 }
 
+// The heading, and the asterisk after it while the working palette has unsaved changes. The editor and
+// the held preview both draw it from here.
+Sprites Heading(const kirpich::CustomPalettes& palettes, const TileAtlas& atlas,
+                std::uint8_t ramp) {
+    Sprites out = Glyphs(kHeading, kHeadingX, kHeadingY, kGlyph, atlas, ramp);
+    if (kirpich::hasUnsavedChanges(palettes)) {
+        const Sprites asterisk = Glyphs("*", kAsteriskX, kHeadingY, kGlyph, atlas, ramp);
+        out.insert(out.end(), asterisk.begin(), asterisk.end());
+    }
+    return out;
+}
+
+// The held preview: the heading, the three words and the seven pieces, all through the custom set.
+retropp::DrawLayer Preview(const kirpich::CustomPalettes& palettes, const TileAtlas& atlas) {
+    return SpriteLayer("editor-preview", kContentZ, {
+        Heading(palettes, atlas, kCustomRamp),
+        PalettePreview(atlas, kCustomRamp),
+    });
+}
+
 retropp::DrawLayer Editor(const kirpich::PaletteEditorState& ui,
                           const kirpich::CustomPalettes& palettes, bool blinkOn,
                           const TileAtlas& atlas, std::uint8_t ramp) {
-    const bool unsaved = kirpich::hasUnsavedChanges(palettes);
-
     return SpriteLayer("editor-content", kContentZ, {
         PageArrows("editor", /*up=*/true, /*down=*/false, atlas, ramp),
-        Glyphs(kHeading, kHeadingX, kHeadingY, kGlyph, atlas, ramp),
-        unsaved ? Glyphs("*", kAsteriskX, kHeadingY, kGlyph, atlas, ramp) : Sprites{},
+        Heading(palettes, atlas, ramp),
         Glyphs("preset", kLabelX, kPresetY, kGlyph, atlas, ramp),
         PresetNumber(ui.preset, palettes, atlas, ramp),
         systems::presetCanStep(ui.preset, &palettes, -1)
@@ -231,12 +250,15 @@ retropp::DrawLayer Editor(const kirpich::PaletteEditorState& ui,
 Layers PaletteEditorScreen(const kirpich::PaletteEditorState& ui, const kirpich::Settings& s,
                            const kirpich::CustomPalettes& palettes, bool blinkOn,
                            const TileAtlas& atlas) {
-    // The built-in ramp underneath, never the custom set, so stepping a value never recolors the
-    // editor itself.
+    // The editor draws through the built-in ramp underneath, never the custom set, so stepping a
+    // value never recolors the editor itself. The held preview is the one part drawn through the
+    // custom set: it is where the palette is judged.
     const std::uint8_t ramp = clampShadeRamp(s.shadeRamp);
     return {
-        BackgroundLayer("editor-backdrop", 0, Backdrop(atlas, ramp)),
-        ui.question != PaletteEditorQuestion::NONE
+        ui.previewing ? BackgroundLayer("editor-backdrop", 0, PreviewBackdrop(atlas, kCustomRamp))
+                      : BackgroundLayer("editor-backdrop", 0, Backdrop(atlas, ramp)),
+        ui.previewing ? Preview(palettes, atlas)
+        : ui.question != PaletteEditorQuestion::NONE
             ? YesNoQuestion("editor-question", questionTitle(ui.question),
                             questionFirstLine(ui.question),
                             questionSecondLine(ui.question, ui.preset), ui.answerYes, blinkOn,

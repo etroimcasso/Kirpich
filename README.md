@@ -39,7 +39,10 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   the original handheld's green, the eight color schemes Windows 3.1 shipped in its Control Panel,
   and forty-eight that keep a real color in their darkest shade instead of bottoming out at black,
   many of them crossing from one hue to another on the way up. The darkest shade is what the well's
-  walls and every locked block are drawn in, so it is most of what you look at.
+  walls and every locked block are drawn in, so it is most of what you look at. You can also make
+  your own: four colors, each red, green and blue entered in decimal from 0 to 255, kept in any of
+  ninety-nine slots and chosen on the same selector as the eighty. Holding Select while you edit shows
+  the palette on the pieces, the text and the well's brick wall.
 - **An optional ghost piece** showing where the falling piece will land. Disabled by default, so
   the game plays exactly as the cartridge does until the player opts in.
 - **Persistent high scores.** A qualifying round is ranked, named on the original letter-wheel
