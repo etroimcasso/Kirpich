@@ -4,10 +4,11 @@
 // into the background map: the settings screen's pages, a carousel's options, a list's rows past its
 // window, and a statistics branch's pages.
 //
-// Each is the game's own selector tile turned a quarter turn, at the shared column, one above the
-// heading and one below the body (src/systems/settings_screen.h). An arrow is drawn only where there
-// is somewhere to go that way, so the ends of a range are visible rather than something a player
-// finds by pressing.
+// Each is the pair PageArrows draws (render/components/page_arrows.h) - the game's own selector tile
+// turned a quarter turn, at the shared column, one above the heading and one below the body - with
+// the conditions and the name that screen gives them. An arrow is drawn only where there is somewhere
+// to go that way, so the ends of a range are visible rather than something a player finds by
+// pressing.
 
 #include <cstddef>
 #include <cstdint>
@@ -20,14 +21,9 @@
 
 namespace kirpich::render {
 
-// The page arrow, as a sprite: the game's own selector tile turned a quarter turn, so the arrow that
-// says "there is another page" is the same arrow that points at everything else.
-//
-// It is a sprite rather than an object because an object carries only the two flips the hardware has,
-// and a flip cannot stand a sideways triangle upright — a quarter turn can. Append the result to the
-// sprites the object buffer produced, before they are wrapped as the frame's sprite layer.
-//
-// Empty on a page with nothing past it in that direction.
+// The settings screen's page arrows, named `settings-page-up` / `settings-page-down`: up while a page
+// precedes the one shown, down while one follows it. Append the result to the sprites the object
+// buffer produced, before they are wrapped as the frame's sprite layer.
 [[nodiscard]] std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui,
                                                               std::uint8_t ramp,
                                                               const TileAtlas& atlas);

@@ -56,6 +56,13 @@ constexpr TileAtlas makeAtlas() {
         atlas.palettes[ramp].font    = fontPaletteFor(ramp);
         atlas.palettes[ramp].content = contentPaletteFor(ramp);
     }
+    // The custom set, numbered as the index that selects it, with colors unlike any ramp's.
+    atlas.custom.font    = fontPaletteFor(kirpich::render::kCustomRamp);
+    atlas.custom.content = contentPaletteFor(kirpich::render::kCustomRamp);
+    atlas.customShades   = kirpich::render::ShadeRamp{.darkest  = {.r = 1, .g = 2, .b = 3},
+                                                      .dark     = {.r = 4, .g = 5, .b = 6},
+                                                      .light    = {.r = 7, .g = 8, .b = 9},
+                                                      .lightest = {.r = 10, .g = 11, .b = 12}};
     return atlas;
 }
 
@@ -195,6 +202,63 @@ TEST(BackgroundBridge, EveryRampDrawsTheSameArtThroughItsOwnPalettes) {
     // A ramp the build does not offer clamps rather than reading past the set it has.
     EXPECT_EQ(kirpich::render::resolveTile(0, TileSheet::GAMEPLAY, kAtlas, 200).palette,
               fontPaletteFor(kirpich::render::kShadeRampCount - 1));
+}
+
+// ── Test 1c: TheCustomSetIsOneMoreIndex ─────────────────────────────────────────────────────────────
+// kCustomRamp draws the same art as every ramp through the atlas's custom set, its colors are the
+// set's current ones rather than the table's, an index past it still clamps to the last built-in,
+// and the eight palettes a ramp produces are arranged the same way whether they are uploaded for a
+// built-in or written over the custom set.
+TEST(BackgroundBridge, TheCustomSetIsOneMoreIndex) {
+    using kirpich::render::kCustomRamp;
+    using kirpich::render::kShadeRampCount;
+
+    for (const TileSheet sheet :
+         {TileSheet::COPYRIGHT_TITLE, TileSheet::GAMEPLAY, TileSheet::MULTIPLAYER_BURAN}) {
+        for (int index = 0; index <= 0xFF; ++index) {
+            const auto i       = static_cast<std::uint8_t>(index);
+            const auto custom  = kirpich::render::resolveTile(i, sheet, kAtlas, kCustomRamp);
+            const auto atFirst = kirpich::render::resolveTile(i, sheet, kAtlas, 0);
+            const bool isFont  = kirpich::render::locateTile(i, sheet).source == TileSource::FONT;
+
+            EXPECT_EQ(custom.atlas, atFirst.atlas) << "index " << index;
+            EXPECT_EQ(custom.cell, atFirst.cell) << "index " << index;
+            EXPECT_EQ(custom.palette,
+                      isFont ? fontPaletteFor(kCustomRamp) : contentPaletteFor(kCustomRamp))
+                << "index " << index;
+        }
+    }
+
+    // The set a palette index names, and the one past the custom set clamping to the last built-in.
+    EXPECT_EQ(&kirpich::render::palettesFor(kAtlas, kCustomRamp), &kAtlas.custom);
+    EXPECT_EQ(&kirpich::render::palettesFor(kAtlas, 5), &kAtlas.palettes[5]);
+    EXPECT_EQ(&kirpich::render::palettesFor(kAtlas, 200), &kAtlas.palettes[kShadeRampCount - 1]);
+
+    // The colors something shows rather than draws through.
+    const auto shown = kirpich::render::shadesOf(kAtlas, kCustomRamp);
+    EXPECT_EQ(shown[0], kAtlas.customShades.darkest);
+    EXPECT_EQ(shown[1], kAtlas.customShades.dark);
+    EXPECT_EQ(shown[2], kAtlas.customShades.light);
+    EXPECT_EQ(shown[3], kAtlas.customShades.lightest);
+    EXPECT_EQ(kirpich::render::shadesOf(kAtlas, 5), kirpich::render::rampColours(5));
+    EXPECT_EQ(kirpich::render::shadesOf(kAtlas, 200),
+              kirpich::render::rampColours(static_cast<std::uint8_t>(kShadeRampCount - 1)));
+
+    // One builder for every set: the eight arrangements, each from the ramp's own four shades, the
+    // object ones with their last entry see-through.
+    const kirpich::render::ShadeRamp& r = kirpich::render::kShadeRamps[3];
+    const kirpich::render::RampPaletteColors c = kirpich::render::rampPaletteColors(r);
+    const retropp::Rgba8 clear = kirpich::render::kShadeTransparent;
+    using Two  = std::array<retropp::Rgba8, 2>;
+    using Four = std::array<retropp::Rgba8, 4>;
+    EXPECT_EQ(c.font, (Two{r.darkest, r.lightest}));
+    EXPECT_EQ(c.content, (Four{r.darkest, r.dark, r.light, r.lightest}));
+    EXPECT_EQ(c.fontDim, (Two{r.light, r.lightest}));
+    EXPECT_EQ(c.fontSprite, (Two{r.darkest, clear}));
+    EXPECT_EQ(c.sprite0, (Four{r.darkest, r.dark, r.light, clear}));
+    EXPECT_EQ(c.sprite1, (Four{r.darkest, r.lightest, r.light, clear}));
+    EXPECT_EQ(c.fontSpriteDim, (Two{r.light, clear}));
+    EXPECT_EQ(c.spriteDim, (Four{r.light, r.light, r.lightest, clear}));
 }
 
 // ── Test 2: ComposeReadsTheVisibleWindowAndOnlyThat ─────────────────────────────────────────────────

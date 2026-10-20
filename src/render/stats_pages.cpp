@@ -4,8 +4,8 @@
 
 #include <kirpich/piece_kind.h>
 
-#include "render/piece_shape.h"
-#include "systems/stats_pages.h"    // the grid's geometry and which page is up
+#include "render/components/piece_shape.h"
+#include "systems/stats_pages.h"  // the grid's geometry and which page is up
 
 namespace kirpich::render {
 

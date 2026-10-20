@@ -39,7 +39,7 @@ class GameStateDispatcher;
 // all read their geometry from here, so a row on one of them lines up with a row on any other.
 //
 // Cells, not pixels: (row, column) in the background map, the same units the rest of the screen uses.
-// A component that places sprites multiplies by the cell's eight pixels (src/render/option_row.h).
+// A component that places sprites multiplies by the cell's eight pixels (src/render/components/option_row.h).
 
 // An option row's place on its page. Every page lays its rows out the same way, and so does every
 // screen the page opens.

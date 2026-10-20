@@ -170,7 +170,7 @@ std::vector<retropp::Region> ghostPieceRegions(const systems::GameContext& game,
 
     const int  dropRows = ghostDropRows(game);
     const auto drop     = static_cast<float>(dropRows * kSpriteSizePx);
-    const auto fill     = rampColours(ramp)[0];  // the darkest of the four
+    const auto fill     = shadesOf(atlas, ramp)[0];  // the darkest of the four
 
     // The cells the shadow is drawn in - the piece's own, moved down, less the ones the piece has
     // already descended onto. Taken from ghostShadowCells rather than worked out again here, so the

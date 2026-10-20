@@ -78,23 +78,56 @@ at it.
 
 ## The components any screen can use
 
-These live at the render layer rather than under a screen's own folder, because more than one screen
-can use them.
+These live in `src/render/components/`, one to a file, because more than one screen can use them. A
+screen's own components live in its folder under `src/render/screens/`.
 
 ```cpp
 Sprites Glyphs(std::string_view text, int x, int y, int pitch,
                const TileAtlas& atlas, std::uint8_t ramp);
+Sprites DimGlyphs(std::string_view text, int x, int y, int pitch,
+                  const TileAtlas& atlas, std::uint8_t ramp);
+Sprites SelectedGlyphs(std::string_view text, int x, int y, int pitch,
+                       const TileAtlas& atlas, std::uint8_t ramp);
 std::vector<std::string_view> wrapText(std::string_view text, std::size_t width);
 Cells   Backdrop(const TileAtlas& atlas, std::uint8_t ramp);
 Regions SelectionCorners(std::string_view key, float x, float y, float w, float h,
                          retropp::Rgba8 colour);
+Sprites Arrow(std::string key, int x, int y, ArrowDirection direction, std::int32_t z,
+              const TileAtlas& atlas, std::uint8_t ramp);
+Sprites PageArrows(std::string_view keyStem, bool up, bool down,
+                   const TileAtlas& atlas, std::uint8_t ramp);
+Sprites PiecePreview(std::string_view keyStem, const TileAtlas& atlas, std::uint8_t ramp);
+DrawLayer YesNoQuestion(std::string_view key, std::string_view title, std::string_view firstLine,
+                        std::string_view secondLine, bool yes, bool blinkOn,
+                        const TileAtlas& atlas, std::uint8_t ramp);
 ```
 
 `Glyphs` is a run of text as one sprite per character, placed by pixel rather than on the eight-pixel
 cell grid, drawn through an object palette so only the ink lands. **The font has the letters, the
-digits, a period and a hyphen and nothing else** — a character it cannot spell keeps its place in the
-run and draws nothing. Each glyph is named for where it sits, so a run holds its identity between
-frames without the caller naming it.
+digits, a period and a hyphen; an asterisk draws from the port's own extras sheet**
+(`src/render/glyph_extras.h`) through the same palettes. A character neither can spell keeps its place
+in the run and draws nothing. Each glyph is named for where it sits, so a run holds its identity
+between frames without the caller naming it.
+
+`DimGlyphs` and `SelectedGlyphs` are the same run through the ramp's other two font object palettes,
+under the same names: dim is inked in the light shade, for text present but with nothing to do;
+selected is inked in the dark shade, for text being edited. A run that changes between the three keeps
+its identity.
+
+`Arrow` is one sprite: the game's selector tile (`kSelectorTile`, `src/state/display_state.h`) from the
+copyright-and-title art, pointing `RIGHT` as drawn, `LEFT` flipped, `UP` and `DOWN` turned a quarter.
+Every arrow the render layer draws is one. `PageArrows` is a screen's pair of page arrows built from
+it: `<keyStem>-up` above the heading and `<keyStem>-down` below the body, on the center column, each
+only while its flag is set, at `kPageArrowZ` (100).
+
+`PiecePreview` is the seven pieces at their spawn orientation in two centered rows, L J I O over S Z
+T, at a fixed place every screen shares (`kPiecePreviewFirstRowY`, `kPiecePreviewSecondRowY`), each
+part named `<keyStem>-<kind>-<part>`.
+
+`YesNoQuestion` is the question that guards an action that cannot be taken back, as the layer it takes
+the screen with (key `key`, depth `kQuestionZ`, 10): the title on the heading row, the question on two
+centered lines, and `no` and `yes` with a hyphen cursor before the answer `yes` names, drawn only while
+`blinkOn`.
 
 `wrapText` breaks a passage into lines of at most `width` characters on word boundaries, for a caller
 that then draws each line with `Glyphs`. A word longer than the width takes a line to itself and runs
@@ -112,7 +145,7 @@ the brackets are and how far they run from each corner.
 ## Declaring a screen
 
 A screen returns its layers as a list, and a gate is a ternary inside the declaration
-(`src/render/achievements/screen.cpp`):
+(`src/render/screens/achievements/screen.cpp`):
 
 ```cpp
 Layers AchievementsScreen(const AchievementScreenState& ui, const AchievementState& earned,
@@ -200,15 +233,20 @@ done. Neither of the two handlers that call it knows the screen exists.
 
 ## Adding a screen
 
+The palette editor keeps every file it has in its own folder, `src/render/screens/palette_editor/`:
+its state (`palette_editor_state.h`), its logic (`palette_editor.{h,cpp}`), its layout and its screen
+function.
+
 1. Mint the game states — an init and a loop, or a loop alone (see above) — and raise
    `kGameStateCount`.
 2. Add the screen's state as a `GameContext` member, with `reset()` and a defaulted `operator==`.
 3. Write the logic module: the cursor law, the input tables, the two handlers, the installer. No
    drawing type appears in it.
 4. Write `layout.h` — every position the screen uses, in viewport pixels, shared by the components
-   that draw them and the tests that read them back.
-5. Write the components, one to a file. Anything a second screen could use goes at the render layer
-   instead of under this screen's folder.
+   that draw them and the tests that read them back. Nothing a new screen draws is placed on the
+   background's cell grid.
+5. Write the components, one to a file. Anything a second screen could use goes in
+   `src/render/components/` instead of under this screen's folder.
 6. Write the screen function returning its layers, and a predicate naming the state it is shown in.
 7. Give `main.cpp` the branch that hands it the frame.
 8. Test against what the components return — call one with known parameters and read back its

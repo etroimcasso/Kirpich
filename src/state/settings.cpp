@@ -6,7 +6,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "render/palettes.h"  // clampShadeRamp
+#include "render/palettes.h"  // clampShadeRamp, kCustomRamp
 
 namespace kirpich {
 
@@ -16,12 +16,17 @@ std::uint8_t clampWindowScale(int scale) {
     return static_cast<std::uint8_t>(scale);
 }
 
+std::uint8_t paletteIndexOf(const Settings& settings) noexcept {
+    return settings.customPalette ? render::kCustomRamp : render::clampShadeRamp(settings.shadeRamp);
+}
+
 std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings) {
     return {static_cast<std::uint8_t>(settings.fullscreen ? 1 : 0), settings.windowScale,
             settings.shadeRamp, static_cast<std::uint8_t>(settings.ghostPiece ? 1 : 0),
             static_cast<std::uint8_t>(settings.newModes ? 1 : 0),
             static_cast<std::uint8_t>(settings.fixAudio ? 1 : 0),
-            static_cast<std::uint8_t>(settings.showStats ? 1 : 0)};
+            static_cast<std::uint8_t>(settings.showStats ? 1 : 0),
+            static_cast<std::uint8_t>(settings.customPalette ? 1 : 0)};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
@@ -36,6 +41,7 @@ bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
     if (image.size() > 4) settings.newModes = image[4] != 0;
     if (image.size() > 5) settings.fixAudio = image[5] != 0;
     if (image.size() > 6) settings.showStats = image[6] != 0;
+    if (image.size() > 7) settings.customPalette = image[7] != 0;
     return true;
 }
 
@@ -69,6 +75,14 @@ std::vector<std::byte> migrateSettingsV4ToV5(std::vector<std::byte> payload) {
     return payload;
 }
 
+std::vector<std::byte> migrateSettingsV5ToV6(std::vector<std::byte> payload) {
+    // And again: version 6 carries the custom-palette flag, off for a document written before a
+    // custom palette could be in use - such a player was drawing through a built-in ramp, and the
+    // ramp byte they chose is still there to draw through.
+    payload.push_back(std::byte{0});
+    return payload;
+}
+
 bool saveSettings(const Settings& settings, retropp::SaveStore& store) {
     const auto image = encodeSettings(settings);
     return store.write("settings", kSettingsSchemaVersion,
@@ -84,6 +98,7 @@ bool loadSettings(retropp::SaveStore& store, Settings& settings) {
     store.registerMigration(2, migrateSettingsV2ToV3);
     store.registerMigration(3, migrateSettingsV3ToV4);
     store.registerMigration(4, migrateSettingsV4ToV5);
+    store.registerMigration(5, migrateSettingsV5ToV6);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

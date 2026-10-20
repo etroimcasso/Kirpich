@@ -18,6 +18,7 @@
 
 #include <kirpich/game_state.h>
 
+#include "render/screens/palette_editor/palette_editor_state.h"
 #include "state/achievement_notice_state.h"
 #include "state/achievement_state.h"
 #include "state/achievements_screen_state.h"
@@ -65,6 +66,13 @@ struct GameContext {
     // for a press. The bindings it edits are the player's and live outside the game state (see
     // state/controls_screen_state.h).
     ControlsScreenState controlsScreen;
+
+    // The palette editor's own state - which row and channel the cursor is on, which preset the
+    // actions name, whether a value is being entered, which question is up and whether the held
+    // preview is showing. The palettes it edits
+    // are the player's and live outside the game state (see
+    // render/screens/palette_editor/palette_editor_state.h).
+    PaletteEditorState paletteEditor;
 
     // The end-of-round notice's own state - what a finished round just earned and has still to show,
     // and where it was going when the notice took the frame (see state/achievement_notice_state.h).

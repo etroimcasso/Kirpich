@@ -1,5 +1,5 @@
 // The Controls screen — behavioral tests over its logic (src/systems/controls_screen.h) and its
-// components (src/render/controls/).
+// components (src/render/screens/controls/).
 //
 // Device-free. The platform's capture is a fake that holds one answer until it is asked again, as the
 // engine's does, and the frames that need the game's own press edge run through the real input system
@@ -24,11 +24,11 @@
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
-#include "render/controls/layout.h"
-#include "render/controls/names.h"
-#include "render/controls/screen.h"
-#include "render/glyphs.h"
+#include "render/components/glyphs.h"
 #include "render/palettes.h"
+#include "render/screens/controls/layout.h"
+#include "render/screens/controls/names.h"
+#include "render/screens/controls/screen.h"
 #include "retropp/input.h"
 #include "retropp/input_actions.h"
 #include "state/controls.h"

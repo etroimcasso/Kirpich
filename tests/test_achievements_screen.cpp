@@ -1,5 +1,5 @@
 // The achievements screen — behavioral tests over its logic (src/systems/achievements_screen.h) and
-// its components (src/render/achievements/).
+// its components (src/render/screens/achievements/).
 //
 // Device-free. The logic is pure state over the game aggregate, and the components are pure functions
 // returning primitives, so the atlas here is a plain value with distinguishable handles rather than
@@ -19,16 +19,16 @@
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
-#include "render/achievements/badge.h"
-#include "render/achievements/badge_grid.h"
-#include "render/achievements/badge_panel.h"
-#include "render/achievements/layout.h"
-#include "render/achievements/screen.h"
-#include "render/glyphs.h"
+#include "render/components/glyphs.h"
+#include "render/screens/achievements/badge.h"
+#include "render/screens/achievements/badge_grid.h"
+#include "render/screens/achievements/badge_panel.h"
+#include "render/screens/achievements/layout.h"
+#include "render/screens/achievements/screen.h"
 #include "retropp/input.h"
+#include "state/settings.h"
 #include "systems/achievements.h"
 #include "systems/achievements_screen.h"
-#include "state/settings.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/list_screen.h"

@@ -55,25 +55,30 @@
 
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
-#include "render/achievements/notice.h"
-#include "render/achievements/screen.h"
 #include "render/background.h"
-#include "render/controls/screen.h"
-#include "render/display_settings/screen.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
-#include "render/palette_settings/screen.h"
+#include "render/screens/achievements/notice.h"
+#include "render/screens/achievements/screen.h"
+#include "render/screens/controls/screen.h"
+#include "render/screens/display_settings/screen.h"
+#include "render/screens/palette_editor/palette_editor.h"
+#include "render/screens/palette_editor/screen.h"
+#include "render/screens/palette_settings/screen.h"
 #include "render/settings_overlay.h"
-#include "render/stats_pages.h"
-#include "render/type_c_difficulty.h"
 #include "render/sprites.h"
+#include "render/stats_pages.h"
 #include "render/tile_atlas.h"
+#include "render/type_c_difficulty.h"
 #include "state/achievement_persistence.h"
 #include "state/controls.h"
+#include "state/custom_palettes.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
+#include "systems/achievement_notice.h"
 #include "systems/achievements.h"
+#include "systems/achievements_screen.h"
 #include "systems/boot.h"
 #include "systems/controls.h"
 #include "systems/controls_screen.h"
@@ -87,16 +92,14 @@
 #include "systems/input.h"
 #include "systems/launch_scenes.h"
 #include "systems/line_clear.h"
-#include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
 #include "systems/palette_settings_screen.h"
 #include "systems/readouts.h"
+#include "systems/rising_floor.h"
 #include "systems/scoring.h"
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/stats.h"
-#include "systems/achievement_notice.h"
-#include "systems/achievements_screen.h"
 #include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -220,6 +223,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::loadSettings(saves, settings);
     kirpich::Controls controls = kirpich::kDefaultControls;
     kirpich::loadControls(saves, controls);
+    // The player's own palettes: the one being edited, which the game draws through while a custom
+    // palette is in use, and the ninety-nine slots they can save it into.
+    kirpich::CustomPalettes palettes;
+    kirpich::loadCustomPalettes(saves, palettes);
 
     const retropp::EngineConfig config{
         .identity     = identity,
@@ -307,7 +314,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
     const auto   riseFloor = kirpich::systems::makeRiseFloorHook(garbageFold);
 
     // ── The art ──────────────────────────────────────────────────────────────
-    const kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
+    // Mutable for one reason: the custom palette set's colors change in place when the working
+    // palette does. Given the working palette here, whether or not it is in use, so the set equals it
+    // from the first frame and stepping onto it later shows what the player left.
+    kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
+    kirpich::render::updateCustomPalette(renderer, tiles, palettes.working);
 
     // ── The game ─────────────────────────────────────────────────────────────
     kirpich::systems::GameContext game;
@@ -422,9 +433,25 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     // The screens the first settings page opens: the window's two settings, and the palette. They
     // edit the same settings through the same wiring, so a change made on either is applied and
-    // written out exactly as one made anywhere else.
+    // written out exactly as one made anywhere else. The Palette screen also reaches the player's
+    // custom palettes: stepping onto a saved slot puts it into use, which is a change to the atlas's
+    // custom set and a write of the palettes document.
+    //
+    // The palette editor, opened by the Palette screen's Down, edits the same custom palettes through
+    // the same wiring: every change to the working palette is put on the atlas and written out.
     kirpich::systems::installDisplaySettingsScreen(dispatcher, settingsWiring);
-    kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring);
+    const kirpich::systems::CustomPaletteWiring paletteWiring{
+        .palettes = &palettes,
+        .apply =
+            [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
+                kirpich::render::updateCustomPalette(renderer, tiles, shades);
+            },
+        .save = [&saves](const kirpich::CustomPalettes& current) {
+            kirpich::saveCustomPalettes(current, saves);
+        },
+    };
+    kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring, paletteWiring);
+    kirpich::systems::installPaletteEditor(dispatcher, settingsWiring, paletteWiring);
 
     // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
     // the press to bind, and on every binding hands the platform the action map the bindings now derive
@@ -628,6 +655,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
+        // The palette every screen draws through this frame: the built-in ramp the player chose, or
+        // the atlas's custom set while their custom palette is in use. One derivation, read once.
+        const std::uint8_t paletteIndex = kirpich::paletteIndexOf(settings);
+
         // The achievements screen is built from its own components: it hands back the layers it is,
         // so its frame is those rather than the background map and the object buffer every screen the
         // cartridge had goes through. Nothing below runs for it, and it writes neither of them.
@@ -635,7 +666,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
             retropp::FrameDrawState screen;
             screen.layers = kirpich::render::AchievementsScreen(
                 game.achievementScreen, game.achievements, game.screens.cursorVisible, tiles,
-                settings.shadeRamp);
+                paletteIndex);
             renderer.renderFrame(screen);
             return;
         }
@@ -644,7 +675,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         if (kirpich::render::achievementNoticeShown(game.flow.gameState)) {
             retropp::FrameDrawState screen;
             screen.layers = kirpich::render::AchievementNotice(
-                kirpich::systems::achievementOnNotice(game), tiles, settings.shadeRamp);
+                kirpich::systems::achievementOnNotice(game), tiles, paletteIndex);
             renderer.renderFrame(screen);
             return;
         }
@@ -663,7 +694,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
             case kirpich::GameState::PALETTE_SETTINGS: {
                 retropp::FrameDrawState screen;
                 screen.layers = kirpich::render::PaletteSettingsScreen(
-                    settings, game.screens.cursorVisible, tiles);
+                    settings, palettes, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::PALETTE_EDITOR: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::PaletteEditorScreen(
+                    game.paletteEditor, settings, palettes, game.screens.cursorVisible, tiles);
                 renderer.renderFrame(screen);
                 return;
             }
@@ -678,7 +716,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 retropp::FrameDrawState screen;
                 screen.layers = kirpich::render::ControlsScreen(
                     game.controlsScreen, controls, padFamily, game.screens.cursorVisible, tiles,
-                    settings.shadeRamp);
+                    paletteIndex);
                 renderer.renderFrame(screen);
                 return;
             }
@@ -686,9 +724,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 break;
         }
 
-        kirpich::render::composeBackground(game.display, tiles, cells, settings.shadeRamp);
+        kirpich::render::composeBackground(game.display, tiles, cells, paletteIndex);
         kirpich::render::composeSprites(game.engine, game.oamSources, game.display.sheet, simTicks,
-                                        tiles, sprites, settings.shadeRamp);
+                                        tiles, sprites, paletteIndex);
 
         // The settings screen's page arrow is the game's selector tile stood on end, which an object
         // cannot express — the hardware has two flips and no quarter turn — so it joins the object
@@ -697,14 +735,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         if (game.flow.gameState == kirpich::GameState::SETTINGS) {
             const auto arrows =
-                kirpich::render::settingsPageArrows(game.screens, settings.shadeRamp, tiles);
+                kirpich::render::settingsPageArrows(game.screens, paletteIndex, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
         }
 
         // The heart-mode indicator, beside a difficulty screen's heading. Gated rather than written
         // into the map, so leaving the screen takes it off the display with nothing to undo.
         if (const auto heart = kirpich::render::heartIndicatorSprite(
-                game.flow.gameState, game.flow.heartMode, tiles, settings.shadeRamp)) {
+                game.flow.gameState, game.flow.heartMode, tiles, paletteIndex)) {
             sprites.push_back(*heart);
         }
 
@@ -721,7 +759,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                                    game.screens.cursorVisible,
             };
             const auto values =
-                kirpich::render::riseValueSprites(selection, tiles, settings.shadeRamp);
+                kirpich::render::riseValueSprites(selection, tiles, paletteIndex);
             sprites.insert(sprites.end(), values.begin(), values.end());
         }
 
@@ -736,7 +774,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
             } else if (game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
                 count = kirpich::systems::kStatsOptionCount;
             }
-            const auto arrows = kirpich::render::carouselArrows(game.screens, settings.shadeRamp,
+            const auto arrows = kirpich::render::carouselArrows(game.screens, paletteIndex,
                                                                 tiles, count);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
         }
@@ -745,14 +783,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // that way. How long the list is was recorded by the screen as it painted.
         if (game.flow.gameState == kirpich::GameState::STATS_MENU) {
             const auto arrows =
-                kirpich::render::listArrows(game.screens, settings.shadeRamp, tiles);
+                kirpich::render::listArrows(game.screens, paletteIndex, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
         }
 
         // A paged screen's two arrows, under the same rule again: only where there is another page.
         if (game.flow.gameState == kirpich::GameState::STATS_PAGE) {
             const auto arrows =
-                kirpich::render::statsPageArrows(game.screens, settings.shadeRamp, tiles);
+                kirpich::render::statsPageArrows(game.screens, paletteIndex, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
         }
 
@@ -761,7 +799,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // counts the page writes into the map rather than written into cells themselves.
         if (kirpich::render::statsPieceShapesShown(game.flow.gameState, game.screens)) {
             const auto shapes =
-                kirpich::render::statsPieceShapeSprites(game.screens, tiles, settings.shadeRamp);
+                kirpich::render::statsPieceShapeSprites(game.screens, tiles, paletteIndex);
             sprites.insert(sprites.end(), shapes.begin(), shapes.end());
         }
 
@@ -773,7 +811,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // of it; on the frame it would grade the piece too. Nothing in the simulation knows about it.
         if (settings.ghostPiece) {
             background.regions =
-                kirpich::render::ghostPieceRegions(game, tiles, simTicks, settings.shadeRamp);
+                kirpich::render::ghostPieceRegions(game, tiles, simTicks, paletteIndex);
         }
 
         frame.layers.push_back(std::move(background));

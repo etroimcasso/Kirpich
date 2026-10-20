@@ -3,7 +3,7 @@
 // The Display settings screen's logic: which of its two rows the cursor is on, and what a press does
 // to that and to the player's settings. It draws nothing and names no drawing type - the picture is a
 // function of this state and of the settings, built by the components under
-// src/render/display_settings/.
+// src/render/screens/display_settings/.
 //
 // The screen opens from the settings screen's Display row and holds the window's two settings:
 // fullscreen, and the window size. Up and Down walk the two rows, stopping at either end; Left and

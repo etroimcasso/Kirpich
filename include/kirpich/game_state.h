@@ -107,6 +107,7 @@ enum class GameState : uint8_t {
     DISPLAY_SETTINGS       = 0x59,  // The window's settings: fullscreen and size
     PALETTE_SETTINGS       = 0x5A,  // The palette, with the pieces drawn in it
     CONTROLS_SETTINGS      = 0x5B,  // The player's key and controller button for each Game Boy button
+    PALETTE_EDITOR         = 0x5C,  // The player's own palette: its four shades and its presets
 };
 
 }  // namespace kirpich

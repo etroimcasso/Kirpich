@@ -106,8 +106,8 @@ inline constexpr std::uint16_t kCarriedCopyrightTiles = kGameplayTileBase - kCon
 // so one font palette serves whichever is selected.
 inline constexpr retropp::Rgba8 kShadeTransparent{.r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00};
 
-// The five palettes one shade ramp produces. A ramp changes what the four shades are; these are the
-// five ways the renderer needs them arranged, and every one of them is rebuilt per ramp.
+// The nine palettes one shade ramp produces. A ramp changes what the four shades are; these are the
+// nine ways the renderer needs them arranged, and every one of them is rebuilt per ramp.
 struct RampPalettes {
     retropp::PaletteId font{};     // two entries: the darkest shade and the lightest
     retropp::PaletteId content{};  // four entries: the whole ramp, darkest first
@@ -128,6 +128,11 @@ struct RampPalettes {
     // difference hold for every ramp, including one whose darkest shade is black.
     retropp::PaletteId fontSpriteDim{};
     retropp::PaletteId spriteDim{};
+
+    // The font drawn as an object, inked in the dark shade: text that is selected for editing. Darker
+    // than the dim font and lighter than the ink, so it reads apart from both on every ramp, a ramp
+    // whose darkest shade is black included.
+    retropp::PaletteId fontSpriteSelected{};
 };
 
 struct TileAtlas {
@@ -138,10 +143,54 @@ struct TileAtlas {
     // link-cable screens load the same sheet.
     retropp::AtlasId multiplayerBuran{};
 
+    // The glyphs the font lacks (render/glyph_extras.h), in the font's index convention, so they draw
+    // through the font palettes. Uploaded from source, not from an extracted sheet.
+    retropp::AtlasId glyphExtras{};
+
     // One set per shade ramp, all uploaded at startup. Switching ramps is choosing between them, the
     // same way choosing a tile sheet is: nothing is uploaded or released when a player changes one.
     std::array<RampPalettes, kShadeRampCount> palettes{};
+
+    // The player's custom palette: one more set, uploaded at startup from freshCustomPalette and
+    // changed in place by updateCustomPalette whenever the custom palette changes. Index kCustomRamp
+    // selects it. `customShades` is what the set currently draws, kept beside the handles for the
+    // components that show a palette's colors rather than draw through them (shadesOf).
+    RampPalettes custom{};
+    ShadeRamp    customShades = freshCustomPalette();
 };
+
+// The nine palettes one shade ramp produces, as colors: what uploadTileAtlas uploads per ramp and
+// what updateCustomPalette writes over the custom set. One builder for both, so the custom set is
+// arranged exactly as a built-in's is.
+struct RampPaletteColors {
+    std::array<retropp::Rgba8, 2> font{};
+    std::array<retropp::Rgba8, 4> content{};
+    std::array<retropp::Rgba8, 2> fontDim{};
+    std::array<retropp::Rgba8, 2> fontSprite{};
+    std::array<retropp::Rgba8, 4> sprite0{};
+    std::array<retropp::Rgba8, 4> sprite1{};
+    std::array<retropp::Rgba8, 2> fontSpriteDim{};
+    std::array<retropp::Rgba8, 4> spriteDim{};
+    std::array<retropp::Rgba8, 2> fontSpriteSelected{};
+
+    friend constexpr bool operator==(const RampPaletteColors&, const RampPaletteColors&) = default;
+};
+
+[[nodiscard]] RampPaletteColors rampPaletteColors(const ShadeRamp& shades) noexcept;
+
+// The set a palette index draws through: the custom set for kCustomRamp, otherwise the built-in ramp
+// the index names, clamped into the table as a stored number is.
+[[nodiscard]] const RampPalettes& palettesFor(const TileAtlas& atlas, std::uint8_t index) noexcept;
+
+// A palette index's four colors, darkest first, for anything that shows them rather than draws
+// through them: the custom set's current colors for kCustomRamp, the table's for a built-in.
+[[nodiscard]] std::array<retropp::Rgba8, 4> shadesOf(const TileAtlas& atlas,
+                                                     std::uint8_t     index) noexcept;
+
+// Give the custom set new colors. The nine handles keep their ids and draw `shades` from the next
+// frame on - one call per change, nine palette updates, one submission - and `customShades` records
+// what they now hold. Throws what Renderer::updatePalette throws on a GPU failure.
+void updateCustomPalette(retropp::Renderer& renderer, TileAtlas& atlas, const ShadeRamp& shades);
 
 // The four DMG shades, darkest first - the order the decode's inversion produces. They are the first
 // shade ramp (src/render/palettes.h), which is what a build draws in until a player picks another.
@@ -150,8 +199,8 @@ inline constexpr retropp::Rgba8 kShadeDark     = kShadeRamps[kDefaultShadeRamp].
 inline constexpr retropp::Rgba8 kShadeLight    = kShadeRamps[kDefaultShadeRamp].light;
 inline constexpr retropp::Rgba8 kShadeLightest = kShadeRamps[kDefaultShadeRamp].lightest;
 
-// Upload every sheet and both palettes. Call once, after the assets are present. Throws whatever
-// the engine's loaders throw when a file is missing or will not decode.
+// Upload every sheet, the glyphs the font lacks, every ramp's palettes and the custom set. Call once,
+// after the assets are present. Throws whatever the engine's loaders throw when a file is missing or will not decode.
 [[nodiscard]] TileAtlas uploadTileAtlas(retropp::Renderer& renderer);
 
 // A resolved cell: everything a TileCell needs to name a picture.
@@ -163,8 +212,9 @@ struct ResolvedTile {
     friend constexpr bool operator==(const ResolvedTile&, const ResolvedTile&) = default;
 };
 
-// locateTile, carried through to the uploaded handles. `ramp` picks which shade ramp's palettes the
-// cell is drawn through; out-of-range values clamp, so a stored ramp can never name nothing.
+// locateTile, carried through to the uploaded handles. `ramp` picks which palettes the cell is drawn
+// through - a built-in ramp's, or the custom set's for kCustomRamp; out-of-range values clamp, so a
+// stored ramp can never name nothing.
 [[nodiscard]] ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
                                        std::uint8_t ramp = kDefaultShadeRamp) noexcept;
 

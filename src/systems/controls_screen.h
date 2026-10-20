@@ -3,7 +3,7 @@
 // The Controls screen's logic: which cell the cursor is on, when the screen waits for a press, and what
 // a captured press does to the player's bindings. It draws nothing and names no drawing type - the
 // picture is a function of this state and of the bindings, built by the components under
-// src/render/controls/.
+// src/render/screens/controls/.
 //
 // The screen opens from the settings screen's Controls row. It lists the Game Boy's eight buttons in
 // rows, with a keyboard column and a controller column, and under them a row that restores the

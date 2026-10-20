@@ -1,5 +1,5 @@
 // The end-of-round notice — behavioral tests over its logic (src/systems/achievement_notice.h) and
-// its components (src/render/achievements/banner.h, notice.h), plus the two round exits that route
+// its components (src/render/screens/achievements/banner.h, notice.h), plus the two round exits that route
 // through it.
 //
 // Device-free. The logic is pure state over the game aggregate, and the components are pure functions
@@ -23,12 +23,12 @@
 #include <kirpich/game_type.h>
 
 #include "data/bounded_vec.h"
-#include "data/sfx.h"  // SquareSfxId
-#include "render/achievements/badge.h"  // badgeExtent
-#include "render/achievements/banner.h"
-#include "render/achievements/notice.h"
-#include "render/achievements/notice_layout.h"
-#include "render/glyphs.h"
+#include "data/sfx.h"                           // SquareSfxId
+#include "render/components/glyphs.h"
+#include "render/screens/achievements/badge.h"  // badgeExtent
+#include "render/screens/achievements/banner.h"
+#include "render/screens/achievements/notice.h"
+#include "render/screens/achievements/notice_layout.h"
 #include "retropp/input.h"
 #include "state/achievement_state.h"
 #include "systems/achievement_notice.h"

@@ -76,7 +76,7 @@ retropp::Sprite tileSprite(std::string key, std::size_t row, std::size_t col, st
         .z       = kSectionZ,
         .atlas   = art.atlas,
         .tile    = art.cell,
-        .palette = dim ? atlas.palettes[clampShadeRamp(ramp)].fontDim : art.palette,
+        .palette = dim ? palettesFor(atlas, ramp).fontDim : art.palette,
     };
 }
 

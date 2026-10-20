@@ -8,6 +8,22 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-10-20
+
+- **Custom palettes** 🟡 → ✅ — the palette editor and its held preview complete the feature: the four
+  shades entered in decimal with load, save and clear on ninety-nine preset slots, and Select held on
+  the editor showing the palette on the pieces, the three text inks and the playfield's brick wall.
+
+## 2026-10-19
+
+- **Custom palettes** ⬜ → 🟡 — the foundation: one live custom palette set beside the eighty ramps,
+  changed in place as the player's working palette changes; a `palettes` document holding that working
+  palette and ninety-nine slots; a settings byte saying the custom palette is in use (schema 6, migrated
+  from 5); and the Palette screen's selector walking past ramp 80 through the saved slots, reading `C`
+  and the slot's two digits, or `C` alone while the palette in use is saved nowhere. Whether a palette
+  is saved is a comparison against the slots, never a stored number. No editor yet: a palette reaches
+  a slot only by hand until the Custom screen lands.
+
 ## 2026-10-05
 
 - **Rebindable controls** 🟡 → ✅ — the settings page's Controls row opens the controls screen. The
