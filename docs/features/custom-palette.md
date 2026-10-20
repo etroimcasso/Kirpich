@@ -1,8 +1,8 @@
 # Custom palettes
 
 **Date:** 2026-10-19
-**Status:** In progress — the palette set, the document and the Palette screen's selector are built;
-the editor, its load, save and clear, and the held preview are still to come.
+**Status:** In progress — the palette set, the document, the Palette screen's selector and the palette
+editor with its load, save and clear are built; the held preview is still to come.
 
 ## Concept
 
@@ -19,19 +19,20 @@ When the feature is complete:
 - **The Palette screen** offers its eighty ramps and then every saved custom palette, in slot order.
   A saved palette reads `C` and its slot number, `C01` to `C99`. A custom palette in use that is saved
   in no slot reads `C`.
-- **Down on the Palette screen opens the Custom screen**; a down arrow says so, and the Custom screen's
-  up arrow leads back.
-- **The Custom screen** has a `preset` selector, `01` to `99`, with `load preset`, `save preset` and
-  `clear preset` under it, and below those the editor: four numbered rows, one per shade, each
+- **Down on the Palette screen opens the palette editor**; a down arrow says so, and the editor's up
+  arrow leads back.
+- **The palette editor** has a `preset` selector, `01` to `99`, with `load preset`, `save preset` and
+  `clear preset` under it, and below those four numbered rows, one per shade, each
   showing its red, green and blue as three decimal digits, `000` to `255`, with the row's color beside
   them. Pressing A on a value enters it — it changes color to say so — and then Left and Right pick the
   place (hundreds, tens, ones), Up and Down step the value by that place, clamped to `0`-`255`, A
   confirms and B cancels. Text at the bottom of the screen says so while a value is being edited.
-- **Load** copies the selected slot into the working palette (an empty slot loads the original
-  grayscale), asking first when the working palette is unsaved. **Save** writes the working palette
-  into the selected slot, asking first when it would overwrite another palette. **Clear** empties the
-  slot, asking first. The screen's title carries an asterisk while the working palette is saved in no
-  slot.
+- **Load** copies the selected slot into the working palette, asking first when the working palette
+  has unsaved changes; an empty slot has nothing to load. **Save** writes the working palette into the
+  selected slot, asking first when it would overwrite another palette. **Clear** empties the slot,
+  asking first; clearing the palette in use returns the game to the ramp underneath. An empty slot's
+  number is dimmed. The screen's title carries an asterisk while the working palette has unsaved
+  changes.
 - **Holding Select** shows the palette as the game will use it: the seven pieces, text in its three
   states (selected, unselected, dimmed) and the wall tiles that flank the playfield.
 
@@ -43,10 +44,23 @@ When the feature is complete:
 - The settings record whether the custom palette is in use; the ramp the player chose stays underneath,
   so stepping off the custom palette lands back on it.
 - The Palette screen's selector walks on through the saved slots and reads `C<nn>` / `C`.
+- **The palette editor**, opened by Down on the Palette screen (which shows a down arrow) and left by Up
+  on its first row or B. Its title reads `custom palette`, with an asterisk after it while the working
+  palette has unsaved changes - saved in no slot and not the untouched grayscale. A `preset` selector
+  picks the slot `load preset`, `save preset` and `clear preset` act on, its number dimmed while the
+  slot is empty; each action's label is dimmed while it would change nothing. Load asks first while
+  the working palette has unsaved changes, save asks first when it would replace a different palette,
+  and clear always asks. Clearing the slot that holds the palette in use puts the game back on the ramp
+  the player chose underneath it. Below them, the four shades as numbered rows, each with its red, green and blue
+  as three decimal digits, and the working palette's four colors as a band beside them.
+- **Entering a value**: A on a value highlights it in the dark shade, with arrows either side where the
+  place can move and over and under the digit being stepped where the value can move. Left and Right
+  pick the place, Up and Down step the value by it - clamped to 0-255, repeating while held - A keeps
+  it and B puts back what it was. `a confirms b cancels` stands at the bottom meanwhile. Every step is
+  saved as it is made, so a palette being edited survives a relaunch.
 
-A custom palette reaches a slot only by hand for now — the document is written by the code paths that
-exist (stepping onto a slot writes it) and read at startup, but nothing edits a palette until the Custom
-screen lands.
+The editor itself is drawn through the built-in ramp underneath, so it never recolors while a value
+steps; the band shows the colors as they are.
 
 ## Design decisions
 
@@ -74,9 +88,37 @@ starts as: the four shades the hardware's own map to.
 edited is a cursor position over that one value, never a separate digit: stepping the hundreds up from
 `099` gives `199`, then `255`.
 
-**The Palette screen keeps its one row and no state.** The Custom screen is reached by Down, with a
+**The Palette screen keeps its one row and no state.** The palette editor is reached by Down, with a
 down arrow, rather than by a second row — so the screen's logic stays the dispatch table it was, with
 one more entry.
+
+**The entered value is a selector, and nothing blinks.** A value being edited is highlighted whole,
+with an arrow either side and an arrow over and under the digit being stepped, each only where a press
+would move — the rule every selector in the game follows. Only the idle row cursor blinks, as it does
+on every sibling screen. Blinking digits were rejected.
+
+**The editor does not recolor as a value steps.** It draws through the built-in ramp underneath, and
+the band beside the shade rows shows the working palette's colors directly. Judging the palette in use
+is what the held preview is for.
+
+**An action that would change nothing is an end stop, and its label is dimmed.** Loading an empty
+slot or one that already holds the working palette, saving into a slot that already holds it, and
+clearing an empty slot do nothing and ask nothing. A question is asked only where its answer cannot be
+taken back: loading over unsaved changes, saving over a different palette, and clearing. An empty
+slot's number is dimmed too, so its state reads at a glance.
+
+**Unsaved means there is something to lose.** The asterisk and the load question both mean the
+working palette has changes no slot holds. A palette that is saved in a slot has nothing to lose, and
+neither does the untouched grayscale a palette starts as, even though no slot holds it.
+
+**Clearing the palette in use returns the game to its ramp.** A palette in use that is cleared from its
+only slot would otherwise leave the Palette screen reading `C` with the colors still drawn. The game
+goes back to the built-in ramp the player chose underneath it, as stepping off the slots does; the
+working palette stays as it was.
+
+**Every position on the editor is a pixel.** Nothing on it is placed on the background's cell grid;
+its layout is its own, in `layout.h`, with the space between the shade rows and the arrows' distance
+from a digit each one number.
 
 **The order of a step onto a slot.** The atlas is told the colors, then the document is written, then
 the setting is stored — so a frame never names colors the set does not yet hold.
@@ -94,7 +136,10 @@ are what draws. The clamp is the only check a value gets.
 | The palettes and their document | `src/state/custom_palettes.h` / `.cpp` — `CustomPalettes`, `savedSlotOf`, `nextPresentSlot`, `previousPresentSlot`, the codec, `saveCustomPalettes` / `loadCustomPalettes` |
 | The settings byte | `src/state/settings.h` — `Settings::customPalette`, `paletteIndexOf`, schema 6 |
 | The Palette screen's walk | `src/systems/palette_settings_screen.h` — `CustomPaletteWiring`, `paletteCanStep` |
-| The Palette screen's picture | `src/render/palette_settings/screen.cpp` — the `C<nn>` / `C` value, the arrows, every part through the palette in use |
+| The Palette screen's picture | `src/render/screens/palette_settings/screen.cpp` — the `C<nn>` / `C` value, the arrows, every part through the palette in use |
+| The palette editor | `src/render/screens/palette_editor/` — `PaletteEditorState`, the logic (`openPaletteEditor`, `paletteEditor`, `steppedValue`, `presetCanStep`, `paletteEditorActionCanAct`), `layout.h`, `PaletteEditorScreen` |
+| One channel of a palette | `src/state/custom_palettes.h` — `ColorChannel`, `channelValue`, `setChannelValue` |
+| The selected text ink and the asterisk | `src/render/tile_atlas.h` — `RampPalettes::fontSpriteSelected`, `TileAtlas::glyphExtras`; `src/render/glyph_extras.h`; `SelectedGlyphs` in `src/render/components/glyphs.h` |
 
 The document: `"palettes"`, version 1, 1300 bytes — one hundred records of thirteen (a presence byte,
 then red, green and blue for the darkest, dark, light and lightest shades); record 0 the working
@@ -105,7 +150,7 @@ The engine-side detail is in [`../engine/settings.md`](../engine/settings.md).
 
 ## Open questions / future work
 
-- The Custom screen itself: the editor, the three actions and their questions, the asterisk glyph (the
-  font has none, so it is an embedded tile of the port's own), and the hint text's exact words.
-- The held preview: the pieces, the three text states — which needs a third text palette for the
-  highlighted state — and the wall tiles, which are background tiles and so are drawn as cells.
+- The held preview: the pieces, the three text states (ink, dimmed and selected, each now a palette of
+  its own) and the wall tiles, which are background tiles and so are drawn as cells.
+- The editor's spacing — the distance between shade rows and the arrows' distance from a digit — and
+  the selected shade, are to be judged on a running build.

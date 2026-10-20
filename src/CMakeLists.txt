@@ -53,28 +53,33 @@ add_library(kirpich-lib STATIC
     systems/stats.cpp
     render/tile_atlas.cpp
     render/background.cpp
-    render/backdrop.cpp
-    render/background_layer.cpp
-    render/sprite_layer.cpp
-    render/selection_corners.cpp
-    render/glyphs.cpp
-    render/option_row.cpp
-    render/scroller_arrows.cpp
-    render/piece_shape.cpp
+    render/components/arrow.cpp
+    render/components/backdrop.cpp
+    render/components/background_layer.cpp
+    render/components/sprite_layer.cpp
+    render/components/selection_corners.cpp
+    render/components/glyphs.cpp
+    render/components/option_row.cpp
+    render/components/page_arrows.cpp
+    render/components/scroller_arrows.cpp
+    render/components/piece_shape.cpp
+    render/components/yes_no_question.cpp
     render/sprites.cpp
-    render/achievements/badge.cpp
-    render/achievements/badge_grid.cpp
-    render/achievements/badge_panel.cpp
-    render/achievements/banner.cpp
-    render/achievements/notice.cpp
-    render/achievements/screen.cpp
-    render/controls/names.cpp
-    render/controls/restore_confirm.cpp
-    render/controls/screen.cpp
-    render/display_settings/screen.cpp
-    render/palette_settings/ramp_swatch.cpp
-    render/palette_settings/piece_preview.cpp
-    render/palette_settings/screen.cpp
+    render/screens/achievements/badge.cpp
+    render/screens/achievements/badge_grid.cpp
+    render/screens/achievements/badge_panel.cpp
+    render/screens/achievements/banner.cpp
+    render/screens/achievements/notice.cpp
+    render/screens/achievements/screen.cpp
+    render/screens/controls/names.cpp
+    render/screens/controls/restore_confirm.cpp
+    render/screens/controls/screen.cpp
+    render/screens/display_settings/screen.cpp
+    render/screens/palette_editor/palette_editor.cpp
+    render/screens/palette_editor/screen.cpp
+    render/screens/palette_settings/ramp_swatch.cpp
+    render/screens/palette_settings/piece_preview.cpp
+    render/screens/palette_settings/screen.cpp
     render/settings_overlay.cpp
     render/stats_pages.cpp
     render/config_section.cpp

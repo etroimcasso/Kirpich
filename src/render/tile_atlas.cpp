@@ -8,6 +8,8 @@
 
 #include <kirpich/char_tile.h>
 
+#include "render/glyph_extras.h"
+
 namespace kirpich::render {
 
 namespace {
@@ -33,17 +35,18 @@ std::span<const retropp::Rgba8> colors(const std::array<retropp::Rgba8, N>& pale
     return std::span<const retropp::Rgba8>(palette);
 }
 
-// Upload one ramp's eight palettes and return their handles.
+// Upload one ramp's nine palettes and return their handles.
 RampPalettes uploadRampPalettes(retropp::Renderer& renderer, const RampPaletteColors& c) {
     return RampPalettes{
-        .font          = renderer.uploadPalette(colors(c.font)),
-        .content       = renderer.uploadPalette(colors(c.content)),
-        .fontDim       = renderer.uploadPalette(colors(c.fontDim)),
-        .fontSprite    = renderer.uploadPalette(colors(c.fontSprite)),
-        .sprite0       = renderer.uploadPalette(colors(c.sprite0)),
-        .sprite1       = renderer.uploadPalette(colors(c.sprite1)),
-        .fontSpriteDim = renderer.uploadPalette(colors(c.fontSpriteDim)),
-        .spriteDim     = renderer.uploadPalette(colors(c.spriteDim)),
+        .font               = renderer.uploadPalette(colors(c.font)),
+        .content            = renderer.uploadPalette(colors(c.content)),
+        .fontDim            = renderer.uploadPalette(colors(c.fontDim)),
+        .fontSprite         = renderer.uploadPalette(colors(c.fontSprite)),
+        .sprite0            = renderer.uploadPalette(colors(c.sprite0)),
+        .sprite1            = renderer.uploadPalette(colors(c.sprite1)),
+        .fontSpriteDim      = renderer.uploadPalette(colors(c.fontSpriteDim)),
+        .spriteDim          = renderer.uploadPalette(colors(c.spriteDim)),
+        .fontSpriteSelected = renderer.uploadPalette(colors(c.fontSpriteSelected)),
     };
 }
 
@@ -102,15 +105,19 @@ RampPaletteColors rampPaletteColors(const ShadeRamp& shades) noexcept {
     //
     // The dim pair: every shade that would have been ink becomes the light one, so the art keeps its
     // shape and loses its weight - the same relation the dim font has to the font.
+    //
+    // The selected font inks in the dark shade: between the ink and the dim font, so text being
+    // edited reads apart from both.
     return RampPaletteColors{
-        .font          = {shades.darkest, shades.lightest},
-        .content       = {shades.darkest, shades.dark, shades.light, shades.lightest},
-        .fontDim       = {shades.light, shades.lightest},
-        .fontSprite    = {shades.darkest, kShadeTransparent},
-        .sprite0       = {shades.darkest, shades.dark, shades.light, kShadeTransparent},
-        .sprite1       = {shades.darkest, shades.lightest, shades.light, kShadeTransparent},
-        .fontSpriteDim = {shades.light, kShadeTransparent},
-        .spriteDim     = {shades.light, shades.light, shades.lightest, kShadeTransparent},
+        .font               = {shades.darkest, shades.lightest},
+        .content            = {shades.darkest, shades.dark, shades.light, shades.lightest},
+        .fontDim            = {shades.light, shades.lightest},
+        .fontSprite         = {shades.darkest, kShadeTransparent},
+        .sprite0            = {shades.darkest, shades.dark, shades.light, kShadeTransparent},
+        .sprite1            = {shades.darkest, shades.lightest, shades.light, kShadeTransparent},
+        .fontSpriteDim      = {shades.light, kShadeTransparent},
+        .spriteDim          = {shades.light, shades.light, shades.lightest, kShadeTransparent},
+        .fontSpriteSelected = {shades.dark, kShadeTransparent},
     };
 }
 
@@ -142,6 +149,15 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
                                             retropp::ContentKind::Tileset)
                                  .atlasId;
 
+    // The glyphs the font lacks, from their index planes in source - one 8x8 tile, so the sheet is
+    // the tile.
+    const auto asterisk = asteriskIndices();
+    atlas.glyphExtras   = renderer
+                            .uploadAtlas(asterisk.data(), kGlyphExtraSide, kGlyphExtraSide,
+                                         retropp::AssetDimensions::GameBoy8x8,
+                                         retropp::ContentKind::Tileset)
+                            .atlasId;
+
     // One set of palettes per shade ramp, all uploaded here. A ramp only changes what the four shades
     // are, so each set is built the same way from its own four colours, and choosing a ramp later is
     // choosing between handles rather than uploading anything.
@@ -150,7 +166,7 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
     }
 
     // The custom set, arranged the same way from the palette a custom slot starts from. It is the one
-    // set whose colors change after this: updateCustomPalette writes over these eight handles.
+    // set whose colors change after this: updateCustomPalette writes over these nine handles.
     atlas.customShades = freshCustomPalette();
     atlas.custom       = uploadRampPalettes(renderer, rampPaletteColors(atlas.customShades));
 
@@ -179,6 +195,7 @@ void updateCustomPalette(retropp::Renderer& renderer, TileAtlas& atlas, const Sh
     renderer.updatePalette(atlas.custom.sprite1, colors(c.sprite1));
     renderer.updatePalette(atlas.custom.fontSpriteDim, colors(c.fontSpriteDim));
     renderer.updatePalette(atlas.custom.spriteDim, colors(c.spriteDim));
+    renderer.updatePalette(atlas.custom.fontSpriteSelected, colors(c.fontSpriteSelected));
     atlas.customShades = shades;
 }
 

@@ -1,5 +1,5 @@
 // The Palette settings screen — behavioral tests over its logic (src/systems/palette_settings_screen.h)
-// and its components (src/render/palette_settings/, src/render/piece_shape.h).
+// and its components (src/render/screens/palette_settings/, src/render/components/piece_shape.h).
 //
 // Device-free. The logic is pure state over the game aggregate and the wirings' seams, and the
 // components are pure functions returning primitives, so the atlas here is a plain value with
@@ -26,11 +26,11 @@
 #include <kirpich/game_state.h>
 #include <kirpich/piece_kind.h>
 
-#include "render/glyphs.h"
-#include "render/palette_settings/layout.h"
-#include "render/palette_settings/screen.h"
+#include "render/components/glyphs.h"
+#include "render/components/piece_shape.h"
 #include "render/palettes.h"
-#include "render/piece_shape.h"
+#include "render/screens/palette_settings/layout.h"
+#include "render/screens/palette_settings/screen.h"
 #include "retropp/input.h"
 #include "state/custom_palettes.h"
 #include "state/settings.h"
@@ -611,6 +611,60 @@ TEST(PaletteSettingsScreen, SteppingOntoASlotAppliesThenSavesThenStoresTheSettin
     press(game, {Action::MenuRight});
     kirpich::systems::paletteSettingsScreen(game, wiring, custom);
     EXPECT_EQ(probe.events, (std::vector<std::string>{"palette-apply", "palette-save"}));
+}
+
+// Down opens the palette editor with the screen-change cue and the blink armed, its preset on the
+// slot the working palette is saved in - or on slot 1 while it is saved in none, or with no palettes
+// behind the wiring.
+TEST(PaletteSettingsScreen, DownOpensThePaletteEditor) {
+    const auto openWith = [](const CustomPalettes& palettes, bool wired) {
+        Probe probe;
+        probe.palettes    = palettes;
+        const auto wiring = probe.wiring();
+        const auto custom = wired ? probe.custom() : CustomPaletteWiring{};
+        GameContext game  = openPalette(wiring);
+        game.flow.timer1  = 3;
+        press(game, {Action::MenuDown});
+        kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+        return game;
+    };
+
+    CustomPalettes saved = threeSlots();
+    saved.working        = saved.slots[3].shades;
+    const GameContext a  = openWith(saved, true);
+    EXPECT_EQ(a.flow.gameState, GameState::PALETTE_EDITOR);
+    EXPECT_EQ(a.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+    EXPECT_EQ(a.flow.timer1, kBlinkFrames);
+    EXPECT_TRUE(a.screens.cursorVisible);
+    EXPECT_EQ(a.paletteEditor.preset, 4);
+
+    CustomPalettes unsaved = threeSlots();
+    unsaved.working        = rampFrom(99);
+    EXPECT_EQ(openWith(unsaved, true).paletteEditor.preset, 1);
+
+    const GameContext none = openWith(saved, false);
+    EXPECT_EQ(none.flow.gameState, GameState::PALETTE_EDITOR);
+    EXPECT_EQ(none.paletteEditor.preset, 1);
+}
+
+// The down arrow says the editor is below: always drawn, at the shared page-arrow place, turned
+// down, through the palette in use - and there is no up arrow.
+TEST(PaletteSettingsScreen, TheDownArrowIsAlwaysShown) {
+    CustomPalettes p = threeSlots();
+    p.working        = p.slots[0].shades;
+    for (const auto& [s, palettes] :
+         {std::pair{Settings{.shadeRamp = kPlayerRamp}, kNoSlots},
+          std::pair{Settings{.shadeRamp = kPlayerRamp, .customPalette = true}, p}}) {
+        const auto content = contentOf(draw(s, palettes));
+        const auto down    = named(content, "palette-down");
+        ASSERT_TRUE(down);
+        EXPECT_EQ(down->x, 80);
+        EXPECT_EQ(down->y, 128);
+        EXPECT_EQ(down->rotation, retropp::Rotation::Rot90);
+        EXPECT_EQ(down->atlas, kAtlas.copyrightTitle);
+        EXPECT_EQ(down->palette, kirpich::render::palettesFor(kAtlas, kirpich::paletteIndexOf(s)).sprite0);
+        EXPECT_FALSE(named(content, "palette-up"));
+    }
 }
 
 // ── The components ────────────────────────────────────────────────────────────────────────────────

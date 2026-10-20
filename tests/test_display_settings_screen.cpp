@@ -1,6 +1,6 @@
 // The Display settings screen — behavioral tests over its logic (src/systems/display_settings_screen.h)
-// and its components (src/render/display_settings/, src/render/option_row.h,
-// src/render/scroller_arrows.h).
+// and its components (src/render/screens/display_settings/, src/render/components/option_row.h,
+// src/render/components/scroller_arrows.h).
 //
 // Device-free. The logic is pure state over the game aggregate and the wiring's seams, and the
 // components are pure functions returning primitives, so the atlas here is a plain value with
@@ -23,11 +23,11 @@
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
-#include "render/display_settings/layout.h"
-#include "render/display_settings/screen.h"
-#include "render/glyphs.h"
+#include "render/components/glyphs.h"
+#include "render/components/scroller_arrows.h"
 #include "render/palettes.h"
-#include "render/scroller_arrows.h"
+#include "render/screens/display_settings/layout.h"
+#include "render/screens/display_settings/screen.h"
 #include "retropp/input.h"
 #include "state/display_settings_state.h"
 #include "state/settings.h"
@@ -73,19 +73,24 @@ TileAtlas makeAtlas() {
         .gameplay         = static_cast<retropp::AtlasId>(33),
         .multiplayerBuran = static_cast<retropp::AtlasId>(44),
     };
-    for (std::size_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+    const auto fill = [](kirpich::render::RampPalettes& set, std::size_t ramp) {
         const auto id = [ramp](int kind) {
             return static_cast<retropp::PaletteId>(1000 * kind + static_cast<int>(ramp));
         };
-        atlas.palettes[ramp].font          = id(1);
-        atlas.palettes[ramp].content       = id(2);
-        atlas.palettes[ramp].fontDim       = id(3);
-        atlas.palettes[ramp].fontSprite    = id(4);
-        atlas.palettes[ramp].sprite0       = id(5);
-        atlas.palettes[ramp].sprite1       = id(6);
-        atlas.palettes[ramp].fontSpriteDim = id(7);
-        atlas.palettes[ramp].spriteDim     = id(8);
+        set.font          = id(1);
+        set.content       = id(2);
+        set.fontDim       = id(3);
+        set.fontSprite    = id(4);
+        set.sprite0       = id(5);
+        set.sprite1       = id(6);
+        set.fontSpriteDim = id(7);
+        set.spriteDim     = id(8);
+    };
+    for (std::size_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
+        fill(atlas.palettes[ramp], ramp);
     }
+    // The custom set, numbered as the index that selects it.
+    fill(atlas.custom, kirpich::render::kCustomRamp);
     return atlas;
 }
 
@@ -387,6 +392,27 @@ TEST(DisplaySettingsScreen, TheScreenDrawsTheSettingsItIsHanded) {
 
     s.fullscreen = true;
     expectText(contentOf(draw(s)), "on", kValueX, kFirstLineY);
+}
+
+// The screen is drawn in the palette the game is drawn in: the custom set while a custom palette is in
+// use, the chosen ramp's otherwise.
+TEST(DisplaySettingsScreen, TheScreenDrawsThroughThePaletteInUse) {
+    const auto check = [](const Settings& s, const kirpich::render::RampPalettes& set,
+                          const char* what) {
+        const auto layers   = draw(s);
+        const auto& backdrop = std::get<retropp::TileContent>(layers[0].content).cells;
+        ASSERT_FALSE(backdrop.empty()) << what;
+        EXPECT_EQ(backdrop[0].palette, set.content) << what << ": the backdrop";
+        for (const retropp::Sprite& sprite : contentOf(layers)) {
+            if (sprite.key.value.starts_with("glyph-")) {
+                EXPECT_EQ(sprite.palette, set.fontSprite) << what << ": " << sprite.key.value;
+            } else {
+                EXPECT_EQ(sprite.palette, set.sprite0) << what << ": " << sprite.key.value;
+            }
+        }
+    };
+    check(Settings{.shadeRamp = kPlayerRamp, .customPalette = true}, kAtlas.custom, "custom in use");
+    check(Settings{.shadeRamp = kPlayerRamp}, kAtlas.palettes[kPlayerRamp], "the ramp");
 }
 
 // The cursor is a hyphen on column 1 of the row it is on, and it is gone while the blink is off.

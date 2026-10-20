@@ -66,6 +66,13 @@ enum class TileSheet : std::uint8_t {
     MULTIPLAYER_BURAN = 2,  // InitRocketLaunchGraphics - the launch scenes and the link-cable screens
 };
 
+// The game's selector arrow: a tile of the copyright-and-title art, pointing right. The title screen
+// points at the player count with it, and every arrow the port draws is this tile, flipped to point
+// left or turned to point up or down. Under the copyright-and-title regime it is index $58; anything
+// drawing it as a sprite names that sheet, so it draws correctly whichever regime the background is
+// in.
+inline constexpr std::uint8_t kSelectorTile = 0x58;
+
 // A background map is the same shape as the board it is carried from, and the visible screen is its
 // top-left corner.
 inline constexpr std::size_t kBackgroundMapRows = 32;

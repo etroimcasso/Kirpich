@@ -7,8 +7,9 @@
 #include <kirpich/action.h>
 #include <kirpich/game_state.h>
 
-#include "data/sfx.h"       // SquareSfxId
-#include "retropp/input.h"  // actionId
+#include "data/sfx.h"                                      // SquareSfxId
+#include "render/screens/palette_editor/palette_editor.h"  // openPaletteEditor
+#include "retropp/input.h"                                 // actionId
 #include "systems/game_state_dispatcher.h"
 
 namespace kirpich::systems {
@@ -114,6 +115,11 @@ constexpr std::array kBinds{
     Bind{Action::MenuRight,
          [](GameContext& g, const SettingsWiring& w, const CustomPaletteWiring& c) {
              stepPalette(g, w, c, +1);
+         }},
+    Bind{Action::MenuDown,
+         [](GameContext& g, const SettingsWiring&, const CustomPaletteWiring& c) {
+             g.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+             openPaletteEditor(g, c.palettes);
          }},
     Bind{Action::Back,
          [](GameContext& g, const SettingsWiring& w, const CustomPaletteWiring&) {

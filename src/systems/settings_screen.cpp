@@ -35,12 +35,6 @@ constexpr std::size_t kScreenCols = 20;
 constexpr auto kSpace       = static_cast<std::uint8_t>(CharTile::SPACE);
 constexpr auto kCursorGlyph = static_cast<std::uint8_t>(CharTile::HYPHEN);
 
-// The game's own selector arrow — the one the title screen points at the player count with. It points
-// right, and the left arrow is the same tile flipped, so the scroller is drawn in the game's own hand
-// rather than in shapes invented for it. It is a tile of the copyright-and-title art, which is why
-// this screen selects that art while it is up.
-constexpr std::uint8_t kSelectorTile = 0x58;
-
 // The object entries the arrows occupy: two per scroller row, in row order. The screen empties the
 // buffer on the way in, so nothing else is using them.
 constexpr std::size_t kFirstArrowObject = 0;

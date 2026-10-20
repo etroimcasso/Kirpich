@@ -38,7 +38,41 @@ render::ShadeRamp readRecord(std::span<const std::uint8_t> record) {
     return shades;
 }
 
+[[nodiscard]] std::size_t clampShade(std::size_t shade) noexcept {
+    return shade < kShadeCount ? shade : kShadeCount - 1;
+}
+
 }  // namespace
+
+std::uint8_t channelValue(const render::ShadeRamp& palette, std::size_t shade,
+                          ColorChannel channel) noexcept {
+    const retropp::Rgba8& color = *shadesOfRamp(palette)[clampShade(shade)];
+    switch (channel) {
+        case ColorChannel::GREEN:
+            return color.g;
+        case ColorChannel::BLUE:
+            return color.b;
+        case ColorChannel::RED:
+            break;
+    }
+    return color.r;
+}
+
+void setChannelValue(render::ShadeRamp& palette, std::size_t shade, ColorChannel channel,
+                     std::uint8_t value) noexcept {
+    retropp::Rgba8& color = *shadesOfRamp(palette)[clampShade(shade)];
+    switch (channel) {
+        case ColorChannel::GREEN:
+            color.g = value;
+            return;
+        case ColorChannel::BLUE:
+            color.b = value;
+            return;
+        case ColorChannel::RED:
+            break;
+    }
+    color.r = value;
+}
 
 std::optional<std::uint8_t> savedSlotOf(const CustomPalettes& palettes) noexcept {
     for (std::size_t i = 0; i < kCustomPaletteSlotCount; ++i) {
@@ -48,6 +82,10 @@ std::optional<std::uint8_t> savedSlotOf(const CustomPalettes& palettes) noexcept
         }
     }
     return std::nullopt;
+}
+
+bool hasUnsavedChanges(const CustomPalettes& palettes) noexcept {
+    return !savedSlotOf(palettes) && palettes.working != render::freshCustomPalette();
 }
 
 std::optional<std::uint8_t> nextPresentSlot(const CustomPalettes& palettes,

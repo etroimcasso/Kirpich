@@ -8,8 +8,9 @@ The player's display choices, the screens that edit them, and the color ramps th
 | The player's custom palettes and their document | `src/state/custom_palettes.h` / `.cpp` |
 | The settings screen and its confirm | `src/systems/settings_screen.h` / `.cpp` |
 | The Display and Palette screens' logic | `src/systems/display_settings_screen.h`, `src/systems/palette_settings_screen.h` (and `.cpp`) |
-| The Display and Palette screens' components | `src/render/display_settings/`, `src/render/palette_settings/`, and the shared `src/render/option_row.h`, `scroller_arrows.h`, `piece_shape.h` |
-| The Controls screen | `src/systems/controls_screen.h` / `.cpp`, `src/state/controls_screen_state.h`, `src/render/controls/` |
+| The Display and Palette screens' components | `src/render/screens/display_settings/`, `src/render/screens/palette_settings/`, and the shared `src/render/components/option_row.h`, `scroller_arrows.h`, `piece_shape.h` |
+| The Controls screen | `src/systems/controls_screen.h` / `.cpp`, `src/state/controls_screen_state.h`, `src/render/screens/controls/` |
+| The palette editor | `src/render/screens/palette_editor/` — its state, its logic, its layout and its screen function |
 | The color ramps | `src/render/palettes.h` |
 | The page arrows of the screens drawn into the map | `src/render/settings_overlay.h` / `.cpp` |
 
@@ -123,6 +124,19 @@ on screen: `C01` is `slots[0]`.
 Like the settings and the controls, the palettes are the host's, outside `GameContext`, loaded before
 the window opens and untouched by a reset.
 
+One value of a palette is read and written by its shade and channel:
+
+```cpp
+enum class ColorChannel : std::uint8_t { RED, GREEN, BLUE };
+inline constexpr std::size_t kShadeCount = 4;
+
+std::uint8_t channelValue(const render::ShadeRamp&, std::size_t shade, ColorChannel) noexcept;
+void setChannelValue(render::ShadeRamp&, std::size_t shade, ColorChannel, std::uint8_t value) noexcept;
+```
+
+`shade` counts 0-3 from the darkest (`darkest`, `dark`, `light`, `lightest`); a larger value reads and
+writes the lightest. A value is one 8-bit number; nothing stores its digits.
+
 ### Saved is a comparison
 
 ```cpp
@@ -133,7 +147,9 @@ std::optional<std::uint8_t> previousPresentSlot(const CustomPalettes&, std::uint
 
 Nothing records which slot the working palette "came from". `savedSlotOf` returns the first present
 slot holding exactly the working palette's colors, or nothing — and nothing is what **unsaved** means.
-The Palette screen's `C<nn>` / `C` reads it, and so will anything that marks a palette unsaved. The two
+The Palette screen's `C<nn>` / `C` reads it. `hasUnsavedChanges(const CustomPalettes&)` is the
+narrower question the palette editor asks — saved in no slot **and** not the fresh grayscale — because
+a palette never edited has nothing to lose: its asterisk and its load question both read it. The two
 walk helpers give the present slots in order: `nextPresentSlot(p, 0)` is the first of all,
 `previousPresentSlot(p, kCustomPaletteSlotCount + 1)` the last of all.
 
@@ -285,7 +301,7 @@ map and writes nothing at all for text it cannot spell. The font is one case, di
 punctuation glyphs — **no colon, slash, question mark or arrow**. Check any new string against
 `include/kirpich/char_tile.h` before committing to it.
 
-The Display and Palette screens draw their text as sprites through `Glyphs` (`src/render/glyphs.h`),
+The Display and Palette screens draw their text as sprites through `Glyphs` (`src/render/components/glyphs.h`),
 which spells only letters, digits, a period and a hyphen, and leaves a cell empty for anything else.
 
 ## The colour ramps
@@ -312,9 +328,10 @@ chroma alone accepts a bright colour, luminance alone accepts a dark grey.
 
 Adding a ramp therefore means choosing which kind it is. Say nothing and the check applies.
 
-Darkest first, matching the order the extractor's decode produces. `uploadTileAtlas` builds eight
+Darkest first, matching the order the extractor's decode produces. `uploadTileAtlas` builds nine
 palettes per ramp — the background font and content, the dim font, the two object palettes, the font
-as an object, and the two dim object palettes; `rampPaletteColors(const ShadeRamp&)` is the one
+as an object, the two dim object palettes, and the selected font object palette, inked in the dark
+shade (`fontSpriteSelected`); `rampPaletteColors(const ShadeRamp&)` is the one
 builder that arranges them — and uploads them all at startup, so choosing a ramp picks between
 handles and uploads nothing.
 
@@ -340,7 +357,7 @@ a built-in's is, with `customShades` recording what it currently draws. Every co
 `ramp` accepts `kCustomRamp`; `palettesFor` returns the custom set for it and the clamped built-in for
 any other index, so an index past `kCustomRamp` still clamps to the last ramp.
 
-`updateCustomPalette` gives the set new colors: eight `Renderer::updatePalette` calls under the eight
+`updateCustomPalette` gives the set new colors: nine `Renderer::updatePalette` calls under the nine
 handles, which keep their ids and draw the new colors from the next frame on, then `customShades`
 updated. One call per change is the whole cost — the colors travel in the next frame's copy pass, and
 the palette store does not grow. The host calls it once at startup with the working palette and from
@@ -366,8 +383,9 @@ offers, so a new one authored out of order fails there rather than on screen.
 
 ## The drawn parts
 
-`settingsPageArrows(ui, ramp, atlas)` returns the page arrow as a sprite: the game's own selector tile
-given a quarter turn, which an object cannot express because the hardware has two flips and no
+`settingsPageArrows(ui, ramp, atlas)` returns the settings screen's page arrows as sprites —
+`PageArrows` (`src/render/components/page_arrows.h`) named `settings-page`, the game's own selector
+tile given a quarter turn, which an object cannot express because the hardware has two flips and no
 rotation. Append it to the composed sprites before they are wrapped as the frame's sprite layer:
 
 ```cpp
@@ -389,8 +407,8 @@ of its own small state, called every frame, and returns its layers.
 
 | Screen | Holds | Logic | Components |
 |---|---|---|---|
-| Display | fullscreen and the window size | `src/systems/display_settings_screen.h` | `src/render/display_settings/` |
-| Palette | the palette selector — the eighty ramps, then every saved custom palette — a swatch of the chosen one's four colors, and the seven pieces drawn in it | `src/systems/palette_settings_screen.h` | `src/render/palette_settings/` |
+| Display | fullscreen and the window size | `src/systems/display_settings_screen.h` | `src/render/screens/display_settings/` |
+| Palette | the palette selector — the eighty ramps, then every saved custom palette — a swatch of the chosen one's four colors, and the seven pieces drawn in it | `src/systems/palette_settings_screen.h` | `src/render/screens/palette_settings/` |
 
 ### Opening and leaving
 
@@ -415,7 +433,7 @@ Each screen's logic is a dispatch table mapping an action to what it does, run a
 | Screen | MenuUp / MenuDown | MenuLeft / MenuRight | Back |
 |---|---|---|---|
 | Display | move between the two rows, with end stops | change the row's value | return |
-| Palette | nothing | step the palette: the ramps, then the saved custom slots | return |
+| Palette | Down opens the palette editor, with the screen-change cue | step the palette: the ramps, then the saved custom slots | return |
 
 A move cues TINK; an end stop moves nothing and makes no sound. A value change goes through
 `changeSettings(game, wiring, next)` (`src/systems/settings_screen.h`), which stores the settings,
@@ -462,18 +480,19 @@ Layers PaletteSettingsScreen(const Settings& s, const CustomPalettes& palettes, 
 
 Each returns two layers: a backdrop of tiles at depth 0, and a sprite layer of everything else. The
 Display screen's sprite layer holds the `display` heading, the `fullscreen` and `size` rows, and the
-cursor. The Palette screen's holds the `palette` heading, the `palette` row, the cursor and the piece
-preview, and carries the swatch as its `regions`.
+cursor. The Palette screen's holds the `palette` heading, the `palette` row, the cursor, the piece
+preview and a down arrow — `PageArrows` named `palette`, always shown, saying the palette editor is
+below — and carries the swatch as its `regions`.
 
 They are built from shared components, each returning the primitives it is:
 
 | Component | Returns |
 |---|---|
-| `OptionRow(label, value, line, left, right, atlas, ramp)` (`render/option_row.h`) | the label at `kLabelCol`, the value at `kOptionValueCol` and the row's `ScrollerArrows`, on map row `line` |
-| `ScrollerArrows(line, left, right, atlas, ramp)` (`render/scroller_arrows.h`) | the selector tile at `kOptionLeftArrowCol`, flipped, when `left` is set, and at `kOptionRightArrowCol` when `right` is set |
-| `PieceShape(kind, x, y, z, keyStem, atlas, ramp)` (`render/piece_shape.h`) | one piece at its spawn orientation, its top-left pixel at (x, y), each part named `keyStem` plus `-` and its index |
-| `RampSwatch(atlas, ramp)` (`render/palette_settings/ramp_swatch.h`) | four opaque `ColorFill` squares, darkest to lightest, abutting, centered on the line under the palette row, in the colors `shadesOf` gives the index |
-| `PiecePreview(atlas, ramp)` (`render/palette_settings/piece_preview.h`) | the seven shapes in two rows, L J I O over S Z T, each row centered from the shapes' own widths |
+| `OptionRow(label, value, line, left, right, atlas, ramp)` (`render/components/option_row.h`) | the label at `kLabelCol`, the value at `kOptionValueCol` and the row's `ScrollerArrows`, on map row `line` |
+| `ScrollerArrows(line, left, right, atlas, ramp)` (`render/components/scroller_arrows.h`) | the selector tile at `kOptionLeftArrowCol`, flipped, when `left` is set, and at `kOptionRightArrowCol` when `right` is set |
+| `PieceShape(kind, x, y, z, keyStem, atlas, ramp)` (`render/components/piece_shape.h`) | one piece at its spawn orientation, its top-left pixel at (x, y), each part named `keyStem` plus `-` and its index |
+| `RampSwatch(atlas, ramp)` (`render/screens/palette_settings/ramp_swatch.h`) | four opaque `ColorFill` squares, darkest to lightest, abutting, centered on the line under the palette row, in the colors `shadesOf` gives the index |
+| `PiecePreview(atlas, ramp)` (`render/screens/palette_settings/piece_preview.h`) | the seven shapes in two rows, L J I O over S Z T, each row centered from the shapes' own widths |
 
 An arrow is drawn only where the value can still move that way: no left arrow when fullscreen is off
 or at the smallest size or the first palette, no right arrow at the largest size or at the end of the
@@ -519,6 +538,144 @@ ramp.
 **To add a screen like these:** mint its game state, write its logic as an `openX` function, a frame
 handler with a dispatch table, and an installer; write its screen function from the shared components
 with a `layout.h` derived from the shared grid; and add a case to the render callback's switch.
+
+## The palette editor
+
+Down on the Palette screen opens the editor for the player's working palette and their preset slots.
+Everything it has lives in `src/render/screens/palette_editor/`:
+
+| File | Holds |
+|---|---|
+| `palette_editor_state.h` | `PaletteEditorState` — the row, the channel, the preset, the entered value and the question — and the enums it is made of |
+| `palette_editor.h` / `.cpp` | the logic: opening, the three input tables, the installer, and the answers the picture asks for |
+| `layout.h` | every position, in viewport pixels |
+| `screen.h` / `.cpp` | `PaletteEditorScreen`, the layers |
+
+### The rows
+
+```
+custom palette *       the heading, with an asterisk while the working palette has unsaved changes
+preset        < 04 >   the slot the three actions name, 1-99
+load preset            copy the slot into the working palette
+save preset            write the working palette into the slot
+clear preset           empty the slot
+1  000 000 000  ▮      one row per shade, darkest first: red, green and blue, and the shade's color
+2  ...
+```
+
+`PaletteEditorRow` walks `PRESET`, `LOAD`, `SAVE`, `CLEAR`, `SHADE_1`-`SHADE_4`; `shadeOf(row)` gives a
+shade row's shade, 0-3. The channel (`ColorChannel`) is kept while the cursor is on the rows above the
+shades.
+
+### Opening and leaving
+
+```cpp
+void openPaletteEditor(GameContext&, const CustomPalettes* palettes);
+void installPaletteEditor(GameStateDispatcher&, SettingsWiring, CustomPaletteWiring);
+```
+
+`openPaletteEditor` resets `GameContext::paletteEditor`, puts the preset on `savedSlotOf(*palettes)` or
+on slot 1 when the working palette is saved in no slot or `palettes` is null, shows the cursor, arms the
+shared blink and enters `GameState::PALETTE_EDITOR`. The Palette screen calls it on Down with the
+screen-change cue. The editor takes the same `CustomPaletteWiring` the Palette screen takes; the host
+builds one and hands it to both installers. It also takes the `SettingsWiring`, for the one change it
+makes to the settings: clearing the slot that holds the palette in use.
+
+Up on the `preset` row and B on any row return to the Palette screen through `openPaletteSettings`,
+with the screen-change cue. The settings screen's cursor is untouched, so B from the Palette screen
+still lands on the Palette row. The editor writes no background map and no object buffer, and saves no
+caller.
+
+### Input
+
+Three dispatch tables, run after `blinkScreenCursor`: a question's while one is up, an entered value's
+while a value is entered, and the walk's otherwise.
+
+| Mode | Up / Down | Left / Right | A / Start | B |
+|---|---|---|---|---|
+| Walk | move the row; Up past `preset` leaves, Down at the last row is an end stop | the preset on its row, the channel on a shade row, nothing on an action row | the action on its row; enter the value on a shade row | leave |
+| Entered value | step the value by its place, on the key repeat | move the place | keep the value | put back the value it had when entered |
+| Question | — | pick `no` or `yes` | answer | `no` |
+
+A move cues TINK and an end stop cues nothing, everywhere on the screen.
+
+### An entered value
+
+A value is one `std::uint8_t`. While it is entered, `place` (`DigitPlace::HUNDREDS`, `TENS`, `ONES`)
+is the digit Up and Down step:
+
+```cpp
+std::uint8_t steppedValue(std::uint8_t value, DigitPlace place, int delta) noexcept;
+```
+
+`steppedValue` adds or takes `placeStep(place)` (100, 10 or 1) and clamps to 0-255: from `099` at the
+hundreds Up gives `199`, then `255`, then nothing. A step that returns the value unchanged is an end
+stop. Otherwise the working palette's channel takes the new value, the wiring's `apply` and then
+`save` fire, and the step cues TINK — so the atlas holds the new colors before anything names them.
+
+Up and Down are read held, ahead of the table, through `keyRepeatFire` on `GameFlowState::keyRepeatTimer`
+(`src/systems/input.h`): a press steps at once, a hold steps again 23 frames later and every 9 frames
+after that. Entering a value zeroes the timer and cues nothing. B writes `valueOnEntry` back through
+`apply` and `save`, unless the value already is that, and cues nothing.
+
+### The actions and their questions
+
+```cpp
+bool paletteEditorActionCanAct(PaletteEditorRow action, std::uint8_t preset,
+                               const CustomPalettes* palettes) noexcept;
+bool presetCanStep(std::uint8_t preset, const CustomPalettes* palettes, int delta) noexcept;
+```
+
+| Action | An end stop while | Asks first while | Does |
+|---|---|---|---|
+| load preset | the slot is empty, or holds the working palette | the working palette has unsaved changes (`hasUnsavedChanges`) | working palette = the slot; `apply`, `save` |
+| save preset | the slot already holds the working palette | the slot holds a different palette | the slot = the working palette, present; `save` |
+| clear preset | the slot is empty | always | the slot emptied; `save`. The working palette is untouched. When the slot held the palette in use and no other slot holds it, `customPalette` is cleared through `changeSettings`, so the game returns to the ramp underneath |
+
+A question opens on `no` with the screen-change cue and the blink re-armed. `yes` does the action;
+`no` and B change nothing. Either way the question closes with the screen-change cue and the cursor
+still on the row. With no `palettes` behind the wiring, the preset step, entering a value and all three
+actions are end stops; the walk and the way out still work.
+
+### The picture
+
+```cpp
+Layers PaletteEditorScreen(const PaletteEditorState& ui, const Settings& s,
+                           const CustomPalettes& palettes, bool blinkOn, const TileAtlas& atlas);
+```
+
+Two layers: the backdrop (`editor-backdrop`, depth 0), and either `editor-content` or, while a
+question is up, `editor-question` — `YesNoQuestion` with the question's words:
+
+| Question | Title | Lines |
+|---|---|---|
+| `LOAD_UNSAVED` | `load preset` | `your palette is` / `not saved` |
+| `SAVE_OVER` | `save preset` | `replace` / `preset nn` |
+| `CLEAR` | `clear preset` | `empty` / `preset nn` |
+
+`editor-content` holds the up arrow (`PageArrows` named `editor`), the heading and its asterisk, the
+preset row — its number through `DimGlyphs` while the slot is empty — with `preset-left` /
+`preset-right` where `presetCanStep` allows, the three action labels —
+each through `DimGlyphs` while `paletteEditorActionCanAct` says it can do nothing — the four shade rows
+and the row cursor. While a value is entered its digits draw through `SelectedGlyphs`, the cursor is
+not drawn, `value-left` / `value-right` stand either side where the place can move, `digit-up` /
+`digit-down` stand over and under the digit being stepped where `steppedValue` would move it, and the
+hint `a confirms b cancels` stands at the bottom. The layer's `regions` are the band: the working
+palette's four colors as opaque `ColorFill` rectangles down the right of the shade rows.
+
+**The editor draws through the built-in ramp underneath** — `clampShadeRamp(s.shadeRamp)`, never
+`paletteIndexOf(s)` — so stepping a value never recolors the editor itself. The band shows the working
+palette's colors directly. The host's render callback has the screen's case:
+
+```cpp
+case kirpich::GameState::PALETTE_EDITOR: {
+    retropp::FrameDrawState screen;
+    screen.layers = kirpich::render::PaletteEditorScreen(
+        game.paletteEditor, settings, palettes, game.screens.cursorVisible, tiles);
+    renderer.renderFrame(screen);
+    return;
+}
+```
 
 ## The Controls screen
 
@@ -592,9 +749,10 @@ While the question is up, the frame runs its own table:
 The question is drawn on the cells every settings confirm uses — the title on the heading row, the
 question on `kConfirmQuestionFirstRow` and `kConfirmQuestionSecondRow`, and the answers on
 `kConfirmChoiceRow` at `confirmChoiceColumns(...)`, all in `src/systems/settings_screen.h` — so it reads
-as those do. `RestoreConfirm(yes, blinkOn, atlas, ramp)` (`src/render/controls/restore_confirm.h`)
-returns it as a sprite layer of its own, and `ControlsScreen` returns that layer in place of the
-bindings' while it is asked.
+as those do. `RestoreConfirm(yes, blinkOn, atlas, ramp)` (`src/render/screens/controls/restore_confirm.h`)
+returns it as a sprite layer of its own — `YesNoQuestion` (`src/render/components/yes_no_question.h`)
+named `controls-confirm` with the screen's words — and `ControlsScreen` returns that layer in place of
+the bindings' while it is asked.
 
 ### Waiting for a press
 
@@ -638,17 +796,17 @@ Two layers: the backdrop, and a sprite layer holding the `controls` heading, the
 column heads, a row per button, the `restore defaults` row and the cursor. The button rows stand one
 per line from the first option line, because the settings pages' three-line spacing cannot hold eight
 rows; the label starts on column 1, the key's name on column 9 and the controller button's name on
-column 15, each cursor in the cell before its name (`src/render/controls/layout.h`). The restore row
+column 15, each cursor in the cell before its name (`src/render/screens/controls/layout.h`). The restore row
 stands on line 14, a line below the buttons, laid out as a settings row is: label from column 3, cursor
 on column 1. While the bindings already are the defaults the label is drawn through `DimGlyphs`
-(`src/render/glyphs.h`), the ramp's dim sprite palette a locked achievement badge uses, because the
+(`src/render/components/glyphs.h`), the ramp's dim sprite palette a locked achievement badge uses, because the
 row has nothing to restore and a press on it does nothing. The cursor blinks while the screen is idle and is held while it waits. While it waits, the
 waited-on cell reads `...`, line 16 reads `press a key` or `press a button`, and line 17 reads
 `esc cancels`.
 
 A name fits five cells and uses only what `Glyphs` draws:
 
-- `keyName(SDL_Scancode)` (`src/render/controls/names.h`) — letters and digits as themselves, a
+- `keyName(SDL_Scancode)` (`src/render/screens/controls/names.h`) — letters and digits as themselves, a
   short name for the common keys (`enter`, `bksp`, `space`, `lshft`, `lmeta`, `pgup`, `f1`, `kp0`,
   `kpent`, …), and `k` with the scancode in decimal for anything else, the comma, slash and bracket
   keys among them.

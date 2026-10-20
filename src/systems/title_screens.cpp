@@ -34,17 +34,16 @@ namespace {
 // The solid border tile the title board's walls and floor are drawn from ($8E).
 constexpr std::uint8_t kFieldBorderTile = 0x8E;
 
-// The 1P/2P selector cursor (OAM object 0) on the title screen: a tile and Y, and one of two X
-// positions for the one- and two-player choices.
-constexpr std::uint8_t kTitleCursorTile = 0x58;
-
+// The 1P/2P selector cursor (OAM object 0) on the title screen is the game's selector arrow
+// (kSelectorTile), at a fixed Y and one of two X positions for the one- and two-player choices.
+//
 // While heart mode is on, the selector IS the heart. It is the screen's one moving part and the only
 // thing on it that belongs to the port rather than the cartridge, so the mode says it is on where the
 // player is already looking, without a placement of its own on the title art.
 constexpr std::uint8_t kHeartCursorTile = static_cast<std::uint8_t>(CharTile::HEART);
 
 std::uint8_t titleCursorTile(std::uint8_t heartMode) {
-    return heartMode != 0 ? kHeartCursorTile : kTitleCursorTile;
+    return heartMode != 0 ? kHeartCursorTile : kSelectorTile;
 }
 constexpr std::uint8_t kTitleCursorY = 0x80;
 constexpr std::uint8_t kCursorX1P = 0x10;

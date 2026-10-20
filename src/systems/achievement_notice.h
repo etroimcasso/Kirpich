@@ -10,7 +10,7 @@
 // rule is written once and neither handler knows what a notice is.
 //
 // It draws nothing and names no drawing type: the picture is a function of the queue, built by the
-// components under src/render/achievements/. Nothing is cleared on the way in or out, either - the
+// components under src/render/screens/achievements/. Nothing is cleared on the way in or out, either - the
 // notice's frame is its own layers, so whatever the previous screen left in the object buffer and the
 // background map is simply not drawn, and the difficulty screen it hands to paints itself.
 

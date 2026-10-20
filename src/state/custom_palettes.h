@@ -50,9 +50,34 @@ struct CustomPalettes {
     friend constexpr bool operator==(const CustomPalettes&, const CustomPalettes&) = default;
 };
 
+// One color channel of a shade.
+enum class ColorChannel : std::uint8_t {
+    RED,
+    GREEN,
+    BLUE,
+};
+
+inline constexpr std::size_t kColorChannelCount = static_cast<std::size_t>(ColorChannel::BLUE) + 1;
+
+// How many shades a palette holds: darkest, dark, light and lightest, in that order.
+inline constexpr std::size_t kShadeCount = 4;
+
+// One channel of one shade of `palette`, as the 8-bit value it is. `shade` counts 0-3 from the
+// darkest; a larger value reads the lightest.
+[[nodiscard]] std::uint8_t channelValue(const render::ShadeRamp& palette, std::size_t shade,
+                                        ColorChannel channel) noexcept;
+
+// Write one channel of one shade of `palette`. `shade` counts as channelValue counts it.
+void setChannelValue(render::ShadeRamp& palette, std::size_t shade, ColorChannel channel,
+                     std::uint8_t value) noexcept;
+
 // The slot the working palette is saved in: the first present slot holding exactly its colors, or
 // nothing when none does - which is what "unsaved" means.
 [[nodiscard]] std::optional<std::uint8_t> savedSlotOf(const CustomPalettes& palettes) noexcept;
+
+// Whether the working palette holds changes that would be lost: it is saved in no slot, and it is not
+// the fresh grayscale a palette starts as. A palette never edited has nothing to lose.
+[[nodiscard]] bool hasUnsavedChanges(const CustomPalettes& palettes) noexcept;
 
 // The present slots as a walk. nextPresentSlot gives the first present slot numbered above `after`
 // (0 for the first of all); previousPresentSlot gives the last present slot numbered below `before`

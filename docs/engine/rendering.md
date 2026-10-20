@@ -105,12 +105,14 @@ kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
 kirpich::render::updateCustomPalette(renderer, tiles, palettes.working);
 ```
 
-Uploads all four extracted sheets and every palette, once, and returns their handles. Call it after
-the assets are present and before the first frame. It throws whatever the engine's loaders throw when
-a file is missing or will not decode.
+Uploads all four extracted sheets, the port's own glyph sheet, and every palette, once, and returns
+their handles. Call it after the assets are present and before the first frame. It throws whatever
+the engine's loaders throw when a file is missing or will not decode.
 
-`TileAtlas` holds four `retropp::AtlasId`s and, per shade ramp, a `RampPalettes` of eight
-`retropp::PaletteId`s — plus one more set, `custom`, the player's own palette, whose colors
+`TileAtlas` holds the four sheets' `retropp::AtlasId`s and a fifth, `glyphExtras`: the glyphs the font
+lacks (`src/render/glyph_extras.h`), uploaded from index planes in source in the font's own convention
+(index 0 the ink, 1 the background), so they draw through the font palettes. Cell 0 is the asterisk.
+Per shade ramp it holds a `RampPalettes` of nine `retropp::PaletteId`s — plus one more set, `custom`, the player's own palette, whose colors
 `updateCustomPalette` changes in place under the same handles ([settings.md](settings.md#the-custom-set)):
 
 | Palette | Entries | Used by |
@@ -122,6 +124,7 @@ a file is missing or will not decode.
 | `sprite0` | 4 | objects, plain ramp |
 | `sprite1` | 4 | objects, the variant the ending's dancers select |
 | `fontSpriteDim`, `spriteDim` | 2, 4 | objects inked in the light shade — an object present but not active |
+| `fontSpriteSelected` | 2 | the font as an object, inked in the dark shade — text being edited |
 
 Backgrounds and objects cannot share a palette: an object's lowest hardware colour is see-through
 rather than a shade. Which entry that is follows from the decode inverting — the see-through colour is

@@ -2,7 +2,7 @@
 
 // The achievements screen's logic: which section is on the page, where the cursor sits, which badge
 // is open, and what a press does to those. It draws nothing and names no drawing type - the picture
-// is a function of this state, built by the components under src/render/achievements/.
+// is a function of this state, built by the components under src/render/screens/achievements/.
 //
 // One section is on the page at a time. The cursor walks that section's badges; walking off the
 // bottom turns to the next section and off the top to the previous, keeping its column and landing in

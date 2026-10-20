@@ -60,7 +60,8 @@ rows open:
 Each of the two is headed by its own name, lays its rows on the same lines and columns as the
 settings page, and returns to the settings page with B, its cursor still on the row that opened it.
 The Palette screen draws everything on it - the heading, the row, the pieces - through the palette
-being chosen, so the whole screen changes as the player steps through them.
+being chosen, so the whole screen changes as the player steps through them. A down arrow at its foot
+says the palette editor is below, and Down opens it ([`custom-palette.md`](custom-palette.md)).
 
 The enhancement openers each lead to a screen with the room to say what the switch does: `ghost` and `fixes` run on the
 carousel ([`fixes-screen.md`](fixes-screen.md)), `new modes` on the mode screen that preceded it, and

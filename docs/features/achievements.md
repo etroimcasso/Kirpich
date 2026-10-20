@@ -175,10 +175,10 @@ screen paints its own and forks into name entry from its own init.
 | The set and the round-end check | `src/systems/achievements.{h,cpp}` |
 | The screen's state | `src/state/achievements_screen_state.h` |
 | The screen's logic | `src/systems/achievements_screen.{h,cpp}` |
-| The screen's components | `src/render/achievements/` |
+| The screen's components | `src/render/screens/achievements/` |
 | The notice's state | `src/state/achievement_notice_state.h` |
 | The notice's logic and the round exit | `src/systems/achievement_notice.{h,cpp}` |
-| The notice's components | `src/render/achievements/banner.*`, `notice.*`, `notice_layout.h` |
+| The notice's components | `src/render/screens/achievements/banner.*`, `notice.*`, `notice_layout.h` |
 | The shared render layer | `src/render/types.h`, `glyphs`, `backdrop`, `background_layer`, `sprite_layer`, `selection_corners` |
 
 Full surface, wiring table and the recipes for adding one are in
@@ -199,7 +199,7 @@ screens draw — the font has the letters, the digits, a period and a hyphen, an
 ## Open questions / future work
 
 - **Badge art is a placeholder.** `artFor` gives one emblem per *section*, so every badge in a section
-  wears the same one. It is data in `src/render/achievements/badge.cpp` — changing it touches no logic
+  wears the same one. It is data in `src/render/screens/achievements/badge.cpp` — changing it touches no logic
   and no saved byte — and it wants a pass that gives each achievement its own.
 - **Names and the hidden split want a content pass.** Both are data beside the id and neither is
   load-bearing; the set can be renamed wholesale without a migration.

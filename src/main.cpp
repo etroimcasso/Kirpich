@@ -55,26 +55,30 @@
 
 #include "assets/asset_root.h"
 #include "assets/first_start.h"
-#include "render/achievements/notice.h"
-#include "render/achievements/screen.h"
 #include "render/background.h"
-#include "render/controls/screen.h"
-#include "render/display_settings/screen.h"
 #include "render/ghost_piece.h"
 #include "render/heart_indicator.h"
-#include "render/palette_settings/screen.h"
+#include "render/screens/achievements/notice.h"
+#include "render/screens/achievements/screen.h"
+#include "render/screens/controls/screen.h"
+#include "render/screens/display_settings/screen.h"
+#include "render/screens/palette_editor/palette_editor.h"
+#include "render/screens/palette_editor/screen.h"
+#include "render/screens/palette_settings/screen.h"
 #include "render/settings_overlay.h"
-#include "render/stats_pages.h"
-#include "render/type_c_difficulty.h"
 #include "render/sprites.h"
+#include "render/stats_pages.h"
 #include "render/tile_atlas.h"
+#include "render/type_c_difficulty.h"
 #include "state/achievement_persistence.h"
 #include "state/controls.h"
 #include "state/custom_palettes.h"
 #include "state/high_score_persistence.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
+#include "systems/achievement_notice.h"
 #include "systems/achievements.h"
+#include "systems/achievements_screen.h"
 #include "systems/boot.h"
 #include "systems/controls.h"
 #include "systems/controls_screen.h"
@@ -88,16 +92,14 @@
 #include "systems/input.h"
 #include "systems/launch_scenes.h"
 #include "systems/line_clear.h"
-#include "systems/rising_floor.h"
 #include "systems/menu_screens.h"
 #include "systems/palette_settings_screen.h"
 #include "systems/readouts.h"
+#include "systems/rising_floor.h"
 #include "systems/scoring.h"
 #include "systems/settings_screen.h"
 #include "systems/sound.h"
 #include "systems/stats.h"
-#include "systems/achievement_notice.h"
-#include "systems/achievements_screen.h"
 #include "systems/stats_screens.h"
 #include "systems/title_screens.h"
 #include "systems/type_b_ending.h"
@@ -434,19 +436,22 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // written out exactly as one made anywhere else. The Palette screen also reaches the player's
     // custom palettes: stepping onto a saved slot puts it into use, which is a change to the atlas's
     // custom set and a write of the palettes document.
+    //
+    // The palette editor, opened by the Palette screen's Down, edits the same custom palettes through
+    // the same wiring: every change to the working palette is put on the atlas and written out.
     kirpich::systems::installDisplaySettingsScreen(dispatcher, settingsWiring);
-    kirpich::systems::installPaletteSettingsScreen(
-        dispatcher, settingsWiring,
-        kirpich::systems::CustomPaletteWiring{
-            .palettes = &palettes,
-            .apply =
-                [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
-                    kirpich::render::updateCustomPalette(renderer, tiles, shades);
-                },
-            .save = [&saves](const kirpich::CustomPalettes& current) {
-                kirpich::saveCustomPalettes(current, saves);
+    const kirpich::systems::CustomPaletteWiring paletteWiring{
+        .palettes = &palettes,
+        .apply =
+            [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
+                kirpich::render::updateCustomPalette(renderer, tiles, shades);
             },
-        });
+        .save = [&saves](const kirpich::CustomPalettes& current) {
+            kirpich::saveCustomPalettes(current, saves);
+        },
+    };
+    kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring, paletteWiring);
+    kirpich::systems::installPaletteEditor(dispatcher, settingsWiring, paletteWiring);
 
     // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
     // the press to bind, and on every binding hands the platform the action map the bindings now derive
@@ -690,6 +695,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 retropp::FrameDrawState screen;
                 screen.layers = kirpich::render::PaletteSettingsScreen(
                     settings, palettes, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::PALETTE_EDITOR: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::PaletteEditorScreen(
+                    game.paletteEditor, settings, palettes, game.screens.cursorVisible, tiles);
                 renderer.renderFrame(screen);
                 return;
             }

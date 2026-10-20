@@ -201,7 +201,7 @@ again when the player comes back.
 
 ### The components
 
-`src/render/achievements/`, with every position in `layout.h` in viewport pixels — shared by the
+`src/render/screens/achievements/`, with every position in `layout.h` in viewport pixels — shared by the
 components that draw and the tests that read them back.
 
 ```cpp
@@ -248,7 +248,7 @@ that has been earned, shows its title and description; an earned one also shows 
 time it was earned at.
 
 A description wraps to `kAchPanelTextCells` through the shared `wrapText`
-(`src/render/glyphs.h`), on word boundaries; a word longer than the width takes its own line rather
+(`src/render/components/glyphs.h`), on word boundaries; a word longer than the width takes its own line rather
 than being cut mid-word.
 
 ## The end-of-round notice
@@ -374,5 +374,5 @@ forward, since the image is a fixed length derived from the count.
 ## Adding a section
 
 A section is an `AchievementSection` enumerator, a case in `achievementSectionTitle`, a contiguous run
-in the set, and art in `artFor` (`src/render/achievements/badge.cpp`). The page count follows the
+in the set, and art in `artFor` (`src/render/screens/achievements/badge.cpp`). The page count follows the
 enum, so nothing else is raised.
