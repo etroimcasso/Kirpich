@@ -6,6 +6,21 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
 
 *Kirpich* (кирпич) is Russian for "brick".
 
+**[Download the latest release](https://github.com/etroimcasso/Kirpich/releases/latest)** for macOS, Windows or Linux. What happens on first launch, and where your files go, is under [Download](#download) below.
+
+**Contents**
+
+- [Features](#features)
+- [Download](#download)
+  - [Where your files live](#where-your-files-live)
+- [Content and licensing posture](#content-and-licensing-posture)
+- [Roadmap](#roadmap)
+- [Architecture](#architecture)
+  - [Built on Polyrhythm](#built-on-polyrhythm)
+  - [Repository layout](#repository-layout)
+  - [Building](#building)
+- [License](#license)
+
 ## Features
 
 - **The complete single-player game.** A-Type and B-Type, every menu and screen, pause, game over,
