@@ -101,15 +101,17 @@ Namespace `kirpich::render`. The only code that knows both Kirpich's types and t
 ```cpp
 #include "render/tile_atlas.h"
 
-const kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
+kirpich::render::TileAtlas tiles = kirpich::render::uploadTileAtlas(renderer);
+kirpich::render::updateCustomPalette(renderer, tiles, palettes.working);
 ```
 
 Uploads all four extracted sheets and every palette, once, and returns their handles. Call it after
 the assets are present and before the first frame. It throws whatever the engine's loaders throw when
 a file is missing or will not decode.
 
-`TileAtlas` holds four `retropp::AtlasId`s and, per shade ramp, a `RampPalettes` of seven
-`retropp::PaletteId`s:
+`TileAtlas` holds four `retropp::AtlasId`s and, per shade ramp, a `RampPalettes` of eight
+`retropp::PaletteId`s — plus one more set, `custom`, the player's own palette, whose colors
+`updateCustomPalette` changes in place under the same handles ([settings.md](settings.md#the-custom-set)):
 
 | Palette | Entries | Used by |
 |---|---|---|

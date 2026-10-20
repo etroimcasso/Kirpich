@@ -4,14 +4,13 @@
 #include <string>
 
 #include "render/palette_settings/layout.h"
-#include "render/palettes.h"  // rampColours
 
 namespace kirpich::render {
 
 using namespace palette_settings;
 
-Regions RampSwatch(std::uint8_t ramp) {
-    const std::array<retropp::Rgba8, 4> colors = rampColours(clampShadeRamp(ramp));
+Regions RampSwatch(const TileAtlas& atlas, std::uint8_t ramp) {
+    const std::array<retropp::Rgba8, 4> colors = shadesOf(atlas, ramp);
     static_assert(colors.size() == kSwatchSquares, "one square per shade");
 
     Regions out;

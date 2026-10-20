@@ -41,22 +41,24 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
 
 // (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
 // the scale as itself, then the shade ramp as itself, then the ghost-piece flag, then the new-modes
-// flag, then the audio-fix flag, then the show-stats flag.
-TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFourSwitches) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 7u);
+// flag, then the audio-fix flag, then the show-stats flag, then the custom-palette flag.
+TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 8u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV1, 3u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, 4u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV3, 5u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV4, 6u);
-    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 5u)
-        << "the seventh byte is a new format, so it is a new version rather than a longer version 4";
+    EXPECT_EQ(kirpich::kSettingsImageBytesV5, 7u);
+    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 6u)
+        << "the eighth byte is a new format, so it is a new version rather than a longer version 5";
 
     // Each version's length is one more than the one before it, which is what makes every migration a
     // single appended byte.
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, kirpich::kSettingsImageBytesV1 + 1);
     EXPECT_EQ(kirpich::kSettingsImageBytesV3, kirpich::kSettingsImageBytesV2 + 1);
     EXPECT_EQ(kirpich::kSettingsImageBytesV4, kirpich::kSettingsImageBytesV3 + 1);
-    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV4 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytesV5, kirpich::kSettingsImageBytesV4 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV5 + 1);
 
     const auto off = kirpich::encodeSettings(Settings{.fullscreen = false,
                                                       .windowScale = 3,
@@ -64,7 +66,8 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFourSwitches) {
                                                       .ghostPiece = false,
                                                       .newModes = false,
                                                       .fixAudio = false,
-                                                      .showStats = false});
+                                                      .showStats = false,
+                                                      .customPalette = false});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
     EXPECT_EQ(off[2], 0u);
@@ -72,6 +75,7 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFourSwitches) {
     EXPECT_EQ(off[4], 0u);
     EXPECT_EQ(off[5], 0u);
     EXPECT_EQ(off[6], 0u);
+    EXPECT_EQ(off[7], 0u);
 
     const auto on = kirpich::encodeSettings(Settings{.fullscreen = true,
                                                      .windowScale = 6,
@@ -79,7 +83,8 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFourSwitches) {
                                                      .ghostPiece = true,
                                                      .newModes = true,
                                                      .fixAudio = true,
-                                                     .showStats = true});
+                                                     .showStats = true,
+                                                     .customPalette = true});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
     EXPECT_EQ(on[2], 2u);
@@ -87,6 +92,7 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFourSwitches) {
     EXPECT_EQ(on[4], 1u);
     EXPECT_EQ(on[5], 1u);
     EXPECT_EQ(on[6], 1u);
+    EXPECT_EQ(on[7], 1u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -97,18 +103,22 @@ TEST(SettingsValue, CodecRoundTripsEveryReachableValue) {
             for (std::uint8_t ramp = 0; ramp < kirpich::render::kShadeRampCount; ++ramp) {
                 for (const bool ghost : {false, true}) {
                     for (const bool fix : {false, true}) {
-                        const Settings source{.fullscreen = fullscreen,
-                                              .windowScale = scale,
-                                              .shadeRamp   = ramp,
-                                              .ghostPiece  = ghost,
-                                              .fixAudio    = fix};
-                        const auto image = kirpich::encodeSettings(source);
+                        for (const bool custom : {false, true}) {
+                            const Settings source{.fullscreen    = fullscreen,
+                                                  .windowScale   = scale,
+                                                  .shadeRamp     = ramp,
+                                                  .ghostPiece    = ghost,
+                                                  .fixAudio      = fix,
+                                                  .customPalette = custom};
+                            const auto image = kirpich::encodeSettings(source);
 
-                        Settings decoded{};
-                        ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
-                        EXPECT_TRUE(decoded == source)
-                            << "fullscreen " << fullscreen << " scale " << +scale << " ramp "
-                            << +ramp << " ghost " << ghost << " fix " << fix;
+                            Settings decoded{};
+                            ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+                            EXPECT_TRUE(decoded == source)
+                                << "fullscreen " << fullscreen << " scale " << +scale << " ramp "
+                                << +ramp << " ghost " << ghost << " fix " << fix << " custom "
+                                << custom;
+                        }
                     }
                 }
             }
@@ -143,7 +153,7 @@ TEST(SettingsValue, DecodeClampsTheScaleAndKeepsTheFlag) {
 TEST(SettingsValue, EmptyOrOverlongImageIsRefusedAndWritesNothing) {
     const Settings before{.fullscreen = true, .windowScale = 5, .shadeRamp = 1};
 
-    const std::array<std::uint8_t, 7> bytes{1, 2, 3, 1, 1, 1, 9};
+    const std::array<std::uint8_t, kirpich::kSettingsImageBytes + 1> bytes{1, 2, 3, 1, 1, 1, 9, 1, 1};
     for (const std::size_t length : {std::size_t{0}, kirpich::kSettingsImageBytes + 1}) {
         Settings target = before;
         EXPECT_FALSE(kirpich::decodeSettings(std::span<const std::uint8_t>{bytes.data(), length},
@@ -238,8 +248,8 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
     EXPECT_EQ(v2[2], v1[2]);
     EXPECT_EQ(v2[3], std::byte{0});
 
-    // The next steps have the same shape, and the four compose: a version 1 document reaches
-    // version 5 through all of them, with everything it did carry surviving and everything it
+    // The next steps have the same shape, and the five compose: a version 1 document reaches
+    // version 6 through all of them, with everything it did carry surviving and everything it
     // predates coming up off.
     const std::vector<std::byte> v3 = kirpich::migrateSettingsV2ToV3(v2);
 
@@ -262,7 +272,7 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
 
     const std::vector<std::byte> v5 = kirpich::migrateSettingsV4ToV5(v4);
 
-    ASSERT_EQ(v5.size(), kirpich::kSettingsImageBytes);
+    ASSERT_EQ(v5.size(), kirpich::kSettingsImageBytesV5);
     EXPECT_EQ(v5[0], v1[0]);
     EXPECT_EQ(v5[1], v1[1]);
     EXPECT_EQ(v5[2], v1[2]);
@@ -270,29 +280,44 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
     EXPECT_EQ(v5[4], std::byte{0});
     EXPECT_EQ(v5[5], std::byte{0});
     EXPECT_EQ(v5[6], std::byte{0});
+
+    const std::vector<std::byte> v6 = kirpich::migrateSettingsV5ToV6(v5);
+
+    ASSERT_EQ(v6.size(), kirpich::kSettingsImageBytes);
+    EXPECT_EQ(v6[0], v1[0]);
+    EXPECT_EQ(v6[1], v1[1]);
+    EXPECT_EQ(v6[2], v1[2]);
+    EXPECT_EQ(v6[3], std::byte{0});
+    EXPECT_EQ(v6[4], std::byte{0});
+    EXPECT_EQ(v6[5], std::byte{0});
+    EXPECT_EQ(v6[6], std::byte{0});
+    EXPECT_EQ(v6[7], std::byte{0});
 }
 
-// (7b) The newest step on its own, against a version 4 image that carries every switch ON. It has to
-// append the show-stats byte off and touch nothing else: a step that resized the payload, or wrote
-// its byte over one of the six already there, would cost the player a setting they had chosen.
-TEST(SettingsValue, TheShowStatsMigrationAppendsOffAndLeavesTheRestAlone) {
-    const std::vector<std::byte> v4{std::byte{1}, std::byte{6}, std::byte{2},
+// (7b) The newest step on its own, against a version 5 image that carries every switch ON. It has to
+// append the custom-palette byte off and touch nothing else: a step that resized the payload, or
+// wrote its byte over one of the seven already there, would cost the player a setting they had
+// chosen - and the ramp byte in particular, which is what the player is drawn through while the
+// new flag is off.
+TEST(SettingsValue, TheCustomPaletteMigrationAppendsOffAndLeavesTheRestAlone) {
+    const std::vector<std::byte> v5{std::byte{1}, std::byte{6}, std::byte{2}, std::byte{1},
                                     std::byte{1}, std::byte{1}, std::byte{1}};
-    ASSERT_EQ(v4.size(), kirpich::kSettingsImageBytesV4);
+    ASSERT_EQ(v5.size(), kirpich::kSettingsImageBytesV5);
 
-    const std::vector<std::byte> v5 = kirpich::migrateSettingsV4ToV5(v4);
+    const std::vector<std::byte> v6 = kirpich::migrateSettingsV5ToV6(v5);
 
-    ASSERT_EQ(v5.size(), kirpich::kSettingsImageBytes);
-    for (std::size_t i = 0; i < v4.size(); ++i) {
-        EXPECT_EQ(v5[i], v4[i]) << "byte " << i << " belonged to version 4 and must survive";
+    ASSERT_EQ(v6.size(), kirpich::kSettingsImageBytes);
+    for (std::size_t i = 0; i < v5.size(); ++i) {
+        EXPECT_EQ(v6[i], v5[i]) << "byte " << i << " belonged to version 5 and must survive";
     }
-    EXPECT_EQ(v5[kirpich::kSettingsImageBytesV4], std::byte{0})
-        << "a document written before the statistics were offered had them off";
+    EXPECT_EQ(v6[kirpich::kSettingsImageBytesV5], std::byte{0})
+        << "a document written before a custom palette could be in use was drawn through a ramp";
 
-    // And what that image decodes to: six switches as the player left them, the new one off.
+    // And what that image decodes to: seven values as the player left them, the new one off, and
+    // the frame still drawn through the ramp the player chose.
     Settings decoded{};
     const std::span<const std::uint8_t> image(
-        reinterpret_cast<const std::uint8_t*>(v5.data()), v5.size());
+        reinterpret_cast<const std::uint8_t*>(v6.data()), v6.size());
     ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
     EXPECT_TRUE(decoded.fullscreen);
     EXPECT_EQ(decoded.windowScale, 6);
@@ -300,7 +325,9 @@ TEST(SettingsValue, TheShowStatsMigrationAppendsOffAndLeavesTheRestAlone) {
     EXPECT_TRUE(decoded.ghostPiece);
     EXPECT_TRUE(decoded.newModes);
     EXPECT_TRUE(decoded.fixAudio);
-    EXPECT_FALSE(decoded.showStats);
+    EXPECT_TRUE(decoded.showStats);
+    EXPECT_FALSE(decoded.customPalette);
+    EXPECT_EQ(kirpich::paletteIndexOf(decoded), 2);
 }
 
 // (7c) A settings document written by the shipped 0.9.5 build - version 4, six bytes - loads through
@@ -334,12 +361,54 @@ TEST(SettingsValue, AVersionFourDocumentFromZeroNinePointFiveMigratesForward) {
         EXPECT_TRUE(loaded.newModes);
         EXPECT_TRUE(loaded.fixAudio);
         EXPECT_FALSE(loaded.showStats) << "a setting the document predates takes its default";
+        EXPECT_FALSE(loaded.customPalette) << "a setting the document predates takes its default";
 
         const auto migrated = store.read("settings");
         ASSERT_TRUE(migrated.has_value());
         EXPECT_EQ(migrated->schemaVersion, kirpich::kSettingsSchemaVersion);
         EXPECT_EQ(migrated->payload.size(), kirpich::kSettingsImageBytes)
-            << "a version 4 document must reach the decoder at version 5's length";
+            << "a version 4 document must reach the decoder at the current length";
+    }
+
+    std::filesystem::remove_all(root);
+}
+
+// (7d) A settings document written by the shipped 0.10 and 0.10.1 builds - version 5, seven bytes -
+// loads through the shipped loader with its seven values intact, no custom palette in use, and the
+// payload arriving at version 6's length: migrated, not read short.
+TEST(SettingsValue, AVersionFiveDocumentFromZeroTenMigratesForward) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_settings_v5_migration";
+    std::filesystem::remove_all(root);
+
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        // Fullscreen, scale 3, ramp 66, ghost on, new modes off, the audio fix on, the statistics on -
+        // and no eighth byte, because there was no eighth setting.
+        const std::array<std::uint8_t, kirpich::kSettingsImageBytesV5> v5{1, 3, 66, 1, 0, 1, 1};
+        ASSERT_TRUE(store.write("settings", 5, std::as_bytes(std::span<const std::uint8_t>(v5))));
+    }
+
+    {
+        auto     store = retropp::SaveStore::atPath(root);
+        Settings loaded{};
+        ASSERT_TRUE(kirpich::loadSettings(store, loaded))
+            << "a document from the last release must still load";
+        EXPECT_TRUE(loaded.fullscreen);
+        EXPECT_EQ(loaded.windowScale, 3);
+        EXPECT_EQ(loaded.shadeRamp, 66);
+        EXPECT_TRUE(loaded.ghostPiece);
+        EXPECT_FALSE(loaded.newModes);
+        EXPECT_TRUE(loaded.fixAudio);
+        EXPECT_TRUE(loaded.showStats);
+        EXPECT_FALSE(loaded.customPalette) << "a setting the document predates takes its default";
+        EXPECT_EQ(kirpich::paletteIndexOf(loaded), 66) << "still drawn through the chosen ramp";
+
+        const auto migrated = store.read("settings");
+        ASSERT_TRUE(migrated.has_value());
+        EXPECT_EQ(migrated->schemaVersion, kirpich::kSettingsSchemaVersion);
+        EXPECT_EQ(migrated->payload.size(), kirpich::kSettingsImageBytes)
+            << "a version 5 document must reach the decoder at version 6's length";
     }
 
     std::filesystem::remove_all(root);
@@ -455,6 +524,25 @@ TEST(SettingsValue, DefaultsAreWindowedAtTheEngineScale) {
     EXPECT_EQ(defaults.windowScale, kirpich::kDefaultWindowScale);
     EXPECT_EQ(defaults.windowScale, retropp::EngineConfig{}.enhancements.windowScale);
     EXPECT_EQ(defaults.shadeRamp, kirpich::render::kDefaultShadeRamp);
+    EXPECT_FALSE(defaults.customPalette);
+}
+
+// (10) The palette index the frame draws through: the custom set while the flag is set, whatever the
+// ramp byte says underneath, and the clamped ramp otherwise - swept over every ramp and past the
+// table, since a stored byte can hold anything.
+TEST(SettingsValue, PaletteIndexIsTheCustomSetOrTheClampedRamp) {
+    for (int ramp = 0; ramp <= 255; ++ramp) {
+        const auto byte = static_cast<std::uint8_t>(ramp);
+        EXPECT_EQ(kirpich::paletteIndexOf(Settings{.shadeRamp = byte, .customPalette = false}),
+                  kirpich::render::clampShadeRamp(ramp))
+            << "ramp " << ramp;
+        EXPECT_EQ(kirpich::paletteIndexOf(Settings{.shadeRamp = byte, .customPalette = true}),
+                  kirpich::render::kCustomRamp)
+            << "ramp " << ramp;
+    }
+    EXPECT_EQ(kirpich::render::kCustomRamp, kirpich::render::kShadeRampCount)
+        << "the custom set is the one index past the table";
+    EXPECT_EQ(kirpich::render::kPaletteChoiceCount, kirpich::render::kShadeRampCount + 1);
 }
 
 }  // namespace

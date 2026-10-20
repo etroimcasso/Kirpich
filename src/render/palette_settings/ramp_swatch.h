@@ -9,13 +9,15 @@
 
 #include <cstdint>
 
+#include "render/tile_atlas.h"
 #include "render/types.h"
 
 namespace kirpich::render {
 
 // Four squares, darkest shade to lightest, opaque, abutting and centered across the screen on the
-// line under the palette row (render/palette_settings/layout.h). A ramp past the last is drawn as the
-// last.
-[[nodiscard]] Regions RampSwatch(std::uint8_t ramp);
+// line under the palette row (render/palette_settings/layout.h). The colors are the palette index's
+// own (shadesOf): a built-in ramp's from the table, the custom set's current colors for kCustomRamp.
+// An index past the last is drawn as the last built-in.
+[[nodiscard]] Regions RampSwatch(const TileAtlas& atlas, std::uint8_t ramp);
 
 }  // namespace kirpich::render

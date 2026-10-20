@@ -28,6 +28,25 @@ static_assert(kEmptyLocation.cell < kCarriedCopyrightTiles,
               "the empty tile must be one of the tiles the gameplay loader carries over, or it "
               "would name different art on a gameplay screen than on a title screen");
 
+template <std::size_t N>
+std::span<const retropp::Rgba8> colors(const std::array<retropp::Rgba8, N>& palette) noexcept {
+    return std::span<const retropp::Rgba8>(palette);
+}
+
+// Upload one ramp's eight palettes and return their handles.
+RampPalettes uploadRampPalettes(retropp::Renderer& renderer, const RampPaletteColors& c) {
+    return RampPalettes{
+        .font          = renderer.uploadPalette(colors(c.font)),
+        .content       = renderer.uploadPalette(colors(c.content)),
+        .fontDim       = renderer.uploadPalette(colors(c.fontDim)),
+        .fontSprite    = renderer.uploadPalette(colors(c.fontSprite)),
+        .sprite0       = renderer.uploadPalette(colors(c.sprite0)),
+        .sprite1       = renderer.uploadPalette(colors(c.sprite1)),
+        .fontSpriteDim = renderer.uploadPalette(colors(c.fontSpriteDim)),
+        .spriteDim     = renderer.uploadPalette(colors(c.spriteDim)),
+    };
+}
+
 }  // namespace
 
 TileLocation locateTile(std::uint8_t index, TileSheet sheet) noexcept {
@@ -72,6 +91,29 @@ TileLocation locateTile(std::uint8_t index, TileSheet sheet) noexcept {
                : kEmptyLocation;
 }
 
+RampPaletteColors rampPaletteColors(const ShadeRamp& shades) noexcept {
+    // The object palettes are each the background counterpart with the last entry - the one the
+    // decode's inversion puts the see-through colour at - made see-through.
+    //
+    // The plain object ramp is otherwise the background's: every colour keeps its own shade. The
+    // variant differs in one place, the second entry: the colour that is ordinarily the second-darkest
+    // is drawn at the lightest shade instead. That is the ramp the two dancers select, and it is why
+    // they read differently from their neighbours.
+    //
+    // The dim pair: every shade that would have been ink becomes the light one, so the art keeps its
+    // shape and loses its weight - the same relation the dim font has to the font.
+    return RampPaletteColors{
+        .font          = {shades.darkest, shades.lightest},
+        .content       = {shades.darkest, shades.dark, shades.light, shades.lightest},
+        .fontDim       = {shades.light, shades.lightest},
+        .fontSprite    = {shades.darkest, kShadeTransparent},
+        .sprite0       = {shades.darkest, shades.dark, shades.light, kShadeTransparent},
+        .sprite1       = {shades.darkest, shades.lightest, shades.light, kShadeTransparent},
+        .fontSpriteDim = {shades.light, kShadeTransparent},
+        .spriteDim     = {shades.light, shades.light, shades.lightest, kShadeTransparent},
+    };
+}
+
 TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
     // Each sheet is a grid of independent 8x8 tiles, sixteen to a row, in reading order - so a
     // tile's cell index is its position in the file, which is exactly what a tile index names.
@@ -103,52 +145,46 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
     // One set of palettes per shade ramp, all uploaded here. A ramp only changes what the four shades
     // are, so each set is built the same way from its own four colours, and choosing a ramp later is
     // choosing between handles rather than uploading anything.
-    //
-    // The object palettes are each the background counterpart with the last entry - the one the
-    // decode's inversion puts the see-through colour at - made see-through.
-    //
-    // The plain object ramp is otherwise the background's: every colour keeps its own shade. The
-    // variant differs in one place, the second entry: the colour that is ordinarily the second-darkest
-    // is drawn at the lightest shade instead. That is the ramp the two dancers select, and it is why
-    // they read differently from their neighbours.
     for (std::size_t i = 0; i < kShadeRampCount; ++i) {
-        const ShadeRamp& shades = kShadeRamps[i];
-
-        const std::array<retropp::Rgba8, 2> font{shades.darkest, shades.lightest};
-        const std::array<retropp::Rgba8, 2> fontDim{shades.light, shades.lightest};
-        const std::array<retropp::Rgba8, 4> content{shades.darkest, shades.dark, shades.light,
-                                                    shades.lightest};
-        const std::array<retropp::Rgba8, 2> fontSprite{shades.darkest, kShadeTransparent};
-        const std::array<retropp::Rgba8, 4> sprite0{shades.darkest, shades.dark, shades.light,
-                                                    kShadeTransparent};
-        const std::array<retropp::Rgba8, 4> sprite1{shades.darkest, shades.lightest, shades.light,
-                                                    kShadeTransparent};
-
-        // The dim pair. Every shade that would have been ink becomes the light one, so the art keeps
-        // its shape and loses its weight - the same relation the dim font has to the font.
-        const std::array<retropp::Rgba8, 2> fontSpriteDim{shades.light, kShadeTransparent};
-        const std::array<retropp::Rgba8, 4> spriteDim{shades.light, shades.light, shades.lightest,
-                                                      kShadeTransparent};
-
-        atlas.palettes[i] = RampPalettes{
-            .font       = renderer.uploadPalette(std::span<const retropp::Rgba8>(font)),
-            .content    = renderer.uploadPalette(std::span<const retropp::Rgba8>(content)),
-            .fontDim    = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontDim)),
-            .fontSprite = renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSprite)),
-            .sprite0    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite0)),
-            .sprite1    = renderer.uploadPalette(std::span<const retropp::Rgba8>(sprite1)),
-            .fontSpriteDim =
-                renderer.uploadPalette(std::span<const retropp::Rgba8>(fontSpriteDim)),
-            .spriteDim = renderer.uploadPalette(std::span<const retropp::Rgba8>(spriteDim)),
-        };
+        atlas.palettes[i] = uploadRampPalettes(renderer, rampPaletteColors(kShadeRamps[i]));
     }
+
+    // The custom set, arranged the same way from the palette a custom slot starts from. It is the one
+    // set whose colors change after this: updateCustomPalette writes over these eight handles.
+    atlas.customShades = freshCustomPalette();
+    atlas.custom       = uploadRampPalettes(renderer, rampPaletteColors(atlas.customShades));
 
     return atlas;
 }
 
+const RampPalettes& palettesFor(const TileAtlas& atlas, std::uint8_t index) noexcept {
+    return index == kCustomRamp ? atlas.custom : atlas.palettes[clampShadeRamp(index)];
+}
+
+std::array<retropp::Rgba8, 4> shadesOf(const TileAtlas& atlas, std::uint8_t index) noexcept {
+    if (index == kCustomRamp) {
+        const ShadeRamp& c = atlas.customShades;
+        return {c.darkest, c.dark, c.light, c.lightest};
+    }
+    return rampColours(index);
+}
+
+void updateCustomPalette(retropp::Renderer& renderer, TileAtlas& atlas, const ShadeRamp& shades) {
+    const RampPaletteColors c = rampPaletteColors(shades);
+    renderer.updatePalette(atlas.custom.font, colors(c.font));
+    renderer.updatePalette(atlas.custom.content, colors(c.content));
+    renderer.updatePalette(atlas.custom.fontDim, colors(c.fontDim));
+    renderer.updatePalette(atlas.custom.fontSprite, colors(c.fontSprite));
+    renderer.updatePalette(atlas.custom.sprite0, colors(c.sprite0));
+    renderer.updatePalette(atlas.custom.sprite1, colors(c.sprite1));
+    renderer.updatePalette(atlas.custom.fontSpriteDim, colors(c.fontSpriteDim));
+    renderer.updatePalette(atlas.custom.spriteDim, colors(c.spriteDim));
+    atlas.customShades = shades;
+}
+
 ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
                          std::uint8_t ramp) noexcept {
-    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    const RampPalettes& palettes = palettesFor(atlas, ramp);
     const TileLocation  where    = locateTile(index, sheet);
     switch (where.source) {
         case TileSource::FONT:
@@ -193,14 +229,14 @@ namespace {
 
 ResolvedTile resolveSpriteTile(std::uint8_t index, TileSheet sheet, bool palette1,
                                const TileAtlas& atlas, std::uint8_t ramp) noexcept {
-    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    const RampPalettes& palettes = palettesFor(atlas, ramp);
     return spriteTileThrough(index, sheet, atlas, palettes.fontSprite,
                              palette1 ? palettes.sprite1 : palettes.sprite0);
 }
 
 ResolvedTile resolveDimSpriteTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
                                   std::uint8_t ramp) noexcept {
-    const RampPalettes& palettes = atlas.palettes[clampShadeRamp(ramp)];
+    const RampPalettes& palettes = palettesFor(atlas, ramp);
     return spriteTileThrough(index, sheet, atlas, palettes.fontSpriteDim, palettes.spriteDim);
 }
 

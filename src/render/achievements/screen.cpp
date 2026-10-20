@@ -9,7 +9,6 @@
 #include "render/backdrop.h"
 #include "render/background_layer.h"
 #include "render/glyphs.h"
-#include "render/palettes.h"  // kShadeRamps
 #include "render/selection_corners.h"
 #include "render/sprite_layer.h"
 #include "systems/achievements_screen.h"  // the section on the page, and its title
@@ -36,7 +35,7 @@ Layers AchievementsScreen(const AchievementScreenState& ui, const AchievementSta
             badgeExtent(systems::achievementSectionBadge(section, ui.cursor).id);
         cursor = SelectionCorners("ach-cursor", achSelectX(ui.cursor), achSelectY(ui.cursor),
                                   achSelectSpan(art.width), achSelectSpan(art.height),
-                                  rampColours(ramp)[0]);
+                                  shadesOf(atlas, ramp)[0]);
     }
 
     return {

@@ -55,7 +55,7 @@ rows open:
 |---|---|---|
 | Display | `fullscreen` | `on` / `off` |
 | Display | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
-| Palette | `palette` | `◄ n ►`, eighty color ramps, with a swatch of the chosen one's four colors beneath the row and the seven pieces drawn in it below that |
+| Palette | `palette` | `◄ n ►`, eighty color ramps and then every custom palette the player has saved, read as `C` and its slot number ([`custom-palette.md`](custom-palette.md)); a swatch of the chosen one's four colors beneath the row and the seven pieces drawn in it below that |
 
 Each of the two is headed by its own name, lays its rows on the same lines and columns as the
 settings page, and returns to the settings page with B, its cursor still on the row that opened it.
@@ -139,9 +139,11 @@ player who changes something and quits comes back to it.
 
 ## Persistence
 
-The settings live in their own save document beside the top scores, under the same identity: three
+The settings live in their own save document beside the top scores, under the same identity: eight
 bytes, one per setting. An absent document is an ordinary first run and leaves the defaults; a damaged
-one is reported, leaves the defaults, and is left on disk rather than overwritten.
+one is reported, leaves the defaults, and is left on disk rather than overwritten. The player's custom
+palettes are a document of their own ([`custom-palette.md`](custom-palette.md)); the settings carry
+only whether one is in use.
 
 A **shorter** document is read as far as it goes and every setting it does not carry keeps its default,
 so a document written before a setting existed costs the player that one setting rather than all of

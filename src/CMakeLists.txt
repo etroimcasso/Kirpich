@@ -13,6 +13,7 @@ add_library(kirpich-lib STATIC
     data/scoring.cpp
     state/achievement_persistence.cpp
     state/controls.cpp
+    state/custom_palettes.cpp
     state/high_score_persistence.cpp
     state/settings.cpp
     state/stats_persistence.cpp

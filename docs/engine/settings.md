@@ -5,6 +5,7 @@ The player's display choices, the screens that edit them, and the color ramps th
 | Piece | Where |
 |---|---|
 | The values and their save document | `src/state/settings.h` / `.cpp` |
+| The player's custom palettes and their document | `src/state/custom_palettes.h` / `.cpp` |
 | The settings screen and its confirm | `src/systems/settings_screen.h` / `.cpp` |
 | The Display and Palette screens' logic | `src/systems/display_settings_screen.h`, `src/systems/palette_settings_screen.h` (and `.cpp`) |
 | The Display and Palette screens' components | `src/render/display_settings/`, `src/render/palette_settings/`, and the shared `src/render/option_row.h`, `scroller_arrows.h`, `piece_shape.h` |
@@ -23,11 +24,19 @@ struct Settings {
     bool         newModes    = false;                // the game types the cartridge never had
     bool         fixAudio    = false;                // the title music returns after a demo
     bool         showStats   = false;                // the statistics are offered on the title screen
+    bool         customPalette = false;              // the player's custom palette is in use
 };
+
+std::uint8_t paletteIndexOf(const Settings&);
 ```
 
 `Settings` is not game state and is not on `GameContext`: it outlives a round and a reset, and it is
 saved to disk. The host owns one and hands the screen a pointer to it.
+
+`paletteIndexOf` is the one derivation of which palette the frame draws through:
+`render::kCustomRamp` while `customPalette` is set, the clamped `shadeRamp` otherwise. `shadeRamp`
+keeps its value underneath, so a player stepping back off the custom palette lands on the ramp they
+left. Every frame read in the host goes through it rather than through `shadeRamp` directly.
 
 ```cpp
 retropp::SaveStore saves = retropp::SaveStore::atPath(retropp::userDataDir(identity));
@@ -44,16 +53,16 @@ offers. Both are applied on the way in from disk, so a stored value can never na
 
 ### The save document
 
-`"settings"`, **version 5**, seven bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
-then the ghost-piece, new-modes, audio-fix and show-stats flags, each as 0 or 1.
+`"settings"`, **version 6**, eight bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
+then the ghost-piece, new-modes, audio-fix, show-stats and custom-palette flags, each as 0 or 1.
 
 Each earlier version was one byte shorter — version 1 stopped after the ramp, version 2 added the
-ghost-piece flag, version 3 the new-modes flag, version 4 the audio-fix flag — and each step's
-migration (`migrateSettingsV1ToV2` / `V2ToV3` / `V3ToV4` / `V4ToV5`) appends its flag as off.
-`loadSettings` registers all four on the store before reading, so a document written at any released
-version reaches the decoder at version 5's length.
+ghost-piece flag, version 3 the new-modes flag, version 4 the audio-fix flag, version 5 the show-stats
+flag — and each step's migration (`migrateSettingsV1ToV2` / `V2ToV3` / `V3ToV4` / `V4ToV5` / `V5ToV6`)
+appends its flag as off. `loadSettings` registers all five on the store before reading, so a document
+written at any released version reaches the decoder at version 6's length.
 
-`decodeSettings` accepts an image **shorter** than seven bytes and leaves every value the image does not
+`decodeSettings` accepts an image **shorter** than eight bytes and leaves every value the image does not
 carry at its default, which keeps a truncated file costing one setting rather than all of them. It
 refuses an empty image and one longer than this build writes.
 
@@ -78,9 +87,88 @@ statistics and the achievements. Declaring one version therefore changes the ter
 that store is read under.
 
 What keeps them apart is that each loader names its own version immediately before its own read —
-`loadSettings` sets 5 and registers its chain, `loadControls` sets 1, `loadTopScores` sets 3 and
-registers its own — so a document is never read under another document's version. Any new document
-type in this store follows the same rule.
+`loadSettings` sets 6 and registers its chain, `loadControls` sets 1, `loadCustomPalettes` sets 1,
+`loadTopScores` sets 3 and registers its own — so a document is never read under another document's
+version. Any new document type in this store follows the same rule.
+
+## The custom palettes
+
+The player's own palettes: ninety-nine slots a palette can be saved into, and the **working palette**,
+the one being edited — which is also the one the game draws through while `Settings::customPalette`
+is set.
+
+```cpp
+inline constexpr std::size_t kCustomPaletteSlotCount = 99;
+
+struct CustomPaletteSlot {
+    bool              present = false;                       // something has been saved here
+    render::ShadeRamp shades  = render::freshCustomPalette();
+};
+
+struct CustomPalettes {
+    render::ShadeRamp                                      working = render::freshCustomPalette();
+    std::array<CustomPaletteSlot, kCustomPaletteSlotCount> slots{};
+};
+```
+
+A custom palette is a `render::ShadeRamp` whose `mayBottomOutAtBlack` is always off — that flag is the
+built-in table's note about how a ramp was authored, so a slot compares equal to the working palette
+color for color. `render::freshCustomPalette()` is what an empty slot holds and what the working
+palette starts as: the default grayscale's four colors.
+
+A slot is **empty** until a palette is saved into it, and empty again once cleared. An empty slot is
+not offered on the Palette screen's selector. Slot numbers are one-based at every surface, as they are
+on screen: `C01` is `slots[0]`.
+
+Like the settings and the controls, the palettes are the host's, outside `GameContext`, loaded before
+the window opens and untouched by a reset.
+
+### Saved is a comparison
+
+```cpp
+std::optional<std::uint8_t> savedSlotOf(const CustomPalettes&);
+std::optional<std::uint8_t> nextPresentSlot(const CustomPalettes&, std::uint8_t after);
+std::optional<std::uint8_t> previousPresentSlot(const CustomPalettes&, std::uint8_t before);
+```
+
+Nothing records which slot the working palette "came from". `savedSlotOf` returns the first present
+slot holding exactly the working palette's colors, or nothing — and nothing is what **unsaved** means.
+The Palette screen's `C<nn>` / `C` reads it, and so will anything that marks a palette unsaved. The two
+walk helpers give the present slots in order: `nextPresentSlot(p, 0)` is the first of all,
+`previousPresentSlot(p, kCustomPaletteSlotCount + 1)` the last of all.
+
+### The palettes document
+
+`"palettes"`, **version 1**, 1300 bytes: one hundred records of thirteen — a presence byte, then red,
+green and blue for the darkest, dark, light and lightest shades. Record 0 is the working palette (its
+presence byte written as 1 and not read); records 1 to 99 are the slots. Alpha is not stored, and a
+decoded color's alpha is 255.
+
+```cpp
+std::array<std::uint8_t, kCustomPalettesImageBytes> encodeCustomPalettes(const CustomPalettes&);
+bool decodeCustomPalettes(std::span<const std::uint8_t> image, CustomPalettes&);
+bool saveCustomPalettes(const CustomPalettes&, retropp::SaveStore&);
+bool loadCustomPalettes(retropp::SaveStore&, CustomPalettes&);
+```
+
+`decodeCustomPalettes` refuses anything but exactly 1300 bytes and leaves the value untouched; any
+non-zero presence byte means present. `loadCustomPalettes` follows `loadControls`: it sets the store's
+version to 1 immediately before its read, returns `false` for an absent document (leaving the
+defaults), a corrupt one (logged, defaults, file left in place) and a wrong length (logged, defaults).
+
+### The wiring
+
+```cpp
+struct CustomPaletteWiring {
+    CustomPalettes*                               palettes = nullptr;
+    std::function<void(const render::ShadeRamp&)> apply;   // the atlas's custom set takes these colors
+    std::function<void(const CustomPalettes&)>    save;    // the document is written
+};
+```
+
+Every seam is inert by default, and with no `palettes` behind it the Palette screen offers no custom
+slot. `apply` and `save` fire, in that order, whenever the working palette changes; the host's `apply`
+is `render::updateCustomPalette` (below, under the color ramps).
 
 ## The screens
 
@@ -100,11 +188,21 @@ kirpich::systems::installSettingsHandlers(
                 });
 ```
 
-The two screens the first page opens take the same wiring, one slot each:
+The two screens the first page opens take the same wiring, one slot each; the Palette screen takes the
+custom palettes' wiring beside it, because stepping onto a saved slot changes the atlas's custom set
+and writes the palettes document:
 
 ```cpp
 kirpich::systems::installDisplaySettingsScreen(dispatcher, settingsWiring);
-kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring);
+kirpich::systems::installPaletteSettingsScreen(
+    dispatcher, settingsWiring,
+    kirpich::systems::CustomPaletteWiring{
+        .palettes = &palettes,
+        .apply    = [&](const kirpich::render::ShadeRamp& s) {
+            kirpich::render::updateCustomPalette(renderer, tiles, s);
+        },
+        .save     = [&](const kirpich::CustomPalettes& p) { kirpich::saveCustomPalettes(p, saves); },
+    });
 ```
 
 Every seam defaults to inert. `apply` and `save` fire on each change; `exit` fires when the confirm is
@@ -214,13 +312,44 @@ chroma alone accepts a bright colour, luminance alone accepts a dark grey.
 
 Adding a ramp therefore means choosing which kind it is. Say nothing and the check applies.
 
-Darkest first, matching the order the extractor's decode produces. `uploadTileAtlas` builds five
-palettes per ramp — background font, background content, and the three object variants — and uploads
-them all at startup, so choosing a ramp picks between handles and uploads nothing.
+Darkest first, matching the order the extractor's decode produces. `uploadTileAtlas` builds eight
+palettes per ramp — the background font and content, the dim font, the two object palettes, the font
+as an object, and the two dim object palettes; `rampPaletteColors(const ShadeRamp&)` is the one
+builder that arranges them — and uploads them all at startup, so choosing a ramp picks between
+handles and uploads nothing.
 
 `resolveTile(index, sheet, atlas, ramp)` and `resolveSpriteTile(index, sheet, palette1, atlas, ramp)`
 take the ramp; `composeBackground` and `composeSprites` pass it through. A ramp decides which colours
 a sample resolves to and never which art a tile index names.
+
+### The custom set
+
+```cpp
+inline constexpr std::uint8_t kCustomRamp         = kShadeRampCount;      // 80
+inline constexpr std::size_t  kPaletteChoiceCount = kShadeRampCount + 1;
+constexpr ShadeRamp           freshCustomPalette() noexcept;
+
+const RampPalettes&           palettesFor(const TileAtlas&, std::uint8_t index) noexcept;
+std::array<retropp::Rgba8, 4> shadesOf(const TileAtlas&, std::uint8_t index) noexcept;
+void updateCustomPalette(retropp::Renderer&, TileAtlas&, const ShadeRamp& shades);
+```
+
+The one palette index past the table is the player's custom palette. `TileAtlas` carries it as one
+more `RampPalettes`, `custom`, uploaded at startup from `freshCustomPalette()` and arranged exactly as
+a built-in's is, with `customShades` recording what it currently draws. Every component that takes a
+`ramp` accepts `kCustomRamp`; `palettesFor` returns the custom set for it and the clamped built-in for
+any other index, so an index past `kCustomRamp` still clamps to the last ramp.
+
+`updateCustomPalette` gives the set new colors: eight `Renderer::updatePalette` calls under the eight
+handles, which keep their ids and draw the new colors from the next frame on, then `customShades`
+updated. One call per change is the whole cost — the colors travel in the next frame's copy pass, and
+the palette store does not grow. The host calls it once at startup with the working palette and from
+`CustomPaletteWiring::apply` after that.
+
+`shadesOf` is for anything that **shows** a palette's colors rather than draws through them — the
+swatch, the ghost piece's fill, the achievements screen's corner selector: the custom set's current
+colors for `kCustomRamp`, `rampColours(index)` otherwise. `rampColours` itself is the table's, and is
+what the ramp invariants sweep.
 
 Object palettes take the ramp with its **last** entry replaced by transparency, which is the
 hardware's rule: an object's lightest colour is see-through. A ramp therefore contributes three
@@ -261,7 +390,7 @@ of its own small state, called every frame, and returns its layers.
 | Screen | Holds | Logic | Components |
 |---|---|---|---|
 | Display | fullscreen and the window size | `src/systems/display_settings_screen.h` | `src/render/display_settings/` |
-| Palette | the palette selector, a swatch of its four colors, and the seven pieces drawn in it | `src/systems/palette_settings_screen.h` | `src/render/palette_settings/` |
+| Palette | the palette selector — the eighty ramps, then every saved custom palette — a swatch of the chosen one's four colors, and the seven pieces drawn in it | `src/systems/palette_settings_screen.h` | `src/render/palette_settings/` |
 
 ### Opening and leaving
 
@@ -286,24 +415,49 @@ Each screen's logic is a dispatch table mapping an action to what it does, run a
 | Screen | MenuUp / MenuDown | MenuLeft / MenuRight | Back |
 |---|---|---|---|
 | Display | move between the two rows, with end stops | change the row's value | return |
-| Palette | nothing | step the palette | return |
+| Palette | nothing | step the palette: the ramps, then the saved custom slots | return |
 
 A move cues TINK; an end stop moves nothing and makes no sound. A value change goes through
 `changeSettings(game, wiring, next)` (`src/systems/settings_screen.h`), which stores the settings,
 cues TINK and fires `apply` then `save`. A change that lands on the value already held is an end stop:
-nothing is written, nothing is cued, and neither seam fires. Right turns fullscreen on, steps the size
-up and steps to the next palette; Left does the opposite. The size is clamped by `clampWindowScale`
-and the palette by `render::clampShadeRamp`.
+nothing is written, nothing is cued, and neither seam fires. Right turns fullscreen on and steps the
+size up; Left does the opposite. The size is clamped by `clampWindowScale`.
 
 The Display screen's cursor position is `DisplaySettingsState` (`src/state/display_settings_state.h`),
-a `GameContext` member of its own: it is the screen's state, not the player's and not the game's.
+a `GameContext` member of its own: it is the screen's state, not the player's and not the game's. The
+Palette screen has one row and keeps no state.
+
+### The Palette screen's walk
+
+The selector is one sequence: the eighty ramps in order, then every **present** slot of the custom
+palettes in slot order. With slots 1, 4 and 7 saved it runs `… 79, 80, C01, C04, C07`.
+
+- From a ramp, Right steps to the next ramp, and from the last ramp to the first present slot; Left
+  steps to the previous ramp, and from the first it is an end stop.
+- **Landing on a slot** copies the slot's palette into the working palette, fires the custom wiring's
+  `apply` then `save`, and sets `customPalette` through `changeSettings` — `shadeRamp` is left as it
+  was. A step from one slot to another changes no setting, so the step cues TINK itself.
+- From a slot, Right steps to the next present slot, an end stop after the last; Left steps to the
+  previous present slot, and from the first lands on the last ramp with `customPalette` cleared and
+  the working palette left alone — so stepping forward again returns to the same slot.
+- A working palette saved in no slot is **off the walk**: the row reads `C`, Left lands on the last
+  ramp, Right on the first present slot.
+
+```cpp
+bool paletteCanStep(const Settings&, const CustomPalettes* palettes, int delta) noexcept;
+```
+
+The step and the row's arrows both ask `paletteCanStep`, so an arrow stands exactly where a press
+would move. With `palettes` null the walk is the ramps alone, which is also what a null
+`CustomPaletteWiring::palettes` gives the screen.
 
 ### The components
 
 ```cpp
 Layers DisplaySettingsScreen(const DisplaySettingsState& ui, const Settings& s, bool blinkOn,
                              const TileAtlas& atlas);
-Layers PaletteSettingsScreen(const Settings& s, bool blinkOn, const TileAtlas& atlas);
+Layers PaletteSettingsScreen(const Settings& s, const CustomPalettes& palettes, bool blinkOn,
+                             const TileAtlas& atlas);
 ```
 
 Each returns two layers: a backdrop of tiles at depth 0, and a sprite layer of everything else. The
@@ -318,12 +472,15 @@ They are built from shared components, each returning the primitives it is:
 | `OptionRow(label, value, line, left, right, atlas, ramp)` (`render/option_row.h`) | the label at `kLabelCol`, the value at `kOptionValueCol` and the row's `ScrollerArrows`, on map row `line` |
 | `ScrollerArrows(line, left, right, atlas, ramp)` (`render/scroller_arrows.h`) | the selector tile at `kOptionLeftArrowCol`, flipped, when `left` is set, and at `kOptionRightArrowCol` when `right` is set |
 | `PieceShape(kind, x, y, z, keyStem, atlas, ramp)` (`render/piece_shape.h`) | one piece at its spawn orientation, its top-left pixel at (x, y), each part named `keyStem` plus `-` and its index |
-| `RampSwatch(ramp)` (`render/palette_settings/ramp_swatch.h`) | four opaque `ColorFill` squares, darkest to lightest, abutting, centered on the line under the palette row |
+| `RampSwatch(atlas, ramp)` (`render/palette_settings/ramp_swatch.h`) | four opaque `ColorFill` squares, darkest to lightest, abutting, centered on the line under the palette row, in the colors `shadesOf` gives the index |
 | `PiecePreview(atlas, ramp)` (`render/palette_settings/piece_preview.h`) | the seven shapes in two rows, L J I O over S Z T, each row centered from the shapes' own widths |
 
 An arrow is drawn only where the value can still move that way: no left arrow when fullscreen is off
-or at the smallest size or the first palette, no right arrow at the other ends. The palette number is
-counted from one and starts on the value column, one or two digits.
+or at the smallest size or the first palette, no right arrow at the largest size or at the end of the
+palette walk. The palette number is counted from one and starts on the value column, one or two
+digits; a saved custom palette reads `C` and its slot as two digits (`C01`, `C47`), and a custom
+palette saved in no slot reads `C` — three cells at most, which is the value field's width. Every part
+of the Palette screen draws through `paletteIndexOf(s)`, the custom set included.
 
 `option_row.h` also converts the shared cell grid to pixels — `optionPixels`, `optionHeadingX`,
 `kOptionHeadingY`, `kOptionCursorX` — and each screen's `layout.h` names its own positions from those,
@@ -347,14 +504,17 @@ switch (game.flow.gameState) {
         renderer.renderFrame(screen);
         return;
     }
-    case kirpich::GameState::PALETTE_SETTINGS: { /* PaletteSettingsScreen, the same way */ }
+    case kirpich::GameState::PALETTE_SETTINGS: {
+        // PaletteSettingsScreen(settings, palettes, game.screens.cursorVisible, tiles), the same way
+    }
     default:
         break;
 }
 ```
 
-The ramp each screen draws through comes from `settings`, so the whole Palette screen recolors the
-frame the palette steps.
+The palette each screen draws through is `paletteIndexOf(settings)`, read once per frame, so the whole
+Palette screen recolors the frame the palette steps — onto a saved custom palette as much as onto a
+ramp.
 
 **To add a screen like these:** mint its game state, write its logic as an `openX` function, a frame
 handler with a dispatch table, and an installer; write its screen function from the shared components
