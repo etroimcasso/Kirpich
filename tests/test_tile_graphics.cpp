@@ -272,21 +272,19 @@ TEST(TileGraphics, TruncatedRomIsRefused) {
 }
 
 // 7. The save step round-trips: synthetic index grids at both bit depths encode and decode back
-//    through the engine's loader to the identical samples.
-//
-//    Widths are byte-aligned only: the engine's sub-byte unpack reads rows at a byte-aligned
-//    stride, so a width whose row ends mid-byte decodes shifted. Every real asset is 128 px wide
-//    and unaffected. Once the engine reads sub-byte rows at their packed stride, partial-final-
-//    byte cases (6x2 at depth 2, 7x3 at depth 1) belong here too.
+//    through the engine's loader to the identical samples, at byte-aligned widths and at widths
+//    whose rows end mid-byte.
 TEST(TileGraphics, PngWriterRoundTrip) {
     struct Case {
         int width;
         int height;
         int bitDepth;
     };
-    // 4 px at 2bpp and 8 px at 1bpp are each exactly one packed byte; the 128-wide rows are the
-    // real assets' shape.
-    const Case cases[] = {{4, 2, 2}, {8, 3, 1}, {128, 8, 2}, {128, 24, 1}};
+    // 4 px at 2bpp and 8 px at 1bpp are each exactly one packed byte; 6 px at 2bpp and 7 px at
+    // 1bpp each end their row part-way through a byte, so a loader that strides rows at whole
+    // bytes reads every row after the first from the wrong bit; the 128-wide rows are the real
+    // assets' shape.
+    const Case cases[] = {{4, 2, 2}, {6, 2, 2}, {8, 3, 1}, {7, 3, 1}, {128, 8, 2}, {128, 24, 1}};
 
     for (const Case& c : cases) {
         std::vector<std::uint8_t> samples(static_cast<std::size_t>(c.width) * c.height);
