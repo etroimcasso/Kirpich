@@ -114,10 +114,6 @@ contract both population routes share; read
 [`../contracts/tile-graphics.md`](../contracts/tile-graphics.md) first, because the development
 copy route ships upstream's PNGs and the extractor must keep producing identical content.
 
-One current limit worth knowing: the engine decodes sub-byte greyscale rows at a byte-aligned
-stride, so PNGs whose width is not a whole number of bytes at their bit depth do not round-trip
-through it. Every asset here is 128 px wide and unaffected.
-
 ## Testing
 
 `tests/test_tile_graphics.cpp` sweeps the table against the fixture, checks the closed-form
