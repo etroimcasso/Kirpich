@@ -39,10 +39,12 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   the original handheld's green, the eight color schemes Windows 3.1 shipped in its Control Panel,
   and forty-eight that keep a real color in their darkest shade instead of bottoming out at black,
   many of them crossing from one hue to another on the way up. The darkest shade is what the well's
-  walls and every locked block are drawn in, so it is most of what you look at. You can also make
-  your own: four colors, each red, green and blue entered in decimal from 0 to 255, kept in any of
-  ninety-nine slots and chosen on the same selector as the eighty. Holding Select while you edit shows
-  the palette on the pieces, the text and the well's brick wall.
+  walls and every locked block are drawn in, so it is most of what you look at.
+- **Palettes of your own.** Four colors, darkest to lightest, each set by its red, green and blue from
+  0 to 255 on an editor reached from the Palette screen. Ninety-nine preset slots keep them, and a
+  saved palette is chosen on the same selector as the eighty, after the last of them. Holding Select
+  while you edit shows the palette as the game will draw it: the seven pieces, text in each of its
+  three states, and the brick wall beside the well.
 - **An optional ghost piece** showing where the falling piece will land. Disabled by default, so
   the game plays exactly as the cartridge does until the player opts in.
 - **Persistent high scores.** A qualifying round is ranked, named on the original letter-wheel
@@ -75,7 +77,7 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   their button, so moving A moves both the clockwise rotation and the menu's confirm. Controller
   buttons are bound by where they sit on the pad, and named as your pad prints them.
 - **A settings screen** for fullscreen (Alt+Enter / Cmd+Enter also toggles it), window scaling, the
-  palette selection, the controls, the ghost piece, the extra game types, the statistics, and a fixes screen that
+  palette selection and the palette editor, the controls, the ghost piece, the extra game types, the statistics, and a fixes screen that
   offers the cartridge's own quirks back — off by default, fidelity until you ask otherwise. A page of
   its own holds the four resets: the high scores, the statistics, the achievements, or all three, each
   asking before it acts and each leaving the other two alone. Settings persist alongside the score
@@ -121,7 +123,7 @@ the entire setup; subsequent launches start directly.
 
 ### Where your files live
 
-Everything Kirpich keeps for you — high scores, settings, controls, the extracted assets, and the log — lives
+Everything Kirpich keeps for you — high scores, settings, controls, your palettes, the extracted assets, and the log — lives
 in one per-user directory, independent of where the application itself sits:
 
 | Platform | Location |
@@ -179,8 +181,8 @@ These are the engine surfaces it uses:
 | Declarative renderer — `FrameDrawState`, tile and sprite `DrawLayer`s, `ObjectKey` | Every screen, submitted whole each frame; the cartridge's screens through the two background maps and the object layer, the port's own screens as layers built from components |
 | Sprite transforms — flips, quarter-turn `Rotation`, `Transform` | The game's own selector arrow, flipped for a left arrow and stood on end for a page arrow; the ghost piece moved down to where the piece would land |
 | Sprite geometry queries — `Sprite::maskShape` | The ghost piece's silhouette, taken from the falling piece's own placed sprites |
-| Regions and screen-space effects — `Region`, `ShapePoints`, `ColorFill` | The ghost piece, the palette swatch, and the achievements screen's cursor |
-| Atlases and palettes — `loadAtlas`, `uploadPalette`, indexed tilesets, object palettes with a see-through entry | The cartridge's art as decoded from the player's ROM, with all eighty color ramps resident at once so switching palettes selects between uploaded handles |
+| Regions and screen-space effects — `Region`, `ShapePoints`, `ColorFill` | The ghost piece, the palette swatch, the palette editor's color band, and the achievements screen's cursor |
+| Atlases and palettes — `loadAtlas`, `uploadPalette`, `updatePalette`, indexed tilesets, object palettes with a see-through entry | The cartridge's art as decoded from the player's ROM, with all eighty color ramps resident at once so switching palettes selects between uploaded handles, and one more set for the player's own palette, recolored in place as they edit it |
 | Asset registry and policies — `assetRoot`, `AssetPolicy::Embed` / `LoadFromPath`, build-time embedding | Kirpich's own routines baked into the binary; the player's extracted assets read from disk |
 | Application identity and per-user files — `AppIdentity`, `userDataDir`, `UserFiles` | Extracted assets, saves and the log, in the player's own data directory wherever the binary sits |
 | Versioned save store — `SaveStore` documents with schema migration | Settings, controls, top scores, statistics and achievements, each its own document at its own version, migrated forward across releases |
