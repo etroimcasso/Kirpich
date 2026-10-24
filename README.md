@@ -217,7 +217,7 @@ recursive submodules — `engine/` brings SDL3 and SameBoy with it, and a plain 
 git clone --recursive https://github.com/etroimcasso/Kirpich.git
 cd Kirpich
 cmake -S . -B build
-cmake --build build --parallel
+cmake --build build
 ctest --test-dir build
 ```
 
