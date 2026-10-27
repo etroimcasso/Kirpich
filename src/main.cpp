@@ -74,6 +74,7 @@
 #include "state/controls.h"
 #include "state/custom_palettes.h"
 #include "state/high_score_persistence.h"
+#include "state/rotation_progression.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
 #include "systems/achievement_notice.h"
@@ -85,6 +86,7 @@
 #include "systems/demo.h"
 #include "systems/display_settings_screen.h"
 #include "systems/enhancement_screens.h"
+#include "systems/frame_palette.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
@@ -227,6 +229,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // palette is in use, and the ninety-nine slots they can save it into.
     kirpich::CustomPalettes palettes;
     kirpich::loadCustomPalettes(saves, palettes);
+    // The player's own ten palettes, which a round wears while the palette follows the level in
+    // custom mode. The shipped presets are compiled in and need no loading.
+    kirpich::RotationProgression rotation;
+    kirpich::loadRotationProgression(saves, rotation);
 
     const retropp::EngineConfig config{
         .identity     = identity,
@@ -646,6 +652,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
         kirpich::systems::redrawScore(game);
         kirpich::systems::drawTopScoresToVram(game);
 
+        // The round's palette, when the level's is on: derive what this tick wants and rewrite the
+        // rotation set only when it differs from what the set holds. Here and not in the render
+        // callback, because the set's colors are state the frame reads, not a thing drawing decides;
+        // and here rather than in the round init and the level-up, so no ported handler learns about
+        // palettes and no third site can be forgotten. After the beats above, so a level-up during
+        // the field wipe is drawn on the tick it happens.
+        kirpich::systems::reconcileRotationPalette(
+            settings, rotation, game, tiles.rotationShades,
+            [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
+                kirpich::render::updateRotationPalette(renderer, tiles, shades);
+            });
+
         ++simTicks;
     });
 
@@ -655,9 +673,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
-        // The palette every screen draws through this frame: the built-in ramp the player chose, or
-        // the atlas's custom set while their custom palette is in use. One derivation, read once.
-        const std::uint8_t paletteIndex = kirpich::paletteIndexOf(settings);
+        // The palette this frame draws through: the level's, through the atlas's rotation set, while
+        // a round is up and its palette follows the level; otherwise the player's own - the built-in
+        // ramp they chose, or the custom set while their custom palette is in use. One derivation,
+        // read once.
+        const std::uint8_t paletteIndex =
+            kirpich::systems::framePaletteIndex(settings, rotation, game);
 
         // The achievements screen is built from its own components: it hands back the layers it is,
         // so its frame is those rather than the background map and the object buffer every screen the

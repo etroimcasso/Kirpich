@@ -26,7 +26,8 @@ std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& set
             static_cast<std::uint8_t>(settings.newModes ? 1 : 0),
             static_cast<std::uint8_t>(settings.fixAudio ? 1 : 0),
             static_cast<std::uint8_t>(settings.showStats ? 1 : 0),
-            static_cast<std::uint8_t>(settings.customPalette ? 1 : 0)};
+            static_cast<std::uint8_t>(settings.customPalette ? 1 : 0),
+            static_cast<std::uint8_t>(settings.paletteRotation)};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
@@ -42,6 +43,7 @@ bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
     if (image.size() > 5) settings.fixAudio = image[5] != 0;
     if (image.size() > 6) settings.showStats = image[6] != 0;
     if (image.size() > 7) settings.customPalette = image[7] != 0;
+    if (image.size() > 8) settings.paletteRotation = paletteRotationOf(image[8]);
     return true;
 }
 
@@ -83,6 +85,14 @@ std::vector<std::byte> migrateSettingsV5ToV6(std::vector<std::byte> payload) {
     return payload;
 }
 
+std::vector<std::byte> migrateSettingsV6ToV7(std::vector<std::byte> payload) {
+    // And again: version 7 carries the palette-rotation mode, OFF for a document written before a
+    // round's palette could follow its level - such a player's rounds were drawn through the palette
+    // they chose, and that choice is still there.
+    payload.push_back(std::byte{static_cast<std::uint8_t>(PaletteRotation::OFF)});
+    return payload;
+}
+
 bool saveSettings(const Settings& settings, retropp::SaveStore& store) {
     const auto image = encodeSettings(settings);
     return store.write("settings", kSettingsSchemaVersion,
@@ -99,6 +109,7 @@ bool loadSettings(retropp::SaveStore& store, Settings& settings) {
     store.registerMigration(3, migrateSettingsV3ToV4);
     store.registerMigration(4, migrateSettingsV4ToV5);
     store.registerMigration(5, migrateSettingsV5ToV6);
+    store.registerMigration(6, migrateSettingsV6ToV7);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

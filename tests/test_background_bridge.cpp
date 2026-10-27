@@ -45,6 +45,9 @@ constexpr retropp::PaletteId contentPaletteFor(std::size_t ramp) {
     return static_cast<retropp::PaletteId>(60 + ramp);
 }
 
+constexpr retropp::PaletteId kRotationFontPalette    = static_cast<retropp::PaletteId>(250);
+constexpr retropp::PaletteId kRotationContentPalette = static_cast<retropp::PaletteId>(251);
+
 constexpr TileAtlas makeAtlas() {
     TileAtlas atlas{
         .font             = static_cast<retropp::AtlasId>(11),
@@ -63,6 +66,13 @@ constexpr TileAtlas makeAtlas() {
                                                       .dark     = {.r = 4, .g = 5, .b = 6},
                                                       .light    = {.r = 7, .g = 8, .b = 9},
                                                       .lightest = {.r = 10, .g = 11, .b = 12}};
+    // The rotation set, on handles no ramp's numbering reaches, with colors unlike the custom set's.
+    atlas.rotation.font    = kRotationFontPalette;
+    atlas.rotation.content = kRotationContentPalette;
+    atlas.rotationShades   = kirpich::render::ShadeRamp{.darkest  = {.r = 21, .g = 22, .b = 23},
+                                                        .dark     = {.r = 24, .g = 25, .b = 26},
+                                                        .light    = {.r = 27, .g = 28, .b = 29},
+                                                        .lightest = {.r = 30, .g = 31, .b = 32}};
     return atlas;
 }
 
@@ -202,6 +212,46 @@ TEST(BackgroundBridge, EveryRampDrawsTheSameArtThroughItsOwnPalettes) {
     // A ramp the build does not offer clamps rather than reading past the set it has.
     EXPECT_EQ(kirpich::render::resolveTile(0, TileSheet::GAMEPLAY, kAtlas, 200).palette,
               fontPaletteFor(kirpich::render::kShadeRampCount - 1));
+}
+
+// ── Test 1d: TheRotationSetIsTheIndexAfterTheCustomSet ──────────────────────────────────────────────
+// kRotationRamp draws the same art as every ramp through the atlas's rotation set, under every regime
+// and over the whole index space; palettesFor and shadesOf name that set and its current colors; and
+// an index past it still clamps to the last built-in.
+TEST(BackgroundBridge, TheRotationSetIsTheIndexAfterTheCustomSet) {
+    using kirpich::render::kCustomRamp;
+    using kirpich::render::kRotationRamp;
+    using kirpich::render::kShadeRampCount;
+
+    EXPECT_EQ(kRotationRamp, kCustomRamp + 1);
+    EXPECT_EQ(kirpich::render::kPaletteChoiceCount, kShadeRampCount + 2);
+
+    for (const TileSheet sheet :
+         {TileSheet::COPYRIGHT_TITLE, TileSheet::GAMEPLAY, TileSheet::MULTIPLAYER_BURAN}) {
+        for (int index = 0; index <= 0xFF; ++index) {
+            const auto i        = static_cast<std::uint8_t>(index);
+            const auto rotation = kirpich::render::resolveTile(i, sheet, kAtlas, kRotationRamp);
+            const auto atFirst  = kirpich::render::resolveTile(i, sheet, kAtlas, 0);
+            const bool isFont   = kirpich::render::locateTile(i, sheet).source == TileSource::FONT;
+
+            EXPECT_EQ(rotation.atlas, atFirst.atlas) << "index " << index;
+            EXPECT_EQ(rotation.cell, atFirst.cell) << "index " << index;
+            EXPECT_EQ(rotation.palette, isFont ? kRotationFontPalette : kRotationContentPalette)
+                << "index " << index;
+        }
+    }
+
+    EXPECT_EQ(&kirpich::render::palettesFor(kAtlas, kRotationRamp), &kAtlas.rotation);
+    EXPECT_EQ(&kirpich::render::palettesFor(kAtlas, kCustomRamp), &kAtlas.custom);
+    EXPECT_EQ(&kirpich::render::palettesFor(kAtlas, static_cast<std::uint8_t>(kRotationRamp + 1)),
+              &kAtlas.palettes[kShadeRampCount - 1]);
+
+    const auto shown = kirpich::render::shadesOf(kAtlas, kRotationRamp);
+    EXPECT_EQ(shown[0], kAtlas.rotationShades.darkest);
+    EXPECT_EQ(shown[1], kAtlas.rotationShades.dark);
+    EXPECT_EQ(shown[2], kAtlas.rotationShades.light);
+    EXPECT_EQ(shown[3], kAtlas.rotationShades.lightest);
+    EXPECT_NE(shown, kirpich::render::shadesOf(kAtlas, kCustomRamp));
 }
 
 // ── Test 1c: TheCustomSetIsOneMoreIndex ─────────────────────────────────────────────────────────────

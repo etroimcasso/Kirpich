@@ -583,11 +583,14 @@ inline constexpr std::array<ShadeRamp, 80> kShadeRamps{{
 inline constexpr std::size_t  kShadeRampCount   = kShadeRamps.size();
 inline constexpr std::uint8_t kDefaultShadeRamp = 0;
 
-// The one palette index past the table: the player's own custom palette, which the atlas holds as a
-// live set whose colors change in place (src/render/tile_atlas.h). Every component that takes a
-// `ramp` accepts it; kPaletteChoiceCount is the whole space a frame can draw through.
+// The two palette indices past the table, each a live set the atlas holds and changes in place
+// (src/render/tile_atlas.h). kCustomRamp is the player's own custom palette. kRotationRamp is the
+// palette a round is drawn through while the palette follows the level (src/systems/frame_palette.h).
+// Every component that takes a `ramp` accepts both; kPaletteChoiceCount is the whole space a frame
+// can draw through.
 inline constexpr std::uint8_t kCustomRamp         = static_cast<std::uint8_t>(kShadeRampCount);
-inline constexpr std::size_t  kPaletteChoiceCount = kShadeRampCount + 1;
+inline constexpr std::uint8_t kRotationRamp       = static_cast<std::uint8_t>(kShadeRampCount + 1);
+inline constexpr std::size_t  kPaletteChoiceCount = kShadeRampCount + 2;
 
 // The palette a custom slot starts from, and the custom set's colors until a player edits them: the
 // default ramp's four shades. The flag is left off because it is the built-in table's own note about

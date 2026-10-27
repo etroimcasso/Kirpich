@@ -2,7 +2,8 @@
 
 // The player's own options, and the two calls that keep them across launches: how the window is
 // opened, which shade ramp the game is drawn in - or that the player's own custom palette is -
-// whether the falling piece casts a shadow, and the switches for what the cartridge never had.
+// whether a round's palette follows its level, whether the falling piece casts a shadow, and the
+// switches for what the cartridge never had.
 //
 // None of them belongs to the machine's state image. They survive the reset chord and they outlive a
 // launch, so they live outside GameContext and reach the screens through their wiring rather than
@@ -32,6 +33,20 @@ namespace kirpich {
 inline constexpr std::uint8_t kMinWindowScale = 1;
 inline constexpr std::uint8_t kMaxWindowScale = 8;
 inline constexpr std::uint8_t kDefaultWindowScale = 4;
+
+// How the palette follows the level during a round (src/systems/frame_palette.h). OFF draws every
+// frame through paletteIndexOf; the three presets are ten palettes each (src/render/rotation_presets.h);
+// CUSTOM is the player's own ten (src/state/rotation_progression.h).
+enum class PaletteRotation : std::uint8_t { OFF = 0, HOTTER = 1, COLDER = 2, RAINBOW = 3, CUSTOM = 4 };
+inline constexpr std::size_t kPaletteRotationCount =
+    static_cast<std::size_t>(PaletteRotation::CUSTOM) + 1;
+
+// A stored mode byte as a mode: a value this build does not name reads as OFF. A file written by a
+// build that offered more presets costs the player that one value, and off is the game as the
+// cartridge drew it.
+[[nodiscard]] constexpr PaletteRotation paletteRotationOf(std::uint8_t byte) noexcept {
+    return byte < kPaletteRotationCount ? static_cast<PaletteRotation>(byte) : PaletteRotation::OFF;
+}
 
 struct Settings {
     bool         fullscreen  = false;
@@ -73,6 +88,11 @@ struct Settings {
     // the one derivation that says which of the two the frame draws through.
     bool customPalette = false;
 
+    // Whether a round is drawn through its level's palette, and through which ten. Off by default.
+    // It reaches only the round's own states: `shadeRamp` and `customPalette` keep their values, and
+    // they are what every screen outside a round draws through (src/systems/frame_palette.h).
+    PaletteRotation paletteRotation = PaletteRotation::OFF;
+
     friend bool operator==(const Settings&, const Settings&) = default;
 };
 
@@ -87,15 +107,15 @@ struct Settings {
 // One byte per value, so every version appends to the one before it: version 2 adds the ghost-piece
 // flag to version 1's three bytes, version 3 adds the new-modes flag to version 2's four, version 4
 // adds the audio-fix flag to version 3's five, version 5 adds the show-stats flag to version 4's six,
-// and version 6 adds the custom-palette flag to version 5's seven. An older document is migrated on
-// the way in, a step at a time, not read short: two formats answering to one version number is what
-// a schema version exists to prevent.
+// version 6 adds the custom-palette flag to version 5's seven, and version 7 adds the palette-rotation
+// mode to version 6's eight. An older document is migrated on the way in, a step at a time, not read
+// short: two formats answering to one version number is what a schema version exists to prevent.
 //
 // A shorter image is still read as far as it goes and the values it does not carry keep their
 // defaults, which keeps a truncated file costing one setting rather than all of them. A longer image
 // is refused, since nothing can be said about bytes this build does not understand.
-inline constexpr std::uint32_t kSettingsSchemaVersion = 6;
-inline constexpr std::size_t   kSettingsImageBytes    = 8;
+inline constexpr std::uint32_t kSettingsSchemaVersion = 7;
+inline constexpr std::size_t   kSettingsImageBytes    = 9;
 
 // What each earlier version wrote. Named so each migration and its test say the same number.
 inline constexpr std::size_t kSettingsImageBytesV1 = 3;  // the flag, the scale, the ramp
@@ -103,6 +123,7 @@ inline constexpr std::size_t kSettingsImageBytesV2 = 4;  // and the ghost-piece 
 inline constexpr std::size_t kSettingsImageBytesV3 = 5;  // and the new-modes flag
 inline constexpr std::size_t kSettingsImageBytesV4 = 6;  // and the audio-fix flag
 inline constexpr std::size_t kSettingsImageBytesV5 = 7;  // and the show-stats flag
+inline constexpr std::size_t kSettingsImageBytesV6 = 8;  // and the custom-palette flag
 
 // Bring a scale into the range this build offers. Values below the floor come up to it and values
 // above the ceiling come down to it; the range itself is what a build changes when it offers more.
@@ -110,23 +131,23 @@ inline constexpr std::size_t kSettingsImageBytesV5 = 7;  // and the show-stats f
 
 // Encode the settings into the image: the fullscreen flag as 0 or 1, then the scale, then the ramp,
 // then the ghost-piece flag, then the new-modes flag, then the audio-fix flag, then the show-stats
-// flag, then the custom-palette flag.
+// flag, then the custom-palette flag, then the palette-rotation mode as its PaletteRotation value.
 [[nodiscard]] std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& settings);
 
 // Decode an image into `settings`. Returns false and leaves `settings` untouched when the image is
 // empty or longer than this build writes; true otherwise, with any byte the image does not carry
-// left at its default. Any non-zero flag byte means on, and both the scale and the ramp are clamped
-// on the way in.
+// left at its default. Any non-zero flag byte means on, both the scale and the ramp are clamped on
+// the way in, and the rotation mode goes through paletteRotationOf.
 [[nodiscard]] bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings);
 
 // Bring a version 1 image up to version 2 by appending the ghost-piece flag, off; a version 2 image
 // up to version 3 by appending the new-modes flag, off; a version 3 image up to version 4 by
 // appending the audio-fix flag, off; a version 4 image up to version 5 by appending the show-stats
-// flag, off; and a version 5 image up to version 6 by appending the custom-palette flag, off. A
-// document written before a setting existed cannot say anything about it, and off is what it would
-// have been.
+// flag, off; a version 5 image up to version 6 by appending the custom-palette flag, off; and a
+// version 6 image up to version 7 by appending the palette-rotation mode, OFF. A document written
+// before a setting existed cannot say anything about it, and off is what it would have been.
 //
-// The store runs them in sequence, so a version 1 document reaches version 6 through all five.
+// The store runs them in sequence, so a version 1 document reaches version 7 through all six.
 //
 // Exposed so each migration can be tested for what it does rather than only through a store.
 [[nodiscard]] std::vector<std::byte> migrateSettingsV1ToV2(std::vector<std::byte> payload);
@@ -134,6 +155,7 @@ inline constexpr std::size_t kSettingsImageBytesV5 = 7;  // and the show-stats f
 [[nodiscard]] std::vector<std::byte> migrateSettingsV3ToV4(std::vector<std::byte> payload);
 [[nodiscard]] std::vector<std::byte> migrateSettingsV4ToV5(std::vector<std::byte> payload);
 [[nodiscard]] std::vector<std::byte> migrateSettingsV5ToV6(std::vector<std::byte> payload);
+[[nodiscard]] std::vector<std::byte> migrateSettingsV6ToV7(std::vector<std::byte> payload);
 
 // Persist the settings as document "settings" at the current schema version. Returns whatever the
 // atomic write reports.

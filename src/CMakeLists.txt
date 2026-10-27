@@ -15,6 +15,7 @@ add_library(kirpich-lib STATIC
     state/controls.cpp
     state/custom_palettes.cpp
     state/high_score_persistence.cpp
+    state/rotation_progression.cpp
     state/settings.cpp
     state/stats_persistence.cpp
     systems/achievement_notice.cpp
@@ -48,6 +49,8 @@ add_library(kirpich-lib STATIC
     systems/controls_screen.cpp
     systems/display_settings_screen.cpp
     systems/palette_settings_screen.cpp
+    systems/palette_walk.cpp
+    systems/frame_palette.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
     systems/stats.cpp

@@ -50,6 +50,23 @@ RampPalettes uploadRampPalettes(retropp::Renderer& renderer, const RampPaletteCo
     };
 }
 
+// Write `shades` over one live set's nine handles and record them in its mirror. The custom set and
+// the rotation set both go through here, so the two cannot be arranged differently.
+void updateLiveSet(retropp::Renderer& renderer, RampPalettes& set, ShadeRamp& mirror,
+                   const ShadeRamp& shades) {
+    const RampPaletteColors c = rampPaletteColors(shades);
+    renderer.updatePalette(set.font, colors(c.font));
+    renderer.updatePalette(set.content, colors(c.content));
+    renderer.updatePalette(set.fontDim, colors(c.fontDim));
+    renderer.updatePalette(set.fontSprite, colors(c.fontSprite));
+    renderer.updatePalette(set.sprite0, colors(c.sprite0));
+    renderer.updatePalette(set.sprite1, colors(c.sprite1));
+    renderer.updatePalette(set.fontSpriteDim, colors(c.fontSpriteDim));
+    renderer.updatePalette(set.spriteDim, colors(c.spriteDim));
+    renderer.updatePalette(set.fontSpriteSelected, colors(c.fontSpriteSelected));
+    mirror = shades;
+}
+
 }  // namespace
 
 TileLocation locateTile(std::uint8_t index, TileSheet sheet) noexcept {
@@ -165,38 +182,37 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
         atlas.palettes[i] = uploadRampPalettes(renderer, rampPaletteColors(kShadeRamps[i]));
     }
 
-    // The custom set, arranged the same way from the palette a custom slot starts from. It is the one
-    // set whose colors change after this: updateCustomPalette writes over these nine handles.
-    atlas.customShades = freshCustomPalette();
-    atlas.custom       = uploadRampPalettes(renderer, rampPaletteColors(atlas.customShades));
+    // The two live sets, arranged the same way from the palette a custom slot starts from. They are
+    // the only sets whose colors change after this: updateCustomPalette and updateRotationPalette
+    // write over their nine handles each.
+    atlas.customShades   = freshCustomPalette();
+    atlas.custom         = uploadRampPalettes(renderer, rampPaletteColors(atlas.customShades));
+    atlas.rotationShades = freshCustomPalette();
+    atlas.rotation       = uploadRampPalettes(renderer, rampPaletteColors(atlas.rotationShades));
 
     return atlas;
 }
 
 const RampPalettes& palettesFor(const TileAtlas& atlas, std::uint8_t index) noexcept {
-    return index == kCustomRamp ? atlas.custom : atlas.palettes[clampShadeRamp(index)];
+    if (index == kCustomRamp) return atlas.custom;
+    if (index == kRotationRamp) return atlas.rotation;
+    return atlas.palettes[clampShadeRamp(index)];
 }
 
 std::array<retropp::Rgba8, 4> shadesOf(const TileAtlas& atlas, std::uint8_t index) noexcept {
-    if (index == kCustomRamp) {
-        const ShadeRamp& c = atlas.customShades;
+    if (index == kCustomRamp || index == kRotationRamp) {
+        const ShadeRamp& c = index == kCustomRamp ? atlas.customShades : atlas.rotationShades;
         return {c.darkest, c.dark, c.light, c.lightest};
     }
     return rampColours(index);
 }
 
 void updateCustomPalette(retropp::Renderer& renderer, TileAtlas& atlas, const ShadeRamp& shades) {
-    const RampPaletteColors c = rampPaletteColors(shades);
-    renderer.updatePalette(atlas.custom.font, colors(c.font));
-    renderer.updatePalette(atlas.custom.content, colors(c.content));
-    renderer.updatePalette(atlas.custom.fontDim, colors(c.fontDim));
-    renderer.updatePalette(atlas.custom.fontSprite, colors(c.fontSprite));
-    renderer.updatePalette(atlas.custom.sprite0, colors(c.sprite0));
-    renderer.updatePalette(atlas.custom.sprite1, colors(c.sprite1));
-    renderer.updatePalette(atlas.custom.fontSpriteDim, colors(c.fontSpriteDim));
-    renderer.updatePalette(atlas.custom.spriteDim, colors(c.spriteDim));
-    renderer.updatePalette(atlas.custom.fontSpriteSelected, colors(c.fontSpriteSelected));
-    atlas.customShades = shades;
+    updateLiveSet(renderer, atlas.custom, atlas.customShades, shades);
+}
+
+void updateRotationPalette(retropp::Renderer& renderer, TileAtlas& atlas, const ShadeRamp& shades) {
+    updateLiveSet(renderer, atlas.rotation, atlas.rotationShades, shades);
 }
 
 ResolvedTile resolveTile(std::uint8_t index, TileSheet sheet, const TileAtlas& atlas,
