@@ -6,6 +6,10 @@ The player's display choices, the screens that edit them, and the color ramps th
 |---|---|
 | The values and their save document | `src/state/settings.h` / `.cpp` |
 | The player's custom palettes and their document | `src/state/custom_palettes.h` / `.cpp` |
+| The player's custom rotations and their document | `src/state/custom_rotations.h` / `.cpp` |
+| The shipped rotation presets | `src/render/rotation_presets.h` |
+| The palette a frame draws through, and the rotation set's reconcile | `src/systems/frame_palette.h` / `.cpp` |
+| The palette walk the Palette screen steps | `src/systems/palette_walk.h` / `.cpp` |
 | The settings screen and its confirm | `src/systems/settings_screen.h` / `.cpp` |
 | The Display and Palette screens' logic | `src/systems/display_settings_screen.h`, `src/systems/palette_settings_screen.h` (and `.cpp`) |
 | The Display and Palette screens' components | `src/render/screens/display_settings/`, `src/render/screens/palette_settings/`, and the shared `src/render/components/option_row.h`, `scroller_arrows.h`, `piece_shape.h` |
@@ -26,10 +30,24 @@ struct Settings {
     bool         fixAudio    = false;                // the title music returns after a demo
     bool         showStats   = false;                // the statistics are offered on the title screen
     bool         customPalette = false;              // the player's custom palette is in use
+    PaletteRotation paletteRotation = PaletteRotation::OFF;  // a round's palette follows its level
 };
 
 std::uint8_t paletteIndexOf(const Settings&);
+
+enum class PaletteRotation : std::uint8_t { OFF = 0, HOTTER = 1, COLDER = 2, RAINBOW = 3, CUSTOM = 4 };
+inline constexpr std::size_t kPaletteRotationCount =
+    static_cast<std::size_t>(PaletteRotation::CUSTOM) + 1;   // 5
+constexpr PaletteRotation paletteRotationOf(std::uint8_t byte) noexcept;
 ```
+
+`paletteRotation` says whether a round is drawn through its level's palette and through which ten:
+one of the shipped presets, or `CUSTOM` for the player's own working rotation
+([below](#the-custom-rotations)). It reaches only the round's own states; every menu and port screen
+keeps drawing through `paletteIndexOf`, and `shadeRamp` and `customPalette` keep their values
+underneath. `paletteRotationOf` turns a stored byte into a mode: 0 to 4 name the five, and any other
+value reads as `OFF`, so a file written by a build that offered more presets costs the player that
+one value.
 
 `Settings` is not game state and is not on `GameContext`: it outlives a round and a reset, and it is
 saved to disk. The host owns one and hands the screen a pointer to it.
@@ -54,16 +72,18 @@ offers. Both are applied on the way in from disk, so a stored value can never na
 
 ### The save document
 
-`"settings"`, **version 6**, eight bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
-then the ghost-piece, new-modes, audio-fix, show-stats and custom-palette flags, each as 0 or 1.
+`"settings"`, **version 7**, nine bytes: the fullscreen flag as 0 or 1, the window scale, the ramp,
+then the ghost-piece, new-modes, audio-fix, show-stats and custom-palette flags, each as 0 or 1, then
+the palette-rotation mode as its `PaletteRotation` value, read back through `paletteRotationOf`.
 
 Each earlier version was one byte shorter — version 1 stopped after the ramp, version 2 added the
 ghost-piece flag, version 3 the new-modes flag, version 4 the audio-fix flag, version 5 the show-stats
-flag — and each step's migration (`migrateSettingsV1ToV2` / `V2ToV3` / `V3ToV4` / `V4ToV5` / `V5ToV6`)
-appends its flag as off. `loadSettings` registers all five on the store before reading, so a document
-written at any released version reaches the decoder at version 6's length.
+flag, version 6 the custom-palette flag — and each step's migration (`migrateSettingsV1ToV2` /
+`V2ToV3` / `V3ToV4` / `V4ToV5` / `V5ToV6` / `V6ToV7`) appends its byte as 0, which is off for a flag
+and `OFF` for the mode. `loadSettings` registers all six on the store before reading, so a document
+written at any released version reaches the decoder at version 7's length.
 
-`decodeSettings` accepts an image **shorter** than eight bytes and leaves every value the image does not
+`decodeSettings` accepts an image **shorter** than nine bytes and leaves every value the image does not
 carry at its default, which keeps a truncated file costing one setting rather than all of them. It
 refuses an empty image and one longer than this build writes.
 
@@ -83,13 +103,13 @@ keeps a *damaged* file cheap, not what carries a format change.
 ### One version and one migration chain per store, not per document
 
 `SaveStore::setCurrentVersion` and `registerMigration` are properties of the **store**, and this port
-keeps every document it saves in the same store — the settings, the controls, the top scores, the
-statistics and the achievements. Declaring one version therefore changes the terms every document in
-that store is read under.
+keeps every document it saves in the same store — the settings, the controls, the custom palettes and
+rotations, the top scores, the statistics and the achievements. Declaring one version therefore
+changes the terms every document in that store is read under.
 
 What keeps them apart is that each loader names its own version immediately before its own read —
-`loadSettings` sets 6 and registers its chain, `loadControls` sets 1, `loadCustomPalettes` sets 1,
-`loadTopScores` sets 3 and registers its own — so a document is never read under another document's
+`loadSettings` sets 7 and registers its chain, `loadControls` sets 1, `loadCustomPalettes` sets 1,
+`loadCustomRotations` sets 1, `loadTopScores` sets 3 and registers its own — so a document is never read under another document's
 version. Any new document type in this store follows the same rule.
 
 ## The custom palettes
@@ -185,6 +205,175 @@ struct CustomPaletteWiring {
 Every seam is inert by default, and with no `palettes` behind it the Palette screen offers no custom
 slot. `apply` and `save` fire, in that order, whenever the working palette changes; the host's `apply`
 is `render::updateCustomPalette` (below, under the color ramps).
+
+## The custom rotations
+
+The player's own palette rotations, shaped as the custom palettes are: ninety-nine slots a rotation
+can be saved into, and the **working rotation**, the one being edited — which is also the one a round
+is drawn through while `Settings::paletteRotation` is `CUSTOM`. A rotation is ten palettes, one for
+each level a round can show modulo ten, level 0 first.
+
+```cpp
+inline constexpr std::size_t kRotationLevelCount      = 10;
+inline constexpr std::size_t kCustomRotationSlotCount = 99;
+
+constexpr std::array<render::ShadeRamp, kRotationLevelCount> freshRotationLevels() noexcept;
+
+struct RotationProgression {
+    std::array<render::ShadeRamp, kRotationLevelCount> levels = freshRotationLevels();
+};
+
+struct CustomRotationSlot {
+    bool                present = false;                     // something has been saved here
+    RotationProgression progression{};
+};
+
+struct CustomRotations {
+    RotationProgression                                      working{};
+    std::array<CustomRotationSlot, kCustomRotationSlotCount> slots{};
+};
+```
+
+`freshRotationLevels()` is ten `render::freshCustomPalette()`s, so a fresh rotation — what the working
+rotation starts as and what an empty slot holds — draws exactly as no rotation at all. Every palette
+of a rotation is a `ShadeRamp` whose `mayBottomOutAtBlack` is off, as a custom palette's is, so a slot
+compares equal to the working rotation color for color. All three types have a defaulted `==`.
+
+A slot is **empty** until a rotation is saved into it, and empty again once cleared. Slot numbers are
+one-based at every surface: slot 1 is `slots[0]`. The rotations are the host's, outside `GameContext`,
+loaded before the window opens and untouched by a reset. The shipped presets are not stored here
+([below](#the-presets)).
+
+### Saved is a comparison
+
+```cpp
+std::optional<std::uint8_t> savedSlotOf(const CustomRotations&) noexcept;
+bool hasUnsavedChanges(const CustomRotations&) noexcept;
+std::optional<std::uint8_t> nextPresentSlot(const CustomRotations&, std::uint8_t after) noexcept;
+std::optional<std::uint8_t> previousPresentSlot(const CustomRotations&, std::uint8_t before) noexcept;
+```
+
+These are the custom palettes' four, over rotations — overloads, told apart by the type. Nothing
+records which slot the working rotation came from: `savedSlotOf` returns the first present slot holding
+exactly its colors, level for level, or nothing, which is what **unsaved** means.
+`hasUnsavedChanges` is saved in no slot **and** not the fresh rotation, because a rotation never edited
+has nothing to lose. `nextPresentSlot(r, 0)` is the first present slot of all and
+`previousPresentSlot(r, kCustomRotationSlotCount + 1)` the last.
+
+### The rotations document
+
+`"rotations"`, **version 1**, 12,100 bytes: one hundred records of 121 — a presence byte, then level 0
+to 9, each red, green and blue for the darkest, dark, light and lightest shades, twelve bytes a level
+(level `j` at offset `1 + 12j` within the record). Record 0 is the working rotation (its presence byte
+written as 1 and not read); records 1 to 99 are the slots. Alpha is not stored, and a decoded color's
+alpha is 255.
+
+```cpp
+std::array<std::uint8_t, kCustomRotationsImageBytes> encodeCustomRotations(const CustomRotations&);
+bool decodeCustomRotations(std::span<const std::uint8_t> image, CustomRotations&);
+bool saveCustomRotations(const CustomRotations&, retropp::SaveStore&);
+bool loadCustomRotations(retropp::SaveStore&, CustomRotations&);
+```
+
+`decodeCustomRotations` refuses anything but exactly 12,100 bytes and leaves the value untouched; any
+non-zero presence byte means present. `loadCustomRotations` sets the store's version to 1 immediately
+before its read and returns `false` for an absent document (leaving the defaults), a corrupt one
+(logged, defaults, file left in place) and a wrong length (logged, defaults). The host loads it beside
+the custom palettes:
+
+```cpp
+kirpich::CustomRotations rotations;
+kirpich::loadCustomRotations(saves, rotations);
+```
+
+## The presets
+
+```cpp
+using RotationPalettes = std::array<ShadeRamp, kRotationLevelCount>;
+inline constexpr RotationPalettes kHotterRotation{ /* ... */ };
+inline constexpr RotationPalettes kColderRotation{ /* ... */ };
+inline constexpr RotationPalettes kRainbowRotation{ /* ... */ };
+
+constexpr const RotationPalettes* presetRotation(PaletteRotation mode) noexcept;
+```
+
+`src/render/rotation_presets.h` holds the rotations the game ships, ten palettes each, level 0 first:
+hotter runs from a warm cream to an intense red, colder from a cool slate to a deep blue, and rainbow
+steps the hue 36° a level from red. A preset's colors are its own, not picks from the ramp table.
+`presetRotation` returns the table a mode names, and null for `OFF` and `CUSTOM`.
+
+Every entry runs dark to light by Rec.601 luminance, as every ramp does, with its lightest shade at
+least 100 above its darkest, and no two consecutive entries of a preset are equal. Hotter's darkest
+red rises and its dark green falls level over level; colder's darkest blue rises and its dark red
+falls; rainbow's ten dark shades are all different. `tests/test_rotation_presets.cpp` holds every
+preset to all of that.
+
+**To add a preset:** add its table here, an enumerator to `PaletteRotation` before `CUSTOM`, and a line
+to `presetRotation`.
+
+## The frame's palette
+
+```cpp
+bool roundPaletteShown(GameState state) noexcept;
+constexpr std::size_t rotationLevelOf(std::uint8_t level) noexcept;   // level % 10
+
+std::optional<render::ShadeRamp> rotationPaletteFor(const Settings&, const RotationProgression&,
+                                                    const GameContext&) noexcept;
+std::uint8_t framePaletteIndex(const Settings&, const RotationProgression&,
+                               const GameContext&) noexcept;
+void reconcileRotationPalette(const Settings&, const RotationProgression&, const GameContext&,
+                              const render::ShadeRamp& current,
+                              const std::function<void(const render::ShadeRamp&)>& write);
+```
+
+`src/systems/frame_palette.h` says which palette a frame is drawn through. `roundPaletteShown` is true
+for exactly the round's own states, from its init until the game returns to a menu: `INIT_GAME`,
+`NORMAL_GAMEPLAY` (paused included), the game-over states (`INIT_GAME_OVER`, `GAME_OVER_CURTAIN`,
+`GAME_OVER_SCREEN`, `STATE_0C_UNKNOWN`), the Type B ending (`TYPE_B_VICTORY_JINGLE`,
+`INIT_TYPE_B_SCOREBOARD`, `INIT_TYPE_B_BONUS`, `DANCERS`), the Buran scene (`INIT_BURAN`,
+`PREPARE_BURAN_LAUNCH`, `BURAN_IGNITION`, `BURAN_IGNITION_2`, `BURAN_LIFTOFF`, `BURAN_RISING`,
+`PRINT_CONGRATULATIONS`, `CONGRATULATIONS`) and the rocket scene (`GAME_OVER_TO_BONUS`,
+`INIT_ROCKET_LAUNCH`, `ROCKET`, `ROCKET_IGNITION`, `ROCKET_LIFTOFF`, `ROCKET_MAIN_ENGINE_FIRE`,
+`END_OF_BONUS_SCENE`) — twenty-five states, listed by name in the `.cpp`. Every other state is out,
+the top-score entry and every port screen among them. The attract demo runs these same states, so it
+is drawn the same way.
+
+`rotationPaletteFor` yields nothing while the mode is `OFF` or the state is not a round's; otherwise it
+yields the mode's palette at `rotationLevelOf(game.flow.level)` — the preset's, or the
+`RotationProgression` passed in for `CUSTOM`. The level the round shows picks: a Type B round wears its
+starting level's palette all round, and heart mode, which shifts the gravity, does not shift the
+palette. It reads `game.flow.gameState` and `game.flow.level` and nothing else of the context.
+
+`framePaletteIndex` is `render::kRotationRamp` while `rotationPaletteFor` yields a palette, and
+`paletteIndexOf(settings)` otherwise. The render callback reads it once per frame:
+
+```cpp
+const std::uint8_t paletteIndex =
+    kirpich::systems::framePaletteIndex(settings, rotations.working, game);
+```
+
+The Display, Palette and editor screens call `paletteIndexOf(settings)` themselves: they are menus and
+show the player's own palette.
+
+### Keeping the rotation set current
+
+The atlas's rotation set ([below](#the-custom-set)) holds the colors the frame reads at
+`kRotationRamp`. `reconcileRotationPalette` keeps it equal to the palette a round wants: when
+`rotationPaletteFor` yields a palette that differs from `current`, `write` is called once with it, and
+otherwise nothing happens. The set keeps its colors while no palette is wanted, so returning to a round
+at the same level writes nothing. The host calls it once per simulation tick, after the frame's last
+beat, so a level-up during the field wipe is drawn on the tick it happens:
+
+```cpp
+kirpich::systems::reconcileRotationPalette(
+    settings, rotations.working, game, tiles.rotationShades,
+    [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
+        kirpich::render::updateRotationPalette(renderer, tiles, shades);
+    });
+```
+
+No gameplay handler knows about palettes: the round init and the level-up change the level, and the
+next reconcile sees it.
 
 ## The screens
 
@@ -343,29 +532,35 @@ a sample resolves to and never which art a tile index names.
 
 ```cpp
 inline constexpr std::uint8_t kCustomRamp         = kShadeRampCount;      // 80
-inline constexpr std::size_t  kPaletteChoiceCount = kShadeRampCount + 1;
+inline constexpr std::uint8_t kRotationRamp       = kShadeRampCount + 1;  // 81
+inline constexpr std::size_t  kPaletteChoiceCount = kShadeRampCount + 2;
 constexpr ShadeRamp           freshCustomPalette() noexcept;
 
 const RampPalettes&           palettesFor(const TileAtlas&, std::uint8_t index) noexcept;
 std::array<retropp::Rgba8, 4> shadesOf(const TileAtlas&, std::uint8_t index) noexcept;
 void updateCustomPalette(retropp::Renderer&, TileAtlas&, const ShadeRamp& shades);
+void updateRotationPalette(retropp::Renderer&, TileAtlas&, const ShadeRamp& shades);
 ```
 
-The one palette index past the table is the player's custom palette. `TileAtlas` carries it as one
-more `RampPalettes`, `custom`, uploaded at startup from `freshCustomPalette()` and arranged exactly as
-a built-in's is, with `customShades` recording what it currently draws. Every component that takes a
-`ramp` accepts `kCustomRamp`; `palettesFor` returns the custom set for it and the clamped built-in for
-any other index, so an index past `kCustomRamp` still clamps to the last ramp.
+The two palette indices past the table are live sets. `kCustomRamp` is the player's custom palette:
+`TileAtlas` carries it as one more `RampPalettes`, `custom`, uploaded at startup from
+`freshCustomPalette()` and arranged exactly as a built-in's is, with `customShades` recording what it
+currently draws. `kRotationRamp` is the palette a round is drawn through while its palette follows the
+level: a second set, `rotation`, uploaded the same way, with `rotationShades` beside it, which only the
+host's reconcile writes ([above](#keeping-the-rotation-set-current)). Every component that takes a
+`ramp` accepts both; `palettesFor` returns the live set for either and the clamped built-in for any
+other index, so an index past `kRotationRamp` still clamps to the last ramp.
 
 `updateCustomPalette` gives the set new colors: nine `Renderer::updatePalette` calls under the nine
 handles, which keep their ids and draw the new colors from the next frame on, then `customShades`
 updated. One call per change is the whole cost — the colors travel in the next frame's copy pass, and
 the palette store does not grow. The host calls it once at startup with the working palette and from
-`CustomPaletteWiring::apply` after that.
+`CustomPaletteWiring::apply` after that. `updateRotationPalette` is the same writer over the rotation
+set, so the two sets are always arranged alike; nothing uploads a palette after startup.
 
 `shadesOf` is for anything that **shows** a palette's colors rather than draws through them — the
-swatch, the ghost piece's fill, the achievements screen's corner selector: the custom set's current
-colors for `kCustomRamp`, `rampColours(index)` otherwise. `rampColours` itself is the table's, and is
+swatch, the ghost piece's fill, the achievements screen's corner selector: a live set's current colors
+for `kCustomRamp` and `kRotationRamp`, `rampColours(index)` otherwise. `rampColours` itself is the table's, and is
 what the ramp invariants sweep.
 
 Object palettes take the ramp with its **last** entry replaced by transparency, which is the
@@ -468,6 +663,31 @@ bool paletteCanStep(const Settings&, const CustomPalettes* palettes, int delta) 
 The step and the row's arrows both ask `paletteCanStep`, so an arrow stands exactly where a press
 would move. With `palettes` null the walk is the ramps alone, which is also what a null
 `CustomPaletteWiring::palettes` gives the screen.
+
+The walk itself lives in `src/systems/palette_walk.h`, so anything else that picks one of the game's
+palettes steps the same sequence with the same end stops:
+
+```cpp
+struct PaletteChoice { bool custom = false; std::uint8_t value = 0; };   // a ramp 0-79, or a slot 1-99
+
+std::optional<PaletteChoice> paletteChoiceOf(const Settings&, const CustomPalettes*) noexcept;
+std::optional<PaletteChoice> nextPaletteChoice(std::optional<PaletteChoice> from,
+                                               const CustomPalettes*, int delta) noexcept;
+std::optional<PaletteChoice> paletteChoiceOfColors(const render::ShadeRamp&,
+                                                   const CustomPalettes*) noexcept;
+render::ShadeRamp colorsOf(PaletteChoice, const CustomPalettes&) noexcept;
+```
+
+`paletteChoiceOf` is where the settings stand: the clamped ramp while the custom palette is not in use,
+the slot the working palette is saved in while it is, and nothing while it is in use and saved in no
+slot (the row's `C`) or in use with no palettes behind it. `nextPaletteChoice` is one step of the walk
+described above from any position, nothing included, and returns nothing at an end stop; the Palette
+screen steps with `nextPaletteChoice(paletteChoiceOf(s, p), p, delta)`. `paletteChoiceOfColors` names
+the stop holding exactly four colors — the first equal ramp, else the first equal present slot, else
+nothing; only the colors are compared, so a ramp's `mayBottomOutAtBlack` does not keep it from
+matching, and a ramp wins over a slot holding the same colors. `colorsOf` is a stop's four colors with
+the flag off: a ramp's from the table, clamped as a stored ramp is, and a slot's from the palettes, the
+fresh custom palette for a slot number outside 1-99.
 
 ### The components
 

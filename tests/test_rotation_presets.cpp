@@ -13,7 +13,7 @@
 
 #include "render/palettes.h"
 #include "render/rotation_presets.h"
-#include "state/rotation_progression.h"
+#include "state/custom_rotations.h"
 #include "state/settings.h"
 
 namespace {

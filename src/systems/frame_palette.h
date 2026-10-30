@@ -5,19 +5,19 @@
 // With Settings::paletteRotation OFF, every frame draws through paletteIndexOf(settings), the palette
 // the player chose. With a preset or CUSTOM, the round's own states draw through the level's palette
 // instead: the atlas's rotation set, render::kRotationRamp, holding the mode's palette for the level
-// modulo ten. Every other screen - the menus, the settings, the top-score entry - keeps the player's
-// palette.
+// modulo ten - a preset's, or the player's own working rotation for CUSTOM. Every other screen - the
+// menus, the settings, the top-score entry - keeps the player's palette.
 //
 // The rotation set's colors are state the frame reads, and the host keeps them current with one call
 // per simulation tick:
 //
 //     kirpich::systems::reconcileRotationPalette(
-//         settings, rotation, game, tiles.rotationShades,
+//         settings, rotations.working, game, tiles.rotationShades,
 //         [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
 //             kirpich::render::updateRotationPalette(renderer, tiles, shades);
 //         });
 //
-// and draws through framePaletteIndex(settings, rotation, game) in its render callback.
+// and draws through framePaletteIndex(settings, rotations.working, game) in its render callback.
 
 #include <cstddef>
 #include <cstdint>
@@ -27,7 +27,7 @@
 #include <kirpich/game_state.h>
 
 #include "render/palettes.h"              // ShadeRamp
-#include "state/rotation_progression.h"   // RotationProgression, kRotationLevelCount
+#include "state/custom_rotations.h"       // RotationProgression, kRotationLevelCount
 #include "state/settings.h"               // Settings
 #include "systems/game_context.h"         // GameContext
 
@@ -46,8 +46,9 @@ namespace kirpich::systems {
 
 // The palette the round should be drawn through this frame, or nothing: nothing while the mode is
 // OFF or the game is not in a round's states; otherwise the mode's palette at
-// rotationLevelOf(game.flow.level) - a preset's, or the player's own for CUSTOM. Reads
-// game.flow.gameState and game.flow.level and nothing else of the context.
+// rotationLevelOf(game.flow.level) - a preset's, or `progression`'s for CUSTOM, which the host passes
+// as the player's own working rotation. Reads game.flow.gameState and game.flow.level and nothing
+// else of the context.
 [[nodiscard]] std::optional<render::ShadeRamp> rotationPaletteFor(
     const Settings& settings, const RotationProgression& progression,
     const GameContext& game) noexcept;

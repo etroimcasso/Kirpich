@@ -14,7 +14,7 @@
 #include <array>
 
 #include "render/palettes.h"              // ShadeRamp
-#include "state/rotation_progression.h"   // kRotationLevelCount
+#include "state/custom_rotations.h"       // kRotationLevelCount
 #include "state/settings.h"               // PaletteRotation
 
 namespace kirpich::render {

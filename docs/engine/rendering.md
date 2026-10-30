@@ -112,8 +112,14 @@ the engine's loaders throw when a file is missing or will not decode.
 `TileAtlas` holds the four sheets' `retropp::AtlasId`s and a fifth, `glyphExtras`: the glyphs the font
 lacks (`src/render/glyph_extras.h`), uploaded from index planes in source in the font's own convention
 (index 0 the ink, 1 the background), so they draw through the font palettes. Cell 0 is the asterisk.
-Per shade ramp it holds a `RampPalettes` of nine `retropp::PaletteId`s — plus one more set, `custom`, the player's own palette, whose colors
-`updateCustomPalette` changes in place under the same handles ([settings.md](settings.md#the-custom-set)):
+Per shade ramp it holds a `RampPalettes` of nine `retropp::PaletteId`s — plus two live sets whose
+colors change in place under the same handles: `custom`, the player's own palette, which
+`updateCustomPalette` writes ([settings.md](settings.md#the-custom-set)), and `rotation`, the palette a
+round is drawn through while its palette follows the level, which `updateRotationPalette` writes. Index
+`kCustomRamp` selects the first and `kRotationRamp` the second, and `customShades` / `rotationShades`
+record what each currently draws. The host's per-tick reconcile is the only writer of the rotation set
+([settings.md](settings.md#the-frames-palette)). Both sets are arranged by the same writer, so they
+hold the same nine palettes in the same order a built-in ramp does:
 
 | Palette | Entries | Used by |
 |---|---|---|

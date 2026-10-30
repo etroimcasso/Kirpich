@@ -8,6 +8,15 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-10-30
+
+- **Palette rotation** ⬜ → 🟡 — the game rotates: a second live palette set a round's own states
+  draw through while a rotation is on, kept equal to the level's palette (modulo ten) by a per-tick
+  reconcile; three ten-palette presets, hotter, colder and rainbow; a `rotations` document holding the
+  player's working rotation and ninety-nine slots; a settings byte naming the rotation (schema 7,
+  migrated from 6); and the Palette screen's walk moved to a module of its own, unchanged. No screen
+  yet: a rotation is turned on only by hand until the rotation screen lands.
+
 ## 2026-10-20
 
 - **Custom palettes** 🟡 → ✅ — the palette editor and its held preview complete the feature: the four

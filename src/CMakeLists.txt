@@ -14,8 +14,8 @@ add_library(kirpich-lib STATIC
     state/achievement_persistence.cpp
     state/controls.cpp
     state/custom_palettes.cpp
+    state/custom_rotations.cpp
     state/high_score_persistence.cpp
-    state/rotation_progression.cpp
     state/settings.cpp
     state/stats_persistence.cpp
     systems/achievement_notice.cpp

@@ -121,6 +121,12 @@ hardware's own rule — so a ramp gives three visible colours to a sprite and al
 background. Ramp 1 is the greyscale the hardware's shades map to, so a player who never opens the
 screen sees exactly what they always saw.
 
+**During a round, the palette can follow the level.** With a palette rotation on, the round's own
+states — play, the game-over screens, the Type B ending and the two launch scenes — draw through the
+palette for the level the round shows, modulo ten, and every menu and settings screen draws through
+the palette chosen here. Opening the settings from a paused round therefore shows the chosen palette,
+and returning shows the level's again ([`palette-rotation.md`](palette-rotation.md)).
+
 **The screen borrows the caller's screen rather than rebuilding it.** Opening the settings screen
 copies the background map the display is reading and the object buffer, and leaving puts both back.
 That is what makes returning to a paused round exact: nothing has to know how to reconstruct a paused
@@ -140,11 +146,12 @@ player who changes something and quits comes back to it.
 
 ## Persistence
 
-The settings live in their own save document beside the top scores, under the same identity: eight
+The settings live in their own save document beside the top scores, under the same identity: nine
 bytes, one per setting. An absent document is an ordinary first run and leaves the defaults; a damaged
 one is reported, leaves the defaults, and is left on disk rather than overwritten. The player's custom
-palettes are a document of their own ([`custom-palette.md`](custom-palette.md)); the settings carry
-only whether one is in use.
+palettes are a document of their own ([`custom-palette.md`](custom-palette.md)), and so are their
+custom palette rotations ([`palette-rotation.md`](palette-rotation.md)); the settings carry only
+whether a custom palette is in use and which rotation, if any, a round follows.
 
 A **shorter** document is read as far as it goes and every setting it does not carry keeps its default,
 so a document written before a setting existed costs the player that one setting rather than all of
@@ -175,5 +182,7 @@ It listens rather than asking every frame, because the state changes a handful o
   lands the listener comes out and the setting reads the engine's answer.
 - The DMG display shader is a separate piece of work — it is a post-process stage rather than
   anything this screen selects between.
-- The palette applies to everything drawn. A per-screen or per-element palette is not offered and is
-  not planned.
+- The palette applies to everything drawn, with one exception: while a palette rotation is on, a
+  round's own states draw through the palette for its level, and every menu keeps the player's palette
+  ([`palette-rotation.md`](palette-rotation.md)). A per-element palette is not offered and is not
+  planned.

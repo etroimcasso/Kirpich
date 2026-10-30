@@ -36,7 +36,8 @@ inline constexpr std::uint8_t kDefaultWindowScale = 4;
 
 // How the palette follows the level during a round (src/systems/frame_palette.h). OFF draws every
 // frame through paletteIndexOf; the three presets are ten palettes each (src/render/rotation_presets.h);
-// CUSTOM is the player's own ten (src/state/rotation_progression.h).
+// CUSTOM is the player's own working rotation (src/state/custom_rotations.h), the one their rotation
+// slots are saved from - which slot, if any, is never stored, as the custom palette's slot is not.
 enum class PaletteRotation : std::uint8_t { OFF = 0, HOTTER = 1, COLDER = 2, RAINBOW = 3, CUSTOM = 4 };
 inline constexpr std::size_t kPaletteRotationCount =
     static_cast<std::size_t>(PaletteRotation::CUSTOM) + 1;
@@ -88,8 +89,8 @@ struct Settings {
     // the one derivation that says which of the two the frame draws through.
     bool customPalette = false;
 
-    // Whether a round is drawn through its level's palette, and through which ten. Off by default.
-    // It reaches only the round's own states: `shadeRamp` and `customPalette` keep their values, and
+    // Whether a round is drawn through its level's palette, and through which ten: a preset's, or the
+    // player's own working rotation for CUSTOM. Off by default. It reaches only the round's own states: `shadeRamp` and `customPalette` keep their values, and
     // they are what every screen outside a round draws through (src/systems/frame_palette.h).
     PaletteRotation paletteRotation = PaletteRotation::OFF;
 

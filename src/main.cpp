@@ -74,7 +74,7 @@
 #include "state/controls.h"
 #include "state/custom_palettes.h"
 #include "state/high_score_persistence.h"
-#include "state/rotation_progression.h"
+#include "state/custom_rotations.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
 #include "systems/achievement_notice.h"
@@ -229,10 +229,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // palette is in use, and the ninety-nine slots they can save it into.
     kirpich::CustomPalettes palettes;
     kirpich::loadCustomPalettes(saves, palettes);
-    // The player's own ten palettes, which a round wears while the palette follows the level in
-    // custom mode. The shipped presets are compiled in and need no loading.
-    kirpich::RotationProgression rotation;
-    kirpich::loadRotationProgression(saves, rotation);
+    // The player's own rotations: the working rotation a round wears while its palette follows the
+    // level in custom mode, and the ninety-nine slots they can save it into. The shipped presets are
+    // compiled in and need no loading.
+    kirpich::CustomRotations rotations;
+    kirpich::loadCustomRotations(saves, rotations);
 
     const retropp::EngineConfig config{
         .identity     = identity,
@@ -659,7 +660,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // palettes and no third site can be forgotten. After the beats above, so a level-up during
         // the field wipe is drawn on the tick it happens.
         kirpich::systems::reconcileRotationPalette(
-            settings, rotation, game, tiles.rotationShades,
+            settings, rotations.working, game, tiles.rotationShades,
             [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
                 kirpich::render::updateRotationPalette(renderer, tiles, shades);
             });
@@ -678,7 +679,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // ramp they chose, or the custom set while their custom palette is in use. One derivation,
         // read once.
         const std::uint8_t paletteIndex =
-            kirpich::systems::framePaletteIndex(settings, rotation, game);
+            kirpich::systems::framePaletteIndex(settings, rotations.working, game);
 
         // The achievements screen is built from its own components: it hands back the layers it is,
         // so its frame is those rather than the background map and the object buffer every screen the

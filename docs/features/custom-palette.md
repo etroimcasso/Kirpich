@@ -155,7 +155,7 @@ are what draws. The clamp is the only check a value gets.
 | The live set on the atlas | `src/render/tile_atlas.h` — `TileAtlas::custom`, `customShades`, `rampPaletteColors`, `palettesFor`, `shadesOf`, `updateCustomPalette` |
 | The palettes and their document | `src/state/custom_palettes.h` / `.cpp` — `CustomPalettes`, `savedSlotOf`, `nextPresentSlot`, `previousPresentSlot`, the codec, `saveCustomPalettes` / `loadCustomPalettes` |
 | The settings byte | `src/state/settings.h` — `Settings::customPalette`, `paletteIndexOf`, schema 6 |
-| The Palette screen's walk | `src/systems/palette_settings_screen.h` — `CustomPaletteWiring`, `paletteCanStep` |
+| The Palette screen's walk | `src/systems/palette_walk.h` — `PaletteChoice`, `paletteChoiceOf`, `nextPaletteChoice`; `src/systems/palette_settings_screen.h` — `CustomPaletteWiring`, `paletteCanStep` |
 | The Palette screen's picture | `src/render/screens/palette_settings/screen.cpp` — the `C<nn>` / `C` value, the arrows, every part through the palette in use |
 | The palette editor | `src/render/screens/palette_editor/` — `PaletteEditorState`, the logic (`openPaletteEditor`, `paletteEditor`, `steppedValue`, `presetCanStep`, `paletteEditorActionCanAct`), `layout.h`, `PaletteEditorScreen` |
 | The held preview | `PaletteEditorState::previewing`, set each frame from Select held in `paletteEditor`; `PreviewBackdrop` (`preview_backdrop.h`) and `PalettePreview` (`palette_preview.h`) beside the screen; `kPreviewWords`, `kPreviewWordPitch` and the wall columns in `layout.h` |
