@@ -24,7 +24,9 @@
 #include "data/sfx.h"
 #include "retropp/input.h"
 #include "state/high_score_state.h"
+#include "state/settings.h"
 #include "systems/game_context.h"
+#include "systems/game_state_dispatcher.h"
 #include "systems/high_scores.h"
 
 namespace {
@@ -102,12 +104,18 @@ TopScoreEntry& namedEntry(GameContext& game) {
 
 // The wheel's reachable domain in order (tetris.asm:4025-4077): "a" up through the skip glyph, then
 // the space, which wraps back to "a". Heart mode extends the run by one, making the heart typeable.
-std::vector<CharTile> wheelRing(bool heartMode) {
+// With the name-digits setting on, "0" to "9" follow the skip glyph, ahead of the space.
+std::vector<CharTile> wheelRing(bool heartMode, bool digits = false) {
     const std::uint8_t last =
         heartMode ? tile(CharTile::HEART) : tile(CharTile::MULTIPLICATION_SIGN);
     std::vector<CharTile> ring;
     for (std::uint8_t g = tile(CharTile::LETTER_A); g <= last; ++g) {
         ring.push_back(static_cast<CharTile>(g));
+    }
+    if (digits) {
+        for (std::uint8_t g = tile(CharTile::DIGIT_0); g <= tile(CharTile::DIGIT_9); ++g) {
+            ring.push_back(static_cast<CharTile>(g));
+        }
     }
     ring.push_back(CharTile::SPACE);
     return ring;
@@ -424,21 +432,25 @@ TEST(HighScores, FlushGeometry) {
 // thirty glyphs normally, thirty-one in heart mode. The skip glyph jumps to the space and the space
 // wraps to "a"; heart mode makes the heart the skip glyph, which is what makes it typeable.
 TEST(HighScores, LetterWheelUp) {
-    for (const bool heart : {false, true}) {
-        const std::vector<CharTile> ring = wheelRing(heart);
-        EXPECT_EQ(ring.size(), heart ? 31u : 30u);
+    for (const bool digits : {false, true}) {
+        const kirpich::Settings settings{.nameDigits = digits};
+        for (const bool heart : {false, true}) {
+            const std::vector<CharTile> ring = wheelRing(heart, digits);
+            EXPECT_EQ(ring.size(), (heart ? 31u : 30u) + (digits ? 10u : 0u));
 
-        for (std::size_t i = 0; i < ring.size(); ++i) {
-            GameContext game = nameEntryContext();
-            game.flow.heartMode = heart ? 1 : 0;
-            namedEntry(game).name[0] = ring[i];
+            for (std::size_t i = 0; i < ring.size(); ++i) {
+                GameContext game = nameEntryContext();
+                game.flow.heartMode = heart ? 1 : 0;
+                namedEntry(game).name[0] = ring[i];
 
-            press(game, {Action::MenuUp});
-            kirpich::systems::enterTopScore(game);
+                press(game, {Action::MenuUp});
+                kirpich::systems::enterTopScore(game, {}, &settings);
 
-            EXPECT_EQ(namedEntry(game).name[0], ring[(i + 1) % ring.size()])
-                << (heart ? "heart mode" : "normal") << " glyph " << int{tile(ring[i])};
-            EXPECT_EQ(game.audioCues.square, SquareSfxId::TINK);
+                EXPECT_EQ(namedEntry(game).name[0], ring[(i + 1) % ring.size()])
+                    << (heart ? "heart mode" : "normal") << (digits ? " digits" : "")
+                    << " glyph " << int{tile(ring[i])};
+                EXPECT_EQ(game.audioCues.square, SquareSfxId::TINK);
+            }
         }
     }
 }
@@ -447,21 +459,59 @@ TEST(HighScores, LetterWheelUp) {
 // The wheel going down (tetris.asm:4051-4077) is the exact reverse of the same ring: "a" drops to
 // the space and the space drops to the skip glyph.
 TEST(HighScores, LetterWheelDown) {
-    for (const bool heart : {false, true}) {
-        const std::vector<CharTile> ring = wheelRing(heart);
+    for (const bool digits : {false, true}) {
+        const kirpich::Settings settings{.nameDigits = digits};
+        for (const bool heart : {false, true}) {
+            const std::vector<CharTile> ring = wheelRing(heart, digits);
 
-        for (std::size_t i = 0; i < ring.size(); ++i) {
-            GameContext game = nameEntryContext();
-            game.flow.heartMode = heart ? 1 : 0;
-            namedEntry(game).name[0] = ring[i];
+            for (std::size_t i = 0; i < ring.size(); ++i) {
+                GameContext game = nameEntryContext();
+                game.flow.heartMode = heart ? 1 : 0;
+                namedEntry(game).name[0] = ring[i];
 
-            press(game, {Action::MenuDown});
-            kirpich::systems::enterTopScore(game);
+                press(game, {Action::MenuDown});
+                kirpich::systems::enterTopScore(game, {}, &settings);
 
-            EXPECT_EQ(namedEntry(game).name[0], ring[(i + ring.size() - 1) % ring.size()])
-                << (heart ? "heart mode" : "normal") << " glyph " << int{tile(ring[i])};
-            EXPECT_EQ(game.audioCues.square, SquareSfxId::TINK);
+                EXPECT_EQ(namedEntry(game).name[0], ring[(i + ring.size() - 1) % ring.size()])
+                    << (heart ? "heart mode" : "normal") << (digits ? " digits" : "")
+                    << " glyph " << int{tile(ring[i])};
+                EXPECT_EQ(game.audioCues.square, SquareSfxId::TINK);
+            }
         }
+    }
+}
+
+// ── Test 7a: TheWheelCarriesDigitsOnlyWhenTheSettingSays ────────────────────────────────────────
+// Through the installed handler: with the name-digits setting on, the digits follow the skip glyph -
+// Up from it lands on "0" and Up from "9" on the space, Down from the space on "9" and Down from "0"
+// on the skip glyph - while "a" still follows the space. With it off, and with no settings handed to
+// the install, the wheel is the cartridge's: the skip glyph and the space are neighbors.
+TEST(HighScores, TheWheelCarriesDigitsOnlyWhenTheSettingSays) {
+    const auto through = [](const kirpich::Settings* settings, CharTile from, Action action) {
+        kirpich::systems::GameStateDispatcher dispatcher;
+        kirpich::systems::installHighScoreHandlers(dispatcher, {}, settings);
+        GameContext game         = nameEntryContext();
+        game.flow.gameState      = GameState::ENTER_TOP_SCORE;
+        namedEntry(game).name[0] = from;
+        dispatcher.tick(game, actionSet({action}));  // a fresh press: nothing was held before it
+        return namedEntry(game).name[0];
+    };
+
+    const kirpich::Settings on{.nameDigits = true};
+    EXPECT_EQ(through(&on, CharTile::MULTIPLICATION_SIGN, Action::MenuUp), CharTile::DIGIT_0);
+    EXPECT_EQ(through(&on, CharTile::DIGIT_9, Action::MenuUp), CharTile::SPACE);
+    EXPECT_EQ(through(&on, CharTile::SPACE, Action::MenuUp), CharTile::LETTER_A)
+        << "a is first after the space, always";
+    EXPECT_EQ(through(&on, CharTile::SPACE, Action::MenuDown), CharTile::DIGIT_9);
+    EXPECT_EQ(through(&on, CharTile::DIGIT_0, Action::MenuDown), CharTile::MULTIPLICATION_SIGN);
+    EXPECT_EQ(through(&on, CharTile::LETTER_A, Action::MenuDown), CharTile::SPACE);
+
+    const kirpich::Settings off{};
+    for (const kirpich::Settings* s : {&off, static_cast<const kirpich::Settings*>(nullptr)}) {
+        EXPECT_EQ(through(s, CharTile::MULTIPLICATION_SIGN, Action::MenuUp), CharTile::SPACE);
+        EXPECT_EQ(through(s, CharTile::SPACE, Action::MenuDown), CharTile::MULTIPLICATION_SIGN);
+        EXPECT_EQ(through(s, CharTile::SPACE, Action::MenuUp), CharTile::LETTER_A);
+        EXPECT_EQ(through(s, CharTile::LETTER_A, Action::MenuDown), CharTile::SPACE);
     }
 }
 

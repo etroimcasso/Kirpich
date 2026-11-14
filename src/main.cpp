@@ -64,6 +64,10 @@
 #include "render/screens/display_settings/screen.h"
 #include "render/screens/palette_editor/palette_editor.h"
 #include "render/screens/palette_editor/screen.h"
+#include "render/screens/palette_rotation/rotation_screen.h"
+#include "render/screens/palette_rotation/screen.h"
+#include "render/screens/rotation_editor/rotation_editor.h"
+#include "render/screens/rotation_editor/screen.h"
 #include "render/screens/palette_settings/screen.h"
 #include "render/settings_overlay.h"
 #include "render/sprites.h"
@@ -74,6 +78,7 @@
 #include "state/controls.h"
 #include "state/custom_palettes.h"
 #include "state/high_score_persistence.h"
+#include "state/custom_rotations.h"
 #include "state/settings.h"
 #include "state/stats_persistence.h"
 #include "systems/achievement_notice.h"
@@ -85,6 +90,7 @@
 #include "systems/demo.h"
 #include "systems/display_settings_screen.h"
 #include "systems/enhancement_screens.h"
+#include "systems/frame_palette.h"
 #include "systems/game_context.h"
 #include "systems/game_state_dispatcher.h"
 #include "systems/gameplay.h"
@@ -227,6 +233,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // palette is in use, and the ninety-nine slots they can save it into.
     kirpich::CustomPalettes palettes;
     kirpich::loadCustomPalettes(saves, palettes);
+    // The player's own rotations: the working rotation a round wears while its palette follows the
+    // level in custom mode, and the ninety-nine slots they can save it into. The shipped presets are
+    // compiled in and need no loading.
+    kirpich::CustomRotations rotations;
+    kirpich::loadCustomRotations(saves, rotations);
 
     const retropp::EngineConfig config{
         .identity     = identity,
@@ -392,13 +403,16 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
 
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
-    // A round has just finished, so the statistics go down with it.
+    // A round has just finished, so the statistics go down with it. The name entry reads the settings
+    // for whether its letter wheel carries the digits (Settings::nameDigits).
     kirpich::systems::installHighScoreHandlers(
-        dispatcher, [&saves, persistStats](const kirpich::HighScoreState& scores) {
+        dispatcher,
+        [&saves, persistStats](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
             kirpich::saveTopScoresHeart(scores, saves);
             persistStats();
-        });
+        },
+        &settings);
 
     // The settings screen, reached from the title screen's third item and from a paused round. It
     // edits the same value the window was opened from, and writes every change out as it is made.
@@ -452,6 +466,23 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
     kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring, paletteWiring);
     kirpich::systems::installPaletteEditor(dispatcher, settingsWiring, paletteWiring);
+
+    // The rotation screen, opened by the Palette screen's Up, chooses which rotation a round's palette
+    // follows. Stepping onto a saved rotation copies it into the working one and writes the rotations
+    // document. Its held preview draws through the rotation set the reconcile in the tick keeps.
+    const kirpich::systems::RotationWiring rotationWiring{
+        .rotations = &rotations,
+        .save = [&saves](const kirpich::CustomRotations& current) {
+            kirpich::saveCustomRotations(current, saves);
+        },
+    };
+    kirpich::systems::installRotationScreen(dispatcher, settingsWiring, rotationWiring);
+
+    // The rotation editor, opened from the rotation screen, edits the working rotation level by level
+    // and writes the rotations document on every change. It reads the custom palettes for the walk its
+    // numbers step along. Its held preview draws through the rotation set the reconcile in the tick
+    // keeps.
+    kirpich::systems::installRotationEditor(dispatcher, settingsWiring, rotationWiring, &palettes);
 
     // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
     // the press to bind, and on every binding hands the platform the action map the bindings now derive
@@ -646,6 +677,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
         kirpich::systems::redrawScore(game);
         kirpich::systems::drawTopScoresToVram(game);
 
+        // The round's palette, when the level's is on: derive what this tick wants and rewrite the
+        // rotation set only when it differs from what the set holds. Here and not in the render
+        // callback, because the set's colors are state the frame reads, not a thing drawing decides;
+        // and here rather than in the round init and the level-up, so no ported handler learns about
+        // palettes and no third site can be forgotten. After the beats above, so a level-up during
+        // the field wipe is drawn on the tick it happens.
+        kirpich::systems::reconcileRotationPalette(
+            settings, rotations.working, game, tiles.rotationShades,
+            [&renderer, &tiles](const kirpich::render::ShadeRamp& shades) {
+                kirpich::render::updateRotationPalette(renderer, tiles, shades);
+            });
+
         ++simTicks;
     });
 
@@ -655,9 +698,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::vector<retropp::Sprite>   sprites;
 
     loop.renderLoop([&] {
-        // The palette every screen draws through this frame: the built-in ramp the player chose, or
-        // the atlas's custom set while their custom palette is in use. One derivation, read once.
-        const std::uint8_t paletteIndex = kirpich::paletteIndexOf(settings);
+        // The palette this frame draws through: the level's, through the atlas's rotation set, while
+        // a round is up and its palette follows the level; otherwise the player's own - the built-in
+        // ramp they chose, or the custom set while their custom palette is in use. One derivation,
+        // read once.
+        const std::uint8_t paletteIndex =
+            kirpich::systems::framePaletteIndex(settings, rotations.working, game);
 
         // The achievements screen is built from its own components: it hands back the layers it is,
         // so its frame is those rather than the background map and the object buffer every screen the
@@ -702,6 +748,21 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 retropp::FrameDrawState screen;
                 screen.layers = kirpich::render::PaletteEditorScreen(
                     game.paletteEditor, settings, palettes, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::PALETTE_ROTATION: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::PaletteRotationScreen(
+                    game.rotationScreen, settings, rotations, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::ROTATION_EDITOR: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::RotationEditorScreen(
+                    game.rotationEditor, settings, rotations, palettes, game.screens.cursorVisible,
+                    tiles);
                 renderer.renderFrame(screen);
                 return;
             }
@@ -767,10 +828,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // only where there is an option in that direction. Each instance reports its own count.
         if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN ||
             game.flow.gameState == kirpich::GameState::GHOST_SCREEN ||
+            game.flow.gameState == kirpich::GameState::NAME_DIGITS_SCREEN ||
             game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
             std::size_t count = kirpich::systems::kGhostOptionCount;
             if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN) {
                 count = kirpich::systems::kFixesOptionCount;
+            } else if (game.flow.gameState == kirpich::GameState::NAME_DIGITS_SCREEN) {
+                count = kirpich::systems::kNameDigitsOptionCount;
             } else if (game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
                 count = kirpich::systems::kStatsOptionCount;
             }

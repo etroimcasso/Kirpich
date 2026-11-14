@@ -11,13 +11,13 @@
 #include "render/components/background_layer.h"
 #include "render/components/glyphs.h"
 #include "render/components/page_arrows.h"
+#include "render/components/palette_preview.h"
+#include "render/components/preview_backdrop.h"
 #include "render/components/sprite_layer.h"
 #include "render/components/yes_no_question.h"
 #include "render/palettes.h"                               // clampShadeRamp, kCustomRamp
 #include "render/screens/palette_editor/layout.h"
 #include "render/screens/palette_editor/palette_editor.h"  // the logic's own answers
-#include "render/screens/palette_editor/palette_preview.h"
-#include "render/screens/palette_editor/preview_backdrop.h"
 
 namespace kirpich::render {
 

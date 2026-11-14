@@ -1,7 +1,7 @@
 #pragma once
 
-// The enhancement screens' own content: what the ghost, fixes and new-modes screens say, which flag
-// each option binds, and the install that puts all three onto the dispatcher.
+// The enhancement screens' own content: what the ghost, name-digits, fixes and new-modes screens say,
+// which flag each option binds, and the install that puts all four onto the dispatcher.
 //
 // The carousel (systems/carousel_screen.h) and the mode screen (systems/mode_screen.h) are the
 // machines and own no words; the host (src/main.cpp) is the wiring and owns no content. This unit is
@@ -25,12 +25,14 @@ namespace kirpich::systems {
 class GameStateDispatcher;
 
 // How many options each carousel offers. The fixes screen grows as quirks worth offering back are
-// found; the ghost screen is one option by nature.
-inline constexpr std::size_t kFixesOptionCount = 1;
-inline constexpr std::size_t kGhostOptionCount = 1;
+// found; the ghost and name-digits screens are one option by nature.
+inline constexpr std::size_t kFixesOptionCount      = 1;
+inline constexpr std::size_t kGhostOptionCount      = 1;
+inline constexpr std::size_t kNameDigitsOptionCount = 1;
 
-// Install all three enhancement screens - the fixes carousel on INIT_FIXES_SCREEN/FIXES_SCREEN, the
-// ghost carousel on INIT_GHOST_SCREEN/GHOST_SCREEN, and the new-modes screen on
+// Install all four enhancement screens - the fixes carousel on INIT_FIXES_SCREEN/FIXES_SCREEN, the
+// ghost carousel on INIT_GHOST_SCREEN/GHOST_SCREEN, the name-digits carousel on
+// INIT_NAME_DIGITS_SCREEN/NAME_DIGITS_SCREEN, and the new-modes screen on
 // INIT_MODE_SCREEN/MODE_SCREEN - with their options bound to `settings`' flags. `changed` fires on
 // every toggle, which is where the host applies and saves; the settings wiring is what leaving any
 // of them repaints.

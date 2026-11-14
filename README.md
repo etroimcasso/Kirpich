@@ -45,6 +45,12 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   saved palette is chosen on the same selector as the eighty, after the last of them. Holding Select
   while you edit shows the palette as the game will draw it: the seven pieces, text in each of its
   three states, and the brick wall beside the well.
+- **A round that changes color as it levels up.** Turn on a palette rotation and each level wears a
+  palette of its own, cycling every ten levels. Three rotations ship — hotter, colder and rainbow — and
+  you can build your own level by level from the eighty palettes and the ones you have made, start one
+  from a shipped rotation, and keep up to ninety-nine under names of up to seven characters. Holding
+  Select shows any level as the round will draw it. Only the round changes color; the menus keep the
+  palette you chose.
 - **An optional ghost piece** showing where the falling piece will land. Disabled by default, so
   the game plays exactly as the cartridge does until the player opts in.
 - **Persistent high scores.** A qualifying round is ranked, named on the original letter-wheel
@@ -77,7 +83,8 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
   their button, so moving A moves both the clockwise rotation and the menu's confirm. Controller
   buttons are bound by where they sit on the pad, and named as your pad prints them.
 - **A settings screen** for fullscreen (Alt+Enter / Cmd+Enter also toggles it), window scaling, the
-  palette selection and the palette editor, the controls, the ghost piece, the extra game types, the statistics, and a fixes screen that
+  palette selection, the palette editor and palette rotation, the controls, the ghost piece, the extra
+  game types, the statistics, digits on the high-score name wheel, and a fixes screen that
   offers the cartridge's own quirks back — off by default, fidelity until you ask otherwise. A page of
   its own holds the four resets: the high scores, the statistics, the achievements, or all three, each
   asking before it acts and each leaving the other two alone. Settings persist alongside the score

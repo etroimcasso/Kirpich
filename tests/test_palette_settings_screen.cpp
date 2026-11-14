@@ -321,6 +321,49 @@ TEST(PaletteSettingsScreen, EveryPaletteBothWaysWithEndStops) {
     EXPECT_EQ(probe.applied, appliedAtFirst) << "the first palette is an end stop";
 }
 
+// A held Left or Right repeats on the game's own key repeat: a press steps at once, a hold steps
+// again 23 frames later and every 9 after that. Opening the screen zeroes the repeat, so a direction
+// still held from the screen before waits out the whole repeat rather than stepping at once.
+TEST(PaletteSettingsScreen, AHeldDirectionRepeatsOnTheKeyRepeat) {
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+    const auto  custom = probe.custom();
+    GameContext game   = openPalette(wiring);
+    EXPECT_EQ(game.flow.keyRepeatTimer, 0);
+
+    const auto holdFor = [&](std::initializer_list<Action> as) {
+        game.joypad.pressed = actionSet({});
+        game.joypad.held    = actionSet(as);
+        game.audioCues      = kirpich::systems::AudioCues{};
+        kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+    };
+
+    for (int frame = 1; frame <= 30; ++frame) holdFor({Action::MenuRight});
+    EXPECT_EQ(probe.settings.shadeRamp, 0) << "a hold carried in does not step at once";
+
+    holdFor({});
+    std::vector<int> stepped;
+    for (int frame = 1; frame <= 60; ++frame) {
+        const std::uint8_t before = probe.settings.shadeRamp;
+        if (frame == 1) {
+            press(game, {Action::MenuRight});
+            kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+        } else {
+            holdFor({Action::MenuRight});
+        }
+        if (probe.settings.shadeRamp != before) stepped.push_back(frame);
+    }
+    EXPECT_EQ(stepped, (std::vector<int>{1, 24, 33, 42, 51, 60}));
+    EXPECT_EQ(probe.settings.shadeRamp, 6);
+
+    holdFor({});
+    press(game, {Action::MenuLeft});
+    kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+    EXPECT_EQ(probe.settings.shadeRamp, 5) << "a fresh press steps at once";
+    for (int frame = 2; frame <= 24; ++frame) holdFor({Action::MenuLeft});
+    EXPECT_EQ(probe.settings.shadeRamp, 4) << "and Left repeats as Right does";
+}
+
 // B goes back to the settings screen, painted again, with its cursor on the Palette row.
 TEST(PaletteSettingsScreen, BackReturnsToTheSettingsScreenOnItsRow) {
     Probe       probe;
@@ -647,8 +690,60 @@ TEST(PaletteSettingsScreen, DownOpensThePaletteEditor) {
     EXPECT_EQ(none.paletteEditor.preset, 1);
 }
 
+// Up opens the rotation screen with the screen-change cue and the blink armed, its state reset - the
+// cursor on the selector, the held preview down, its level 0 - from whatever it was left at. The
+// settings and the palettes are untouched.
+TEST(PaletteSettingsScreen, UpOpensTheRotationScreen) {
+    Probe probe;
+    probe.palettes    = threeSlots();
+    const auto wiring = probe.wiring();
+    const auto custom = probe.custom();
+    GameContext game  = openPalette(wiring);
+    game.flow.timer1  = 3;
+    game.rotationScreen = kirpich::RotationScreenState{
+        .row = kirpich::RotationScreenRow::EDITOR, .previewing = true, .previewLevel = 6};
+    const Settings       settingsBefore = probe.settings;
+    const CustomPalettes palettesBefore = probe.palettes;
+    probe.events.clear();
+
+    press(game, {Action::MenuUp});
+    kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+
+    EXPECT_EQ(game.flow.gameState, GameState::PALETTE_ROTATION);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+    EXPECT_EQ(game.flow.timer1, kBlinkFrames);
+    EXPECT_TRUE(game.screens.cursorVisible);
+    EXPECT_EQ(game.rotationScreen, kirpich::RotationScreenState{});
+    EXPECT_EQ(game.rotationScreen.row, kirpich::RotationScreenRow::SELECTOR);
+    EXPECT_FALSE(game.rotationScreen.previewing);
+    EXPECT_EQ(game.rotationScreen.previewLevel, 0);
+    EXPECT_EQ(probe.settings, settingsBefore);
+    EXPECT_EQ(probe.palettes, palettesBefore);
+    EXPECT_TRUE(probe.events.empty());
+}
+
+// The up arrow says the rotation screen is above: always drawn, at the shared page-arrow place above
+// the heading, turned up, through the palette in use.
+TEST(PaletteSettingsScreen, TheUpArrowIsAlwaysShown) {
+    CustomPalettes p = threeSlots();
+    p.working        = p.slots[0].shades;
+    for (const auto& [s, palettes] :
+         {std::pair{Settings{.shadeRamp = kPlayerRamp}, kNoSlots},
+          std::pair{Settings{.shadeRamp = kPlayerRamp, .customPalette = true}, p}}) {
+        const auto content = contentOf(draw(s, palettes));
+        const auto up      = named(content, "palette-up");
+        ASSERT_TRUE(up);
+        EXPECT_EQ(up->x, 80);
+        EXPECT_EQ(up->y, 8);
+        EXPECT_EQ(up->rotation, retropp::Rotation::Rot270);
+        EXPECT_EQ(up->atlas, kAtlas.copyrightTitle);
+        EXPECT_EQ(up->palette,
+                  kirpich::render::palettesFor(kAtlas, kirpich::paletteIndexOf(s)).sprite0);
+    }
+}
+
 // The down arrow says the editor is below: always drawn, at the shared page-arrow place, turned
-// down, through the palette in use - and there is no up arrow.
+// down, through the palette in use - and the up arrow stands with it.
 TEST(PaletteSettingsScreen, TheDownArrowIsAlwaysShown) {
     CustomPalettes p = threeSlots();
     p.working        = p.slots[0].shades;
@@ -663,7 +758,7 @@ TEST(PaletteSettingsScreen, TheDownArrowIsAlwaysShown) {
         EXPECT_EQ(down->rotation, retropp::Rotation::Rot90);
         EXPECT_EQ(down->atlas, kAtlas.copyrightTitle);
         EXPECT_EQ(down->palette, kirpich::render::palettesFor(kAtlas, kirpich::paletteIndexOf(s)).sprite0);
-        EXPECT_FALSE(named(content, "palette-up"));
+        EXPECT_TRUE(named(content, "palette-up"));
     }
 }
 

@@ -27,11 +27,11 @@ at the settings.
 
 ## The screen
 
-Three pages, each named for what it holds: the screens for the window, the palette and the controls
+Four pages, each named for what it holds: the screens for the window, the palette and the controls
 are settings, and the screens, switches and resets the cartridge never had are enhancements. Down from
 the last row of a page turns to the next, up from the first turns back, and an arrow at the edge of a
 page says another one is there. Each family's header counts from one: `settings 1`, `enhancements 1`,
-`enhancements 2`.
+`enhancements 2`, `enhancements 3`.
 
 | Page | Row | Values |
 |---|---|---|
@@ -43,10 +43,11 @@ page says another one is there. Each family's header counts from one: `settings 
 | enhancements 1 | `new modes` | `►`, opens a screen of its own |
 | enhancements 1 | `fixes` | `►`, opens the fixes carousel |
 | enhancements 1 | `stats` | `►`, opens the statistics switch's own screen |
-| enhancements 2 | `reset scores` | asks first |
-| enhancements 2 | `reset stats` | asks first |
-| enhancements 2 | `reset achvmnts` | asks first |
-| enhancements 2 | `reset all` | asks first |
+| enhancements 2 | `name digits` | `►`, opens the name-digits screen ([`name-entry-digits.md`](name-entry-digits.md)) |
+| enhancements 3 | `reset scores` | asks first |
+| enhancements 3 | `reset stats` | asks first |
+| enhancements 3 | `reset achvmnts` | asks first |
+| enhancements 3 | `reset all` | asks first |
 
 No row carries an inline value; every row opens a screen or acts. The values live on the screens the
 rows open:
@@ -55,7 +56,7 @@ rows open:
 |---|---|---|
 | Display | `fullscreen` | `on` / `off` |
 | Display | `size` | `1x` – `8x`, screen pixels per Game Boy pixel |
-| Palette | `palette` | `◄ n ►`, eighty color ramps and then every custom palette the player has saved, read as `C` and its slot number ([`custom-palette.md`](custom-palette.md)); a swatch of the chosen one's four colors beneath the row and the seven pieces drawn in it below that |
+| Palette | `palette` | `◄ n ►`, eighty color ramps and then every custom palette the player has saved, read as `C` and its slot number ([`custom-palette.md`](custom-palette.md)), Left and Right repeating while held; a swatch of the chosen one's four colors beneath the row and the seven pieces drawn in it below that |
 
 Each of the two is headed by its own name, lays its rows on the same lines and columns as the
 settings page, and returns to the settings page with B, its cursor still on the row that opened it.
@@ -63,9 +64,9 @@ The Palette screen draws everything on it - the heading, the row, the pieces - t
 being chosen, so the whole screen changes as the player steps through them. A down arrow at its foot
 says the palette editor is below, and Down opens it ([`custom-palette.md`](custom-palette.md)).
 
-The enhancement openers each lead to a screen with the room to say what the switch does: `ghost` and `fixes` run on the
-carousel ([`fixes-screen.md`](fixes-screen.md)), `new modes` on the mode screen that preceded it, and
-`stats` on its own. Each opener's arrow points right, toward the screen it leads to, and pressing
+The enhancement openers each lead to a screen with the room to say what the switch does: `ghost`,
+`fixes` and `name digits` run on the carousel ([`fixes-screen.md`](fixes-screen.md)), `new modes` on
+the mode screen that preceded it, and `stats` on its own. Each opener's arrow points right, toward the screen it leads to, and pressing
 right opens it just as Confirm and Start do.
 
 Every row that ends something goes through the same confirm, which opens on `no` every time — a
@@ -90,7 +91,9 @@ everything since as time just played — putting a large number straight back in
 asked to empty.
 
 Putting the four on a page of their own is deliberate. They are the things on the screen a player
-cannot undo, and none of them should sit one press below a row that merely changes a colour.
+cannot undo, and none of them should sit one press below a row that merely changes a colour. They are
+the last page, after the name-digits row's page, so a player walking down through the enhancements
+reaches every switch before anything that erases.
 
 The row for the achievements reads `reset achvmnts` because a label starts at column 3 and the full
 word needs one cell more than the row has. The confirm it opens is centred across the whole width, so
@@ -121,6 +124,12 @@ hardware's own rule — so a ramp gives three visible colours to a sprite and al
 background. Ramp 1 is the greyscale the hardware's shades map to, so a player who never opens the
 screen sees exactly what they always saw.
 
+**During a round, the palette can follow the level.** With a palette rotation on, the round's own
+states — play, the game-over screens, the Type B ending and the two launch scenes — draw through the
+palette for the level the round shows, modulo ten, and every menu and settings screen draws through
+the palette chosen here. Opening the settings from a paused round therefore shows the chosen palette,
+and returning shows the level's again ([`palette-rotation.md`](palette-rotation.md)).
+
 **The screen borrows the caller's screen rather than rebuilding it.** Opening the settings screen
 copies the background map the display is reading and the object buffer, and leaving puts both back.
 That is what makes returning to a paused round exact: nothing has to know how to reconstruct a paused
@@ -140,11 +149,12 @@ player who changes something and quits comes back to it.
 
 ## Persistence
 
-The settings live in their own save document beside the top scores, under the same identity: eight
+The settings live in their own save document beside the top scores, under the same identity: ten
 bytes, one per setting. An absent document is an ordinary first run and leaves the defaults; a damaged
 one is reported, leaves the defaults, and is left on disk rather than overwritten. The player's custom
-palettes are a document of their own ([`custom-palette.md`](custom-palette.md)); the settings carry
-only whether one is in use.
+palettes are a document of their own ([`custom-palette.md`](custom-palette.md)), and so are their
+custom palette rotations ([`palette-rotation.md`](palette-rotation.md)); the settings carry only
+whether a custom palette is in use and which rotation, if any, a round follows.
 
 A **shorter** document is read as far as it goes and every setting it does not carry keeps its default,
 so a document written before a setting existed costs the player that one setting rather than all of
@@ -175,5 +185,7 @@ It listens rather than asking every frame, because the state changes a handful o
   lands the listener comes out and the setting reads the engine's answer.
 - The DMG display shader is a separate piece of work — it is a post-process stage rather than
   anything this screen selects between.
-- The palette applies to everything drawn. A per-screen or per-element palette is not offered and is
-  not planned.
+- The palette applies to everything drawn, with one exception: while a palette rotation is on, a
+  round's own states draw through the palette for its level, and every menu keeps the player's palette
+  ([`palette-rotation.md`](palette-rotation.md)). A per-element palette is not offered and is not
+  planned.

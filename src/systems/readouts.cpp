@@ -16,8 +16,7 @@ constexpr std::size_t kScoreRow = 3;
 constexpr std::size_t kScoreCol = 13;
 constexpr std::uint8_t kScoreDigitPairs = 3;
 
-constexpr std::size_t kTypeALevelRow = 7;
-constexpr std::size_t kTypeALevelCol = 17;
+// Type A's level cell is kTypeALevelRow and kTypeALevelCol, in the header.
 constexpr std::size_t kTypeBLevelRow = 2;
 constexpr std::size_t kTypeBLevelCol = 16;
 

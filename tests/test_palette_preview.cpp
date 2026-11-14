@@ -1,8 +1,8 @@
 // The palette editor's held preview - behavioral tests over the Select level in its logic
 // (src/render/screens/palette_editor/palette_editor.h), the two components the preview is drawn from
-// (preview_backdrop.h and palette_preview.h beside it), the shared piece preview they reuse
-// (src/render/components/piece_preview.h), and the screen's declaration while the preview is up
-// (screen.h).
+// (src/render/components/preview_backdrop.h and palette_preview.h), the shared piece preview they
+// reuse (src/render/components/piece_preview.h), and the editor screen's declaration while the
+// preview is up (src/render/screens/palette_editor/screen.h).
 //
 // Device-free. The logic is pure state over the game aggregate and the wirings' seams, and the
 // components are pure functions returning primitives, so the atlas here is a plain value with
@@ -35,12 +35,12 @@
 #include "render/background.h"
 #include "render/components/backdrop.h"
 #include "render/components/glyphs.h"
+#include "render/components/palette_preview.h"
 #include "render/components/piece_preview.h"
+#include "render/components/preview_backdrop.h"
 #include "render/palettes.h"
 #include "render/screens/palette_editor/layout.h"
 #include "render/screens/palette_editor/palette_editor.h"
-#include "render/screens/palette_editor/palette_preview.h"
-#include "render/screens/palette_editor/preview_backdrop.h"
 #include "render/screens/palette_editor/screen.h"
 #include "render/tile_atlas.h"
 #include "retropp/input.h"
@@ -468,7 +468,7 @@ TEST(PalettePreview, TheBackdropFlanksTheScreenWithThePlayfieldsBricks) {
         const kirpich::render::ResolvedTile brick = kirpich::render::resolveTile(
             kirpich::kTypeAGameplayTilemap[row][kWallCol], kirpich::TileSheet::GAMEPLAY, kAtlas,
             kCustomRamp);
-        for (const std::size_t col : {layout::kWallLeftColumn, layout::kWallRightColumn}) {
+        for (const std::size_t col : {kirpich::render::kPreviewWallLeftColumn, kirpich::render::kPreviewWallRightColumn}) {
             const retropp::TileCell& cell = cells[row * kCols + col];
             EXPECT_EQ(cell.atlas, brick.atlas) << "row " << row << " col " << col;
             EXPECT_EQ(cell.tile, brick.cell) << "row " << row << " col " << col;
@@ -477,7 +477,7 @@ TEST(PalettePreview, TheBackdropFlanksTheScreenWithThePlayfieldsBricks) {
                 << "the content palette, not an object one";
         }
         for (std::size_t col = 0; col < kCols; ++col) {
-            if (col == layout::kWallLeftColumn || col == layout::kWallRightColumn) continue;
+            if (col == kirpich::render::kPreviewWallLeftColumn || col == kirpich::render::kPreviewWallRightColumn) continue;
             EXPECT_TRUE(sameCell(cells[row * kCols + col], plain[row * kCols + col]))
                 << "row " << row << " col " << col;
         }
@@ -518,8 +518,8 @@ TEST(PalettePreview, TheThreeWordsThroughTheirThreeInks) {
     }};
     for (std::size_t i = 0; i < words.size(); ++i) {
         const Word& w = words[i];
-        EXPECT_EQ(layout::kPreviewWords[i], w.text);
-        const int x = layout::previewWordX(w.text.size());
+        EXPECT_EQ(kirpich::render::kPalettePreviewWords[i], w.text);
+        const int x = kirpich::render::palettePreviewWordX(w.text.size());
 
         const kirpich::render::Sprites expected =
             i == 0 ? kirpich::render::SelectedGlyphs(w.text, x, w.y, 8, kAtlas, kCustomRamp)
@@ -692,10 +692,10 @@ TEST(PalettePreview, ThePreviewTakesTheScreenFromAQuestionAndAnEnteredValue) {
         EXPECT_NE(s.y, layout::kHintY) << "no hint: " << s.key.value;
         if (s.palette == kAtlas.custom.fontSpriteSelected) {
             ++selected;
-            EXPECT_EQ(s.y, layout::previewWordY(0)) << "only the word selected: " << s.key.value;
+            EXPECT_EQ(s.y, kirpich::render::palettePreviewWordY(0)) << "only the word selected: " << s.key.value;
         }
     }
-    EXPECT_EQ(selected, layout::kPreviewWords[0].size());
+    EXPECT_EQ(selected, kirpich::render::kPalettePreviewWords[0].size());
 }
 
 // No two objects in a preview frame share a name, and every sprite is on the screen between the two
@@ -727,8 +727,10 @@ TEST(PalettePreview, EveryPreviewFrameNamesEachObjectOnceAndStaysBetweenTheWalls
                 EXPECT_TRUE(keys.insert(s.key.value).second) << "two objects named " << s.key.value;
                 EXPECT_GE(s.y, 0) << s.key.value;
                 EXPECT_LE(s.y + 8, 144) << s.key.value;
-                EXPECT_GE(s.x, layout::kWallLeftX + layout::kBrickSide) << s.key.value;
-                EXPECT_LE(s.x + 8, layout::kWallRightX) << s.key.value;
+                EXPECT_GE(s.x, kirpich::render::kPreviewWallLeftX +
+                                   kirpich::render::kPreviewBrickSide)
+                    << s.key.value;
+                EXPECT_LE(s.x + 8, kirpich::render::kPreviewWallRightX) << s.key.value;
             }
             EXPECT_TRUE(layers[1].regions.empty());
         }

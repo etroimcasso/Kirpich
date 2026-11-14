@@ -4,8 +4,9 @@
 //
 // They are regions rather than sprites or cells: the game's art has no solid-color tile to draw them
 // with, and a region is a shape filled with one color, placed by pixel. The four squares touch, so the
-// strip reads as one band of color rather than as four blocks. Hand the result to the layer the
-// swatch belongs to as its `regions` (render/types.h, LayerOptions).
+// strip reads as one band of color rather than as four blocks. It is ColorSwatch
+// (render/components/color_swatch.h), keyed `palette-swatch`, at the Palette screen's own place. Hand
+// the result to the layer the swatch belongs to as its `regions` (render/types.h, LayerOptions).
 
 #include <cstdint>
 

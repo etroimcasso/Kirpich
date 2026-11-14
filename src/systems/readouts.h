@@ -25,6 +25,12 @@
 
 namespace kirpich::systems {
 
+// The Type A panel's level cell: the blank cell under the word LEVEL that printLevel draws the
+// level's units digit into. A screen that draws the panel's level box outside a round puts its digit
+// here too.
+inline constexpr std::size_t kTypeALevelRow = 7;
+inline constexpr std::size_t kTypeALevelCol = 17;
+
 // Draw the low `2 * digitPairs` decimal digits of `value` into `map`, left to right from
 // (row, col), one digit per cell (tetris.asm:6624-6673).
 //

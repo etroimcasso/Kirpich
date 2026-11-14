@@ -156,6 +156,15 @@ TEST(SettingsOverlay, PageArrowIsTheSelectorTurnedAQuarter) {
             << "the two page arrows are the same tile turned opposite ways";
     }
 
+    // A page between the first and the last - the name-digits row's, which holds that row alone -
+    // carries both.
+    {
+        const auto arrows =
+            kirpich::render::settingsPageArrows(on(SettingsRow::NAME_DIGITS), 0, atlas);
+        ASSERT_EQ(arrows.size(), 2u);
+        EXPECT_NE(arrows[0].rotation, arrows[1].rotation);
+    }
+
     // Whichever ramp is on, the arrow is coloured by that ramp's object palette.
     for (std::uint8_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
         const auto arrows =

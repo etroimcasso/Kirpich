@@ -322,9 +322,33 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
     EXPECT_EQ(game.display.map[kStatsRow][kCursorCol], kCursor);
 
-    // Down again crosses onto the third page, which is the four resets. The page is full, so
-    // emptiness cannot say the second page's rows are gone - the labels do, and more strongly: every
-    // one of the four lines reads a reset rather than the enhancement row that stood there.
+    // Down again crosses onto the third page, which holds the name-digits row alone: its label on the
+    // first line with the cursor on it, and the other three lines empty - the second page's rows are
+    // gone.
+    step(Action::MenuDown);
+    EXPECT_EQ(game.screens.settingsRow, SettingsRow::NAME_DIGITS);
+    EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
+    {
+        using C = CharTile;
+        const BackgroundMap& map = game.display.map;
+        expectGlyphs(map, kGhostRow, kLabelCol,
+                     {C::LETTER_N, C::LETTER_A, C::LETTER_M, C::LETTER_E, C::SPACE, C::LETTER_D,
+                      C::LETTER_I, C::LETTER_G, C::LETTER_I, C::LETTER_T, C::LETTER_S});
+        EXPECT_EQ(map[kGhostRow][kCursorCol], kCursor);
+        for (const std::size_t row : {kNewModesRow, kFixesRow, kStatsRow}) {
+            for (std::size_t col = 0; col < kScreenCols; ++col) {
+                EXPECT_EQ(map[row][col], kSpace) << "line " << row << " col " << col;
+            }
+        }
+        expectGlyphs(map, kTitleRow, 3,
+                     {C::LETTER_E, C::LETTER_N, C::LETTER_H, C::LETTER_A, C::LETTER_N, C::LETTER_C,
+                      C::LETTER_E, C::LETTER_M, C::LETTER_E, C::LETTER_N, C::LETTER_T, C::LETTER_S,
+                      C::SPACE, C::DIGIT_2});
+    }
+
+    // Down again crosses onto the last page, which is the four resets. The page is full, so
+    // emptiness cannot say the earlier pages' rows are gone - the labels do, and more strongly: every
+    // one of the four lines reads a reset rather than the row that stood there.
     step(Action::MenuDown);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_SCORES);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::TINK);
@@ -352,7 +376,7 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
         expectGlyphs(map, kTitleRow, 3,
                      {C::LETTER_E, C::LETTER_N, C::LETTER_H, C::LETTER_A, C::LETTER_N, C::LETTER_C,
                       C::LETTER_E, C::LETTER_M, C::LETTER_E, C::LETTER_N, C::LETTER_T, C::LETTER_S,
-                      C::SPACE, C::DIGIT_2});
+                      C::SPACE, C::DIGIT_3});
     }
 
     // Down through the rest of the reset page to its end stop.
@@ -367,8 +391,8 @@ TEST(SettingsScreen, CursorWalksAndStopsAtBothEnds) {
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::RESET_ALL);
     EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::NONE);
 
-    // Back up, across both page boundaries, to the top.
-    for (int i = 0; i < 11; ++i) step(Action::MenuUp);
+    // Back up, across all three page boundaries, to the top.
+    for (int i = 0; i < 12; ++i) step(Action::MenuUp);
     EXPECT_EQ(game.screens.settingsRow, SettingsRow::DISPLAY);
     {
         using C = CharTile;
@@ -446,6 +470,7 @@ TEST(SettingsScreen, OnlyTheRowsThatOpenAScreenCarryAnArrow) {
             case SettingsRow::NEW_MODES:
             case SettingsRow::FIXES:
             case SettingsRow::STATS:
+            case SettingsRow::NAME_DIGITS:
                 return true;
             default:
                 return false;
@@ -569,6 +594,58 @@ TEST(SettingsScreen, TheControlsRowOpensItsScreen) {
     press(game, {Action::MenuLeft});
     kirpich::systems::settingsScreen(game, wiring);
     EXPECT_EQ(game.flow.gameState, GameState::SETTINGS);
+}
+
+// (7c) The pages are declared, not divided: four of them, beginning at the display row, the ghost
+// row, the name-digits row and the first reset, each row on its page at its place counted from the
+// page's first row, and none holding more than a page has lines. The name-digits row opens its own
+// screen on Right, Confirm and Start.
+TEST(SettingsScreen, ThePageBreaksAreDeclared) {
+    EXPECT_EQ(kirpich::kSettingsPageCount, 4);
+    EXPECT_EQ(kirpich::kSettingsRowCount, 13);
+
+    struct Place {
+        SettingsRow  row;
+        std::uint8_t page;
+        std::uint8_t within;
+    };
+    const Place places[] = {
+        {SettingsRow::DISPLAY, 0, 0},      {SettingsRow::PALETTE, 0, 1},
+        {SettingsRow::CONTROLS, 0, 2},     {SettingsRow::EXIT_GAME, 0, 3},
+        {SettingsRow::GHOST_PIECE, 1, 0},  {SettingsRow::NEW_MODES, 1, 1},
+        {SettingsRow::FIXES, 1, 2},        {SettingsRow::STATS, 1, 3},
+        {SettingsRow::NAME_DIGITS, 2, 0},  {SettingsRow::RESET_SCORES, 3, 0},
+        {SettingsRow::RESET_STATS, 3, 1},  {SettingsRow::RESET_ACHIEVEMENTS, 3, 2},
+        {SettingsRow::RESET_ALL, 3, 3},
+    };
+    ASSERT_EQ(std::size(places), std::size_t{kirpich::kSettingsRowCount});
+
+    std::array<int, 4> perPage{};
+    for (const Place& p : places) {
+        EXPECT_EQ(kirpich::settingsPageOf(p.row), p.page) << "row " << int(p.row);
+        EXPECT_EQ(kirpich::settingsRowWithinPage(p.row), p.within) << "row " << int(p.row);
+        ++perPage[p.page];
+    }
+    for (std::size_t page = 0; page < perPage.size(); ++page) {
+        EXPECT_LE(perPage[page], int{kirpich::kSettingsRowsPerPage}) << "page " << page;
+        EXPECT_EQ(kirpich::kSettingsFirstRowOfPage[page],
+                  page == 0   ? SettingsRow::DISPLAY
+                  : page == 1 ? SettingsRow::GHOST_PIECE
+                  : page == 2 ? SettingsRow::NAME_DIGITS
+                              : SettingsRow::RESET_SCORES);
+    }
+
+    for (const Action act : {Action::MenuRight, Action::Confirm, Action::Start}) {
+        GameContext game;
+        Probe       probe;
+        const auto  wiring = probe.wiring();
+        openFrom(game, wiring, GameState::TITLE_SCREEN);
+        game.screens.settingsRow = SettingsRow::NAME_DIGITS;
+        press(game, {act});
+        kirpich::systems::settingsScreen(game, wiring);
+        EXPECT_EQ(game.flow.gameState, GameState::INIT_NAME_DIGITS_SCREEN) << "action " << int(act);
+        EXPECT_EQ(game.audioCues.square, kirpich::SquareSfxId::CHANGE_SCREEN);
+    }
 }
 
 // (8) The cursor blinks on the frame timer, composed through the dispatcher so the timer is

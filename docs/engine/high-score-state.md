@@ -197,16 +197,29 @@ request, so call it every frame from the frame's last beat alongside the other v
 
 `enterTopScore` is the name-entry screen, installed with `installHighScoreHandlers`. Its second
 argument is the save seam — it is handed the finished table when a name is submitted, which is where
-the port writes top scores to disk:
+the port writes top scores to disk — and its third is the player's settings, which the wheel reads
+`Settings::nameDigits` from:
 
 ```cpp
-installHighScoreHandlers(dispatcher, [&saves](const HighScoreState& scores) {
-    saveTopScores(scores, saves);
-});
+void enterTopScore(GameContext&, const TopScoreSaved& saved = {}, const Settings* settings = nullptr);
+void installHighScoreHandlers(GameStateDispatcher&, const TopScoreSaved& saved = {},
+                              const Settings* settings = nullptr);
+
+installHighScoreHandlers(
+    dispatcher, [&saves](const HighScoreState& scores) { saveTopScores(scores, saves); },
+    &settings);
 ```
 
-Both the seam and the refresh parameters default to empty, so a build that installs only some of this
-still runs.
+The seam, the settings and the refresh parameters all default to empty, so a build that installs only
+some of this still runs. A null `settings` reads as the setting off. The handler holds the pointer, so
+the settings must outlive the dispatcher.
+
+The wheel is the cartridge's while `nameDigits` is off: Up runs `a` to `z`, the period, the hyphen
+and the multiplication sign — with the heart after it in heart mode — then the space, and round to
+`a`; Down is the exact reverse. With `nameDigits` on, the digits `0` to `9` follow the symbols, ahead
+of the space: Up from the last symbol is `0`, Up from `9` is the space, Down from the space is `9`
+and Down from `0` is the last symbol. `a` still follows the space. Nothing else about name entry
+changes.
 
 ### Changing the layout
 
@@ -216,14 +229,17 @@ The three display rows are described by the constants at the top of `systems/hig
 and the flush all derive from them. `kNameEntryBlinkInterval` is the cursor's blink period in frames.
 
 The letter wheel's order is the charmap's own: the glyphs between `LETTER_A` and the skip glyph are
-walked by value, so adding a glyph to that run in `char_tile.h` adds it to the wheel.
+walked by value, so adding a glyph to that run in `char_tile.h` adds it to the wheel. The digits are a
+second run, `DIGIT_0` to `DIGIT_9`, walked by value the same way; `wheelUp` and `wheelDown` join it
+between the skip glyph and the space.
 
 ## Testing
 
 `tests/test_high_scores.cpp` covers the recording flow: the slice walk over every level and height,
 the insert vectors including the tie that does not displace, the digit printer's skipped leading
 zeros, the staged layout and its name delimiter, the flush geometry and the gap it steps over, the
-letter wheel swept over its whole domain in both directions and both modes, the cursor moves, the
+letter wheel swept over its whole domain in both directions, both modes and with the digits on and
+off, the cursor moves, the
 blink and key-repeat timelines, and the submit fork with its save call.
 
 `tests/test_high_score_state.cpp` pins the three tables and the four owned bytes against the layout

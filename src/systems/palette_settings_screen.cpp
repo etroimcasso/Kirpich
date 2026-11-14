@@ -3,14 +3,18 @@
 #include <array>
 #include <optional>
 #include <span>
+#include <utility>
 
 #include <kirpich/action.h>
 #include <kirpich/game_state.h>
 
 #include "data/sfx.h"                                      // SquareSfxId
-#include "render/screens/palette_editor/palette_editor.h"  // openPaletteEditor
+#include "render/screens/palette_editor/palette_editor.h"      // openPaletteEditor
+#include "render/screens/palette_rotation/rotation_screen.h"  // openRotationScreen
 #include "retropp/input.h"                                 // actionId
 #include "systems/game_state_dispatcher.h"
+#include "systems/input.h"         // keyRepeatFire
+#include "systems/palette_walk.h"  // PaletteChoice, paletteChoiceOf, nextPaletteChoice
 
 namespace kirpich::systems {
 
@@ -20,59 +24,12 @@ bool pressed(const GameContext& game, Action action) {
     return game.joypad.pressed.test(retropp::actionId(action));
 }
 
-// Where one step lands: a built-in ramp, or a present custom slot (numbered from one).
-struct Stop {
-    bool         custom = false;
-    std::uint8_t value  = 0;
-};
-
-// The selector's walk is one sequence: the built-in ramps in order, then the present slots in order.
-// The current position is the saved slot while the custom palette is in use - or nowhere on the walk,
-// when the working palette is saved in no slot - and the ramp otherwise. From off the walk, Left goes
-// to the last ramp and Right to the first present slot, which is where the slots begin.
-std::optional<Stop> stepTarget(const Settings& settings, const CustomPalettes* palettes,
-                               int delta) noexcept {
-    constexpr std::uint8_t kLastRamp = static_cast<std::uint8_t>(render::kShadeRampCount - 1);
-
-    if (!settings.customPalette) {
-        const std::uint8_t ramp = render::clampShadeRamp(settings.shadeRamp);
-        if (delta < 0) {
-            if (ramp == 0) return std::nullopt;
-            return Stop{.custom = false, .value = static_cast<std::uint8_t>(ramp - 1)};
-        }
-        if (ramp < kLastRamp) {
-            return Stop{.custom = false, .value = static_cast<std::uint8_t>(ramp + 1)};
-        }
-        if (palettes != nullptr) {
-            if (const auto first = nextPresentSlot(*palettes, 0)) {
-                return Stop{.custom = true, .value = *first};
-            }
-        }
-        return std::nullopt;
-    }
-
-    const std::optional<std::uint8_t> saved =
-        palettes != nullptr ? savedSlotOf(*palettes) : std::nullopt;
-
-    if (delta > 0) {
-        if (palettes == nullptr) return std::nullopt;
-        if (const auto next = nextPresentSlot(*palettes, saved.value_or(0))) {
-            return Stop{.custom = true, .value = *next};
-        }
-        return std::nullopt;
-    }
-
-    if (palettes != nullptr && saved) {
-        if (const auto previous = previousPresentSlot(*palettes, *saved)) {
-            return Stop{.custom = true, .value = *previous};
-        }
-    }
-    return Stop{.custom = false, .value = kLastRamp};
-}
-
+// The selector steps the settings along the palette walk (src/systems/palette_walk.h), from where the
+// settings stand on it.
 void stepPalette(GameContext& game, const SettingsWiring& wiring, const CustomPaletteWiring& custom,
                  int delta) {
-    const std::optional<Stop> target = stepTarget(wiring.current(), custom.palettes, delta);
+    const std::optional<PaletteChoice> target = nextPaletteChoice(
+        paletteChoiceOf(wiring.current(), custom.palettes), custom.palettes, delta);
     if (!target) {
         return;  // an end stop moves nothing and says nothing
     }
@@ -107,14 +64,13 @@ struct Bind {
     Effect effect;
 };
 
+// Left and Right are not here: the selector reads them as held, on the key repeat, ahead of this
+// table (paletteSettingsScreen).
 constexpr std::array kBinds{
-    Bind{Action::MenuLeft,
-         [](GameContext& g, const SettingsWiring& w, const CustomPaletteWiring& c) {
-             stepPalette(g, w, c, -1);
-         }},
-    Bind{Action::MenuRight,
-         [](GameContext& g, const SettingsWiring& w, const CustomPaletteWiring& c) {
-             stepPalette(g, w, c, +1);
+    Bind{Action::MenuUp,
+         [](GameContext& g, const SettingsWiring&, const CustomPaletteWiring&) {
+             g.audioCues.square = SquareSfxId::CHANGE_SCREEN;
+             openRotationScreen(g);
          }},
     Bind{Action::MenuDown,
          [](GameContext& g, const SettingsWiring&, const CustomPaletteWiring& c) {
@@ -137,21 +93,45 @@ void dispatch(GameContext& game, const SettingsWiring& wiring, const CustomPalet
     }
 }
 
+// The selector's two directions on the key repeat, Left read ahead of Right: a press steps at once, a
+// hold steps again 23 frames later and every 9 after that. Returns whether either was down, which
+// makes a held direction the whole frame's input.
+bool stepHeldDirection(GameContext& game, const SettingsWiring& wiring,
+                       const CustomPaletteWiring& custom) {
+    for (const auto& [action, delta] : {std::pair{Action::MenuLeft, -1}, std::pair{Action::MenuRight, +1}}) {
+        const bool isPressed = pressed(game, action);
+        const bool isHeld    = game.joypad.held.test(retropp::actionId(action));
+        if (isPressed || isHeld) {
+            if (keyRepeatFire(game.flow.keyRepeatTimer, isPressed, isHeld)) {
+                stepPalette(game, wiring, custom, delta);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 void openPaletteSettings(GameContext& game) {
     game.screens.cursorVisible = true;
     game.flow.timer1           = kScreenBlinkFrames;
-    game.flow.gameState        = GameState::PALETTE_SETTINGS;
+    // A direction still held from the screen that opened this one waits out the whole repeat before
+    // it steps, rather than whatever was left on the timer.
+    game.flow.keyRepeatTimer = 0;
+    game.flow.gameState      = GameState::PALETTE_SETTINGS;
 }
 
 bool paletteCanStep(const Settings& settings, const CustomPalettes* palettes, int delta) noexcept {
-    return stepTarget(settings, palettes, delta).has_value();
+    return nextPaletteChoice(paletteChoiceOf(settings, palettes), palettes, delta).has_value();
 }
 
 void paletteSettingsScreen(GameContext& game, const SettingsWiring& wiring,
                            const CustomPaletteWiring& palettes) {
     blinkScreenCursor(game);
+    if (stepHeldDirection(game, wiring, palettes)) {
+        return;
+    }
     dispatch(game, wiring, palettes, kBinds);
 }
 

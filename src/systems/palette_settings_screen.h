@@ -8,13 +8,16 @@
 // Left and Right step through the palettes: the built-in ramps first, then every custom slot a
 // palette has been saved into, in slot order, stopping at the first ramp and the last present slot.
 // Stepping onto a slot puts its palette into use; stepping back off the last built-in returns to the
-// ramp the player left. Down opens the palette editor (render/screens/palette_editor/), and B goes
-// back to the settings screen with its cursor still on the Palette row.
+// ramp the player left. A held Left or Right repeats on the game's own key repeat, so a player can run
+// through the ramps without a press for each. Up opens the rotation screen
+// (render/screens/palette_rotation/), Down opens
+// the palette editor (render/screens/palette_editor/), and B goes back to the settings screen with its
+// cursor still on the Palette row.
 // The screen keeps no state of its own: the row is the only one, and the palette is the player's
 // setting.
 //
-// Input is a dispatch table mapping an action to what it does, so what a button does is data a reader
-// sees in one place.
+// Input is the selector's two directions, read on the key repeat, then a dispatch table mapping an
+// action to what it does, so what a button does is data a reader sees in one place.
 
 #include <functional>
 
@@ -40,7 +43,8 @@ struct CustomPaletteWiring {
     std::function<void(const CustomPalettes&)>    save;
 };
 
-// Enter the screen with the cursor shown and the shared blink armed. It writes no background map,
+// Enter the screen with the cursor shown, the shared blink armed and the key repeat zeroed, so a
+// direction still held from the screen before waits out the whole repeat. It writes no background map,
 // saves no caller and empties no object buffer - the picture is the screen's components, and the
 // settings screen it was opened from repaints itself when the player comes back.
 void openPaletteSettings(GameContext& game);
@@ -52,9 +56,12 @@ void openPaletteSettings(GameContext& game);
 [[nodiscard]] bool paletteCanStep(const Settings& settings, const CustomPalettes* palettes,
                                   int delta) noexcept;
 
-// One frame: blink the cursor, then run the input table. MenuRight steps to the next palette and
-// MenuLeft to the previous one, through changeSettings - so a press past either end is an end stop.
-// MenuDown opens the palette editor with the screen-change cue. Back returns to the settings screen.
+// One frame: blink the cursor, then read MenuLeft and MenuRight on the key repeat - a press steps at
+// once, a hold steps again 23 frames later and every 9 after that, Left read ahead of Right, and a held
+// direction is the whole frame's input. MenuRight steps to the next palette and MenuLeft to the
+// previous one, through changeSettings - so a step past either end is an end stop. Otherwise the input
+// table: MenuUp opens the rotation screen and MenuDown the palette editor, each with the
+// screen-change cue, and Back returns to the settings screen.
 void paletteSettingsScreen(GameContext& game, const SettingsWiring& wiring,
                            const CustomPaletteWiring& palettes);
 
