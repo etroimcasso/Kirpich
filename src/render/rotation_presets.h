@@ -9,9 +9,11 @@
 // preset to the direction its name promises.
 //
 // To add a preset: add its table here, an enumerator to PaletteRotation (src/state/settings.h) before
-// CUSTOM, and a line to presetRotation.
+// CUSTOM, a line to presetRotation, and its name to presetRotationName.
 
 #include <array>
+#include <cstddef>
+#include <string_view>
 
 #include "render/palettes.h"              // ShadeRamp
 #include "state/custom_rotations.h"       // kRotationLevelCount
@@ -201,5 +203,36 @@ inline constexpr RotationPalettes kRainbowRotation{{
     }
     return nullptr;
 }
+
+// The most characters a preset's name has. A selector that reads a preset by name leaves room for
+// this many.
+inline constexpr int kRotationPresetNameMaxGlyphs = 7;
+
+// The name a preset reads as - `hotter`, `colder`, `rainbow` - or nothing for OFF and CUSTOM, which
+// are not presets.
+[[nodiscard]] constexpr std::string_view presetRotationName(PaletteRotation mode) noexcept {
+    switch (mode) {
+        case PaletteRotation::HOTTER:
+            return "hotter";
+        case PaletteRotation::COLDER:
+            return "colder";
+        case PaletteRotation::RAINBOW:
+            return "rainbow";
+        case PaletteRotation::OFF:
+        case PaletteRotation::CUSTOM:
+            break;
+    }
+    return {};
+}
+
+static_assert([] {
+    for (std::size_t mode = 0; mode < kPaletteRotationCount; ++mode) {
+        if (presetRotationName(static_cast<PaletteRotation>(mode)).size() >
+            static_cast<std::size_t>(kRotationPresetNameMaxGlyphs)) {
+            return false;
+        }
+    }
+    return true;
+}(), "a preset's name is longer than kRotationPresetNameMaxGlyphs");
 
 }  // namespace kirpich::render

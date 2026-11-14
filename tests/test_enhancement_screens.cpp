@@ -73,6 +73,7 @@ TEST(EnhancementScreens, EachScreenMovesItsOwnFlag) {
     constexpr Screen kScreens[] = {
         {GameState::INIT_FIXES_SCREEN, "fixes", &kirpich::Settings::fixAudio},
         {GameState::INIT_GHOST_SCREEN, "ghost", &kirpich::Settings::ghostPiece},
+        {GameState::INIT_NAME_DIGITS_SCREEN, "name digits", &kirpich::Settings::nameDigits},
         {GameState::INIT_MODE_SCREEN, "new modes", &kirpich::Settings::newModes},
     };
 

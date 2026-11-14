@@ -27,7 +27,8 @@ std::array<std::uint8_t, kSettingsImageBytes> encodeSettings(const Settings& set
             static_cast<std::uint8_t>(settings.fixAudio ? 1 : 0),
             static_cast<std::uint8_t>(settings.showStats ? 1 : 0),
             static_cast<std::uint8_t>(settings.customPalette ? 1 : 0),
-            static_cast<std::uint8_t>(settings.paletteRotation)};
+            static_cast<std::uint8_t>(settings.paletteRotation),
+            static_cast<std::uint8_t>(settings.nameDigits ? 1 : 0)};
 }
 
 bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
@@ -44,6 +45,7 @@ bool decodeSettings(std::span<const std::uint8_t> image, Settings& settings) {
     if (image.size() > 6) settings.showStats = image[6] != 0;
     if (image.size() > 7) settings.customPalette = image[7] != 0;
     if (image.size() > 8) settings.paletteRotation = paletteRotationOf(image[8]);
+    if (image.size() > 9) settings.nameDigits = image[9] != 0;
     return true;
 }
 
@@ -93,6 +95,13 @@ std::vector<std::byte> migrateSettingsV6ToV7(std::vector<std::byte> payload) {
     return payload;
 }
 
+std::vector<std::byte> migrateSettingsV7ToV8(std::vector<std::byte> payload) {
+    // And again: version 8 carries the name-digits flag, off for a document written before a
+    // top-score name could take digits - such a player's wheel ran as the cartridge's does.
+    payload.push_back(std::byte{0});
+    return payload;
+}
+
 bool saveSettings(const Settings& settings, retropp::SaveStore& store) {
     const auto image = encodeSettings(settings);
     return store.write("settings", kSettingsSchemaVersion,
@@ -110,6 +119,7 @@ bool loadSettings(retropp::SaveStore& store, Settings& settings) {
     store.registerMigration(4, migrateSettingsV4ToV5);
     store.registerMigration(5, migrateSettingsV5ToV6);
     store.registerMigration(6, migrateSettingsV6ToV7);
+    store.registerMigration(7, migrateSettingsV7ToV8);
 
     std::optional<retropp::SaveStore::Document> doc;
     try {

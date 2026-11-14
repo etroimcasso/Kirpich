@@ -43,17 +43,18 @@ TEST(SettingsValue, ClampBringsAScaleIntoRange) {
 // (2) The image is the bytes the contract names, in that order: the fullscreen flag as 0 or 1, then
 // the scale as itself, then the shade ramp as itself, then the ghost-piece flag, then the new-modes
 // flag, then the audio-fix flag, then the show-stats flag, then the custom-palette flag, then the
-// palette-rotation mode as its own value.
+// palette-rotation mode as its own value, then the name-digits flag.
 TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
-    EXPECT_EQ(kirpich::kSettingsImageBytes, 9u);
+    EXPECT_EQ(kirpich::kSettingsImageBytes, 10u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV1, 3u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV2, 4u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV3, 5u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV4, 6u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV5, 7u);
     EXPECT_EQ(kirpich::kSettingsImageBytesV6, 8u);
-    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 7u)
-        << "the ninth byte is a new format, so it is a new version rather than a longer version 6";
+    EXPECT_EQ(kirpich::kSettingsImageBytesV7, 9u);
+    EXPECT_EQ(kirpich::kSettingsSchemaVersion, 8u)
+        << "the tenth byte is a new format, so it is a new version rather than a longer version 7";
 
     // Each version's length is one more than the one before it, which is what makes every migration a
     // single appended byte.
@@ -62,7 +63,8 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
     EXPECT_EQ(kirpich::kSettingsImageBytesV4, kirpich::kSettingsImageBytesV3 + 1);
     EXPECT_EQ(kirpich::kSettingsImageBytesV5, kirpich::kSettingsImageBytesV4 + 1);
     EXPECT_EQ(kirpich::kSettingsImageBytesV6, kirpich::kSettingsImageBytesV5 + 1);
-    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV6 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytesV7, kirpich::kSettingsImageBytesV6 + 1);
+    EXPECT_EQ(kirpich::kSettingsImageBytes, kirpich::kSettingsImageBytesV7 + 1);
 
     const auto off = kirpich::encodeSettings(Settings{.fullscreen = false,
                                                       .windowScale = 3,
@@ -72,7 +74,8 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
                                                       .fixAudio = false,
                                                       .showStats = false,
                                                       .customPalette = false,
-                                                      .paletteRotation = kirpich::PaletteRotation::OFF});
+                                                      .paletteRotation = kirpich::PaletteRotation::OFF,
+                                                      .nameDigits = false});
     EXPECT_EQ(off[0], 0u);
     EXPECT_EQ(off[1], 3u);
     EXPECT_EQ(off[2], 0u);
@@ -82,6 +85,7 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
     EXPECT_EQ(off[6], 0u);
     EXPECT_EQ(off[7], 0u);
     EXPECT_EQ(off[8], 0u);
+    EXPECT_EQ(off[9], 0u);
 
     const auto on = kirpich::encodeSettings(Settings{.fullscreen = true,
                                                      .windowScale = 6,
@@ -91,7 +95,8 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
                                                      .fixAudio = true,
                                                      .showStats = true,
                                                      .customPalette = true,
-                                                     .paletteRotation = kirpich::PaletteRotation::CUSTOM});
+                                                     .paletteRotation = kirpich::PaletteRotation::CUSTOM,
+                                                     .nameDigits = true});
     EXPECT_EQ(on[0], 1u);
     EXPECT_EQ(on[1], 6u);
     EXPECT_EQ(on[2], 2u);
@@ -101,6 +106,7 @@ TEST(SettingsValue, ImageIsTheFlagThenTheScaleThenTheRampThenTheFiveSwitches) {
     EXPECT_EQ(on[6], 1u);
     EXPECT_EQ(on[7], 1u);
     EXPECT_EQ(on[8], 4u);
+    EXPECT_EQ(on[9], 1u);
 }
 
 // (3) Encode and decode are inverse over every value the screen can produce.
@@ -114,22 +120,26 @@ TEST(SettingsValue, CodecRoundTripsEveryReachableValue) {
                         for (const bool custom : {false, true}) {
                             for (std::size_t mode = 0; mode < kirpich::kPaletteRotationCount;
                                  ++mode) {
-                                const Settings source{
-                                    .fullscreen      = fullscreen,
-                                    .windowScale     = scale,
-                                    .shadeRamp       = ramp,
-                                    .ghostPiece      = ghost,
-                                    .fixAudio        = fix,
-                                    .customPalette   = custom,
-                                    .paletteRotation = static_cast<kirpich::PaletteRotation>(mode)};
-                                const auto image = kirpich::encodeSettings(source);
+                                for (const bool digits : {false, true}) {
+                                    const Settings source{
+                                        .fullscreen      = fullscreen,
+                                        .windowScale     = scale,
+                                        .shadeRamp       = ramp,
+                                        .ghostPiece      = ghost,
+                                        .fixAudio        = fix,
+                                        .customPalette   = custom,
+                                        .paletteRotation = static_cast<kirpich::PaletteRotation>(mode),
+                                        .nameDigits      = digits};
+                                    const auto image = kirpich::encodeSettings(source);
 
-                                Settings decoded{};
-                                ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
-                                EXPECT_TRUE(decoded == source)
-                                    << "fullscreen " << fullscreen << " scale " << +scale
-                                    << " ramp " << +ramp << " ghost " << ghost << " fix " << fix
-                                    << " custom " << custom << " rotation " << mode;
+                                    Settings decoded{};
+                                    ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+                                    EXPECT_TRUE(decoded == source)
+                                        << "fullscreen " << fullscreen << " scale " << +scale
+                                        << " ramp " << +ramp << " ghost " << ghost << " fix " << fix
+                                        << " custom " << custom << " rotation " << mode
+                                        << " digits " << digits;
+                                }
                             }
                         }
                     }
@@ -166,7 +176,8 @@ TEST(SettingsValue, DecodeClampsTheScaleAndKeepsTheFlag) {
 TEST(SettingsValue, EmptyOrOverlongImageIsRefusedAndWritesNothing) {
     const Settings before{.fullscreen = true, .windowScale = 5, .shadeRamp = 1};
 
-    const std::array<std::uint8_t, kirpich::kSettingsImageBytes + 1> bytes{1, 2, 3, 1, 1, 1, 9, 1, 1};
+    const std::array<std::uint8_t, kirpich::kSettingsImageBytes + 1> bytes{1, 2, 3, 1, 1,
+                                                                            1, 9, 1, 1, 1};
     for (const std::size_t length : {std::size_t{0}, kirpich::kSettingsImageBytes + 1}) {
         Settings target = before;
         EXPECT_FALSE(kirpich::decodeSettings(std::span<const std::uint8_t>{bytes.data(), length},
@@ -261,8 +272,8 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
     EXPECT_EQ(v2[2], v1[2]);
     EXPECT_EQ(v2[3], std::byte{0});
 
-    // The next steps have the same shape, and the six compose: a version 1 document reaches
-    // version 7 through all of them, with everything it did carry surviving and everything it
+    // The next steps have the same shape, and the seven compose: a version 1 document reaches
+    // version 8 through all of them, with everything it did carry surviving and everything it
     // predates coming up off.
     const std::vector<std::byte> v3 = kirpich::migrateSettingsV2ToV3(v2);
 
@@ -308,12 +319,22 @@ TEST(SettingsValue, MigrationsEachAppendOneFlagOff) {
 
     const std::vector<std::byte> v7 = kirpich::migrateSettingsV6ToV7(v6);
 
-    ASSERT_EQ(v7.size(), kirpich::kSettingsImageBytes);
+    ASSERT_EQ(v7.size(), kirpich::kSettingsImageBytesV7);
     EXPECT_EQ(v7[0], v1[0]);
     EXPECT_EQ(v7[1], v1[1]);
     EXPECT_EQ(v7[2], v1[2]);
-    for (std::size_t i = 3; i < kirpich::kSettingsImageBytes; ++i) {
+    for (std::size_t i = 3; i < kirpich::kSettingsImageBytesV7; ++i) {
         EXPECT_EQ(v7[i], std::byte{0}) << "byte " << i;
+    }
+
+    const std::vector<std::byte> v8 = kirpich::migrateSettingsV7ToV8(v7);
+
+    ASSERT_EQ(v8.size(), kirpich::kSettingsImageBytes);
+    EXPECT_EQ(v8[0], v1[0]);
+    EXPECT_EQ(v8[1], v1[1]);
+    EXPECT_EQ(v8[2], v1[2]);
+    for (std::size_t i = 3; i < kirpich::kSettingsImageBytes; ++i) {
+        EXPECT_EQ(v8[i], std::byte{0}) << "byte " << i;
     }
 }
 
@@ -581,7 +602,7 @@ TEST(SettingsValue, ThePaletteRotationMigrationAppendsOffAndLeavesTheRestAlone) 
 
     const std::vector<std::byte> v7 = kirpich::migrateSettingsV6ToV7(v6);
 
-    ASSERT_EQ(v7.size(), kirpich::kSettingsImageBytes);
+    ASSERT_EQ(v7.size(), kirpich::kSettingsImageBytesV7);
     for (std::size_t i = 0; i < v6.size(); ++i) {
         EXPECT_EQ(v7[i], v6[i]) << "byte " << i << " belonged to version 6 and must survive";
     }
@@ -667,6 +688,53 @@ TEST(SettingsValue, AModeByteThisBuildDoesNotNameReadsAsOff) {
         ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
         EXPECT_EQ(decoded.paletteRotation, mode) << "byte " << +byte;
     }
+}
+
+// (14) The newest step on its own, against a version 7 image that carries every switch ON and a
+// rotation in use. It appends the name-digits flag off and touches nothing else: the top-score wheel
+// of a document written before digits were offered is the cartridge's.
+TEST(SettingsValue, TheV7ToV8StepAppendsTheNameDigitsFlagOff) {
+    const std::vector<std::byte> v7{std::byte{1}, std::byte{6}, std::byte{2},
+                                    std::byte{1}, std::byte{1}, std::byte{1},
+                                    std::byte{1}, std::byte{1}, std::byte{4}};
+    ASSERT_EQ(v7.size(), kirpich::kSettingsImageBytesV7);
+
+    const std::vector<std::byte> v8 = kirpich::migrateSettingsV7ToV8(v7);
+
+    ASSERT_EQ(v8.size(), kirpich::kSettingsImageBytes);
+    for (std::size_t i = 0; i < v7.size(); ++i) {
+        EXPECT_EQ(v8[i], v7[i]) << "byte " << i << " belonged to version 7 and must survive";
+    }
+    EXPECT_EQ(v8[kirpich::kSettingsImageBytesV7], std::byte{0});
+
+    Settings decoded{.nameDigits = true};
+    const std::span<const std::uint8_t> image(
+        reinterpret_cast<const std::uint8_t*>(v8.data()), v8.size());
+    ASSERT_TRUE(kirpich::decodeSettings(image, decoded));
+    EXPECT_TRUE(decoded.customPalette);
+    EXPECT_EQ(decoded.paletteRotation, kirpich::PaletteRotation::CUSTOM);
+    EXPECT_FALSE(decoded.nameDigits);
+
+    // And the store runs it: a version 7 document loads with the flag off at the current length.
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "kirpich_settings_v7_migration";
+    std::filesystem::remove_all(root);
+    {
+        auto store = retropp::SaveStore::atPath(root);
+        ASSERT_TRUE(store.write("settings", 7, std::span<const std::byte>(v7)));
+    }
+    {
+        auto     store = retropp::SaveStore::atPath(root);
+        Settings loaded{.nameDigits = true};
+        ASSERT_TRUE(kirpich::loadSettings(store, loaded));
+        EXPECT_EQ(loaded.paletteRotation, kirpich::PaletteRotation::CUSTOM);
+        EXPECT_FALSE(loaded.nameDigits);
+        const auto migrated = store.read("settings");
+        ASSERT_TRUE(migrated.has_value());
+        EXPECT_EQ(migrated->schemaVersion, kirpich::kSettingsSchemaVersion);
+        EXPECT_EQ(migrated->payload.size(), kirpich::kSettingsImageBytes);
+    }
+    std::filesystem::remove_all(root);
 }
 
 }  // namespace

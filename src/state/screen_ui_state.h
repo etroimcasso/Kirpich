@@ -31,15 +31,16 @@ namespace kirpich {
 
 // The settings screen's option rows, in the order the cursor walks them.
 //
-// They span three pages. The first opens the screens that hold the window's settings, the palette and
-// the controls, and carries the row that leaves the game; the two after it hold the ones that change
-// how the game is played and the ones that erase what has been recorded. The walk itself is
-// continuous - going down past the last row of a page turns to the next one, and up past the first
-// row turns back - so a page is where a row is drawn rather than a mode the player has to switch
-// between.
+// They span four pages. The first opens the screens that hold the window's settings, the palette and
+// the controls, and carries the row that leaves the game; the second holds the ones that change how
+// the game is played; the third holds the name-digits row on its own; the last holds the ones that
+// erase what has been recorded. The walk itself is continuous - going down past the last row of a page
+// turns to the next one, and up past the first row turns back - so a page is where a row is drawn
+// rather than a mode the player has to switch between.
 //
-// The declaration order IS the layout: a page holds kSettingsRowsPerPage consecutive rows, so moving
-// a row between pages means moving its enumerator rather than editing a table somewhere else.
+// The declaration order IS the layout: the rows run in this order, and a page begins at the row
+// kSettingsFirstRowOfPage names for it, so moving a row between pages means moving its enumerator or
+// a page's first row rather than editing a table somewhere else.
 enum class SettingsRow : std::uint8_t {
     DISPLAY      = 0,
     PALETTE      = 1,
@@ -49,34 +50,60 @@ enum class SettingsRow : std::uint8_t {
     NEW_MODES    = 5,
     FIXES        = 6,
     STATS        = 7,
+    NAME_DIGITS  = 8,
 
     // The four resets share the last page. Each clears one kind of saved record and nothing else,
     // because they are kept in separate documents and a player who wants one gone rarely wants all
     // three; the fourth is there so wanting all three is one answer rather than three.
-    RESET_SCORES       = 8,
-    RESET_STATS        = 9,
-    RESET_ACHIEVEMENTS = 10,
-    RESET_ALL          = 11,
+    RESET_SCORES       = 9,
+    RESET_STATS        = 10,
+    RESET_ACHIEVEMENTS = 11,
+    RESET_ALL          = 12,
 };
 
 // How many rows that walk covers. Tied to the last enumerator so the two cannot drift.
 inline constexpr std::uint8_t kSettingsRowCount =
     static_cast<std::uint8_t>(SettingsRow::RESET_ALL) + 1;
 
-// How many rows a page holds, and how many pages that makes. Every page lays out the same way, so
-// the count is one number rather than a split point per page; the last page carries the remainder.
-inline constexpr std::uint8_t kSettingsRowsPerPage = 4;
-inline constexpr std::uint8_t kSettingsPageCount =
-    static_cast<std::uint8_t>((kSettingsRowCount + kSettingsRowsPerPage - 1) /
-                              kSettingsRowsPerPage);
+// The row each page begins with, first page first. A page holds every row from its first row up to
+// the next page's first row.
+inline constexpr std::array kSettingsFirstRowOfPage{SettingsRow::DISPLAY, SettingsRow::GHOST_PIECE,
+                                                    SettingsRow::NAME_DIGITS,
+                                                    SettingsRow::RESET_SCORES};
 
-// Which page a row is drawn on, and where it sits within that page.
+// How many pages there are, and the most rows a page holds - every page lays out its rows on the same
+// lines, so no page holds more than there are lines.
+inline constexpr std::uint8_t kSettingsPageCount =
+    static_cast<std::uint8_t>(kSettingsFirstRowOfPage.size());
+inline constexpr std::uint8_t kSettingsRowsPerPage = 4;
+
+// Which page a row is drawn on: the last page whose first row is at or before it.
 [[nodiscard]] constexpr std::uint8_t settingsPageOf(SettingsRow row) noexcept {
-    return static_cast<std::uint8_t>(static_cast<std::uint8_t>(row) / kSettingsRowsPerPage);
+    std::uint8_t page = 0;
+    for (std::uint8_t i = 0; i < kSettingsPageCount; ++i) {
+        if (kSettingsFirstRowOfPage[i] <= row) page = i;
+    }
+    return page;
 }
+
+// Where a row sits within its page, counted from the page's first row.
 [[nodiscard]] constexpr std::uint8_t settingsRowWithinPage(SettingsRow row) noexcept {
-    return static_cast<std::uint8_t>(static_cast<std::uint8_t>(row) % kSettingsRowsPerPage);
+    return static_cast<std::uint8_t>(
+        static_cast<std::uint8_t>(row) -
+        static_cast<std::uint8_t>(kSettingsFirstRowOfPage[settingsPageOf(row)]));
 }
+
+static_assert([] {
+    if (kSettingsFirstRowOfPage.front() != SettingsRow::DISPLAY) return false;
+    for (std::size_t i = 0; i < kSettingsFirstRowOfPage.size(); ++i) {
+        const auto first = static_cast<std::size_t>(kSettingsFirstRowOfPage[i]);
+        const auto next  = i + 1 < kSettingsFirstRowOfPage.size()
+                               ? static_cast<std::size_t>(kSettingsFirstRowOfPage[i + 1])
+                               : std::size_t{kSettingsRowCount};
+        if (next <= first || next - first > kSettingsRowsPerPage) return false;
+    }
+    return true;
+}(), "the pages begin at DISPLAY, ascend, and none holds more than kSettingsRowsPerPage rows");
 
 // How many screens deep the stacking screens can go before a push is refused.
 //

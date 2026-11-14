@@ -7,7 +7,8 @@
 // The screen opens from the Palette screen's Up and returns to it with Down on its last row or with
 // B. Its rows, top to bottom:
 //
-//   edit rotation   the item that opens the rotation editor. It is drawn dimmed and does nothing.
+//   edit rotation   A or Start opens the rotation editor (render/screens/rotation_editor/), which
+//                   edits the working rotation level by level and returns here with B.
 //   rotation        Left and Right step Settings::paletteRotation along the rotation walk
 //                   (systems/rotation_walk.h): `off`, the three presets, then every slot a rotation has
 //                   been saved into. Stepping onto a slot copies it into the working rotation, writes
@@ -36,20 +37,21 @@ namespace kirpich::systems {
 
 class GameStateDispatcher;
 
-// What the rotation screen needs from outside the game state.
+// What the rotation screen and the rotation editor need from outside the game state.
 //
 // `rotations` is the live value - the host owns it, because it outlives a reset and is saved to disk.
 // `save` writes the document out; it fires when stepping onto a slot copies it into the working
-// rotation. Both default to inert, and with no `rotations` behind the wiring the selector offers the
-// presets alone.
+// rotation, and on every change the editor makes. Both default to inert. With no `rotations` behind
+// the wiring the selector offers the presets alone and the editor item opens nothing.
 struct RotationWiring {
     CustomRotations*                            rotations = nullptr;
     std::function<void(const CustomRotations&)> save;
 };
 
-// Enter the screen: its state reset - the cursor on the selector, the held preview down, its level
-// 0 - the cursor shown and the shared blink armed. It writes no background map and no object buffer.
-void openRotationScreen(GameContext& game);
+// Enter the screen: its state reset - the held preview down, its level 0 - with the cursor on `row`,
+// the cursor shown and the shared blink armed. The Palette screen opens it on the selector; the
+// rotation editor returns to it on the editor item. It writes no background map and no object buffer.
+void openRotationScreen(GameContext& game, RotationScreenRow row = RotationScreenRow::SELECTOR);
 
 // Whether the selector can move one step in `delta`'s direction (negative is left) from where the
 // settings stand on the rotation walk, over the present slots of `rotations` (none when it is null).

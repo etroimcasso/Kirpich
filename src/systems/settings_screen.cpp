@@ -60,6 +60,7 @@ Reach reachOf(SettingsRow row) {
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
         case SettingsRow::STATS:
+        case SettingsRow::NAME_DIGITS:
             return {.left = false, .right = true};
         case SettingsRow::EXIT_GAME:
         case SettingsRow::RESET_SCORES:
@@ -114,16 +115,20 @@ std::string_view labelFor(SettingsRow row) {
         case SettingsRow::DISPLAY:      return "display";
         case SettingsRow::PALETTE:      return "palette";
         case SettingsRow::CONTROLS:     return "controls";
-        // "ghost", not "ghost piece": a label runs from column 3 to the left arrow at column 13, so
-        // ten cells is all there is, and the two-word form is eleven. The siblings are terse for the
-        // same reason - the Display screen's size row is "size", not "window scale".
+        // "ghost", not "ghost piece": the labels are terse, as the Display screen's size row is
+        // "size", not "window scale".
         case SettingsRow::GHOST_PIECE:  return "ghost";
         case SettingsRow::NEW_MODES:    return "new modes";
         case SettingsRow::FIXES:        return "fixes";
         case SettingsRow::STATS:        return "stats";
+        // "name digits", not "name entry digits": a row that opens a screen runs from column 3 to
+        // its right arrow at column 19, so sixteen cells is all there is, and the longer form is
+        // seventeen.
+        case SettingsRow::NAME_DIGITS:  return "name digits";
         case SettingsRow::RESET_SCORES: return "reset scores";
-        // A label has ten cells (see above), so the achievements row is abbreviated to fit. The three
-        // siblings read as one group because they all start with the verb.
+        // An action row's label runs from column 3 to the screen's edge, seventeen cells, and "reset
+        // achievements" is eighteen, so the achievements row is abbreviated to fit. The three siblings
+        // read as one group because they all start with the verb.
         case SettingsRow::RESET_STATS:        return "reset stats";
         case SettingsRow::RESET_ACHIEVEMENTS: return "reset achvmnts";
         case SettingsRow::RESET_ALL:          return "reset all";
@@ -144,6 +149,7 @@ std::string_view pageTitle(std::uint8_t page) {
         case 0:  return "settings 1";
         case 1:  return "enhancements 1";
         case 2:  return "enhancements 2";
+        case 3:  return "enhancements 3";
         default: return {};
     }
 }
@@ -259,6 +265,7 @@ std::optional<ConfirmAction> confirmFor(SettingsRow row) noexcept {
         case SettingsRow::NEW_MODES:
         case SettingsRow::FIXES:
         case SettingsRow::STATS:
+        case SettingsRow::NAME_DIGITS:
             break;
     }
     return std::nullopt;
@@ -535,6 +542,9 @@ void settingsScreen(GameContext& game, const SettingsWiring& wiring) {
                 return;
             case SettingsRow::STATS:
                 openScreen(GameState::INIT_STATS_SCREEN);
+                return;
+            case SettingsRow::NAME_DIGITS:
+                openScreen(GameState::INIT_NAME_DIGITS_SCREEN);
                 return;
             default:
                 break;

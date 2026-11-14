@@ -65,6 +65,20 @@ constexpr std::string_view kGhostDescription[] = {
     "original behavior.",
 };
 
+// The name-digits screen, opened from its row: the third carousel instance, carrying the switch for
+// the top-score name entry's digits beside the room to say what it does.
+constexpr std::string_view kNameDigitsDescription[] = {
+    "the top score name",
+    "wheel runs a to z",
+    "then the symbols.",
+    "",
+    "turn this on and",
+    "0 to 9 follow them.",
+    "",
+    "off is the",
+    "original behavior.",
+};
+
 // ── The option tables, and what keeps them alive ───────────────────────────────────────────────────
 //
 // A carousel's wiring carries its options as a borrowed span, and installCarouselHandlers copies
@@ -76,8 +90,9 @@ constexpr std::string_view kGhostDescription[] = {
 // the wiring carries. The table then lives exactly as long as a handler that can read it, and goes
 // when the dispatcher does.
 
-using FixesTable = std::array<CarouselOption, kFixesOptionCount>;
-using GhostTable = std::array<CarouselOption, kGhostOptionCount>;
+using FixesTable      = std::array<CarouselOption, kFixesOptionCount>;
+using GhostTable      = std::array<CarouselOption, kGhostOptionCount>;
+using NameDigitsTable = std::array<CarouselOption, kNameDigitsOptionCount>;
 
 std::shared_ptr<const FixesTable> makeFixesOptions(Settings& settings) {
     std::array options{
@@ -97,6 +112,18 @@ std::shared_ptr<const GhostTable> makeGhostOptions(Settings& settings) {
     static_assert(std::tuple_size_v<decltype(options)> == kGhostOptionCount,
                   "the ghost screen's published option count and its table must say the same number");
     return std::make_shared<const GhostTable>(options);
+}
+
+std::shared_ptr<const NameDigitsTable> makeNameDigitsOptions(Settings& settings) {
+    std::array options{
+        CarouselOption{.title   = "name digits",
+                       .body    = kNameDigitsDescription,
+                       .enabled = &settings.nameDigits},
+    };
+    static_assert(std::tuple_size_v<decltype(options)> == kNameDigitsOptionCount,
+                  "the name-digits screen's published option count and its table must say the same "
+                  "number");
+    return std::make_shared<const NameDigitsTable>(options);
 }
 
 // Install one carousel instance whose option table this unit owns — see the note above for what the
@@ -144,7 +171,11 @@ void installEnhancementScreens(GameStateDispatcher& dispatcher, Settings& settin
                          makeFixesOptions(settings), changed, settingsWiring);
 
     installOwnedCarousel(dispatcher, GameState::INIT_GHOST_SCREEN, GameState::GHOST_SCREEN,
-                         makeGhostOptions(settings), std::move(changed), std::move(settingsWiring));
+                         makeGhostOptions(settings), changed, settingsWiring);
+
+    installOwnedCarousel(dispatcher, GameState::INIT_NAME_DIGITS_SCREEN,
+                         GameState::NAME_DIGITS_SCREEN, makeNameDigitsOptions(settings),
+                         std::move(changed), std::move(settingsWiring));
 }
 
 }  // namespace kirpich::systems

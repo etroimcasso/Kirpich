@@ -474,7 +474,29 @@ TEST(RotationScreen, AnUnsavedWorkingRotationReadsCAndStepsBackOntoTheWalk) {
 
 // (7) The value reads the mode's name, or `C` and the saved slot as two digits, or `C` alone.
 TEST(RotationScreen, TheValueReadsTheModesNameOrTheSlot) {
-    for (const Stop& stop : everyStop()) {
+    // A saved slot with a name reads the name, trimmed of its trailing spaces; a slot with a blank name
+    // still reads `C` and its number.
+    std::vector<Stop> stops = everyStop();
+    const auto addNamed = [&stops](std::size_t slot, std::string_view name) {
+        CustomRotations r = threeSlots();
+        std::copy(name.begin(), name.end(), r.slots[slot - 1].name.begin());
+        r.working = r.slots[slot - 1].progression;
+        stops.push_back(Stop{Settings{.shadeRamp       = kPlayerRamp,
+                                      .paletteRotation = PaletteRotation::CUSTOM},
+                             r, std::string{name}});
+    };
+    addNamed(4, "neon");
+    addNamed(7, "seven.7");
+    {
+        CustomRotations r = threeSlots();
+        r.slots[0].name   = kirpich::blankRotationName();
+        r.working         = r.slots[0].progression;
+        stops.push_back(Stop{Settings{.shadeRamp       = kPlayerRamp,
+                                      .paletteRotation = PaletteRotation::CUSTOM},
+                             r, "C01"});
+    }
+
+    for (const Stop& stop : stops) {
         const auto content = spritesOf(draw(RotationScreenState{}, stop.settings, stop.rotations));
         expectSprites(content,
                       kirpich::render::Glyphs(stop.value, layout::kSelectorValueX, layout::kSelectorY,
@@ -621,14 +643,15 @@ TEST(RotationScreen, TheGridsDigitsStandOverTheirSwatches) {
     }
 }
 
-// (12) The editor item is present and dimmed, and A and Start do nothing on either row. The down page
-// arrow stands at the shared place.
-TEST(RotationScreen, TheEditorItemIsPresentAndDim) {
+// (12) The editor item is drawn bright, and A and Start on it open the rotation editor with its state
+// reset and its preset seeded; on the selector, and with no rotations behind the screen, they do
+// nothing. The down page arrow stands at the shared place.
+TEST(RotationScreen, TheEditorItemOpensTheEditor) {
     const auto content = spritesOf(draw(RotationScreenState{}, Settings{.shadeRamp = kPlayerRamp},
                                         threeSlots()));
     expectSprites(content,
-                  kirpich::render::DimGlyphs(layout::kEditorItem, layout::kLabelX, layout::kEditorY,
-                                             8, kAtlas, kPlayerRamp),
+                  kirpich::render::Glyphs(layout::kEditorItem, layout::kLabelX, layout::kEditorY, 8,
+                                          kAtlas, kPlayerRamp),
                   "edit rotation");
     const auto down = named(content, "rotation-down");
     ASSERT_TRUE(down);
@@ -636,22 +659,65 @@ TEST(RotationScreen, TheEditorItemIsPresentAndDim) {
     EXPECT_EQ(down->y, 128);
     EXPECT_FALSE(named(content, "rotation-up"));
 
-    for (const RotationScreenRow row : {RotationScreenRow::EDITOR, RotationScreenRow::SELECTOR}) {
-        for (const Action a : {Action::Confirm, Action::Start}) {
-            Probe   probe;
-            Session s(probe);
-            s.ui().row                       = row;
-            const GameContext     gameBefore = s.game;
-            const Settings        before     = probe.settings;
-            const CustomRotations rotations  = probe.rotations;
-            s.step({a});
-            EXPECT_EQ(s.game.flow.gameState, GameState::PALETTE_ROTATION);
-            EXPECT_EQ(s.ui(), gameBefore.rotationScreen);
-            EXPECT_EQ(s.sound(), SquareSfxId::NONE);
-            EXPECT_EQ(probe.settings, before);
-            EXPECT_EQ(probe.rotations, rotations);
+    for (const Action a : {Action::Confirm, Action::Start}) {
+        Probe probe;
+        probe.rotations.working = probe.rotations.slots[3].progression;  // saved in slot 4
+        Session s(probe);
+        s.ui().row = RotationScreenRow::EDITOR;
+        s.game.rotationEditor.row = kirpich::RotationEditorRow::LEVELS;  // left over from a visit
+        s.game.rotationEditor.level = 7;
+        const Settings        before    = probe.settings;
+        const CustomRotations rotations = probe.rotations;
+        s.step({a});
+        EXPECT_EQ(s.game.flow.gameState, GameState::ROTATION_EDITOR);
+        EXPECT_EQ(s.sound(), SquareSfxId::CHANGE_SCREEN);
+        kirpich::RotationEditorState want;
+        want.preset = kirpich::systems::RotationChoice{.mode = PaletteRotation::CUSTOM, .slot = 4};
+        EXPECT_EQ(s.game.rotationEditor, want);
+        EXPECT_EQ(probe.settings, before);
+        EXPECT_EQ(probe.rotations, rotations);
+    }
+
+    for (const bool wired : {true, false}) {
+        for (const RotationScreenRow row :
+             {RotationScreenRow::EDITOR, RotationScreenRow::SELECTOR}) {
+            if (wired && row == RotationScreenRow::EDITOR) continue;
+            for (const Action a : {Action::Confirm, Action::Start}) {
+                Probe   probe;
+                Session s(probe, wired);
+                s.ui().row                       = row;
+                const GameContext     gameBefore = s.game;
+                const Settings        before     = probe.settings;
+                const CustomRotations rotations  = probe.rotations;
+                s.step({a});
+                EXPECT_EQ(s.game.flow.gameState, GameState::PALETTE_ROTATION);
+                EXPECT_EQ(s.ui(), gameBefore.rotationScreen);
+                EXPECT_EQ(s.sound(), SquareSfxId::NONE);
+                EXPECT_EQ(probe.settings, before);
+                EXPECT_EQ(probe.rotations, rotations);
+            }
         }
     }
+}
+
+// (12a) The screen opens on the row it is given: the selector by default, the editor item when the
+// rotation editor returns to it.
+TEST(RotationScreen, TheScreenOpensOnTheRowItIsGiven) {
+    GameContext game;
+    kirpich::systems::openRotationScreen(game);
+    EXPECT_EQ(game.rotationScreen.row, RotationScreenRow::SELECTOR);
+    EXPECT_EQ(game.flow.gameState, GameState::PALETTE_ROTATION);
+
+    game.rotationScreen.previewing   = true;
+    game.rotationScreen.previewLevel = 6;
+    game.screens.cursorVisible       = false;
+    kirpich::systems::openRotationScreen(game, RotationScreenRow::EDITOR);
+    EXPECT_EQ(game.rotationScreen.row, RotationScreenRow::EDITOR);
+    EXPECT_FALSE(game.rotationScreen.previewing);
+    EXPECT_EQ(game.rotationScreen.previewLevel, 0);
+    EXPECT_TRUE(game.screens.cursorVisible);
+    EXPECT_EQ(game.flow.timer1, kBlinkFrames);
+    EXPECT_EQ(game.flow.gameState, GameState::PALETTE_ROTATION);
 }
 
 // (13) The held preview is up exactly while Select is held - the held set, not the pressed set - and

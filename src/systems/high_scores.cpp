@@ -140,9 +140,13 @@ CharTile skipGlyph(const GameContext& game) {
 }
 
 // The wheel going up (tetris.asm:4025-4049): the skip glyph jumps to the space, the space wraps back
-// to "a", everything else advances one glyph.
-CharTile wheelUp(CharTile current, CharTile skip) {
+// to "a", everything else advances one glyph. With `digits` the digits stand between the skip glyph
+// and the space: the skip glyph goes to "0", "0" to "8" advance one glyph, and "9" goes to the space.
+CharTile wheelUp(CharTile current, CharTile skip, bool digits) {
     if (current == skip) {
+        return digits ? CharTile::DIGIT_0 : CharTile::SPACE;
+    }
+    if (digits && current == CharTile::DIGIT_9) {
         return CharTile::SPACE;
     }
     if (current == CharTile::SPACE) {
@@ -152,16 +156,23 @@ CharTile wheelUp(CharTile current, CharTile skip) {
 }
 
 // The wheel going down (tetris.asm:4051-4077): the exact reverse - "a" drops to the space, the space
-// drops to the skip glyph, everything else retreats one glyph.
-CharTile wheelDown(CharTile current, CharTile skip) {
+// drops to the skip glyph, everything else retreats one glyph. With `digits` the space drops to "9"
+// instead, and "0" drops to the skip glyph.
+CharTile wheelDown(CharTile current, CharTile skip, bool digits) {
     if (current == CharTile::LETTER_A) {
         return CharTile::SPACE;
     }
     if (current == CharTile::SPACE) {
+        return digits ? CharTile::DIGIT_9 : skip;
+    }
+    if (digits && current == CharTile::DIGIT_0) {
         return skip;
     }
     return static_cast<CharTile>(tile(current) - 1);
 }
+
+static_assert(static_cast<int>(CharTile::DIGIT_9) - static_cast<int>(CharTile::DIGIT_0) == 9,
+              "the digits are ten consecutive glyphs, so the wheel steps through them one at a time");
 
 // The entry being named. It is not stored anywhere: the original keeps a pointer to the name cell
 // across frames, but the pointer is fully derived from the game type, the chosen level and height,
@@ -305,12 +316,13 @@ void drawTopScoresToVram(GameContext& game) {
     game.highScores.topScoresRedrawRequested = false;
 }
 
-void enterTopScore(GameContext& game, const TopScoreSaved& saved) {
+void enterTopScore(GameContext& game, const TopScoreSaved& saved, const Settings* settings) {
     // GameState_15 (tetris.asm:3952-4112).
     TopScoreEntry* entry = namedEntry(game);
     if (entry == nullptr) {
         return;
     }
+    const bool digits = settings != nullptr && settings->nameDigits;
 
     const std::uint8_t rank = game.highScores.newScoreRank;
     const std::size_t  row  = cursorRow(rank);
@@ -334,7 +346,7 @@ void enterTopScore(GameContext& game, const TopScoreSaved& saved) {
 
     if (upPressed || upHeld) {
         if (keyRepeatFire(game.flow.keyRepeatTimer, upPressed, upHeld)) {
-            entry->name[col]        = wheelUp(entry->name[col], skipGlyph(game));
+            entry->name[col]        = wheelUp(entry->name[col], skipGlyph(game), digits);
             game.audioCues.square   = SquareSfxId::TINK;
         }
         return;
@@ -342,7 +354,7 @@ void enterTopScore(GameContext& game, const TopScoreSaved& saved) {
 
     if (downPressed || downHeld) {
         if (keyRepeatFire(game.flow.keyRepeatTimer, downPressed, downHeld)) {
-            entry->name[col]        = wheelDown(entry->name[col], skipGlyph(game));
+            entry->name[col]        = wheelDown(entry->name[col], skipGlyph(game), digits);
             game.audioCues.square   = SquareSfxId::TINK;
         }
         return;
@@ -383,9 +395,11 @@ void enterTopScore(GameContext& game, const TopScoreSaved& saved) {
     }
 }
 
-void installHighScoreHandlers(GameStateDispatcher& dispatcher, const TopScoreSaved& saved) {
-    dispatcher.setHandler(GameState::ENTER_TOP_SCORE,
-                          [saved](GameContext& g) { enterTopScore(g, saved); });
+void installHighScoreHandlers(GameStateDispatcher& dispatcher, const TopScoreSaved& saved,
+                              const Settings* settings) {
+    dispatcher.setHandler(GameState::ENTER_TOP_SCORE, [saved, settings](GameContext& g) {
+        enterTopScore(g, saved, settings);
+    });
 }
 
 }  // namespace kirpich::systems

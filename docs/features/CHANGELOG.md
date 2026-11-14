@@ -8,6 +8,22 @@ are written. `../FEATURES.md` holds current status; this file holds history.
 
 ---
 
+## 2026-11-14
+
+- **Palette rotation** 🟡 → ✅ — the rotation screen and the rotation editor complete the feature. The
+  rotation screen, behind Up on the Palette screen, chooses which rotation a round follows and shows its
+  ten levels. Its `edit rotation` item opens the editor: a preset selector over the three shipped
+  rotations and ninety-nine slots with load, save and clear, and the ten levels as two columns of five,
+  each cell's number stepped one stop or ten through the ramps and the saved palettes. A saved rotation
+  takes a name of up to seven characters on a text input screen, read on both selectors; the
+  `rotations` document's records grow to carry it. Select held in the editor previews the level's
+  palette with the Type A level box. The font gains a colon, and the Palette screen's selector repeats
+  while held.
+- **Name entry digits** ⬜ → ✅ — the top-score name entry's letter wheel can carry the digits `0` to
+  `9`, after its symbols and ahead of the space, behind a switch on a settings page of its own (`enhancements 2`, the
+  resets moving to `enhancements 3`); off by default. The settings document grows to ten bytes at
+  schema 8, migrated from 7.
+
 ## 2026-10-30
 
 - **Palette rotation** ⬜ → 🟡 — the game rotates: a second live palette set a round's own states

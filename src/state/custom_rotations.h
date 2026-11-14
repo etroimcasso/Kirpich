@@ -11,8 +11,9 @@
 //
 // A slot is EMPTY until a rotation is saved into it, and empty again once cleared. A fresh rotation -
 // what an empty slot holds and what the working rotation starts as - is ten copies of the default
-// grayscale the game ships in (freshCustomPalette), which draws exactly as no rotation at all. The
-// shipped presets are not stored here (src/render/rotation_presets.h).
+// grayscale the game ships in (freshCustomPalette), which draws exactly as no rotation at all. A slot
+// also carries the name the rotation was saved under, of up to seven characters; a slot with no name
+// reads as its number. The shipped presets are not stored here (src/render/rotation_presets.h).
 //
 // Whether the working rotation is SAVED is never stored. It is a comparison: the working rotation is
 // saved when some present slot holds exactly its colors, level for level. Nothing can therefore drift
@@ -25,6 +26,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 
 #include <retropp/save_store.h>
 
@@ -56,10 +58,30 @@ struct RotationProgression {
                                      const RotationProgression&) = default;
 };
 
-// One slot: whether anything has been saved into it, and the rotation it holds. A slot compares equal
-// to the working rotation color for color, as a custom palette slot does.
+// How many characters a saved rotation's name holds.
+inline constexpr std::size_t kRotationNameLength = 7;
+
+// A saved rotation's name: seven characters, each a lowercase letter, a digit, a period, a hyphen or
+// a space, padded on the right with spaces. A name of seven spaces is blank - the slot has no name and
+// reads as its number.
+using RotationName = std::array<char, kRotationNameLength>;
+
+// Seven spaces: the name a slot has until one is given.
+[[nodiscard]] constexpr RotationName blankRotationName() noexcept {
+    RotationName name{};
+    name.fill(' ');
+    return name;
+}
+
+// A name as the text a screen reads: its trailing spaces dropped, so a blank name reads as nothing.
+[[nodiscard]] std::string rotationNameText(const RotationName& name);
+
+// One slot: whether anything has been saved into it, the name it was saved under, and the rotation it
+// holds. Only the rotation decides whether a slot holds the working rotation (savedSlotOf): a slot
+// compares to it color for color, as a custom palette slot does, whatever its name.
 struct CustomRotationSlot {
     bool                present = false;
+    RotationName        name    = blankRotationName();
     RotationProgression progression{};
 
     friend constexpr bool operator==(const CustomRotationSlot&, const CustomRotationSlot&) = default;
@@ -91,13 +113,19 @@ struct CustomRotations {
 // The save document: schema version and image size. The name is spelled as a literal at the call
 // sites, as the other documents' are.
 //
-// One hundred records of 121 bytes: a presence byte, then level 0 to 9, each red, green and blue for
-// the darkest, dark, light and lightest shades - twelve bytes a level, level j at offset 1 + 12j.
-// Record 0 is the working rotation, whose presence byte is written as 1 and not read; records 1 to 99
-// are the slots in order. Alpha is not stored - a palette color is opaque - and a decoded color's
-// alpha is 255.
+// One hundred records of 128 bytes: a presence byte, the seven bytes of the name, then level 0 to 9,
+// each red, green and blue for the darkest, dark, light and lightest shades - twelve bytes a level,
+// level j at offset 8 + 12j. The image is 12,800 bytes.
+//
+// Record 0 is the working rotation: its presence byte is written as 1 and not read, and its name is
+// written as seven spaces and not read, since the working rotation has no name. Records 1 to 99 are
+// the slots in order. A name byte is its character. On the way in an uppercase letter reads as its
+// lowercase and any other byte that is not a lowercase letter, a digit, a period, a hyphen or a space
+// reads as a space, so a damaged name costs its characters and nothing else. Alpha is not stored - a
+// palette color is opaque - and a decoded color's alpha is 255.
 inline constexpr std::uint32_t kCustomRotationsSchemaVersion = 1;
-inline constexpr std::size_t   kCustomRotationRecordBytes    = 1 + kRotationLevelCount * 12;
+inline constexpr std::size_t   kCustomRotationRecordBytes =
+    1 + kRotationNameLength + kRotationLevelCount * 12;
 inline constexpr std::size_t   kCustomRotationsImageBytes =
     (1 + kCustomRotationSlotCount) * kCustomRotationRecordBytes;
 
@@ -105,7 +133,8 @@ inline constexpr std::size_t   kCustomRotationsImageBytes =
     const CustomRotations& rotations);
 
 // Decode an image into `rotations`. Returns false and leaves `rotations` untouched unless the image is
-// exactly the length this build writes; any non-zero presence byte means present.
+// exactly the length this build writes; any non-zero presence byte means present, and the slots'
+// names read as described above.
 [[nodiscard]] bool decodeCustomRotations(std::span<const std::uint8_t> image,
                                          CustomRotations&              rotations);
 

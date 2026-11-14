@@ -98,3 +98,19 @@ TEST(RotationPresets, PresetRotationMapsEachModeToItsTable) {
     EXPECT_EQ(kirpich::render::presetRotation(PaletteRotation::OFF), nullptr);
     EXPECT_EQ(kirpich::render::presetRotation(PaletteRotation::CUSTOM), nullptr);
 }
+
+// (5) presetRotationName reads each preset's name and nothing for OFF and CUSTOM, and every name fits
+// the width a selector leaves for one.
+TEST(RotationPresets, EachPresetReadsItsName) {
+    EXPECT_EQ(kirpich::render::kRotationPresetNameMaxGlyphs, 7);
+    EXPECT_EQ(kirpich::render::presetRotationName(PaletteRotation::HOTTER), "hotter");
+    EXPECT_EQ(kirpich::render::presetRotationName(PaletteRotation::COLDER), "colder");
+    EXPECT_EQ(kirpich::render::presetRotationName(PaletteRotation::RAINBOW), "rainbow");
+    EXPECT_EQ(kirpich::render::presetRotationName(PaletteRotation::OFF), "");
+    EXPECT_EQ(kirpich::render::presetRotationName(PaletteRotation::CUSTOM), "");
+    for (std::size_t mode = 0; mode < kirpich::kPaletteRotationCount; ++mode) {
+        EXPECT_LE(kirpich::render::presetRotationName(static_cast<PaletteRotation>(mode)).size(),
+                  static_cast<std::size_t>(kirpich::render::kRotationPresetNameMaxGlyphs))
+            << "mode " << mode;
+    }
+}

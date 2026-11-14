@@ -21,7 +21,8 @@
 #include "render/components/palette_preview.h"   // palettePreviewWordsInside
 #include "render/components/piece_preview.h"     // kPiecePreviewSecondRowY, kPiecePreviewShapeSpan
 #include "render/components/preview_backdrop.h"  // kPreviewWallLeftX, kPreviewWallRightX
-#include "state/custom_rotations.h"              // kRotationLevelCount
+#include "render/rotation_presets.h"             // kRotationPresetNameMaxGlyphs
+#include "state/custom_rotations.h"              // kRotationLevelCount, kRotationNameLength
 #include "systems/settings_screen.h"             // kPageDownArrowRow
 
 namespace kirpich::render::palette_rotation {
@@ -79,7 +80,7 @@ inline constexpr int kGridSquare    = 6;
 inline constexpr int kLabelX  = 24;
 inline constexpr int kCursorX = 8;
 
-// The item that opens the rotation editor.
+// The item that opens the rotation editor (render/screens/rotation_editor/).
 inline constexpr std::string_view kEditorItem = "edit rotation";
 inline constexpr int              kEditorY    = 80;
 
@@ -89,9 +90,14 @@ inline constexpr int              kSelectorY              = 96;
 inline constexpr int              kSelectorLeftArrowX     = 88;
 inline constexpr int              kSelectorValueX         = 96;
 inline constexpr int              kSelectorRightArrowX    = 152;
-// The widest value: a preset's name is at most seven characters ("rainbow" is seven), and a slot
-// reads three (`C01`).
+// The widest value: a preset's name and a saved rotation's name are at most seven characters
+// ("rainbow" is seven), and a slot with no name reads three (`C01`).
 inline constexpr int kSelectorValueMaxGlyphs = 7;
+
+static_assert(kSelectorValueMaxGlyphs >= kRotationPresetNameMaxGlyphs,
+              "the selector's value has no room for a preset's name");
+static_assert(kSelectorValueMaxGlyphs >= static_cast<int>(kirpich::kRotationNameLength),
+              "the selector's value has no room for a saved rotation's name");
 
 // The `level` item on the held preview: the word's top-left (render/components/level_selector.h).
 inline constexpr int kPreviewLevelX = 48;

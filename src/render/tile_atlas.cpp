@@ -166,11 +166,12 @@ TileAtlas uploadTileAtlas(retropp::Renderer& renderer) {
                                             retropp::ContentKind::Tileset)
                                  .atlasId;
 
-    // The glyphs the font lacks, from their index planes in source - one 8x8 tile, so the sheet is
-    // the tile.
-    const auto asterisk = asteriskIndices();
-    atlas.glyphExtras   = renderer
-                            .uploadAtlas(asterisk.data(), kGlyphExtraSide, kGlyphExtraSide,
+    // The glyphs the font lacks, from their index planes in source: one 8x8 tile each, side by side,
+    // so glyph `i` is the sheet's cell `i`.
+    const auto extras = glyphExtraSheet();
+    atlas.glyphExtras = renderer
+                            .uploadAtlas(extras.data(), kGlyphExtraSheetWidth,
+                                         kGlyphExtraSheetHeight,
                                          retropp::AssetDimensions::GameBoy8x8,
                                          retropp::ContentKind::Tileset)
                             .atlasId;

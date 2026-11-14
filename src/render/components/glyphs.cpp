@@ -5,7 +5,7 @@
 
 #include <kirpich/char_tile.h>
 
-#include "render/glyph_extras.h"  // kAsteriskCell
+#include "render/glyph_extras.h"  // kAsteriskCell, kColonCell
 
 namespace kirpich::render {
 
@@ -57,6 +57,9 @@ enum class Ink : std::uint8_t {
     const retropp::PaletteId palette = fontPaletteFor(ink, atlas, ramp);
     if (c == '*') {
         return ResolvedTile{.atlas = atlas.glyphExtras, .cell = kAsteriskCell, .palette = palette};
+    }
+    if (c == ':') {
+        return ResolvedTile{.atlas = atlas.glyphExtras, .cell = kColonCell, .palette = palette};
     }
     const std::optional<std::uint8_t> glyph = glyphIndexFor(c);
     if (!glyph) {

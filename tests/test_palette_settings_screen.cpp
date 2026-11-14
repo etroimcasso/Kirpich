@@ -321,6 +321,49 @@ TEST(PaletteSettingsScreen, EveryPaletteBothWaysWithEndStops) {
     EXPECT_EQ(probe.applied, appliedAtFirst) << "the first palette is an end stop";
 }
 
+// A held Left or Right repeats on the game's own key repeat: a press steps at once, a hold steps
+// again 23 frames later and every 9 after that. Opening the screen zeroes the repeat, so a direction
+// still held from the screen before waits out the whole repeat rather than stepping at once.
+TEST(PaletteSettingsScreen, AHeldDirectionRepeatsOnTheKeyRepeat) {
+    Probe       probe;
+    const auto  wiring = probe.wiring();
+    const auto  custom = probe.custom();
+    GameContext game   = openPalette(wiring);
+    EXPECT_EQ(game.flow.keyRepeatTimer, 0);
+
+    const auto holdFor = [&](std::initializer_list<Action> as) {
+        game.joypad.pressed = actionSet({});
+        game.joypad.held    = actionSet(as);
+        game.audioCues      = kirpich::systems::AudioCues{};
+        kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+    };
+
+    for (int frame = 1; frame <= 30; ++frame) holdFor({Action::MenuRight});
+    EXPECT_EQ(probe.settings.shadeRamp, 0) << "a hold carried in does not step at once";
+
+    holdFor({});
+    std::vector<int> stepped;
+    for (int frame = 1; frame <= 60; ++frame) {
+        const std::uint8_t before = probe.settings.shadeRamp;
+        if (frame == 1) {
+            press(game, {Action::MenuRight});
+            kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+        } else {
+            holdFor({Action::MenuRight});
+        }
+        if (probe.settings.shadeRamp != before) stepped.push_back(frame);
+    }
+    EXPECT_EQ(stepped, (std::vector<int>{1, 24, 33, 42, 51, 60}));
+    EXPECT_EQ(probe.settings.shadeRamp, 6);
+
+    holdFor({});
+    press(game, {Action::MenuLeft});
+    kirpich::systems::paletteSettingsScreen(game, wiring, custom);
+    EXPECT_EQ(probe.settings.shadeRamp, 5) << "a fresh press steps at once";
+    for (int frame = 2; frame <= 24; ++frame) holdFor({Action::MenuLeft});
+    EXPECT_EQ(probe.settings.shadeRamp, 4) << "and Left repeats as Right does";
+}
+
 // B goes back to the settings screen, painted again, with its cursor on the Palette row.
 TEST(PaletteSettingsScreen, BackReturnsToTheSettingsScreenOnItsRow) {
     Probe       probe;

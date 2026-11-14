@@ -3,6 +3,7 @@
 #include <array>
 #include <optional>
 #include <span>
+#include <utility>
 
 #include <kirpich/action.h>
 #include <kirpich/game_state.h>
@@ -12,6 +13,7 @@
 #include "render/screens/palette_rotation/rotation_screen.h"  // openRotationScreen
 #include "retropp/input.h"                                 // actionId
 #include "systems/game_state_dispatcher.h"
+#include "systems/input.h"         // keyRepeatFire
 #include "systems/palette_walk.h"  // PaletteChoice, paletteChoiceOf, nextPaletteChoice
 
 namespace kirpich::systems {
@@ -62,15 +64,9 @@ struct Bind {
     Effect effect;
 };
 
+// Left and Right are not here: the selector reads them as held, on the key repeat, ahead of this
+// table (paletteSettingsScreen).
 constexpr std::array kBinds{
-    Bind{Action::MenuLeft,
-         [](GameContext& g, const SettingsWiring& w, const CustomPaletteWiring& c) {
-             stepPalette(g, w, c, -1);
-         }},
-    Bind{Action::MenuRight,
-         [](GameContext& g, const SettingsWiring& w, const CustomPaletteWiring& c) {
-             stepPalette(g, w, c, +1);
-         }},
     Bind{Action::MenuUp,
          [](GameContext& g, const SettingsWiring&, const CustomPaletteWiring&) {
              g.audioCues.square = SquareSfxId::CHANGE_SCREEN;
@@ -97,12 +93,33 @@ void dispatch(GameContext& game, const SettingsWiring& wiring, const CustomPalet
     }
 }
 
+// The selector's two directions on the key repeat, Left read ahead of Right: a press steps at once, a
+// hold steps again 23 frames later and every 9 after that. Returns whether either was down, which
+// makes a held direction the whole frame's input.
+bool stepHeldDirection(GameContext& game, const SettingsWiring& wiring,
+                       const CustomPaletteWiring& custom) {
+    for (const auto& [action, delta] : {std::pair{Action::MenuLeft, -1}, std::pair{Action::MenuRight, +1}}) {
+        const bool isPressed = pressed(game, action);
+        const bool isHeld    = game.joypad.held.test(retropp::actionId(action));
+        if (isPressed || isHeld) {
+            if (keyRepeatFire(game.flow.keyRepeatTimer, isPressed, isHeld)) {
+                stepPalette(game, wiring, custom, delta);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 void openPaletteSettings(GameContext& game) {
     game.screens.cursorVisible = true;
     game.flow.timer1           = kScreenBlinkFrames;
-    game.flow.gameState        = GameState::PALETTE_SETTINGS;
+    // A direction still held from the screen that opened this one waits out the whole repeat before
+    // it steps, rather than whatever was left on the timer.
+    game.flow.keyRepeatTimer = 0;
+    game.flow.gameState      = GameState::PALETTE_SETTINGS;
 }
 
 bool paletteCanStep(const Settings& settings, const CustomPalettes* palettes, int delta) noexcept {
@@ -112,6 +129,9 @@ bool paletteCanStep(const Settings& settings, const CustomPalettes* palettes, in
 void paletteSettingsScreen(GameContext& game, const SettingsWiring& wiring,
                            const CustomPaletteWiring& palettes) {
     blinkScreenCursor(game);
+    if (stepHeldDirection(game, wiring, palettes)) {
+        return;
+    }
     dispatch(game, wiring, palettes, kBinds);
 }
 

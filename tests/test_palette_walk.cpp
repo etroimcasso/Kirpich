@@ -179,3 +179,15 @@ TEST(PaletteWalk, PaletteChoiceEquality) {
     EXPECT_NE(slot(4), slot(5));
     EXPECT_EQ(PaletteChoice{}, ramp(0));
 }
+
+// (7) How a stop reads: a ramp as its number counted from one, a slot as `C` and two digits, and
+// nothing as `C` alone.
+TEST(PaletteWalk, AStopReadsAsItsNumber) {
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(ramp(0)), "1");
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(ramp(9)), "10");
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(ramp(kLastRamp)), "80");
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(slot(1)), "C01");
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(slot(47)), "C47");
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(slot(99)), "C99");
+    EXPECT_EQ(kirpich::systems::paletteChoiceText(std::nullopt), "C");
+}

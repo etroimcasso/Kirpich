@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -15,7 +16,8 @@
 #include "render/components/palette_preview.h"
 #include "render/components/preview_backdrop.h"
 #include "render/components/sprite_layer.h"
-#include "render/palettes.h"  // kRotationRamp
+#include "render/palettes.h"          // kRotationRamp
+#include "render/rotation_presets.h"  // presetRotationName
 #include "render/screens/palette_rotation/layout.h"
 #include "render/screens/palette_rotation/level_grid_digits.h"
 #include "render/screens/palette_rotation/level_grid_swatches.h"
@@ -39,36 +41,13 @@ using kirpich::RotationScreenRow;
 }
 
 // The word the selector reads for `off` and for each preset; nothing for CUSTOM, which reads its slot.
-// A name is at most kSelectorValueMaxGlyphs characters.
 [[nodiscard]] constexpr std::string_view modeName(PaletteRotation mode) noexcept {
-    switch (mode) {
-        case PaletteRotation::OFF:
-            return "off";
-        case PaletteRotation::HOTTER:
-            return "hotter";
-        case PaletteRotation::COLDER:
-            return "colder";
-        case PaletteRotation::RAINBOW:
-            return "rainbow";
-        case PaletteRotation::CUSTOM:
-            break;
-    }
-    return {};
+    return mode == PaletteRotation::OFF ? std::string_view{"off"} : presetRotationName(mode);
 }
 
-[[nodiscard]] constexpr bool everyNameFits() noexcept {
-    for (std::size_t mode = 0; mode < kirpich::kPaletteRotationCount; ++mode) {
-        if (modeName(static_cast<PaletteRotation>(mode)).size() >
-            static_cast<std::size_t>(kSelectorValueMaxGlyphs)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static_assert(everyNameFits(), "a preset's name is longer than seven characters");
-
-// What the selector reads: the mode's name, `C` and the saved slot as two digits, or `C` alone.
+// What the selector reads: the mode's name; for CUSTOM, the name of the slot the working rotation is
+// saved in, or `C` and the slot as two digits where that slot has no name, or `C` alone where it is
+// saved in none.
 std::string rotationValueText(const kirpich::Settings& s, const kirpich::CustomRotations& rotations) {
     if (s.paletteRotation != PaletteRotation::CUSTOM) {
         return std::string{modeName(s.paletteRotation)};
@@ -77,12 +56,16 @@ std::string rotationValueText(const kirpich::Settings& s, const kirpich::CustomR
     if (!slot) {
         return "C";
     }
+    const std::string name = kirpich::rotationNameText(rotations.slots[*slot - 1].name);
+    if (!name.empty()) {
+        return name;
+    }
     return (*slot < 10 ? "C0" : "C") + std::to_string(*slot);
 }
 
-// The item that opens the rotation editor, dimmed: it does nothing.
+// The item that opens the rotation editor.
 Sprites EditorItem(const TileAtlas& atlas, std::uint8_t ramp) {
-    return DimGlyphs(kEditorItem, kLabelX, kEditorY, kGlyph, atlas, ramp);
+    return Glyphs(kEditorItem, kLabelX, kEditorY, kGlyph, atlas, ramp);
 }
 
 // The colors the grid shows: the mode's ten palettes, or the player's own palette at every level while

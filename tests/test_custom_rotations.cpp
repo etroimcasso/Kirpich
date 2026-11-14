@@ -15,6 +15,7 @@
 #include <fstream>
 #include <optional>
 #include <span>
+#include <string_view>
 
 #include <retropp/save_store.h>
 
@@ -58,13 +59,22 @@ CustomRotationSlot present(std::uint8_t base) {
     return CustomRotationSlot{.present = true, .progression = rotationFrom(base)};
 }
 
-// Slots 1, 4 and 7 present, slot 4 holding the working rotation.
+kirpich::RotationName nameOf(std::string_view text) {
+    kirpich::RotationName name = kirpich::blankRotationName();
+    std::copy(text.begin(), text.end(), name.begin());
+    return name;
+}
+
+// Slots 1, 4 and 7 present, slot 4 holding the working rotation; slot 1 named `neon` and slot 7 a full
+// seven characters.
 CustomRotations seeded() {
     CustomRotations r;
-    r.working  = rotationFrom(40);
-    r.slots[0] = present(10);
-    r.slots[3] = present(40);
-    r.slots[6] = present(70);
+    r.working        = rotationFrom(40);
+    r.slots[0]       = present(10);
+    r.slots[0].name  = nameOf("neon");
+    r.slots[3]       = present(40);
+    r.slots[6]       = present(70);
+    r.slots[6].name  = nameOf("a1.b-2z");
     return r;
 }
 
@@ -90,28 +100,36 @@ TEST(CustomRotations, DefaultSetIsOneFreshRotationOverEmptySlots) {
     EXPECT_FALSE(kirpich::savedSlotOf(defaults));
 }
 
-// (2) The image is one hundred records of 121 bytes: record 0 the working rotation with its presence
-// written as 1, record k slot k; a record is the presence byte and then, level by level, red, green and
-// blue for the darkest, dark, light and lightest shades - level j at 1 + 12j. Asserted at named
-// offsets, so a transposed field, a reordered shade or a reordered level is caught.
+// (2) The image is one hundred records of 128 bytes: record 0 the working rotation with its presence
+// written as 1 and its name as seven spaces, record k slot k; a record is the presence byte, the seven
+// name bytes, and then, level by level, red, green and blue for the darkest, dark, light and lightest
+// shades - level j at 8 + 12j. Asserted at named offsets, so a transposed field, a reordered shade or
+// a reordered level is caught.
 TEST(CustomRotations, ImageIsOneHundredRecordsOfPresenceThenTenLevels) {
     EXPECT_EQ(kCustomRotationSlotCount, 99u);
-    EXPECT_EQ(kCustomRotationRecordBytes, 121u);
-    EXPECT_EQ(kCustomRotationsImageBytes, 12100u);
+    EXPECT_EQ(kirpich::kRotationNameLength, 7u);
+    EXPECT_EQ(kCustomRotationRecordBytes, 128u);
+    EXPECT_EQ(kCustomRotationsImageBytes, 12800u);
 
     const CustomRotations r     = seeded();
     const auto            image = kirpich::encodeCustomRotations(r);
     ASSERT_EQ(image.size(), kCustomRotationsImageBytes);
 
     const auto expectRecord = [&image](std::size_t record, std::uint8_t presence,
+                                       std::string_view name,
                                        const RotationProgression& progression) {
         const std::size_t at = recordOffset(record);
         EXPECT_EQ(image[at], presence) << "record " << record;
+        for (std::size_t c = 0; c < kirpich::kRotationNameLength; ++c) {
+            const char want = c < name.size() ? name[c] : ' ';
+            EXPECT_EQ(image[at + 1 + c], static_cast<std::uint8_t>(want))
+                << "record " << record << " name byte " << c;
+        }
         for (std::size_t j = 0; j < kRotationLevelCount; ++j) {
             const ShadeRamp&                    level = progression.levels[j];
             const std::array<retropp::Rgba8, 4> order{level.darkest, level.dark, level.light,
                                                       level.lightest};
-            const std::size_t                   levelAt = at + 1 + 12 * j;
+            const std::size_t                   levelAt = at + 8 + 12 * j;
             for (std::size_t s = 0; s < order.size(); ++s) {
                 EXPECT_EQ(image[levelAt + 3 * s], order[s].r)
                     << "record " << record << " level " << j << " shade " << s;
@@ -123,12 +141,12 @@ TEST(CustomRotations, ImageIsOneHundredRecordsOfPresenceThenTenLevels) {
         }
     };
 
-    expectRecord(0, 1, r.working);
-    expectRecord(1, 1, r.slots[0].progression);
-    expectRecord(2, 0, r.slots[1].progression);  // empty: presence 0, the fresh rotation's colors
-    expectRecord(4, 1, r.slots[3].progression);
-    expectRecord(7, 1, r.slots[6].progression);
-    expectRecord(99, 0, r.slots[98].progression);
+    expectRecord(0, 1, "", r.working);
+    expectRecord(1, 1, "neon", r.slots[0].progression);
+    expectRecord(2, 0, "", r.slots[1].progression);  // empty: presence 0, the fresh rotation's colors
+    expectRecord(4, 1, "", r.slots[3].progression);
+    expectRecord(7, 1, "a1.b-2z", r.slots[6].progression);
+    expectRecord(99, 0, "", r.slots[98].progression);
 }
 
 // (3) Encode and decode are inverse over a seeded set: alpha comes back 255, the authoring flag off,
@@ -162,8 +180,10 @@ TEST(CustomRotations, WrongLengthRefusedAndAnyNonZeroPresenceMeansPresent) {
     std::array<std::uint8_t, kCustomRotationsImageBytes + 1> longer{};
     std::copy(image.begin(), image.end(), longer.begin());
 
-    for (const std::size_t length :
-         {std::size_t{0}, kCustomRotationsImageBytes - 1, kCustomRotationsImageBytes + 1}) {
+    // 12,100 is the length of a document of 121-byte records, which carried no names.
+    for (const std::size_t length : {std::size_t{0}, std::size_t{12100},
+                                     kCustomRotationsImageBytes - 1,
+                                     kCustomRotationsImageBytes + 1}) {
         CustomRotations target = before;
         EXPECT_FALSE(kirpich::decodeCustomRotations(
             std::span<const std::uint8_t>(longer.data(), length), target))
@@ -341,4 +361,43 @@ TEST(CustomRotations, AHandBuiltRotationSurvivesTheBytesUnchanged) {
     EXPECT_EQ(back.working.levels[0].darkest.a, 255);
     EXPECT_EQ(back.working.levels[0].lightest.b, 252);
     EXPECT_EQ(back.working.levels[9].dark.r, 60);
+}
+
+// (9) A slot's name is seven characters: blank by default, reading as nothing; trailing spaces dropped
+// and inner ones kept; on the way in an uppercase letter reads as its lowercase and a byte outside the
+// name's characters as a space; record 0's name bytes are written as spaces and never read; and a name
+// takes no part in whether a slot holds the working rotation.
+TEST(CustomRotations, ASlotsNameIsSevenCharactersAndReadsCleanly) {
+    const CustomRotationSlot fresh;
+    EXPECT_EQ(fresh.name, kirpich::blankRotationName());
+    EXPECT_EQ(kirpich::rotationNameText(fresh.name), "");
+    for (const char c : kirpich::blankRotationName()) EXPECT_EQ(c, ' ');
+
+    EXPECT_EQ(kirpich::rotationNameText(nameOf("neon")), "neon");
+    EXPECT_EQ(kirpich::rotationNameText(nameOf("a b")), "a b") << "inner spaces are kept";
+    EXPECT_EQ(kirpich::rotationNameText(nameOf("1234567")), "1234567");
+
+    CustomRotations r = seeded();
+    auto            image = kirpich::encodeCustomRotations(r);
+    const std::size_t slot1Name = recordOffset(1) + 1;
+    image[slot1Name + 0]        = 'N';   // uppercase reads as lowercase
+    image[slot1Name + 1]        = 0x00;  // outside the name's characters reads as a space
+    image[slot1Name + 2]        = '!';
+    image[slot1Name + 3]        = 'z';
+    image[recordOffset(0) + 1]  = 'x';   // the working rotation's name bytes are never read
+
+    CustomRotations back;
+    ASSERT_TRUE(kirpich::decodeCustomRotations(image, back));
+    EXPECT_EQ(back.slots[0].name, nameOf("n  z"));
+    EXPECT_EQ(kirpich::rotationNameText(back.slots[0].name), "n  z");
+    EXPECT_EQ(back.working, r.working);
+
+    const auto again = kirpich::encodeCustomRotations(back);
+    for (std::size_t c = 0; c < kirpich::kRotationNameLength; ++c) {
+        EXPECT_EQ(again[recordOffset(0) + 1 + c], ' ') << "the working rotation writes no name";
+    }
+
+    // Saved compares the ten palettes only: slot 4 holds the working rotation under a name too.
+    r.slots[3].name = nameOf("mine");
+    EXPECT_EQ(kirpich::savedSlotOf(r), std::optional<std::uint8_t>{4});
 }

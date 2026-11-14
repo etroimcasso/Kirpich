@@ -29,6 +29,7 @@
 #include <functional>
 
 #include "state/high_score_state.h"
+#include "state/settings.h"
 #include "systems/game_context.h"
 
 namespace kirpich::systems {
@@ -87,9 +88,18 @@ void drawTopScoresToVram(GameContext& game);
 // the letter wheel on up and down, moves across the six columns on A and B, and submits on Start -
 // which cues the menu music, clears the new-top-score flag, hands the table to `saved`, and returns
 // to the level picker for the game type just played.
-void enterTopScore(GameContext& game, const TopScoreSaved& saved = {});
+//
+// The wheel is the cartridge's: `a` to `z`, the period, the hyphen and the multiplication sign - with
+// a heart after it in heart mode - then the space, and round to `a`. While `settings` has
+// Settings::nameDigits on, the digits `0` to `9` follow those symbols, ahead of the space, so up from
+// the last symbol is `0`, up from `9` is the space, and `a` still follows the space. A null `settings`
+// reads as off.
+void enterTopScore(GameContext& game, const TopScoreSaved& saved = {},
+                   const Settings* settings = nullptr);
 
-// Install the name-entry handler into its dispatch slot, binding the save seam.
-void installHighScoreHandlers(GameStateDispatcher& dispatcher, const TopScoreSaved& saved = {});
+// Install the name-entry handler into its dispatch slot, binding the save seam and the settings the
+// wheel reads its digits flag from. `settings` must outlive the dispatcher; null reads as off.
+void installHighScoreHandlers(GameStateDispatcher& dispatcher, const TopScoreSaved& saved = {},
+                              const Settings* settings = nullptr);
 
 }  // namespace kirpich::systems

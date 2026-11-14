@@ -166,7 +166,7 @@ TEST(CoreEnums, GameStateValuesMatchFixture) {
 // disassembly describes them — so what is pinned is the shape they have to keep. They start at 0x40,
 // they are distinct, they sit clear of every cartridge state, and the dispatch table is exactly big
 // enough to hold the highest of them.
-constexpr std::array<GameState, 30> kAllPortGameStates{{
+constexpr std::array<GameState, 33> kAllPortGameStates{{
     GameState::INIT_SETTINGS,          GameState::SETTINGS,
     GameState::INIT_RESET_CONFIRM,     GameState::RESET_CONFIRM,
     GameState::INIT_MODE_SCREEN,       GameState::MODE_SCREEN,
@@ -182,6 +182,8 @@ constexpr std::array<GameState, 30> kAllPortGameStates{{
     GameState::ACHIEVEMENT_NOTICE,     GameState::DISPLAY_SETTINGS,
     GameState::PALETTE_SETTINGS,       GameState::CONTROLS_SETTINGS,
     GameState::PALETTE_EDITOR,         GameState::PALETTE_ROTATION,
+    GameState::ROTATION_EDITOR,        GameState::INIT_NAME_DIGITS_SCREEN,
+    GameState::NAME_DIGITS_SCREEN,
 }};
 
 TEST(CoreEnums, PortGameStatesSitAboveTheCartridgeRange) {

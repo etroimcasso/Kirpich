@@ -66,6 +66,8 @@
 #include "render/screens/palette_editor/screen.h"
 #include "render/screens/palette_rotation/rotation_screen.h"
 #include "render/screens/palette_rotation/screen.h"
+#include "render/screens/rotation_editor/rotation_editor.h"
+#include "render/screens/rotation_editor/screen.h"
 #include "render/screens/palette_settings/screen.h"
 #include "render/settings_overlay.h"
 #include "render/sprites.h"
@@ -401,13 +403,16 @@ int main(int /*argc*/, char* /*argv*/[]) {
     };
 
     // A submitted name is the point the table is worth keeping, so that is where it is written back.
-    // A round has just finished, so the statistics go down with it.
+    // A round has just finished, so the statistics go down with it. The name entry reads the settings
+    // for whether its letter wheel carries the digits (Settings::nameDigits).
     kirpich::systems::installHighScoreHandlers(
-        dispatcher, [&saves, persistStats](const kirpich::HighScoreState& scores) {
+        dispatcher,
+        [&saves, persistStats](const kirpich::HighScoreState& scores) {
             kirpich::saveTopScores(scores, saves);
             kirpich::saveTopScoresHeart(scores, saves);
             persistStats();
-        });
+        },
+        &settings);
 
     // The settings screen, reached from the title screen's third item and from a paused round. It
     // edits the same value the window was opened from, and writes every change out as it is made.
@@ -472,6 +477,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
         },
     };
     kirpich::systems::installRotationScreen(dispatcher, settingsWiring, rotationWiring);
+
+    // The rotation editor, opened from the rotation screen, edits the working rotation level by level
+    // and writes the rotations document on every change. It reads the custom palettes for the walk its
+    // numbers step along. Its held preview draws through the rotation set the reconcile in the tick
+    // keeps.
+    kirpich::systems::installRotationEditor(dispatcher, settingsWiring, rotationWiring, &palettes);
 
     // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
     // the press to bind, and on every binding hands the platform the action map the bindings now derive
@@ -747,6 +758,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 renderer.renderFrame(screen);
                 return;
             }
+            case kirpich::GameState::ROTATION_EDITOR: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::RotationEditorScreen(
+                    game.rotationEditor, settings, rotations, palettes, game.screens.cursorVisible,
+                    tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
             case kirpich::GameState::CONTROLS_SETTINGS: {
                 // Controller buttons are named as they are printed on the pad the player has
                 // connected - the first one, when there are several - and as on an Xbox pad when there
@@ -809,10 +828,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // only where there is an option in that direction. Each instance reports its own count.
         if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN ||
             game.flow.gameState == kirpich::GameState::GHOST_SCREEN ||
+            game.flow.gameState == kirpich::GameState::NAME_DIGITS_SCREEN ||
             game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
             std::size_t count = kirpich::systems::kGhostOptionCount;
             if (game.flow.gameState == kirpich::GameState::FIXES_SCREEN) {
                 count = kirpich::systems::kFixesOptionCount;
+            } else if (game.flow.gameState == kirpich::GameState::NAME_DIGITS_SCREEN) {
+                count = kirpich::systems::kNameDigitsOptionCount;
             } else if (game.flow.gameState == kirpich::GameState::STATS_SCREEN) {
                 count = kirpich::systems::kStatsOptionCount;
             }

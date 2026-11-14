@@ -3,14 +3,15 @@
 // Which palette the frame is drawn through, when a round's palette follows its level.
 //
 // With Settings::paletteRotation OFF, every frame draws through paletteIndexOf(settings), the palette
-// the player chose. With a preset or CUSTOM, the round's own states draw through the level's palette
+// the player chose - but for the rotation editor's held preview, below. With a preset or CUSTOM, the round's own states draw through the level's palette
 // instead: the atlas's rotation set, render::kRotationRamp, holding the mode's palette for the level
 // modulo ten - a preset's, or the player's own working rotation for CUSTOM. Every other screen - the
 // menus, the settings, the top-score entry - keeps the player's palette.
 //
-// The one place outside a round the rotation set is written for is the rotation screen's held
-// preview: while Select is held there, the set holds the mode's palette at the level the preview
-// shows, and the preview draws through it.
+// Two places outside a round write the rotation set, both held previews. While Select is held on the
+// rotation screen, the set holds the mode's palette at the level the preview shows. While Select is
+// held in the rotation editor, it holds the working rotation's palette at the level the preview
+// shows, whatever the mode - OFF included. Each preview draws through the set.
 //
 // The rotation set's colors are state the frame reads, and the host keeps them current with one call
 // per simulation tick:
@@ -55,13 +56,17 @@ namespace kirpich::systems {
 [[nodiscard]] const render::RotationPalettes* rotationPalettes(
     const Settings& settings, const RotationProgression& progression) noexcept;
 
-// The palette the frame should be drawn through, or nothing. Nothing while the mode is OFF. Otherwise
-// the mode's palette (rotationPalettes) at:
+// The palette the frame should be drawn through, or nothing. First, whatever the mode:
+//   - `progression`'s palette at game.rotationEditor.level, while the game is in the rotation editor
+//     with its held preview up (game.flow.gameState == ROTATION_EDITOR and
+//     game.rotationEditor.previewing).
+// Otherwise nothing while the mode is OFF, and else the mode's palette (rotationPalettes) at:
 //   - game.rotationScreen.previewLevel, while the game is on the rotation screen with its held preview
 //     up (game.flow.gameState == PALETTE_ROTATION and game.rotationScreen.previewing);
 //   - rotationLevelOf(game.flow.level), while the game is in a round's states (roundPaletteShown);
 // and nothing in any other state. The host passes the player's own working rotation as `progression`.
-// Reads game.flow.gameState, game.flow.level and game.rotationScreen and nothing else of the context.
+// Reads game.flow.gameState, game.flow.level, game.rotationScreen and game.rotationEditor and nothing
+// else of the context.
 [[nodiscard]] std::optional<render::ShadeRamp> rotationPaletteFor(
     const Settings& settings, const RotationProgression& progression,
     const GameContext& game) noexcept;

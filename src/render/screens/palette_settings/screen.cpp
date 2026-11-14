@@ -1,6 +1,5 @@
 #include "render/screens/palette_settings/screen.h"
 
-#include <optional>
 #include <string>
 
 #include "render/components/backdrop.h"
@@ -14,6 +13,7 @@
 #include "render/screens/palette_settings/layout.h"
 #include "render/screens/palette_settings/ramp_swatch.h"
 #include "systems/palette_settings_screen.h"  // paletteCanStep
+#include "systems/palette_walk.h"             // paletteChoiceOf, paletteChoiceText
 
 namespace kirpich::render {
 
@@ -26,26 +26,12 @@ static_assert(kShadeRampCount <= 99,
 static_assert(kirpich::kCustomPaletteSlotCount <= 99,
               "a slot past the ninety-ninth has no room in the two cells after the C");
 
-namespace {
-
-// What the selector reads: the ramp's number, `C` and the saved slot as two digits, or `C` alone.
-std::string paletteValueText(const kirpich::Settings& s, const kirpich::CustomPalettes& palettes) {
-    if (!s.customPalette) {
-        return std::to_string(clampShadeRamp(s.shadeRamp) + 1);
-    }
-    const std::optional<std::uint8_t> slot = kirpich::savedSlotOf(palettes);
-    if (!slot) {
-        return "C";
-    }
-    return (*slot < 10 ? "C0" : "C") + std::to_string(*slot);
-}
-
-}  // namespace
-
 Layers PaletteSettingsScreen(const kirpich::Settings& s, const kirpich::CustomPalettes& palettes,
                              bool blinkOn, const TileAtlas& atlas) {
     const std::uint8_t index = kirpich::paletteIndexOf(s);
-    const std::string  value = paletteValueText(s, palettes);
+    // The ramp's number, `C` and the saved slot as two digits, or `C` alone.
+    const std::string value =
+        systems::paletteChoiceText(systems::paletteChoiceOf(s, &palettes));
 
     return {
         BackgroundLayer("palette-backdrop", 0, Backdrop(atlas, index)),

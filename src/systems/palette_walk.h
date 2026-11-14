@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 
 #include "render/palettes.h"         // ShadeRamp
 #include "state/custom_palettes.h"   // CustomPalettes
@@ -54,5 +55,10 @@ struct PaletteChoice {
 // ramp is, and a slot's from `palettes`. A slot number outside 1-99 reads the fresh custom palette.
 [[nodiscard]] render::ShadeRamp colorsOf(PaletteChoice choice,
                                          const CustomPalettes& palettes) noexcept;
+
+// How a stop reads on a screen: a ramp as its number counted from one (`1` to `80`), a slot as `C`
+// and its number as two digits (`C01` to `C99`), and nothing as `C` alone - colors that are on no
+// stop of the walk. The Palette screen's selector and the rotation editor's cells both read this.
+[[nodiscard]] std::string paletteChoiceText(std::optional<PaletteChoice> choice);
 
 }  // namespace kirpich::systems

@@ -106,11 +106,13 @@ Sprites LevelSelector(std::string_view keyStem, std::uint8_t level, int x, int y
 DrawLayer YesNoQuestion(std::string_view key, std::string_view title, std::string_view firstLine,
                         std::string_view secondLine, bool yes, bool blinkOn,
                         const TileAtlas& atlas, std::uint8_t ramp);
+DrawLayer TextEntry(std::string_view key, std::string_view title, std::string_view text,
+                    std::size_t place, bool blinkOn, const TileAtlas& atlas, std::uint8_t ramp);
 ```
 
 `Glyphs` is a run of text as one sprite per character, placed by pixel rather than on the eight-pixel
 cell grid, drawn through an object palette so only the ink lands. **The font has the letters, the
-digits, a period and a hyphen; an asterisk draws from the port's own extras sheet**
+digits, a period and a hyphen; an asterisk and a colon draw from the port's own extras sheet**
 (`src/render/glyph_extras.h`) through the same palettes. A character neither can spell keeps its place
 in the run and draws nothing. Each glyph is named for where it sits, so a run holds its identity
 between frames without the caller naming it.
@@ -145,6 +147,15 @@ way exists.
 the screen with (key `key`, depth `kQuestionZ`, 10): the title on the heading row, the question on two
 centered lines, and `no` and `yes` with a hyphen cursor before the answer `yes` names, drawn only while
 `blinkOn`.
+
+`TextEntry` is a text input screen, as the layer it takes the screen with (key `key`, depth
+`kTextEntryZ`, 10): `title` centered on the heading's line (`kTextEntryTitleY`), and `text` centered as
+a run on its own line (`kTextEntryTextY`), one glyph a place, every place through `SelectedGlyphs`. The
+glyph at `place` is drawn only while `blinkOn`, and an up and a down arrow, `<key>-up` and `<key>-down`,
+stand `kTextEntryArrowRise` above and below it; a space takes its place and draws nothing.
+`textEntryTextX(length)` is where a run of that length starts. The caller supplies the words, the
+characters and the place, and turns the characters itself — the component knows nothing of wheels or
+of what is being named. The rotation editor raises it to name a saved rotation.
 
 `wrapText` breaks a passage into lines of at most `width` characters on word boundaries, for a caller
 that then draws each line with `Glyphs`. A word longer than the width takes a line to itself and runs
@@ -253,7 +264,9 @@ done. Neither of the two handlers that call it knows the screen exists.
 The palette editor keeps every file it has in its own folder, `src/render/screens/palette_editor/`:
 its state (`palette_editor_state.h`), its logic (`palette_editor.{h,cpp}`), its layout and its screen
 function. The rotation screen does the same in `src/render/screens/palette_rotation/`, with its two
-grid components beside them; the held preview both screens draw is in `src/render/components/`.
+grid components beside them, and the rotation editor in `src/render/screens/rotation_editor/`, with its
+two grid components and its preview backdrop; the held preview all three draw and the text input
+screen the editor raises are in `src/render/components/`.
 
 1. Mint the game states — an init and a loop, or a loop alone (see above) — and raise
    `kGameStateCount`.

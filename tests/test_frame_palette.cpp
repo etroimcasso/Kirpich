@@ -365,3 +365,59 @@ TEST(FramePalette, ThePreviewWantsNothingUnlessHeld) {
         }
     }
 }
+
+// (11) In the rotation editor with its held preview up, the palette wanted is the working rotation's
+// at the editor's level in every mode - OFF and the presets included, since the editor edits the
+// working rotation whichever one is switched on - and the frame draws through the rotation set.
+TEST(FramePalette, TheEditorsHeldPreviewWantsTheWorkingRotationsLevel) {
+    const RotationProgression working = distinctRotation(30);
+    const std::array          modes{PaletteRotation::OFF, PaletteRotation::HOTTER,
+                           PaletteRotation::COLDER, PaletteRotation::RAINBOW,
+                           PaletteRotation::CUSTOM};
+
+    for (std::uint8_t level = 0; level < kirpich::kRotationLevelCount; ++level) {
+        GameContext game                = contextAt(GameState::ROTATION_EDITOR, 3);
+        game.rotationEditor.previewing  = true;
+        game.rotationEditor.level       = level;
+        for (const PaletteRotation mode : modes) {
+            const Settings s{.shadeRamp = 17, .paletteRotation = mode};
+            const auto     wanted = kirpich::systems::rotationPaletteFor(s, working, game);
+            ASSERT_TRUE(wanted) << "mode " << +static_cast<int>(mode) << " level " << +level;
+            EXPECT_EQ(*wanted, working.levels[level])
+                << "mode " << +static_cast<int>(mode) << " level " << +level;
+            EXPECT_EQ(kirpich::systems::framePaletteIndex(s, working, game),
+                      kirpich::render::kRotationRamp);
+        }
+    }
+}
+
+// (12) The editor's preview wants nothing unless it is held: the editor with `previewing` clear wants
+// nothing in any mode, and `previewing` set in any other state - a sweep over the whole byte - wants
+// exactly what that state wanted with it clear.
+TEST(FramePalette, TheEditorsPreviewWantsNothingUnlessHeld) {
+    const RotationProgression working = distinctRotation(30);
+    const std::array          modes{PaletteRotation::OFF, PaletteRotation::HOTTER,
+                           PaletteRotation::COLDER, PaletteRotation::RAINBOW,
+                           PaletteRotation::CUSTOM};
+
+    for (const PaletteRotation mode : modes) {
+        GameContext idle          = contextAt(GameState::ROTATION_EDITOR, 4);
+        idle.rotationEditor.level = 6;
+        EXPECT_FALSE(kirpich::systems::rotationPaletteFor(withMode(mode), working, idle))
+            << "mode " << +static_cast<int>(mode);
+    }
+
+    for (int byte = 0; byte <= 255; ++byte) {
+        const auto state = static_cast<GameState>(byte);
+        if (state == GameState::ROTATION_EDITOR) continue;
+        for (const PaletteRotation mode : modes) {
+            GameContext clear              = contextAt(state, 4);
+            GameContext set                = clear;
+            set.rotationEditor.previewing  = true;
+            set.rotationEditor.level       = 6;
+            EXPECT_EQ(kirpich::systems::rotationPaletteFor(withMode(mode), working, set),
+                      kirpich::systems::rotationPaletteFor(withMode(mode), working, clear))
+                << "state byte " << byte << " mode " << +static_cast<int>(mode);
+        }
+    }
+}

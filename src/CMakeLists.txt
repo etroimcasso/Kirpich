@@ -73,6 +73,7 @@ add_library(kirpich-lib STATIC
     render/components/color_swatch.cpp
     render/components/level_selector.cpp
     render/components/yes_no_question.cpp
+    render/components/text_entry.cpp
     render/sprites.cpp
     render/screens/achievements/badge.cpp
     render/screens/achievements/badge_grid.cpp
@@ -90,6 +91,11 @@ add_library(kirpich-lib STATIC
     render/screens/palette_rotation/level_grid_swatches.cpp
     render/screens/palette_rotation/rotation_screen.cpp
     render/screens/palette_rotation/screen.cpp
+    render/screens/rotation_editor/level_cells.cpp
+    render/screens/rotation_editor/level_cell_swatches.cpp
+    render/screens/rotation_editor/level_preview_backdrop.cpp
+    render/screens/rotation_editor/rotation_editor.cpp
+    render/screens/rotation_editor/screen.cpp
     render/screens/palette_settings/ramp_swatch.cpp
     render/screens/palette_settings/screen.cpp
     render/settings_overlay.cpp

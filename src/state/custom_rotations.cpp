@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string>
 
 #include <spdlog/spdlog.h>
 
@@ -20,10 +21,30 @@ std::array<const retropp::Rgba8*, 4> shadesOfRamp(const render::ShadeRamp& r) no
     return {&r.darkest, &r.dark, &r.light, &r.lightest};
 }
 
-void writeRecord(std::span<std::uint8_t> record, bool present,
+// Where a record's name and its first level start.
+inline constexpr std::size_t kNameOffset   = 1;
+inline constexpr std::size_t kLevelsOffset = kNameOffset + kRotationNameLength;
+
+// A stored name byte as a character: a lowercase letter, a digit, a period, a hyphen or a space as
+// itself, an uppercase letter as its lowercase, and anything else as a space.
+[[nodiscard]] char nameCharOf(std::uint8_t byte) noexcept {
+    const char c = static_cast<char>(byte);
+    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == ' ') {
+        return c;
+    }
+    if (c >= 'A' && c <= 'Z') {
+        return static_cast<char>(c - 'A' + 'a');
+    }
+    return ' ';
+}
+
+void writeRecord(std::span<std::uint8_t> record, bool present, const RotationName& name,
                  const RotationProgression& progression) {
-    record[0]          = present ? 1 : 0;
-    std::size_t offset = 1;
+    record[0] = present ? 1 : 0;
+    for (std::size_t i = 0; i < kRotationNameLength; ++i) {
+        record[kNameOffset + i] = static_cast<std::uint8_t>(name[i]);
+    }
+    std::size_t offset = kLevelsOffset;
     for (const render::ShadeRamp& level : progression.levels) {
         for (const retropp::Rgba8* shade : shadesOfRamp(level)) {
             record[offset++] = shade->r;
@@ -33,9 +54,17 @@ void writeRecord(std::span<std::uint8_t> record, bool present,
     }
 }
 
+RotationName readName(std::span<const std::uint8_t> record) {
+    RotationName name{};
+    for (std::size_t i = 0; i < kRotationNameLength; ++i) {
+        name[i] = nameCharOf(record[kNameOffset + i]);
+    }
+    return name;
+}
+
 RotationProgression readRecord(std::span<const std::uint8_t> record) {
     RotationProgression progression;
-    std::size_t         offset = 1;
+    std::size_t         offset = kLevelsOffset;
     for (render::ShadeRamp& level : progression.levels) {
         for (retropp::Rgba8* shade : shadesOfRamp(level)) {
             *shade = retropp::Rgba8{
@@ -46,9 +75,17 @@ RotationProgression readRecord(std::span<const std::uint8_t> record) {
     return progression;
 }
 
-static_assert(kCustomRotationRecordBytes == 1 + kRotationLevelCount * kLevelBytes);
+static_assert(kCustomRotationRecordBytes == kLevelsOffset + kRotationLevelCount * kLevelBytes);
+static_assert(kCustomRotationRecordBytes == 128 && kCustomRotationsImageBytes == 12800);
 
 }  // namespace
+
+std::string rotationNameText(const RotationName& name) {
+    std::string text(name.begin(), name.end());
+    const std::size_t last = text.find_last_not_of(' ');
+    text.erase(last == std::string::npos ? 0 : last + 1);
+    return text;
+}
 
 std::optional<std::uint8_t> savedSlotOf(const CustomRotations& rotations) noexcept {
     for (std::size_t i = 0; i < kCustomRotationSlotCount; ++i) {
@@ -93,10 +130,12 @@ std::array<std::uint8_t, kCustomRotationsImageBytes> encodeCustomRotations(
     std::array<std::uint8_t, kCustomRotationsImageBytes> image{};
     const std::span<std::uint8_t>                        bytes(image);
 
-    writeRecord(bytes.subspan(0, kCustomRotationRecordBytes), /*present=*/true, rotations.working);
+    writeRecord(bytes.subspan(0, kCustomRotationRecordBytes), /*present=*/true, blankRotationName(),
+                rotations.working);
     for (std::size_t i = 0; i < kCustomRotationSlotCount; ++i) {
+        const CustomRotationSlot& slot = rotations.slots[i];
         writeRecord(bytes.subspan((i + 1) * kCustomRotationRecordBytes, kCustomRotationRecordBytes),
-                    rotations.slots[i].present, rotations.slots[i].progression);
+                    slot.present, slot.name, slot.progression);
     }
     return image;
 }
@@ -109,8 +148,9 @@ bool decodeCustomRotations(std::span<const std::uint8_t> image, CustomRotations&
     for (std::size_t i = 0; i < kCustomRotationSlotCount; ++i) {
         const auto record =
             image.subspan((i + 1) * kCustomRotationRecordBytes, kCustomRotationRecordBytes);
-        decoded.slots[i] =
-            CustomRotationSlot{.present = record[0] != 0, .progression = readRecord(record)};
+        decoded.slots[i] = CustomRotationSlot{.present     = record[0] != 0,
+                                              .name        = readName(record),
+                                              .progression = readRecord(record)};
     }
 
     rotations = decoded;

@@ -51,6 +51,12 @@ const render::RotationPalettes* rotationPalettes(const Settings&            sett
 std::optional<render::ShadeRamp> rotationPaletteFor(const Settings&            settings,
                                                     const RotationProgression& progression,
                                                     const GameContext&         game) noexcept {
+    // The editor's held preview shows the working rotation whatever the mode is, OFF included: it is
+    // where the rotation being edited is judged.
+    if (game.flow.gameState == GameState::ROTATION_EDITOR && game.rotationEditor.previewing) {
+        return progression.levels[game.rotationEditor.level % kRotationLevelCount];
+    }
+
     const render::RotationPalettes* palettes = rotationPalettes(settings, progression);
     if (palettes == nullptr) return std::nullopt;
 

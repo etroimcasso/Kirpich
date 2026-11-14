@@ -102,4 +102,14 @@ render::ShadeRamp colorsOf(PaletteChoice choice, const CustomPalettes& palettes)
     return withoutFlag(palettes.slots[choice.value - 1].shades);
 }
 
+std::string paletteChoiceText(std::optional<PaletteChoice> choice) {
+    if (!choice) {
+        return "C";
+    }
+    if (!choice->custom) {
+        return std::to_string(render::clampShadeRamp(choice->value) + 1);
+    }
+    return (choice->value < 10 ? "C0" : "C") + std::to_string(choice->value);
+}
+
 }  // namespace kirpich::systems

@@ -10,6 +10,7 @@
 
 #include "data/sfx.h"       // SquareSfxId
 #include "retropp/input.h"  // actionId
+#include "render/screens/rotation_editor/rotation_editor.h"  // openRotationEditor
 #include "systems/game_state_dispatcher.h"
 #include "systems/palette_settings_screen.h"  // openPaletteSettings
 #include "systems/rotation_walk.h"            // RotationChoice, rotationChoiceOf, nextRotationChoice
@@ -86,6 +87,16 @@ void sideways(GameContext& game, const SettingsWiring& wiring, const RotationWir
     }
 }
 
+// A or Start: the editor item opens the rotation editor, with rotations behind the wiring to edit.
+// The selector has nothing to choose.
+void choose(GameContext& game, const RotationWiring& custom) {
+    if (game.rotationScreen.row != RotationScreenRow::EDITOR || custom.rotations == nullptr) {
+        return;
+    }
+    cue(game, SquareSfxId::CHANGE_SCREEN);
+    openRotationEditor(game, custom.rotations);
+}
+
 // ── The held preview ──────────────────────────────────────────────────────────────────────────────
 
 void stepLevel(GameContext& game, int delta) {
@@ -106,7 +117,6 @@ struct Bind {
     Effect effect;
 };
 
-// Confirm and Start are not here: neither row has anything to choose. The editor item does nothing.
 constexpr std::array kWalkBinds{
     Bind{Action::MenuUp,
          [](GameContext& g, const SettingsWiring&, const RotationWiring&) { moveRow(g, -1); }},
@@ -120,6 +130,10 @@ constexpr std::array kWalkBinds{
          [](GameContext& g, const SettingsWiring& s, const RotationWiring& r) {
              sideways(g, s, r, +1);
          }},
+    Bind{Action::Confirm,
+         [](GameContext& g, const SettingsWiring&, const RotationWiring& r) { choose(g, r); }},
+    Bind{Action::Start,
+         [](GameContext& g, const SettingsWiring&, const RotationWiring& r) { choose(g, r); }},
     Bind{Action::Back,
          [](GameContext& g, const SettingsWiring&, const RotationWiring&) { leave(g); }},
 };
@@ -149,8 +163,9 @@ void dispatch(GameContext& game, const SettingsWiring& settings, const RotationW
 
 }  // namespace
 
-void openRotationScreen(GameContext& game) {
+void openRotationScreen(GameContext& game, RotationScreenRow row) {
     game.rotationScreen.reset();
+    game.rotationScreen.row    = row;
     game.screens.cursorVisible = true;
     game.flow.timer1           = kScreenBlinkFrames;
     game.flow.gameState        = GameState::PALETTE_ROTATION;
