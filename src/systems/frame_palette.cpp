@@ -33,17 +33,34 @@ bool roundPaletteShown(GameState state) noexcept {
     return std::find(kRoundStates.begin(), kRoundStates.end(), state) != kRoundStates.end();
 }
 
+const render::RotationPalettes* rotationPalettes(const Settings&            settings,
+                                                const RotationProgression& progression) noexcept {
+    switch (settings.paletteRotation) {
+        case PaletteRotation::OFF:
+            return nullptr;
+        case PaletteRotation::CUSTOM:
+            return &progression.levels;
+        case PaletteRotation::HOTTER:
+        case PaletteRotation::COLDER:
+        case PaletteRotation::RAINBOW:
+            break;
+    }
+    return render::presetRotation(settings.paletteRotation);
+}
+
 std::optional<render::ShadeRamp> rotationPaletteFor(const Settings&            settings,
                                                     const RotationProgression& progression,
                                                     const GameContext&         game) noexcept {
-    if (settings.paletteRotation == PaletteRotation::OFF) return std::nullopt;
-    if (!roundPaletteShown(game.flow.gameState)) return std::nullopt;
+    const render::RotationPalettes* palettes = rotationPalettes(settings, progression);
+    if (palettes == nullptr) return std::nullopt;
 
-    const std::size_t level = rotationLevelOf(game.flow.level);
-    if (const render::RotationPalettes* preset = render::presetRotation(settings.paletteRotation)) {
-        return (*preset)[level];
+    if (game.flow.gameState == GameState::PALETTE_ROTATION && game.rotationScreen.previewing) {
+        return (*palettes)[game.rotationScreen.previewLevel % kRotationLevelCount];
     }
-    return progression.levels[level];
+    if (roundPaletteShown(game.flow.gameState)) {
+        return (*palettes)[rotationLevelOf(game.flow.level)];
+    }
+    return std::nullopt;
 }
 
 std::uint8_t framePaletteIndex(const Settings& settings, const RotationProgression& progression,

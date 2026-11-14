@@ -8,6 +8,10 @@
 // modulo ten - a preset's, or the player's own working rotation for CUSTOM. Every other screen - the
 // menus, the settings, the top-score entry - keeps the player's palette.
 //
+// The one place outside a round the rotation set is written for is the rotation screen's held
+// preview: while Select is held there, the set holds the mode's palette at the level the preview
+// shows, and the preview draws through it.
+//
 // The rotation set's colors are state the frame reads, and the host keeps them current with one call
 // per simulation tick:
 //
@@ -27,6 +31,7 @@
 #include <kirpich/game_state.h>
 
 #include "render/palettes.h"              // ShadeRamp
+#include "render/rotation_presets.h"      // RotationPalettes
 #include "state/custom_rotations.h"       // RotationProgression, kRotationLevelCount
 #include "state/settings.h"               // Settings
 #include "systems/game_context.h"         // GameContext
@@ -44,11 +49,19 @@ namespace kirpich::systems {
     return level % kRotationLevelCount;
 }
 
-// The palette the round should be drawn through this frame, or nothing: nothing while the mode is
-// OFF or the game is not in a round's states; otherwise the mode's palette at
-// rotationLevelOf(game.flow.level) - a preset's, or `progression`'s for CUSTOM, which the host passes
-// as the player's own working rotation. Reads game.flow.gameState and game.flow.level and nothing
-// else of the context.
+// The mode's ten palettes, level 0 first: a preset's table, `progression.levels` for CUSTOM, and
+// nothing for OFF. The pointer refers to the preset table or into `progression`, and is valid as long
+// as the one it names.
+[[nodiscard]] const render::RotationPalettes* rotationPalettes(
+    const Settings& settings, const RotationProgression& progression) noexcept;
+
+// The palette the frame should be drawn through, or nothing. Nothing while the mode is OFF. Otherwise
+// the mode's palette (rotationPalettes) at:
+//   - game.rotationScreen.previewLevel, while the game is on the rotation screen with its held preview
+//     up (game.flow.gameState == PALETTE_ROTATION and game.rotationScreen.previewing);
+//   - rotationLevelOf(game.flow.level), while the game is in a round's states (roundPaletteShown);
+// and nothing in any other state. The host passes the player's own working rotation as `progression`.
+// Reads game.flow.gameState, game.flow.level and game.rotationScreen and nothing else of the context.
 [[nodiscard]] std::optional<render::ShadeRamp> rotationPaletteFor(
     const Settings& settings, const RotationProgression& progression,
     const GameContext& game) noexcept;
@@ -60,10 +73,10 @@ namespace kirpich::systems {
                                              const GameContext& game) noexcept;
 
 // Keep the rotation set current. When rotationPaletteFor yields a palette that differs from
-// `current` - what the set holds now - `write` is called once with it; otherwise nothing happens.
+// `current` - what the set holds - `write` is called once with it; otherwise nothing happens.
 // `current` keeps its colors while no palette is wanted, so returning to a round at the same level
-// writes nothing. Call once per simulation tick, after the frame's last beat, so a level change is
-// drawn on the tick it happens.
+// writes nothing. Call once per simulation tick, after the frame's last beat, so a level change - or
+// a step of the held preview's level - is drawn on the tick it happens.
 void reconcileRotationPalette(const Settings& settings, const RotationProgression& progression,
                               const GameContext& game, const render::ShadeRamp& current,
                               const std::function<void(const render::ShadeRamp&)>& write);

@@ -97,6 +97,12 @@ Sprites Arrow(std::string key, int x, int y, ArrowDirection direction, std::int3
 Sprites PageArrows(std::string_view keyStem, bool up, bool down,
                    const TileAtlas& atlas, std::uint8_t ramp);
 Sprites PiecePreview(std::string_view keyStem, const TileAtlas& atlas, std::uint8_t ramp);
+Sprites PalettePreview(const TileAtlas& atlas, std::uint8_t ramp);
+Cells   PreviewBackdrop(const TileAtlas& atlas, std::uint8_t ramp);
+Regions ColorSwatch(std::string_view keyStem, const std::array<retropp::Rgba8, 4>& colors,
+                    int x, int y, int square);
+Sprites LevelSelector(std::string_view keyStem, std::uint8_t level, int x, int y,
+                      const TileAtlas& atlas, std::uint8_t ramp);
 DrawLayer YesNoQuestion(std::string_view key, std::string_view title, std::string_view firstLine,
                         std::string_view secondLine, bool yes, bool blinkOn,
                         const TileAtlas& atlas, std::uint8_t ramp);
@@ -123,6 +129,17 @@ only while its flag is set, at `kPageArrowZ` (100).
 `PiecePreview` is the seven pieces at their spawn orientation in two centered rows, L J I O over S Z
 T, at a fixed place every screen shares (`kPiecePreviewFirstRowY`, `kPiecePreviewSecondRowY`), each
 part named `<keyStem>-<kind>-<part>`.
+
+`PalettePreview` is what a palette looks like in use: the words `selected`, `unselected` and `dimmed`,
+each through the ink it names and centered, then `PiecePreview("preview-piece", …)`. `PreviewBackdrop`
+is the backdrop it stands on, with the playfield's brick wall down each edge of the screen — the walls
+are background cells, at `kPreviewWallLeftColumn` and `kPreviewWallRightColumn`. A screen shows the
+two while Select is held, drawn through the palette being judged (see [settings.md](settings.md)).
+
+`ColorSwatch` is a palette's four colors as four opaque `ColorFill` squares of `square` pixels,
+abutting from (x, y), named `<keyStem>-<i>`; it goes in a layer's `regions`. `LevelSelector` is a 0-9
+level picker: the word `level`, its number, and an arrow on each side of the number where a step that
+way exists.
 
 `YesNoQuestion` is the question that guards an action that cannot be taken back, as the layer it takes
 the screen with (key `key`, depth `kQuestionZ`, 10): the title on the heading row, the question on two
@@ -235,7 +252,8 @@ done. Neither of the two handlers that call it knows the screen exists.
 
 The palette editor keeps every file it has in its own folder, `src/render/screens/palette_editor/`:
 its state (`palette_editor_state.h`), its logic (`palette_editor.{h,cpp}`), its layout and its screen
-function.
+function. The rotation screen does the same in `src/render/screens/palette_rotation/`, with its two
+grid components beside them; the held preview both screens draw is in `src/render/components/`.
 
 1. Mint the game states — an init and a loop, or a loop alone (see above) — and raise
    `kGameStateCount`.

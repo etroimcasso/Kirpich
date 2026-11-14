@@ -108,6 +108,7 @@ enum class GameState : uint8_t {
     PALETTE_SETTINGS       = 0x5A,  // The palette, with the pieces drawn in it
     CONTROLS_SETTINGS      = 0x5B,  // The player's key and controller button for each Game Boy button
     PALETTE_EDITOR         = 0x5C,  // The player's own palette: its four shades and its presets
+    PALETTE_ROTATION       = 0x5D,  // The rotation a round's palette follows, and the ten levels it gives
 };
 
 }  // namespace kirpich

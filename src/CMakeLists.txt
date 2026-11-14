@@ -50,6 +50,7 @@ add_library(kirpich-lib STATIC
     systems/display_settings_screen.cpp
     systems/palette_settings_screen.cpp
     systems/palette_walk.cpp
+    systems/rotation_walk.cpp
     systems/frame_palette.cpp
     systems/sound.cpp
     systems/sprite_renderer.cpp
@@ -67,6 +68,10 @@ add_library(kirpich-lib STATIC
     render/components/scroller_arrows.cpp
     render/components/piece_shape.cpp
     render/components/piece_preview.cpp
+    render/components/palette_preview.cpp
+    render/components/preview_backdrop.cpp
+    render/components/color_swatch.cpp
+    render/components/level_selector.cpp
     render/components/yes_no_question.cpp
     render/sprites.cpp
     render/screens/achievements/badge.cpp
@@ -80,9 +85,11 @@ add_library(kirpich-lib STATIC
     render/screens/controls/screen.cpp
     render/screens/display_settings/screen.cpp
     render/screens/palette_editor/palette_editor.cpp
-    render/screens/palette_editor/palette_preview.cpp
-    render/screens/palette_editor/preview_backdrop.cpp
     render/screens/palette_editor/screen.cpp
+    render/screens/palette_rotation/level_grid_digits.cpp
+    render/screens/palette_rotation/level_grid_swatches.cpp
+    render/screens/palette_rotation/rotation_screen.cpp
+    render/screens/palette_rotation/screen.cpp
     render/screens/palette_settings/ramp_swatch.cpp
     render/screens/palette_settings/screen.cpp
     render/settings_overlay.cpp

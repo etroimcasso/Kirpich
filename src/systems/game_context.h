@@ -19,6 +19,7 @@
 #include <kirpich/game_state.h>
 
 #include "render/screens/palette_editor/palette_editor_state.h"
+#include "render/screens/palette_rotation/rotation_screen_state.h"
 #include "state/achievement_notice_state.h"
 #include "state/achievement_state.h"
 #include "state/achievements_screen_state.h"
@@ -73,6 +74,11 @@ struct GameContext {
     // are the player's and live outside the game state (see
     // render/screens/palette_editor/palette_editor_state.h).
     PaletteEditorState paletteEditor;
+
+    // The rotation screen's own state - which row the cursor is on, whether the held preview is up
+    // and which level it shows. The rotations it chooses among are the player's and live outside the
+    // game state (see render/screens/palette_rotation/rotation_screen_state.h).
+    RotationScreenState rotationScreen;
 
     // The end-of-round notice's own state - what a finished round just earned and has still to show,
     // and where it was going when the notice took the frame (see state/achievement_notice_state.h).

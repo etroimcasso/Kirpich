@@ -56,7 +56,7 @@ Layers PaletteSettingsScreen(const kirpich::Settings& s, const kirpich::CustomPa
                       systems::paletteCanStep(s, &palettes, +1), atlas, index),
             blinkOn ? Glyphs("-", kCursorX, kCursorY, kPitch, atlas, index) : Sprites{},
             PiecePreview("palette-piece", atlas, index),
-            PageArrows("palette", /*up=*/false, /*down=*/true, atlas, index),
+            PageArrows("palette", /*up=*/true, /*down=*/true, atlas, index),
         }, LayerOptions{.regions = RampSwatch(atlas, index)}),
     };
 }

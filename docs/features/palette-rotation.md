@@ -1,7 +1,8 @@
 # Palette rotation
 
 **Date:** 2026-10-23
-**Status:** In progress — the game rotates; the screen that chooses a rotation is not built yet
+**Status:** In progress — the game rotates and the rotation screen chooses the rotation; the rotation
+editor is not built yet
 
 ## Concept
 
@@ -16,18 +17,23 @@ digit, so the cycle repeats every ten levels. This game does the same.
 
 ## What the player gets
 
-Once the rotation screen exists:
-
 - **Up on the Palette screen opens the rotation screen**, the mirror of Down opening the palette
-  editor. It belongs with the palette screens; the settings menus do not change.
-- The screen's menus sit at the bottom, because it is entered by scrolling up: a selector, then the
-  editor item, then above them a 2×5 grid of the ten palettes, marked `0` to `9`, each with its
-  preview.
-- **The selector** runs `off`, then the presets, then the player's saved custom rotations.
-- **Holding Select** shows the palette editor's preview with a `Level` item added; while Select is
-  held, Up or Right steps forward through `0`-`9` and Down or Left steps back, the level number
-  carrying an arrow each way it can still move.
-- How a custom rotation is edited is still to be designed.
+  editor; the Palette screen shows an up arrow beside its down arrow. The rotation screen belongs with
+  the palette screens; the settings menus do not change. Down past its selector, or B, goes back.
+- **The screen's menus sit at the bottom**, because it is entered by scrolling up: the `rotation`
+  selector at the bottom, the `edit rotation` item above it, and above them the ten levels as two rows
+  of five, each cell the level's number over that level's four colors.
+- **The selector** runs `off`, then `hotter`, `colder` and `rainbow`, then every rotation the player has
+  saved, as `C01`, `C04` and so on. Stepping onto a saved rotation puts it into use. A rotation in use
+  that is saved in no slot reads `C`.
+- **The grid shows what the selector chose**, and changes as it steps. On `off` every cell shows the
+  player's own palette, because with rotation off that is what every level looks like.
+- **Holding Select** shows the palette editor's preview — the three kinds of text and the seven pieces
+  between brick walls — through one level's palette, with a `level` item below it. While Select is
+  held, Up or Right steps the level forward through `0`-`9` and Down or Left steps it back, the number
+  carrying an arrow each way it can still move. On `off` the preview shows the player's own palette at
+  every level.
+- **`edit rotation` is present and dimmed**: the rotation editor it opens is not built yet.
 
 ## What is built
 
@@ -46,12 +52,10 @@ Once the rotation screen exists:
 - **The settings record which rotation, if any, a round follows**: off, one of the three presets, or
   custom.
 - **The Palette screen's walk is shared.** The sequence the Palette screen steps — the eighty ramps,
-  then every saved custom palette — lives in a module of its own, so the rotation screen can choose a
-  level's palette from the same sequence with the same end stops. The Palette screen behaves exactly
-  as before.
-
-A rotation can be tried before the screen exists by setting the ninth byte of the settings document
-to 1 (hotter), 2 (colder), 3 (rainbow) or 4 (custom).
+  then every saved custom palette — lives in a module of its own, so the rotation editor can choose a
+  level's palette from the same sequence with the same end stops.
+- **The rotation screen**, described above, with its own walk over `off`, the presets and the saved
+  rotations.
 
 ## Design decisions
 
@@ -97,6 +101,27 @@ from a paused round should show the palette being chosen, not the level's.
 **Off reads as the 1989 game.** A stored mode this build does not name reads as off, and a document
 from an earlier release migrates forward with the rotation off.
 
+**The held preview reaches the rotation set through the reconcile.** While Select is held on the
+rotation screen, the per-tick reconcile writes the selected level's palette into the rotation set, and
+the preview draws through it — the same set and the same writer a round uses. Having the screen write
+the set itself was rejected: it would make a second writer of a set that has one, and the preview
+would stop being drawn exactly as a round draws.
+
+**The grid is color squares; the tiles are on the held preview.** Each of the ten cells is the level's
+number and its four colors as solid squares, the swatch the Palette screen already draws. Tile art in
+each cell was considered and is not what the screen is: the pieces, the text and the bricks belong to
+the preview Select shows.
+
+**On `off`, the screen is honest.** With rotation off a round is drawn through the player's own palette
+at every level, so the grid and the held preview show exactly that rather than the last rotation
+chosen.
+
+**The editor item is present before the editor.** `edit rotation` stands where it will stay, drawn
+dimmed and doing nothing, so the screen's layout is the final one while the editor is built.
+
+**A preset's name is at most seven characters**, the widest the selector's value has room for
+(`rainbow` is seven). The build checks it.
+
 ## The presets as authored
 
 Each entry runs dark to light by Rec.601 luminance, as every ramp does, with its lightest shade at
@@ -114,20 +139,29 @@ judged by eye on a running build; the colors are in `src/render/rotation_presets
 | The presets | `src/render/rotation_presets.h` — `kHotterRotation`, `kColderRotation`, `kRainbowRotation`, `presetRotation` |
 | The custom rotations and their document | `src/state/custom_rotations.h` / `.cpp` — `RotationProgression`, `CustomRotations`, `savedSlotOf`, `hasUnsavedChanges`, the codec, `saveCustomRotations` / `loadCustomRotations` |
 | The settings byte | `src/state/settings.h` — `PaletteRotation`, `paletteRotationOf`, `Settings::paletteRotation`, schema 7 |
-| The frame's palette | `src/systems/frame_palette.h` — `roundPaletteShown`, `rotationLevelOf`, `rotationPaletteFor`, `framePaletteIndex`, `reconcileRotationPalette` |
+| The frame's palette | `src/systems/frame_palette.h` — `roundPaletteShown`, `rotationLevelOf`, `rotationPalettes`, `rotationPaletteFor`, `framePaletteIndex`, `reconcileRotationPalette` |
 | The shared walk | `src/systems/palette_walk.h` — `PaletteChoice`, `paletteChoiceOf`, `nextPaletteChoice`, `paletteChoiceOfColors`, `colorsOf` |
-| The host | `src/main.cpp` — the load beside the custom palettes, the reconcile in the simulation tick, `framePaletteIndex` in the render callback |
+| The rotation walk | `src/systems/rotation_walk.h` — `RotationChoice`, `rotationChoiceOf`, `nextRotationChoice` |
+| The rotation screen | `src/render/screens/palette_rotation/` — `RotationScreenState` (the cursor's row, `EDITOR` or `SELECTOR`; the held preview's flag and level), the logic (`RotationWiring`, `openRotationScreen`, `rotationCanStep`, `rotationScreen`, `installRotationScreen`), `layout.h`, `LevelGridDigits`, `LevelGridSwatches`, `PaletteRotationScreen`; `PALETTE_ROTATION` in `include/kirpich/game_state.h` |
+| The way in | `src/systems/palette_settings_screen.cpp` — Up opens the rotation screen; the Palette screen's up arrow |
+| The shared components | `src/render/components/` — `ColorSwatch`, `LevelSelector`, and the held preview's `PalettePreview` and `PreviewBackdrop`, which the palette editor draws too |
+| The host | `src/main.cpp` — the load beside the custom palettes, the rotation screen's wiring and installer, the reconcile in the simulation tick, `framePaletteIndex` and the rotation screen's case in the render callback |
 
 The document: `"rotations"`, version 1, 12,100 bytes — one hundred records of 121 (a presence byte,
 then ten levels of red, green and blue for the darkest, dark, light and lightest shades); record 0 the
 working rotation, records 1 to 99 the slots. Alpha is not stored. The settings document grows to nine
 bytes at version 7.
 
-The engine-side detail is in [`../engine/settings.md`](../engine/settings.md#the-frames-palette).
+The engine-side detail is in [`../engine/settings.md`](../engine/settings.md#the-frames-palette) and
+[`../engine/settings.md`](../engine/settings.md#the-rotation-screen).
 
 ## Open questions / future work
 
-- The rotation screen: the layout above, the selector over off, the presets and the saved custom
-  rotations, and the held preview with its `Level` item. How a custom rotation is edited, and how a
-  preset seeds one, are still to be designed.
+- **The rotation editor**, which `edit rotation` opens: choosing each level's palette, saving the
+  working rotation into a slot, and seeding one from a preset.
+- **Showing on the Palette screen that a rotation is on.** Without it the Palette screen, the rotation
+  screen and a round can show three different palettes. One shape considered is a `rotate` stop on the
+  Palette screen's own selector; whether a rotation should then reach the menus at all is open.
+- The rotation screen's words, the grid's square size and row spacing, and the `level` item's place
+  are judged by eye on a running build, each one constant.
 - The three presets' colors are to be judged by eye on a running build.

@@ -158,7 +158,7 @@ are what draws. The clamp is the only check a value gets.
 | The Palette screen's walk | `src/systems/palette_walk.h` — `PaletteChoice`, `paletteChoiceOf`, `nextPaletteChoice`; `src/systems/palette_settings_screen.h` — `CustomPaletteWiring`, `paletteCanStep` |
 | The Palette screen's picture | `src/render/screens/palette_settings/screen.cpp` — the `C<nn>` / `C` value, the arrows, every part through the palette in use |
 | The palette editor | `src/render/screens/palette_editor/` — `PaletteEditorState`, the logic (`openPaletteEditor`, `paletteEditor`, `steppedValue`, `presetCanStep`, `paletteEditorActionCanAct`), `layout.h`, `PaletteEditorScreen` |
-| The held preview | `PaletteEditorState::previewing`, set each frame from Select held in `paletteEditor`; `PreviewBackdrop` (`preview_backdrop.h`) and `PalettePreview` (`palette_preview.h`) beside the screen; `kPreviewWords`, `kPreviewWordPitch` and the wall columns in `layout.h` |
+| The held preview | `PaletteEditorState::previewing`, set each frame from Select held in `paletteEditor`; `PreviewBackdrop` (`src/render/components/preview_backdrop.h`, with the wall columns) and `PalettePreview` (`src/render/components/palette_preview.h`, with `kPalettePreviewWords` and `kPalettePreviewWordPitch`), which the rotation screen draws too |
 | The seven pieces | `src/render/components/piece_preview.h` — `PiecePreview(keyStem, atlas, ramp)`, drawn by the Palette screen as `palette-piece` and by the held preview as `preview-piece` |
 | One channel of a palette | `src/state/custom_palettes.h` — `ColorChannel`, `channelValue`, `setChannelValue` |
 | The selected text ink and the asterisk | `src/render/tile_atlas.h` — `RampPalettes::fontSpriteSelected`, `TileAtlas::glyphExtras`; `src/render/glyph_extras.h`; `SelectedGlyphs` in `src/render/components/glyphs.h` |
@@ -174,4 +174,4 @@ The engine-side detail is in [`../engine/settings.md`](../engine/settings.md).
 
 - Three spacings are set by eye on a running build: the distance between shade rows
   (`kEntryPitch`), the arrows' distance from a digit (`kArrowRise`) and the distance between the held
-  preview's words (`kPreviewWordPitch`).
+  preview's words (`kPalettePreviewWordPitch`).

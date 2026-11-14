@@ -8,8 +8,9 @@
 // Left and Right step through the palettes: the built-in ramps first, then every custom slot a
 // palette has been saved into, in slot order, stopping at the first ramp and the last present slot.
 // Stepping onto a slot puts its palette into use; stepping back off the last built-in returns to the
-// ramp the player left. Down opens the palette editor (render/screens/palette_editor/), and B goes
-// back to the settings screen with its cursor still on the Palette row.
+// ramp the player left. Up opens the rotation screen (render/screens/palette_rotation/), Down opens
+// the palette editor (render/screens/palette_editor/), and B goes back to the settings screen with its
+// cursor still on the Palette row.
 // The screen keeps no state of its own: the row is the only one, and the palette is the player's
 // setting.
 //
@@ -54,7 +55,8 @@ void openPaletteSettings(GameContext& game);
 
 // One frame: blink the cursor, then run the input table. MenuRight steps to the next palette and
 // MenuLeft to the previous one, through changeSettings - so a press past either end is an end stop.
-// MenuDown opens the palette editor with the screen-change cue. Back returns to the settings screen.
+// MenuUp opens the rotation screen and MenuDown the palette editor, each with the screen-change cue.
+// Back returns to the settings screen.
 void paletteSettingsScreen(GameContext& game, const SettingsWiring& wiring,
                            const CustomPaletteWiring& palettes);
 

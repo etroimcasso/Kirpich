@@ -64,6 +64,8 @@
 #include "render/screens/display_settings/screen.h"
 #include "render/screens/palette_editor/palette_editor.h"
 #include "render/screens/palette_editor/screen.h"
+#include "render/screens/palette_rotation/rotation_screen.h"
+#include "render/screens/palette_rotation/screen.h"
 #include "render/screens/palette_settings/screen.h"
 #include "render/settings_overlay.h"
 #include "render/sprites.h"
@@ -460,6 +462,17 @@ int main(int /*argc*/, char* /*argv*/[]) {
     kirpich::systems::installPaletteSettingsScreen(dispatcher, settingsWiring, paletteWiring);
     kirpich::systems::installPaletteEditor(dispatcher, settingsWiring, paletteWiring);
 
+    // The rotation screen, opened by the Palette screen's Up, chooses which rotation a round's palette
+    // follows. Stepping onto a saved rotation copies it into the working one and writes the rotations
+    // document. Its held preview draws through the rotation set the reconcile in the tick keeps.
+    const kirpich::systems::RotationWiring rotationWiring{
+        .rotations = &rotations,
+        .save = [&saves](const kirpich::CustomRotations& current) {
+            kirpich::saveCustomRotations(current, saves);
+        },
+    };
+    kirpich::systems::installRotationScreen(dispatcher, settingsWiring, rotationWiring);
+
     // The Controls screen, the page's third row. It edits the player's bindings, asks the platform for
     // the press to bind, and on every binding hands the platform the action map the bindings now derive
     // and writes them out - so a moved button works the moment it is moved, and still does next launch.
@@ -724,6 +737,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 retropp::FrameDrawState screen;
                 screen.layers = kirpich::render::PaletteEditorScreen(
                     game.paletteEditor, settings, palettes, game.screens.cursorVisible, tiles);
+                renderer.renderFrame(screen);
+                return;
+            }
+            case kirpich::GameState::PALETTE_ROTATION: {
+                retropp::FrameDrawState screen;
+                screen.layers = kirpich::render::PaletteRotationScreen(
+                    game.rotationScreen, settings, rotations, game.screens.cursorVisible, tiles);
                 renderer.renderFrame(screen);
                 return;
             }

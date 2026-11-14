@@ -10,11 +10,14 @@ The player's display choices, the screens that edit them, and the color ramps th
 | The shipped rotation presets | `src/render/rotation_presets.h` |
 | The palette a frame draws through, and the rotation set's reconcile | `src/systems/frame_palette.h` / `.cpp` |
 | The palette walk the Palette screen steps | `src/systems/palette_walk.h` / `.cpp` |
+| The rotation walk the rotation screen steps | `src/systems/rotation_walk.h` / `.cpp` |
 | The settings screen and its confirm | `src/systems/settings_screen.h` / `.cpp` |
 | The Display and Palette screens' logic | `src/systems/display_settings_screen.h`, `src/systems/palette_settings_screen.h` (and `.cpp`) |
 | The Display and Palette screens' components | `src/render/screens/display_settings/`, `src/render/screens/palette_settings/`, and the shared `src/render/components/option_row.h`, `scroller_arrows.h`, `piece_shape.h` |
 | The Controls screen | `src/systems/controls_screen.h` / `.cpp`, `src/state/controls_screen_state.h`, `src/render/screens/controls/` |
 | The palette editor | `src/render/screens/palette_editor/` — its state, its logic, its layout and its screen function |
+| The rotation screen | `src/render/screens/palette_rotation/` — its state, its logic, its layout, its grid components and its screen function |
+| The held palette preview both screens draw | `src/render/components/palette_preview.h`, `preview_backdrop.h` (and `.cpp`) |
 | The color ramps | `src/render/palettes.h` |
 | The page arrows of the screens drawn into the map | `src/render/settings_overlay.h` / `.cpp` |
 
@@ -317,6 +320,8 @@ to `presetRotation`.
 bool roundPaletteShown(GameState state) noexcept;
 constexpr std::size_t rotationLevelOf(std::uint8_t level) noexcept;   // level % 10
 
+const render::RotationPalettes* rotationPalettes(const Settings&,
+                                                 const RotationProgression&) noexcept;
 std::optional<render::ShadeRamp> rotationPaletteFor(const Settings&, const RotationProgression&,
                                                     const GameContext&) noexcept;
 std::uint8_t framePaletteIndex(const Settings&, const RotationProgression&,
@@ -338,11 +343,22 @@ for exactly the round's own states, from its init until the game returns to a me
 the top-score entry and every port screen among them. The attract demo runs these same states, so it
 is drawn the same way.
 
-`rotationPaletteFor` yields nothing while the mode is `OFF` or the state is not a round's; otherwise it
-yields the mode's palette at `rotationLevelOf(game.flow.level)` — the preset's, or the
-`RotationProgression` passed in for `CUSTOM`. The level the round shows picks: a Type B round wears its
-starting level's palette all round, and heart mode, which shifts the gravity, does not shift the
-palette. It reads `game.flow.gameState` and `game.flow.level` and nothing else of the context.
+`rotationPalettes` is the mode's ten palettes, level 0 first: the preset's table (`presetRotation`),
+the `RotationProgression`'s own `levels` for `CUSTOM`, and null for `OFF`. The pointer refers to the
+preset table or into the progression passed in.
+
+`rotationPaletteFor` yields nothing while the mode is `OFF`. Otherwise it yields one of the mode's ten:
+
+- on the rotation screen with its held preview up (`gameState == PALETTE_ROTATION` and
+  `rotationScreen.previewing`), the palette at `game.rotationScreen.previewLevel` — the one place
+  outside a round the rotation set is written for ([below](#the-rotation-screen));
+- in a round's state, the palette at `rotationLevelOf(game.flow.level)`. The level the round shows
+  picks: a Type B round wears its starting level's palette all round, and heart mode, which shifts the
+  gravity, does not shift the palette;
+- in any other state, nothing.
+
+It reads `game.flow.gameState`, `game.flow.level` and `game.rotationScreen` and nothing else of the
+context. The host passes the player's working rotation as the `RotationProgression`.
 
 `framePaletteIndex` is `render::kRotationRamp` while `rotationPaletteFor` yields a palette, and
 `paletteIndexOf(settings)` otherwise. The render callback reads it once per frame:
@@ -352,8 +368,9 @@ const std::uint8_t paletteIndex =
     kirpich::systems::framePaletteIndex(settings, rotations.working, game);
 ```
 
-The Display, Palette and editor screens call `paletteIndexOf(settings)` themselves: they are menus and
-show the player's own palette.
+The Display, Palette, editor and rotation screens call `paletteIndexOf(settings)` themselves: they are
+menus and show the player's own palette. The rotation screen's held preview is the exception, drawn
+through `kRotationRamp` while a rotation is on.
 
 ### Keeping the rotation set current
 
@@ -373,7 +390,9 @@ kirpich::systems::reconcileRotationPalette(
 ```
 
 No gameplay handler knows about palettes: the round init and the level-up change the level, and the
-next reconcile sees it.
+next reconcile sees it. No screen writes the set either: a step of the rotation screen's preview level
+changes `previewLevel`, and the reconcile on the same tick rewrites the set, so the preview's next frame
+draws through the new level.
 
 ## The screens
 
@@ -628,7 +647,7 @@ Each screen's logic is a dispatch table mapping an action to what it does, run a
 | Screen | MenuUp / MenuDown | MenuLeft / MenuRight | Back |
 |---|---|---|---|
 | Display | move between the two rows, with end stops | change the row's value | return |
-| Palette | Down opens the palette editor, with the screen-change cue | step the palette: the ramps, then the saved custom slots | return |
+| Palette | Up opens the rotation screen and Down the palette editor, each with the screen-change cue | step the palette: the ramps, then the saved custom slots | return |
 
 A move cues TINK; an end stop moves nothing and makes no sound. A value change goes through
 `changeSettings(game, wiring, next)` (`src/systems/settings_screen.h`), which stores the settings,
@@ -701,8 +720,9 @@ Layers PaletteSettingsScreen(const Settings& s, const CustomPalettes& palettes, 
 Each returns two layers: a backdrop of tiles at depth 0, and a sprite layer of everything else. The
 Display screen's sprite layer holds the `display` heading, the `fullscreen` and `size` rows, and the
 cursor. The Palette screen's holds the `palette` heading, the `palette` row, the cursor, the piece
-preview and a down arrow — `PageArrows` named `palette`, always shown, saying the palette editor is
-below — and carries the swatch as its `regions`.
+preview and both page arrows — `PageArrows` named `palette`, always shown, the up arrow saying the
+rotation screen is above and the down arrow that the palette editor is below — and carries the swatch
+as its `regions`.
 
 They are built from shared components, each returning the primitives it is:
 
@@ -711,7 +731,8 @@ They are built from shared components, each returning the primitives it is:
 | `OptionRow(label, value, line, left, right, atlas, ramp)` (`render/components/option_row.h`) | the label at `kLabelCol`, the value at `kOptionValueCol` and the row's `ScrollerArrows`, on map row `line` |
 | `ScrollerArrows(line, left, right, atlas, ramp)` (`render/components/scroller_arrows.h`) | the selector tile at `kOptionLeftArrowCol`, flipped, when `left` is set, and at `kOptionRightArrowCol` when `right` is set |
 | `PieceShape(kind, x, y, z, keyStem, atlas, ramp)` (`render/components/piece_shape.h`) | one piece at its spawn orientation, its top-left pixel at (x, y), each part named `keyStem` plus `-` and its index |
-| `RampSwatch(atlas, ramp)` (`render/screens/palette_settings/ramp_swatch.h`) | four opaque `ColorFill` squares, darkest to lightest, abutting, centered on the line under the palette row, in the colors `shadesOf` gives the index |
+| `RampSwatch(atlas, ramp)` (`render/screens/palette_settings/ramp_swatch.h`) | `ColorSwatch("palette-swatch", shadesOf(atlas, ramp), …)`: four opaque squares, darkest to lightest, abutting, centered on the line under the palette row, in the colors `shadesOf` gives the index |
+| `ColorSwatch(keyStem, colors, x, y, square)` (`render/components/color_swatch.h`) | four opaque `ColorFill` squares of `square` pixels, `colors[0]` leftmost, abutting from (x, y); square `i` is named `<keyStem>-<i>`, and each color is drawn with alpha 255 |
 | `PiecePreview(keyStem, atlas, ramp)` (`render/components/piece_preview.h`) | the seven shapes in two rows, L J I O over S Z T, each row centered from the shapes' own widths, at a fixed place (`kPiecePreviewFirstRowY`, `kPiecePreviewSecondRowY`); each part is named `<keyStem>-<kind>-<part>`, and the Palette screen's stem is `palette-piece` |
 
 An arrow is drawn only where the value can still move that way: no left arrow when fullscreen is off
@@ -768,10 +789,15 @@ Everything it has lives in `src/render/screens/palette_editor/`:
 |---|---|
 | `palette_editor_state.h` | `PaletteEditorState` — the row, the channel, the preset, the entered value, the question and the held preview's flag — and the enums it is made of |
 | `palette_editor.h` / `.cpp` | the logic: opening, the Select level, the three input tables, the installer, and the answers the picture asks for |
-| `layout.h` | every position, in viewport pixels, and the held preview's two wall columns |
+| `layout.h` | every position, in viewport pixels, and the checks that keep the heading clear of the held preview |
 | `screen.h` / `.cpp` | `PaletteEditorScreen`, the layers |
-| `preview_backdrop.h` / `.cpp` | `PreviewBackdrop`, the backdrop with the brick walls the held preview stands between |
-| `palette_preview.h` / `.cpp` | `PalettePreview`, the held preview's words and pieces |
+
+The held preview is drawn from two shared components the rotation screen draws too:
+
+| Component | Holds |
+|---|---|
+| `PreviewBackdrop(atlas, ramp)` (`render/components/preview_backdrop.h`) | the backdrop with the brick walls the preview stands between; the walls' columns and pixel edges (`kPreviewWallLeftColumn`, `kPreviewWallRightColumn`, `kPreviewWallLeftX`, `kPreviewWallRightX`, `kPreviewBrickSide`) |
+| `PalettePreview(atlas, ramp)` (`render/components/palette_preview.h`) | the words in their three inks and the seven pieces; the words' place (`kPalettePreviewWords`, `kPalettePreviewWordFirstY`, `kPalettePreviewWordPitch`, `palettePreviewWordX`, `palettePreviewWordY`) and `palettePreviewWordsInside(left, right)`, which a screen asserts against its walls |
 
 ### The rows
 
@@ -902,18 +928,187 @@ because the preview is where the palette is judged:
 
 | Layer | Holds |
 |---|---|
-| `editor-backdrop` | `PreviewBackdrop(atlas, kCustomRamp)`: the plain backdrop with columns `kWallLeftColumn` (0) and `kWallRightColumn` (19) replaced, row by row, by the playfield's own left wall from `kTypeAGameplayTilemap`, so the bricks repeat as they do beside the well. They are background cells through the content palette, which draws the brick's lightest shade as a color |
-| `editor-preview` | the heading and its asterisk, as the editor draws them, then `PalettePreview(atlas, kCustomRamp)`: `selected` through `SelectedGlyphs`, `unselected` through `Glyphs` and `dimmed` through `DimGlyphs`, each centered at `previewWordY(i)`, then `PiecePreview("preview-piece", …)` where the Palette screen draws its pieces. No regions |
+| `editor-backdrop` | `PreviewBackdrop(atlas, kCustomRamp)`: the plain backdrop with columns `kPreviewWallLeftColumn` (0) and `kPreviewWallRightColumn` (19) replaced, row by row, by the playfield's own left wall from `kTypeAGameplayTilemap`, so the bricks repeat as they do beside the well. They are background cells through the content palette, which draws the brick's lightest shade as a color |
+| `editor-preview` | the heading and its asterisk, as the editor draws them, then `PalettePreview(atlas, kCustomRamp)`: `selected` through `SelectedGlyphs`, `unselected` through `Glyphs` and `dimmed` through `DimGlyphs`, each centered at `palettePreviewWordY(i)`, then `PiecePreview("preview-piece", …)` where the Palette screen draws its pieces. No regions |
 
 Nothing else is drawn while it is up: no arrow, no preset row, no labels, no shade rows, no cursor and
-no hint. The words and the pieces stand between the two walls; `kPreviewWordPitch` sets the words'
-spacing and moves nothing else. The host's render callback has the screen's case:
+no hint. The words and the pieces stand between the two walls; `kPalettePreviewWordPitch` sets the
+words' spacing and moves nothing else. The host's render callback has the screen's case:
 
 ```cpp
 case kirpich::GameState::PALETTE_EDITOR: {
     retropp::FrameDrawState screen;
     screen.layers = kirpich::render::PaletteEditorScreen(
         game.paletteEditor, settings, palettes, game.screens.cursorVisible, tiles);
+    renderer.renderFrame(screen);
+    return;
+}
+```
+
+## The rotation screen
+
+Up on the Palette screen opens the screen that chooses which rotation a round's palette follows
+(`Settings::paletteRotation`), and shows the ten palettes that rotation gives. Everything it has lives
+in `src/render/screens/palette_rotation/`; the walk its selector steps is in `src/systems/`:
+
+| File | Holds |
+|---|---|
+| `rotation_screen_state.h` | `RotationScreenState` — the cursor's row, the held preview's flag and its level — and `RotationScreenRow` |
+| `rotation_screen.h` / `.cpp` | the logic: `RotationWiring`, opening, `rotationCanStep`, the two input tables and the installer |
+| `layout.h` | every position, in viewport pixels, the grid's place functions, and the fit checks |
+| `level_grid_digits.h` / `.cpp` | `LevelGridDigits`, the grid's ten level numbers |
+| `level_grid_swatches.h` / `.cpp` | `LevelGridSwatches` and `LevelColors`, the grid's ten swatches |
+| `screen.h` / `.cpp` | `PaletteRotationScreen`, the layers |
+| `src/systems/rotation_walk.h` / `.cpp` | `RotationChoice`, `rotationChoiceOf`, `nextRotationChoice` — the walk |
+
+### The rows
+
+```
+palette rotation       the heading
+0    1    2    3    4  the ten levels, each its number over its four colors
+5    6    7    8    9
+edit rotation          the item that opens the rotation editor, dimmed
+rotation   < hotter >  the rotation a round follows
+```
+
+The menu's two rows are `RotationScreenRow::EDITOR` and `SELECTOR`, top to bottom. The screen opens
+with the cursor on the selector.
+
+### Opening and leaving
+
+```cpp
+struct RotationWiring {
+    CustomRotations*                            rotations = nullptr;
+    std::function<void(const CustomRotations&)> save;
+};
+
+void openRotationScreen(GameContext&);
+void installRotationScreen(GameStateDispatcher&, SettingsWiring, RotationWiring);
+```
+
+`openRotationScreen` resets `GameContext::rotationScreen` — the cursor on the selector, the preview
+down, its level 0 — shows the cursor, arms the shared blink and enters `GameState::PALETTE_ROTATION`.
+The Palette screen calls it on Up with the screen-change cue. Down on the selector and B on either row
+return to the Palette screen through `openPaletteSettings`, with the screen-change cue. The screen
+writes no background map and no object buffer, and saves no caller.
+
+`RotationWiring::rotations` is the host's live rotations; `save` writes their document. With
+`rotations` null the selector offers the presets alone. The host builds it beside the palette wiring:
+
+```cpp
+const kirpich::systems::RotationWiring rotationWiring{
+    .rotations = &rotations,
+    .save = [&saves](const kirpich::CustomRotations& current) {
+        kirpich::saveCustomRotations(current, saves);
+    },
+};
+kirpich::systems::installRotationScreen(dispatcher, settingsWiring, rotationWiring);
+```
+
+### Input
+
+Each frame runs `blinkScreenCursor`, then reads Select as a level: `RotationScreenState::previewing` is
+set to whether Select is held this frame. While it is set the held preview's table runs and nothing
+else; otherwise the menu's.
+
+| Mode | Up | Down | Left / Right | A / Start | B |
+|---|---|---|---|---|---|
+| Menu | move to the editor item; an end stop there | move to the selector; on the selector, leave | step the rotation on the selector; nothing on the editor item | nothing | leave |
+| Held preview | the next level | the previous level | Left the previous level, Right the next | nothing | nothing |
+
+The preview's level runs 0-9 and stops at both ends. It keeps its value from one hold to the next
+until the screen is left. A move or a step cues TINK, an end stop cues nothing, and Select itself cues
+nothing. The editor item does nothing yet: it is the way into the rotation editor, which is not built.
+
+### The rotation walk
+
+```cpp
+struct RotationChoice { PaletteRotation mode = PaletteRotation::OFF; std::uint8_t slot = 0; };
+
+std::optional<RotationChoice> rotationChoiceOf(const Settings&, const CustomRotations*) noexcept;
+std::optional<RotationChoice> nextRotationChoice(std::optional<RotationChoice> from,
+                                                 const CustomRotations*, int delta) noexcept;
+bool rotationCanStep(const Settings&, const CustomRotations*, int delta) noexcept;
+```
+
+The selector is one sequence: `off`, the three presets in `PaletteRotation`'s order, then every
+**present** slot of the custom rotations in slot order. With slots 1, 4 and 7 saved it runs
+`off, hotter, colder, rainbow, C01, C04, C07`.
+
+- From `off` or a preset, Right steps to the next of those, and from `rainbow` to the first present
+  slot; Left steps to the previous, and from `off` it is an end stop.
+- **Landing on a slot** copies the slot's rotation into the working rotation, fires the wiring's `save`,
+  and sets `paletteRotation` to `CUSTOM` through `changeSettings`. A step from one slot to another
+  changes no setting, so the step cues TINK itself.
+- From a slot, Right steps to the next present slot, an end stop after the last; Left steps to the
+  previous present slot, and from the first lands on `rainbow`, the working rotation left alone.
+- A working rotation saved in no slot is **off the walk**: the value reads `C`, Left lands on
+  `rainbow`, Right on the first present slot.
+
+`rotationChoiceOf` is where the settings stand: `off` and the presets are themselves, `CUSTOM` is the
+slot the working rotation is saved in, and nothing while it is saved in no slot or there are no
+rotations. The step and the selector's arrows both ask `rotationCanStep`, so an arrow stands exactly
+where a press would move. The walk follows the enum's declared order; a `static_assert` in
+`rotation_walk.cpp` holds the order, so reordering `PaletteRotation` fails to build rather than
+reordering the walk.
+
+### The picture
+
+```cpp
+using LevelColors = std::array<std::array<retropp::Rgba8, 4>, kRotationLevelCount>;
+
+Layers PaletteRotationScreen(const RotationScreenState& ui, const Settings& s,
+                             const CustomRotations& rotations, bool blinkOn,
+                             const TileAtlas& atlas);
+Sprites LevelGridDigits(const TileAtlas& atlas, std::uint8_t ramp);
+Regions LevelGridSwatches(const LevelColors& levels);
+```
+
+Two layers: the backdrop (`rotation-backdrop`, depth 0), and either `rotation-preview` while the held
+preview is up or `rotation-content`.
+
+`rotation-content` holds the heading, the grid's digits, the editor item through `DimGlyphs`, the
+selector — its label, its value and `rotation-left` / `rotation-right` where `rotationCanStep` allows —
+the blinking cursor before the row it is on, and the down page arrow (`PageArrows` named `rotation`).
+The value reads the mode's name (`off`, `hotter`, `colder`, `rainbow`; a name is at most seven
+characters, which a `static_assert` holds), `C` and the saved slot as two digits (`C01`), or `C` alone.
+The layer's `regions` are the grid's swatches.
+
+The grid is two rows of five: level `i` in column `i % 5` of row `i / 5`, its digit at
+`gridDigitX(i)`, `gridDigitY(i)` over its swatch at `gridSwatchX(i)`, `gridSwatchY(i)`. Each swatch is a
+`ColorSwatch` of `kGridSquare`-pixel squares named `rotation-level-<i>`, so a square is
+`rotation-level-<i>-<shade>`. The colors are the selected mode's ten (`rotationPalettes`), so the grid
+changes as the selector steps; on `off` every cell is the player's own palette (`shadesOf` at
+`paletteIndexOf(s)`), which is what every level of a round looks like then. The menu draws through
+`paletteIndexOf(s)`.
+
+**While `previewing` is set the held preview takes the screen.** It is the palette editor's preview
+through one level's palette, with the level beside it:
+
+| Layer | Holds |
+|---|---|
+| `rotation-backdrop` | `PreviewBackdrop(atlas, preview)`, the backdrop with its two brick walls |
+| `rotation-preview` | the heading, where the menu draws it; `PalettePreview(atlas, preview)`; and `LevelSelector("rotation-preview-level", previewLevel, kPreviewLevelX, kPreviewLevelY, …)`. No regions |
+
+`preview` is `kRotationRamp` while a rotation is on, and `paletteIndexOf(s)` on `off`. The rotation set
+holds the mode's palette at `previewLevel` while the preview is up (`rotationPaletteFor`, above), so the
+preview shows the level as a round will draw it. Nothing of the menu is drawn while it is up.
+
+The two shared components it adds:
+
+| Component | Returns |
+|---|---|
+| `ColorSwatch(keyStem, colors, x, y, square)` (`render/components/color_swatch.h`) | four opaque `ColorFill` squares of `square` pixels, abutting from (x, y), named `<keyStem>-<i>` |
+| `LevelSelector(keyStem, level, x, y, atlas, ramp)` (`render/components/level_selector.h`) | the word `level` at (x, y), the number `kLevelSelectorNumberDx` (48) after it, and `<keyStem>-left` / `-down` while `level > 0`, `<keyStem>-right` / `-up` while `level < 9` — in the cells either side of the number and a glyph above and below it. `kLevelSelectorWidth` (64) is the whole item's width |
+
+The words, `kGridSquare`, `kGridRowPitch` and `kPreviewLevelY` are each one constant in `layout.h`.
+The render callback has the screen's case:
+
+```cpp
+case kirpich::GameState::PALETTE_ROTATION: {
+    retropp::FrameDrawState screen;
+    screen.layers = kirpich::render::PaletteRotationScreen(
+        game.rotationScreen, settings, rotations, game.screens.cursorVisible, tiles);
     renderer.renderFrame(screen);
     return;
 }
