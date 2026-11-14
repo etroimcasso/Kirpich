@@ -99,6 +99,9 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
 </p>
 <p align="center"><em>Twelve of the eighty palettes: the original green, melon, sunset, harbor dawn, aurora, kingfisher, poison, synthwave, plasma power saver, sea, forest, and lichen.</em></p>
 
+<p align="center"><img src="docs/media/palette-editor.png" width="320" alt="The palette editor — a preset slot, its load, save and clear actions, and the four shades as red, green and blue values beside their colors"></p>
+<p align="center"><em>The Palette Editor</em></p>
+
 <p align="center">
   <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
   <img src="docs/media/gameplay-ghost-pal-2.png" width="320" alt="Gameplay, ghost piece enabled — the landing shadow visible at the base of the well">
@@ -107,6 +110,9 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
 
 <p align="center"><img src="docs/media/stats-pal-1.png" width="320" alt="The statistics menu — all-time totals, one branch per mode, and the achievements"></p>
 <p align="center"><em>The statistics menu: the whole game's totals, a branch for each mode, and the achievements.</em></p>
+
+<p align="center"><img src="docs/media/pieces-all-time.png" width="320" alt="The statistics' pieces page — each of the seven pieces with how many of it have been played, all time"></p>
+<p align="center"><em>The pieces page: how many of each piece have been played, all time.</em></p>
 
 ## Download
 
