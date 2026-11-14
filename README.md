@@ -99,8 +99,11 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
 </p>
 <p align="center"><em>Twelve of the eighty palettes: the original green, melon, sunset, harbor dawn, aurora, kingfisher, poison, synthwave, plasma power saver, sea, forest, and lichen.</em></p>
 
-<p align="center"><img src="docs/media/palette-editor.png" width="320" alt="The palette editor — a preset slot, its load, save and clear actions, and the four shades as red, green and blue values beside their colors"></p>
-<p align="center"><em>The Palette Editor</em></p>
+<p align="center">
+  <img src="docs/media/palette-selector.png" width="320" alt="The Palette screen — the palette selector, the palette's four colors, and the seven pieces drawn in it">
+  <img src="docs/media/palette-editor.png" width="320" alt="The palette editor — a preset slot, its load, save and clear actions, and the four shades as red, green and blue values beside their colors">
+</p>
+<p align="center"><em>The Palette Screen and the Palette Editor</em></p>
 
 <p align="center">
   <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
