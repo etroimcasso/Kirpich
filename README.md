@@ -111,11 +111,11 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
 </p>
 <p align="center"><em>The same frame with the ghost piece off and on.</em></p>
 
-<p align="center"><img src="docs/media/stats-pal-1.png" width="320" alt="The statistics menu — all-time totals, one branch per mode, and the achievements"></p>
-<p align="center"><em>The statistics menu: the whole game's totals, a branch for each mode, and the achievements.</em></p>
-
-<p align="center"><img src="docs/media/pieces-all-time.png" width="320" alt="The statistics' pieces page — each of the seven pieces with how many of it have been played, all time"></p>
-<p align="center"><em>The pieces page: how many of each piece have been played, all time.</em></p>
+<p align="center">
+  <img src="docs/media/stats-pal-1.png" width="320" alt="The statistics menu — all-time totals, one branch per mode, and the achievements">
+  <img src="docs/media/pieces-all-time.png" width="320" alt="The statistics' pieces page — each of the seven pieces with how many of it have been played, all time">
+</p>
+<p align="center"><em>The statistics menu and the pieces page.</em></p>
 
 ## Download
 
