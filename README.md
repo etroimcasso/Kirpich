@@ -107,16 +107,22 @@ A native reimplementation of **Tetris** for the Game Boy (DMG), running as ordin
 <p align="center"><em>Twelve of the eighty palettes: the original green, melon, sunset, harbor dawn, aurora, kingfisher, poison, synthwave, plasma power saver, sea, forest, and lichen.</em></p>
 
 <p align="center">
+  <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
+  <img src="docs/media/gameplay-ghost-pal-2.png" width="320" alt="Gameplay, ghost piece enabled — the landing shadow visible at the base of the well">
+</p>
+<p align="center"><em>The same frame with the ghost piece off and on.</em></p>
+
+<p align="center">
   <img src="docs/media/palette-selector.png" width="320" alt="The Palette screen — the palette selector, the palette's four colors, and the seven pieces drawn in it">
   <img src="docs/media/palette-editor.png" width="320" alt="The palette editor — a preset slot, its load, save and clear actions, and the four shades as red, green and blue values beside their colors">
 </p>
 <p align="center"><em>The Palette Screen and the Palette Editor</em></p>
 
 <p align="center">
-  <img src="docs/media/gameplay-pal-2.png" width="320" alt="Gameplay, ghost piece disabled">
-  <img src="docs/media/gameplay-ghost-pal-2.png" width="320" alt="Gameplay, ghost piece enabled — the landing shadow visible at the base of the well">
+  <img src="docs/media/palette-rotate-hotter.png" width="320" alt="The palette rotation screen — the hotter rotation's ten levels, each with its four colors, above the edit rotation item and the rotation selector">
+  <img src="docs/media/palette-rotation-editor.png" width="320" alt="The rotation editor — a preset slot, its load, save and clear actions, and the ten levels, each with its palette's number and four colors">
 </p>
-<p align="center"><em>The same frame with the ghost piece off and on.</em></p>
+<p align="center"><em>The Palette Rotation Screen and the Rotation Editor</em></p>
 
 <p align="center">
   <img src="docs/media/stats-pal-1.png" width="320" alt="The statistics menu — all-time totals, one branch per mode, and the achievements">
