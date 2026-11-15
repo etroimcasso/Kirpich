@@ -12,7 +12,8 @@
 // The screen, top to bottom: the heading; the preset selector and its three actions; the grid of the
 // ten levels, two columns of five, level `i` in column `i / kGridRows` of row `i % kGridRows`. A cell,
 // from its left edge, is the cursor, the level's digit, a colon, a place for the entered number's left
-// arrow, the number and its right arrow, with the level's four colors under the digit.
+// arrow, the number and its right arrow, with the level's four colors under the digit and the entered
+// number's up and down arrows over and under the number.
 
 #include <cstddef>
 #include <cstdint>
@@ -79,6 +80,19 @@ inline constexpr int kCellLeftArrowDx     = 32;
 inline constexpr int kCellNumberDx        = 40;
 inline constexpr int kCellNumberMaxGlyphs = 3;
 inline constexpr int kCellRightArrowDx    = 64;
+
+// The entered number's up and down arrows, for its ten-steps, centered over and under the number's
+// field. They stand where the cells' ink leaves room rather than a whole glyph clear: the rows are
+// closer together than a glyph's height above and below a number. A glyph inks rows 0 to 6 of its
+// cell. The selector turned up inks rows 3 to 6, and turned down rows 1 to 4. So the up arrow's cell
+// starts a glyph above the number and the down arrow's a row short of a glyph below it, and each
+// stands one pixel off the number, as the left arrow does.
+inline constexpr int kGlyphInkBottom      = 6;
+inline constexpr int kUpArrowInkTop       = 3;
+inline constexpr int kDownArrowInkBottom  = 4;
+inline constexpr int kCellVerticalArrowDx = kCellNumberDx + (kCellNumberMaxGlyphs - 1) * kGlyph / 2;
+inline constexpr int kCellUpArrowDy       = -kGlyph;
+inline constexpr int kCellDownArrowDy     = kGlyph - 1;
 
 // The swatch under the cell's text: four squares of kCellSquare pixels, from under the level's digit.
 inline constexpr int kCellSwatchDx = 16;
@@ -158,6 +172,16 @@ static_assert(cellX(kLastLevel) + kCellRightArrowDx + kGlyph <= kScreenWidth,
 static_assert(kCellRightArrowDx + kGlyph <= kGridCellPitch,
               "a cell's right arrow runs into the next column");
 static_assert(kCellSwatchDx + 4 * kCellSquare <= kGridCellPitch, "a swatch is wider than its cell");
+static_assert(kGridFirstY + kCellUpArrowDy + kUpArrowInkTop > kClearY + kGlyphInkBottom,
+              "the first row's up arrow runs into the clear row");
+static_assert(kGridRowPitch + kCellUpArrowDy + kUpArrowInkTop > kGlyphInkBottom,
+              "an up arrow runs into the number above it");
+static_assert(kCellDownArrowDy + kDownArrowInkBottom < kGridRowPitch,
+              "a down arrow runs into the number below it");
+static_assert(kCellSwatchDx + 4 * kCellSquare <= kCellVerticalArrowDx,
+              "the up and down arrows run into the swatch");
+static_assert(cellY(kGridRows - 1) + kCellDownArrowDy + kGlyph <= kScreenHeight,
+              "the last row's down arrow runs off the screen");
 
 // The held preview.
 static_assert(kPreviewLevelBoxColumn > kPreviewWallLeftColumn,

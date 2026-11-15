@@ -6,9 +6,11 @@
 // The number is paletteChoiceText of the level's stop (levelPaletteChoice): a ramp's number counted
 // from one, `C` and a saved palette's slot, or `C` alone for colors on no stop. The cell whose number
 // is entered draws it through the selected font palette, with an arrow either side where a step
-// exists (enteredNumberCanStep), named `rotation-editor-number-left` and `-right`. The cursor stands
-// before the cell it is on while the cursor is in the grid, no number is entered and `blinkOn`.
-// LevelCellSwatches draws each level's colors under its text.
+// exists (enteredNumberCanStep), named `rotation-editor-number-left` and `-right`, and an arrow over
+// and under it for the ten-steps, named `-up` and `-down`. Up stands with the right arrow and Down
+// with the left, because a ten-step clamps at the walk's ends and so moves exactly where one step
+// does. The cursor stands before the cell it is on while the cursor is in the grid, no number is
+// entered and `blinkOn`. LevelCellSwatches draws each level's colors under its text.
 
 #include <cstdint>
 

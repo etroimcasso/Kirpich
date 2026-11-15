@@ -929,7 +929,7 @@ TEST(RotationEditor, LeftAndRightRepeatWhileHeld) {
 // nothing.
 // (18a) Up and Down step an entered number ten stops along the walk, on the key repeat, and clamp: a
 // ten-step runs as far as the walk goes and stops at its end, and is an end stop only when it cannot
-// move at all. No arrows are drawn for it.
+// move at all. Its arrows are case (21a)'s.
 TEST(RotationEditor, UpAndDownStepTheEnteredNumberByTen) {
     Probe probe;
     probe.rotations.working.levels[0] = rampColors(19);  // reads 20
@@ -980,13 +980,6 @@ TEST(RotationEditor, UpAndDownStepTheEnteredNumberByTen) {
     s.step({Action::MenuDown});
     EXPECT_EQ(s.ui().entered, (PaletteChoice{.custom = false, .value = 0}));
     EXPECT_EQ(s.sound(), SquareSfxId::NONE);
-
-    // No up or down arrow stands over or under the entered number.
-    for (const retropp::Sprite& sprite :
-         spritesOf(draw(s.ui(), probe.rotations, probe.palettes, true))) {
-        EXPECT_FALSE(sprite.key.value.ends_with("-up")) << sprite.key.value;
-        EXPECT_FALSE(sprite.key.value.ends_with("-down")) << sprite.key.value;
-    }
 }
 
 TEST(RotationEditor, AKeepsTheNumberAndBPutsItBack) {
@@ -1117,6 +1110,70 @@ TEST(RotationEditor, ACellsParts) {
     EXPECT_EQ(kirpich::systems::paletteChoiceText(
                   kirpich::systems::levelPaletteChoice(ui, probe.rotations, &probe.palettes, 2)),
               "C07");
+}
+
+// (21a) The entered number's up and down arrows: Up over the number exactly where a step forward
+// exists and Down under it exactly where one back does, centered on the number's field a pixel off its
+// ink, turned from the selector; none at the walk's ends that way, and none on a cell not entered.
+TEST(RotationEditor, TheEnteredNumberCarriesUpAndDownArrows) {
+    Probe probe;
+    const auto arrowsAt = [&](std::uint8_t level, PaletteChoice entered) {
+        RotationEditorState ui{.row = RotationEditorRow::LEVELS, .level = level, .entering = true};
+        ui.entered         = entered;
+        const auto content = spritesOf(draw(ui, probe.rotations, probe.palettes));
+        return std::pair{named(content, "rotation-editor-number-up"),
+                         named(content, "rotation-editor-number-down")};
+    };
+
+    // The middle of the walk: both, at every level.
+    for (std::uint8_t level = 0; level < 10; ++level) {
+        const auto [up, down] = arrowsAt(level, PaletteChoice{.custom = false, .value = 40});
+        ASSERT_TRUE(up) << "level " << +level;
+        ASSERT_TRUE(down) << "level " << +level;
+        const int x = layout::cellX(level) + 48;  // centered on the three-glyph field at 40
+        EXPECT_EQ(up->x, x);
+        EXPECT_EQ(down->x, x);
+        EXPECT_EQ(up->y, layout::cellY(level) - 8);    // ink rows 3-6, one pixel over the number
+        EXPECT_EQ(down->y, layout::cellY(level) + 7);  // ink rows 1-4, one pixel under it
+        EXPECT_EQ(up->rotation, retropp::Rotation::Rot270);
+        EXPECT_EQ(down->rotation, retropp::Rotation::Rot90);
+        EXPECT_EQ(up->tile, down->tile) << "the same selector tile turned opposite ways";
+    }
+
+    // The first ramp: no step back, so no Down; the Up stays.
+    {
+        const auto [up, down] = arrowsAt(3, PaletteChoice{.custom = false, .value = 0});
+        EXPECT_TRUE(up);
+        EXPECT_FALSE(down);
+    }
+    // The walk's last stop - the last saved palette, slot 7 of the probe's - has no step forward.
+    {
+        const auto [up, down] = arrowsAt(3, PaletteChoice{.custom = true, .value = 7});
+        EXPECT_FALSE(up);
+        EXPECT_TRUE(down);
+    }
+    // Up stands exactly with Right and Down with Left, wherever the number is entered.
+    for (const PaletteChoice entered : {PaletteChoice{.custom = false, .value = 0},
+                                        PaletteChoice{.custom = false, .value = 79},
+                                        PaletteChoice{.custom = true, .value = 1},
+                                        PaletteChoice{.custom = true, .value = 7}}) {
+        RotationEditorState ui{.row = RotationEditorRow::LEVELS, .level = 6, .entering = true};
+        ui.entered         = entered;
+        const auto content = spritesOf(draw(ui, probe.rotations, probe.palettes));
+        EXPECT_EQ(named(content, "rotation-editor-number-up").has_value(),
+                  named(content, "rotation-editor-number-right").has_value());
+        EXPECT_EQ(named(content, "rotation-editor-number-down").has_value(),
+                  named(content, "rotation-editor-number-left").has_value());
+    }
+
+    // No number entered: no up or down arrow anywhere.
+    for (std::uint8_t level = 0; level < 10; ++level) {
+        const auto content = spritesOf(draw(
+            RotationEditorState{.row = RotationEditorRow::LEVELS, .level = level},
+            probe.rotations, probe.palettes));
+        EXPECT_FALSE(named(content, "rotation-editor-number-up"));
+        EXPECT_FALSE(named(content, "rotation-editor-number-down"));
+    }
 }
 
 // (22) The cursor: before the label on the four rows above the grid, before the cell in the grid, and

@@ -42,7 +42,8 @@ digit, so the cycle repeats every ten levels. This game does the same.
   number of the palette that level wears — a ramp's number, `C` and a saved palette's slot, or `C` for
   colors on neither — with that palette's four colors under it. A on a cell enters its number; Left and
   Right then step it one at a time through the ramps and the saved palettes, and Up and Down ten at a
-  time, stopping at either end, all held to repeat; A keeps it and B puts back what the level wore.
+  time, stopping at either end, all held to repeat, with an arrow on each side of the number it can
+  still move toward; A keeps it and B puts back what the level wore.
 - **`save preset` names the rotation.** A screen of its own opens holding the slot's name, or its
   number, and takes up to seven characters the way the top-score entry takes a name: Up and Down turn
   the letter at the place through `a` to `z`, a period, a hyphen, `0` to `9` and a space; A moves on and
@@ -160,7 +161,10 @@ the ramp at each step and never reach the saved palettes after it.
 **Up and Down move an entered number by ten, and clamp.** With eighty ramps before the first saved
 palette, one stop at a time is slow. Up and Down move ten stops, as the palette editor's tens place
 moves a value by ten, and like that value they clamp: a ten-step near either end goes as far as the
-walk does and stops there. They carry no arrows; Left and Right's arrows say a step exists.
+walk does and stops there. An arrow over the entered number shows Up can move, and one under it shows
+Down can. A ten-step clamps, so these show exactly where Right's and Left's arrows do. The editor
+first shipped with no arrows for the ten-step. They were added once the screen showed room above and
+below the number: the swatches stand under the digit, not under the number.
 
 **The shipped rotations are on the preset selector.** The request asked that a preset serve as a
 starting point a player then tweaks level by level. Putting `hotter`, `colder` and `rainbow` ahead of

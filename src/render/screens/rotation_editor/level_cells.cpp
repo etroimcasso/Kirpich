@@ -32,13 +32,19 @@ Sprites LevelCells(const kirpich::RotationEditorState& ui, const kirpich::Custom
         add(entered ? SelectedGlyphs(number, x + kCellNumberDx, y, kGlyph, atlas, ramp)
                     : Glyphs(number, x + kCellNumberDx, y, kGlyph, atlas, ramp));
 
+        // A ten-step clamps at the walk's ends, so it can move exactly where a single step can: Up
+        // goes forward with Right, Down back with Left.
         if (entered && systems::enteredNumberCanStep(ui, &palettes, -1)) {
             add(Arrow("rotation-editor-number-left", x + kCellLeftArrowDx, y, ArrowDirection::LEFT,
                       kArrowZ, atlas, ramp));
+            add(Arrow("rotation-editor-number-down", x + kCellVerticalArrowDx, y + kCellDownArrowDy,
+                      ArrowDirection::DOWN, kArrowZ, atlas, ramp));
         }
         if (entered && systems::enteredNumberCanStep(ui, &palettes, +1)) {
             add(Arrow("rotation-editor-number-right", x + kCellRightArrowDx, y,
                       ArrowDirection::RIGHT, kArrowZ, atlas, ramp));
+            add(Arrow("rotation-editor-number-up", x + kCellVerticalArrowDx, y + kCellUpArrowDy,
+                      ArrowDirection::UP, kArrowZ, atlas, ramp));
         }
     }
 
