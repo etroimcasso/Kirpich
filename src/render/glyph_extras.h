@@ -12,7 +12,9 @@
 //
 //   cell 0  the asterisk, which a screen's title carries while what the screen edits is unsaved;
 //   cell 1  the colon, which stands between a label and its value, as in the rotation editor's
-//           `0: 12`.
+//           `0: 12`;
+//   cell 2  the opening parenthesis and
+//   cell 3  the closing one, which enclose the settings screen's `(rotating)`.
 //
 // To add a glyph: draw its art here, give it the next cell, raise kGlyphExtraCount, add it to
 // glyphExtraSheet, and map its character in render/components/glyphs.cpp.
@@ -27,7 +29,7 @@ namespace kirpich::render {
 inline constexpr int kGlyphExtraSide = 8;
 
 // How many glyphs the sheet holds.
-inline constexpr int kGlyphExtraCount = 2;
+inline constexpr int kGlyphExtraCount = 4;
 
 using GlyphArt = std::array<std::string_view, kGlyphExtraSide>;
 
@@ -53,9 +55,33 @@ inline constexpr GlyphArt kColonArt{{
     "........",
 }};
 
+inline constexpr GlyphArt kOpenParenArt{{
+    "....##..",
+    "...##...",
+    "..##....",
+    "..##....",
+    "..##....",
+    "...##...",
+    "....##..",
+    "........",
+}};
+
+inline constexpr GlyphArt kCloseParenArt{{
+    "..##....",
+    "...##...",
+    "....##..",
+    "....##..",
+    "....##..",
+    "...##...",
+    "..##....",
+    "........",
+}};
+
 // Each glyph's cell in the sheet.
-inline constexpr std::uint16_t kAsteriskCell = 0;
-inline constexpr std::uint16_t kColonCell    = 1;
+inline constexpr std::uint16_t kAsteriskCell   = 0;
+inline constexpr std::uint16_t kColonCell      = 1;
+inline constexpr std::uint16_t kOpenParenCell  = 2;
+inline constexpr std::uint16_t kCloseParenCell = 3;
 
 // One glyph's index plane, row by row: 0 where the art has '#', 1 elsewhere.
 using GlyphPlane = std::array<std::uint8_t, kGlyphExtraSide * kGlyphExtraSide>;
@@ -78,6 +104,14 @@ using GlyphPlane = std::array<std::uint8_t, kGlyphExtraSide * kGlyphExtraSide>;
     return glyphIndices(kColonArt);
 }
 
+[[nodiscard]] constexpr GlyphPlane openParenIndices() noexcept {
+    return glyphIndices(kOpenParenArt);
+}
+
+[[nodiscard]] constexpr GlyphPlane closeParenIndices() noexcept {
+    return glyphIndices(kCloseParenArt);
+}
+
 // The sheet's width and height in pixels, and the whole sheet as one index plane, row by row: every
 // glyph's plane side by side, cell `i` starting at column `i * kGlyphExtraSide`.
 inline constexpr int kGlyphExtraSheetWidth  = kGlyphExtraCount * kGlyphExtraSide;
@@ -86,7 +120,8 @@ inline constexpr int kGlyphExtraSheetHeight = kGlyphExtraSide;
 using GlyphSheet = std::array<std::uint8_t, kGlyphExtraSheetWidth * kGlyphExtraSheetHeight>;
 
 [[nodiscard]] constexpr GlyphSheet glyphExtraSheet() noexcept {
-    const std::array<GlyphPlane, kGlyphExtraCount> planes{asteriskIndices(), colonIndices()};
+    const std::array<GlyphPlane, kGlyphExtraCount> planes{asteriskIndices(), colonIndices(),
+                                                          openParenIndices(), closeParenIndices()};
     GlyphSheet sheet{};
     for (std::size_t cell = 0; cell < planes.size(); ++cell) {
         for (std::size_t row = 0; row < static_cast<std::size_t>(kGlyphExtraSide); ++row) {
@@ -100,7 +135,7 @@ using GlyphSheet = std::array<std::uint8_t, kGlyphExtraSheetWidth * kGlyphExtraS
 }
 
 static_assert([] {
-    for (const GlyphArt& art : {kAsteriskArt, kColonArt}) {
+    for (const GlyphArt& art : {kAsteriskArt, kColonArt, kOpenParenArt, kCloseParenArt}) {
         for (const std::string_view row : art) {
             if (row.size() != kGlyphExtraSide) return false;
             for (const char c : row) {
@@ -111,6 +146,6 @@ static_assert([] {
     return true;
 }(), "every row of a glyph's art is eight characters of '#' and '.'");
 
-static_assert(kColonCell + 1 == kGlyphExtraCount, "every glyph has a cell inside the sheet");
+static_assert(kCloseParenCell + 1 == kGlyphExtraCount, "every glyph has a cell inside the sheet");
 
 }  // namespace kirpich::render

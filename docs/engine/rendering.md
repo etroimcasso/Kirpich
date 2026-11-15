@@ -113,7 +113,8 @@ the engine's loaders throw when a file is missing or will not decode.
 lacks (`src/render/glyph_extras.h`), uploaded as one sheet built from index planes in source in the
 font's own convention (index 0 the ink, 1 the background), so they draw through the font palettes. The
 glyphs stand side by side, one 8x8 cell each (`glyphExtraSheet()`, `kGlyphExtraSheetWidth` by
-`kGlyphExtraSheetHeight`): cell 0 is the asterisk and cell 1 the colon.
+`kGlyphExtraSheetHeight`): cell 0 is the asterisk, cell 1 the colon, and cells 2 and 3 the opening
+and closing parentheses.
 Per shade ramp it holds a `RampPalettes` of nine `retropp::PaletteId`s — plus two live sets whose
 colors change in place under the same handles: `custom`, the player's own palette, which
 `updateCustomPalette` writes ([settings.md](settings.md#the-custom-set)), and `rotation`, the palette a

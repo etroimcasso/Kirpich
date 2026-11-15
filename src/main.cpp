@@ -791,13 +791,17 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         // The settings screen's page arrow is the game's selector tile stood on end, which an object
         // cannot express — the hardware has two flips and no quarter turn — so it joins the object
-        // buffer's sprites here rather than going through it.
+        // buffer's sprites here rather than going through it. The rotation note under the palette row
+        // joins them the same way, gated rather than written into the map.
         retropp::FrameDrawState frame;
 
         if (game.flow.gameState == kirpich::GameState::SETTINGS) {
             const auto arrows =
                 kirpich::render::settingsPageArrows(game.screens, paletteIndex, tiles);
             sprites.insert(sprites.end(), arrows.begin(), arrows.end());
+            const auto note =
+                kirpich::render::settingsRotationNote(game.screens, settings, paletteIndex, tiles);
+            sprites.insert(sprites.end(), note.begin(), note.end());
         }
 
         // The heart-mode indicator, beside a difficulty screen's heading. Gated rather than written

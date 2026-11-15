@@ -9,6 +9,9 @@
 // the conditions and the name that screen gives them. An arrow is drawn only where there is somewhere
 // to go that way, so the ends of a range are visible rather than something a player finds by
 // pressing.
+//
+// Beside them, the settings screen's rotation note: the words "(rotating)" under its palette row
+// while a round's palette follows its level.
 
 #include <cstddef>
 #include <cstdint>
@@ -16,10 +19,29 @@
 
 #include <retropp/draw_state.h>  // Sprite
 
-#include "render/tile_atlas.h"      // TileAtlas
-#include "state/screen_ui_state.h"  // ScreenUiState
+#include "render/components/option_row.h"  // optionPixels
+#include "render/tile_atlas.h"             // TileAtlas
+#include "state/screen_ui_state.h"         // ScreenUiState
+#include "state/settings.h"                // Settings
+#include "systems/settings_screen.h"       // kLabelCol, settingsRowLine
 
 namespace kirpich::render {
+
+// Where the settings screen's rotation note stands: from the label column, on the empty line under
+// the palette row. The palette row's label and its arrow leave nine cells between them, and the note
+// takes ten, so it stands on the next line rather than beside the label.
+inline constexpr int kSettingsRotationNoteX = optionPixels(systems::kLabelCol);
+inline constexpr int kSettingsRotationNoteY =
+    optionPixels(systems::settingsRowLine(kirpich::SettingsRow::PALETTE) + 1);
+
+// The settings screen's rotation note (render/components/rotation_note.h), at
+// kSettingsRotationNoteX/Y through the ramp's dim font palette: drawn while the page shown is the one
+// holding the palette row and Settings::paletteRotation is not OFF, and nothing otherwise. Append it
+// to the composed sprites as settingsPageArrows is.
+[[nodiscard]] std::vector<retropp::Sprite> settingsRotationNote(const kirpich::ScreenUiState& ui,
+                                                                const kirpich::Settings&      s,
+                                                                std::uint8_t                  ramp,
+                                                                const TileAtlas&              atlas);
 
 // The settings screen's page arrows, named `settings-page-up` / `settings-page-down`: up while a page
 // precedes the one shown, down while one follows it. Append the result to the sprites the object

@@ -6,10 +6,10 @@
 // eight-pixel grid, and so it draws over whatever is behind it: through an object palette only the
 // ink lands. It is the same way the Type C rise picker puts its digits inside the box's compartments.
 //
-// The font has the letters, the digits, a period and a hyphen; an asterisk and a colon draw from the
-// port's own extras sheet (render/glyph_extras.h) through the same palettes. A character neither can spell takes
-// its place in the run and draws nothing. Each glyph is named for where it sits, so a run keeps its
-// identity between frames without being handed a name.
+// The font has the letters, the digits, a period and a hyphen; an asterisk, a colon and the two
+// parentheses draw from the port's own extras sheet (render/glyph_extras.h) through the same
+// palettes. A character neither can spell takes its place in the run and draws nothing. Each glyph
+// is named for where it sits, so a run keeps its identity between frames without being handed a name.
 
 #include <cstddef>
 #include <cstdint>

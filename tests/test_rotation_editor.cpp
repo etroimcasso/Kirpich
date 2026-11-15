@@ -1456,7 +1456,7 @@ TEST(RotationEditor, EveryFrameNamesEachObjectOnceAndStaysOnScreen) {
 TEST(RotationEditor, TheExtraGlyphs) {
     EXPECT_EQ(kirpich::render::kAsteriskCell, 0);
     EXPECT_EQ(kirpich::render::kColonCell, 1);
-    EXPECT_EQ(kirpich::render::kGlyphExtraCount, 2);
+    EXPECT_EQ(kirpich::render::kGlyphExtraCount, 4);
 
     const auto colon = kirpich::render::colonIndices();
     for (std::size_t row = 0; row < 8; ++row) {
@@ -1468,13 +1468,13 @@ TEST(RotationEditor, TheExtraGlyphs) {
 
     const auto asterisk = kirpich::render::asteriskIndices();
     const auto sheet    = kirpich::render::glyphExtraSheet();
-    ASSERT_EQ(sheet.size(), 16u * 8u);
-    EXPECT_EQ(kirpich::render::kGlyphExtraSheetWidth, 16);
+    ASSERT_EQ(sheet.size(), 32u * 8u);
+    EXPECT_EQ(kirpich::render::kGlyphExtraSheetWidth, 32);
     EXPECT_EQ(kirpich::render::kGlyphExtraSheetHeight, 8);
     for (std::size_t row = 0; row < 8; ++row) {
         for (std::size_t col = 0; col < 8; ++col) {
-            EXPECT_EQ(sheet[row * 16 + col], asterisk[row * 8 + col]) << "cell 0 " << row << "," << col;
-            EXPECT_EQ(sheet[row * 16 + 8 + col], colon[row * 8 + col]) << "cell 1 " << row << "," << col;
+            EXPECT_EQ(sheet[row * 32 + col], asterisk[row * 8 + col]) << "cell 0 " << row << "," << col;
+            EXPECT_EQ(sheet[row * 32 + 8 + col], colon[row * 8 + col]) << "cell 1 " << row << "," << col;
         }
     }
 

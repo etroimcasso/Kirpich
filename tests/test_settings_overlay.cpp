@@ -1,5 +1,6 @@
-// The shade ramps, and the page arrows of the screens drawn into the map — behavioral tests over
-// src/render/palettes.h and src/render/settings_overlay.h.
+// The shade ramps, the page arrows of the screens drawn into the map, and the settings screen's
+// rotation note with its parentheses — behavioral tests over src/render/palettes.h,
+// src/render/settings_overlay.h and src/render/glyph_extras.h.
 //
 // Device-free: the arrows are a pure function from the screen's state to a list of sprites, with no
 // renderer and no device. These are the port's own screens, so every asserted value comes from the
@@ -8,9 +9,13 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
+#include "render/components/glyphs.h"
+#include "render/glyph_extras.h"
 #include "render/palettes.h"
 #include "render/tile_atlas.h"
 #include "render/settings_overlay.h"
@@ -203,6 +208,107 @@ TEST(SettingsOverlay, PageUpArrowStandsAboveTheHeading) {
     // The up arrow's row is derived from the heading's rather than written as a number of its own,
     // which is what stops a screen placing one under its heading.
     EXPECT_EQ(kirpich::systems::kPageUpArrowRow + 1, kirpich::systems::kScreenTitleRow);
+}
+
+// (3a-iii) The rotation note: "(rotating)" on the empty line under the palette row, from the label
+// column, dimmed through the ramp in use - drawn exactly while the palette row's page is shown and a
+// round's palette follows its level, every mode but OFF.
+TEST(SettingsOverlay, TheRotationNoteStandsUnderThePaletteRow) {
+    constexpr std::string_view kNote  = "(rotating)";
+    constexpr int              kNoteX = 24;  // column 3
+    constexpr int              kNoteY = 72;  // line 9, under the palette row on line 8
+
+    TileAtlas atlas;
+    atlas.glyphExtras = static_cast<retropp::AtlasId>(55);
+    for (std::size_t ramp = 0; ramp < kShadeRampCount; ++ramp) {
+        atlas.palettes[ramp].fontSprite    = static_cast<retropp::PaletteId>(100 + ramp);
+        atlas.palettes[ramp].fontSpriteDim = static_cast<retropp::PaletteId>(300 + ramp);
+    }
+    constexpr std::uint8_t kRamp = 5;
+
+    for (std::size_t mode = 0; mode < kirpich::kPaletteRotationCount; ++mode) {
+        const kirpich::Settings s{.paletteRotation = static_cast<kirpich::PaletteRotation>(mode)};
+        const bool shown = s.paletteRotation != kirpich::PaletteRotation::OFF;
+
+        // The palette row's own page, with the cursor on any of its rows.
+        for (const SettingsRow row : {SettingsRow::DISPLAY, SettingsRow::PALETTE,
+                                      SettingsRow::CONTROLS}) {
+            const auto note = kirpich::render::settingsRotationNote(on(row), s, kRamp, atlas);
+            ASSERT_EQ(note.size(), shown ? kNote.size() : 0u) << "mode " << mode;
+            for (std::size_t i = 0; i < note.size(); ++i) {
+                EXPECT_EQ(note[i].x, kNoteX + static_cast<int>(i) * 8) << "glyph " << i;
+                EXPECT_EQ(note[i].y, kNoteY) << "glyph " << i;
+                EXPECT_EQ(note[i].palette, static_cast<retropp::PaletteId>(300 + kRamp))
+                    << "glyph " << i;
+            }
+            if (shown) {
+                EXPECT_EQ(note.front().atlas, atlas.glyphExtras);
+                EXPECT_EQ(note.front().tile, kirpich::render::kOpenParenCell);
+                EXPECT_EQ(note.back().tile, kirpich::render::kCloseParenCell);
+            }
+        }
+
+        // Any other page draws nothing, whatever the rotation.
+        for (const SettingsRow row : {SettingsRow::GHOST_PIECE, SettingsRow::NAME_DIGITS,
+                                      SettingsRow::RESET_SCORES}) {
+            EXPECT_TRUE(kirpich::render::settingsRotationNote(on(row), s, kRamp, atlas).empty())
+                << "mode " << mode;
+        }
+    }
+
+    // The line it takes is empty: the palette row is on line 8 and the next row three lines on.
+    EXPECT_EQ(kirpich::systems::settingsRowLine(SettingsRow::PALETTE), 8u);
+    EXPECT_EQ(kirpich::systems::settingsRowLine(SettingsRow::CONTROLS), 11u);
+}
+
+// (3a-iv) The note's parentheses: each plane against its art, both in the extras sheet after the
+// asterisk and the colon, and every font form drawing them from there through its own palette.
+TEST(SettingsOverlay, TheParenthesesDrawFromTheExtrasSheet) {
+    EXPECT_EQ(kirpich::render::kOpenParenCell, 2);
+    EXPECT_EQ(kirpich::render::kCloseParenCell, 3);
+
+    // Two-pixel strokes over rows 0-6: the opening one bows left, the closing one right.
+    constexpr std::array<int, 7> kOpenLeft{4, 3, 2, 2, 2, 3, 4};
+    constexpr std::array<int, 7> kCloseLeft{2, 3, 4, 4, 4, 3, 2};
+    const auto open  = kirpich::render::openParenIndices();
+    const auto close = kirpich::render::closeParenIndices();
+    const auto sheet = kirpich::render::glyphExtraSheet();
+    for (std::size_t row = 0; row < 8; ++row) {
+        for (std::size_t col = 0; col < 8; ++col) {
+            const auto inks = [&](const std::array<int, 7>& left) {
+                return row < 7 && (static_cast<int>(col) == left[row] ||
+                                   static_cast<int>(col) == left[row] + 1);
+            };
+            EXPECT_EQ(open[row * 8 + col], inks(kOpenLeft) ? 0 : 1) << row << "," << col;
+            EXPECT_EQ(close[row * 8 + col], inks(kCloseLeft) ? 0 : 1) << row << "," << col;
+            EXPECT_EQ(sheet[row * 32 + 16 + col], open[row * 8 + col]) << "cell 2 " << row << "," << col;
+            EXPECT_EQ(sheet[row * 32 + 24 + col], close[row * 8 + col]) << "cell 3 " << row << "," << col;
+        }
+    }
+
+    TileAtlas atlas;
+    atlas.glyphExtras                    = static_cast<retropp::AtlasId>(55);
+    atlas.palettes[0].fontSprite         = static_cast<retropp::PaletteId>(1);
+    atlas.palettes[0].fontSpriteDim      = static_cast<retropp::PaletteId>(2);
+    atlas.palettes[0].fontSpriteSelected = static_cast<retropp::PaletteId>(3);
+    struct Form {
+        kirpich::render::Sprites sprites;
+        retropp::PaletteId       palette;
+    };
+    for (const Form& f : {Form{kirpich::render::Glyphs("()", 0, 0, 8, atlas, 0),
+                               static_cast<retropp::PaletteId>(1)},
+                          Form{kirpich::render::DimGlyphs("()", 0, 0, 8, atlas, 0),
+                               static_cast<retropp::PaletteId>(2)},
+                          Form{kirpich::render::SelectedGlyphs("()", 0, 0, 8, atlas, 0),
+                               static_cast<retropp::PaletteId>(3)}}) {
+        ASSERT_EQ(f.sprites.size(), 2u);
+        EXPECT_EQ(f.sprites[0].atlas, atlas.glyphExtras);
+        EXPECT_EQ(f.sprites[0].tile, kirpich::render::kOpenParenCell);
+        EXPECT_EQ(f.sprites[1].atlas, atlas.glyphExtras);
+        EXPECT_EQ(f.sprites[1].tile, kirpich::render::kCloseParenCell);
+        EXPECT_EQ(f.sprites[0].palette, f.palette);
+        EXPECT_EQ(f.sprites[1].palette, f.palette);
+    }
 }
 
 }  // namespace
