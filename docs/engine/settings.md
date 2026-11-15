@@ -876,7 +876,7 @@ too:
 | Component | Holds |
 |---|---|
 | `PreviewBackdrop(atlas, ramp)` (`render/components/preview_backdrop.h`) | the backdrop with the brick walls the preview stands between; the walls' columns and pixel edges (`kPreviewWallLeftColumn`, `kPreviewWallRightColumn`, `kPreviewWallLeftX`, `kPreviewWallRightX`, `kPreviewBrickSide`) |
-| `PalettePreview(atlas, ramp)` (`render/components/palette_preview.h`) | the words in their three inks and the seven pieces; the words' place (`kPalettePreviewWords`, `kPalettePreviewWordFirstY`, `kPalettePreviewWordPitch`, `palettePreviewWordX`, `palettePreviewWordY`) and `palettePreviewWordsInside(left, right)`, which a screen asserts against its walls |
+| `PalettePreview(atlas, ramp, level = std::nullopt)` (`render/components/palette_preview.h`) | the words in their three inks and the seven pieces, and — the preview's one switch — the `level` item when `level` holds one: `LevelSelector("preview-level", level, kPalettePreviewLevelX, kPalettePreviewLevelY, …)`, the word `level` and the level's number with an arrow each way it can still step, under the pieces. The palette editor passes no level; the rotation screen and the rotation editor pass the level shown, so every preview that shows a level shows it this one way. Also the words' place (`kPalettePreviewWords`, `kPalettePreviewWordFirstY`, `kPalettePreviewWordPitch`, `palettePreviewWordX`, `palettePreviewWordY`) and `palettePreviewWordsInside(left, right)`, which a screen asserts against its walls |
 
 ### The rows
 
@@ -1008,7 +1008,7 @@ because the preview is where the palette is judged:
 | Layer | Holds |
 |---|---|
 | `editor-backdrop` | `PreviewBackdrop(atlas, kCustomRamp)`: the plain backdrop with columns `kPreviewWallLeftColumn` (0) and `kPreviewWallRightColumn` (19) replaced, row by row, by the playfield's own left wall from `kTypeAGameplayTilemap`, so the bricks repeat as they do beside the well. They are background cells through the content palette, which draws the brick's lightest shade as a color |
-| `editor-preview` | the heading and its asterisk, as the editor draws them, then `PalettePreview(atlas, kCustomRamp)`: `selected` through `SelectedGlyphs`, `unselected` through `Glyphs` and `dimmed` through `DimGlyphs`, each centered at `palettePreviewWordY(i)`, then `PiecePreview("preview-piece", …)` where the Palette screen draws its pieces. No regions |
+| `editor-preview` | the heading and its asterisk, as the editor draws them, then `PalettePreview(atlas, kCustomRamp, std::nullopt)`: `selected` through `SelectedGlyphs`, `unselected` through `Glyphs` and `dimmed` through `DimGlyphs`, each centered at `palettePreviewWordY(i)`, then `PiecePreview("preview-piece", …)` where the Palette screen draws its pieces. A custom palette belongs to no level, so the `level` item is off. No regions |
 
 Nothing else is drawn while it is up: no arrow, no preset row, no labels, no shade rows, no cursor and
 no hint. The words and the pieces stand between the two walls; `kPalettePreviewWordPitch` sets the
@@ -1172,7 +1172,7 @@ through one level's palette, with the level beside it:
 | Layer | Holds |
 |---|---|
 | `rotation-backdrop` | `PreviewBackdrop(atlas, preview)`, the backdrop with its two brick walls |
-| `rotation-preview` | the heading, where the menu draws it; `PalettePreview(atlas, preview)`; and `LevelSelector("rotation-preview-level", previewLevel, kPreviewLevelX, kPreviewLevelY, …)`. No regions |
+| `rotation-preview` | the heading, where the menu draws it, and `PalettePreview(atlas, preview, previewLevel)`: the words, the pieces and the `level` item. No regions |
 
 `preview` is `kRotationRamp` while a rotation is on, and `paletteIndexOf(s)` on `off`. The rotation set
 holds the mode's palette at `previewLevel` while the preview is up (`rotationPaletteFor`, above), so the
@@ -1211,7 +1211,6 @@ screen it raises to name a save is the shared `src/render/components/text_entry.
 | `layout.h` | every position, in viewport pixels, the grid's cell functions, and the fit checks |
 | `level_cells.h` / `.cpp` | `LevelCells`, the grid's text: each level's digit, colon and number, the entered number's arrows and the grid's cursor |
 | `level_cell_swatches.h` / `.cpp` | `LevelCellSwatches`, each level's four colors under its text |
-| `level_preview_backdrop.h` / `.cpp` | `LevelPreviewBackdrop`, the held preview's backdrop with the Type A level box |
 | `screen.h` / `.cpp` | `RotationEditorScreen`, the layers |
 
 ### The rows
@@ -1381,8 +1380,8 @@ TINK; B puts `colorsOnEntry` back, writing the document only when the colors cha
 ### The held preview
 
 While Select is held the editor shows the palette editor's preview through the working rotation's
-palette for the selected level — whichever rotation is switched on, `OFF` included — with the Type A
-panel's level box showing which level it is. `rotationPaletteFor` yields that palette while
+palette for the selected level — whichever rotation is switched on, `OFF` included — with the `level`
+item under the pieces showing which level it is, exactly as the rotation screen's preview does. `rotationPaletteFor` yields that palette while
 `rotationEditor.previewing` is set ([above](#the-frames-palette)), so the reconcile puts it on the
 rotation set and the preview draws through `kRotationRamp`.
 
@@ -1395,8 +1394,6 @@ Layers RotationEditorScreen(const RotationEditorState& ui, const Settings& s,
 Sprites LevelCells(const RotationEditorState&, const CustomRotations&, const CustomPalettes&,
                    bool blinkOn, const TileAtlas&, std::uint8_t ramp);
 Regions LevelCellSwatches(const RotationProgression&);
-Cells LevelPreviewBackdrop(std::uint8_t level, std::size_t column, std::size_t row,
-                           const TileAtlas&, std::uint8_t ramp);
 ```
 
 Two layers: the backdrop (`rotation-editor-backdrop`, depth 0), and one of `rotation-editor-preview`
@@ -1425,11 +1422,11 @@ any question, drawn entirely through `kRotationRamp`:
 
 | Layer | Holds |
 |---|---|
-| `rotation-editor-backdrop` | `LevelPreviewBackdrop(level, kPreviewLevelBoxColumn, kPreviewLevelBoxRow, atlas, kRotationRamp)`: `PreviewBackdrop`'s walls with the Type A panel's level box stamped at column 6, row 0 — seven cells wide and four tall, the tilemap's rows 5, 6, 7 and 11 from column 13 (the top edge, the word, the number's row and the panel's bottom edge), the level's digit in the number's cell at the readout's own column (`systems::kTypeALevelCol`) |
-| `rotation-editor-preview` | `PalettePreview(atlas, kRotationRamp)`: the words and the seven pieces. No heading — the box stands where it would — and no regions |
+| `rotation-editor-backdrop` | `PreviewBackdrop(atlas, kRotationRamp)`, the backdrop with its two brick walls |
+| `rotation-editor-preview` | the heading, where the editor draws it but without the asterisk, and `PalettePreview(atlas, kRotationRamp, level)`: the words, the pieces and the `level` item. No regions |
 
-The heading's words, the question lines, the colon's art, `kGridRowPitch`, `kCellSquare` and the box's
-place are each one constant. The render callback has the screen's case:
+The heading's words, the question lines, the colon's art, `kGridRowPitch` and `kCellSquare` are each
+one constant. The render callback has the screen's case:
 
 ```cpp
 case kirpich::GameState::ROTATION_EDITOR: {

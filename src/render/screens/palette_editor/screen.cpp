@@ -212,7 +212,7 @@ Sprites Heading(const kirpich::CustomPalettes& palettes, const TileAtlas& atlas,
 retropp::DrawLayer Preview(const kirpich::CustomPalettes& palettes, const TileAtlas& atlas) {
     return SpriteLayer("editor-preview", kContentZ, {
         Heading(palettes, atlas, kCustomRamp),
-        PalettePreview(atlas, kCustomRamp),
+        PalettePreview(atlas, kCustomRamp, /*level=*/std::nullopt),
     });
 }
 

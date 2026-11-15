@@ -26,8 +26,7 @@
 namespace kirpich::systems {
 
 // The Type A panel's level cell: the blank cell under the word LEVEL that printLevel draws the
-// level's units digit into. A screen that draws the panel's level box outside a round puts its digit
-// here too.
+// level's units digit into.
 inline constexpr std::size_t kTypeALevelRow = 7;
 inline constexpr std::size_t kTypeALevelCol = 17;
 

@@ -50,8 +50,9 @@ digit, so the cycle repeats every ten levels. This game does the same.
   finishes on the seventh; Start finishes; B moves back, and on the first place cancels the save. Saving
   again onto a rotation's own slot renames it.
 - **Holding Select in the editor** shows the preview through the selected level's palette, whichever
-  rotation is switched on, with the Type A panel's level box at the top showing which level it is. The
-  four directions step the level while the button is down, and the cursor follows.
+  rotation is switched on, with the `level` item under the pieces showing which level it is, the same
+  preview the rotation screen shows. The four directions step the level while the button is down, and
+  the cursor follows.
 - **Clearing the slot that holds the rotation in use** turns the rotation off, as clearing the palette
   in use puts the game back on its ramp.
 - **The settings screen says when a rotation is on.** While any rotation is on, the words
@@ -175,10 +176,13 @@ control. A shipped rotation cannot be saved over or cleared.
 entered, which does not fit five across the screen. Levels 0 to 4 run down the left column and 5 to 9
 down the right — the rotation screen's two rows stood on end.
 
-**The level box stands where the heading would.** The held preview carries the box a Type A round shows
-its level in, read from the playfield's own tilemap with the level's digit in its number cell. The box
-is four cells tall and the preview's top four rows are the only free ones, so the box takes them and the
-editor's preview has no heading.
+**One preview, one way of showing the level.** The palette editor, the rotation screen and the
+rotation editor all hold Select to show the same preview, `PalettePreview`, and its only switch is
+the level. Given one, it draws the `level` item under the pieces, with an arrow each way the level can
+still step. Given none, as in the palette editor, nothing stands there. The rotation editor first
+shipped, in 0.10.3, showing the level differently: a Type A level box at the top in place of the
+heading, built from a later description of the editor's preview that was never checked against the
+rotation screen's. It now shows the `level` item under its heading, like the rotation screen.
 
 **A colon in the extras sheet.** The font has none. It is drawn in the port's own sheet as the asterisk
 is, through the same font palettes, so it inks as a letter does.
@@ -226,11 +230,11 @@ judged by eye on a running build; the colors are in `src/render/rotation_presets
 | The shared walk | `src/systems/palette_walk.h` — `PaletteChoice`, `paletteChoiceOf`, `nextPaletteChoice`, `paletteChoiceOfColors`, `colorsOf`, `paletteChoiceText` |
 | The rotation walk | `src/systems/rotation_walk.h` — `RotationChoice`, `rotationChoiceOf`, `nextRotationChoice` |
 | The rotation screen | `src/render/screens/palette_rotation/` — `RotationScreenState` (the cursor's row, `EDITOR` or `SELECTOR`; the held preview's flag and level), the logic (`RotationWiring`, `openRotationScreen`, `rotationCanStep`, `rotationScreen`, `installRotationScreen`), `layout.h`, `LevelGridDigits`, `LevelGridSwatches`, `PaletteRotationScreen`; `PALETTE_ROTATION` in `include/kirpich/game_state.h` |
-| The rotation editor | `src/render/screens/rotation_editor/` — `RotationEditorState`, the logic (`openRotationEditor`, `rotationEditorPresetCanStep`, `rotationEditorActionCanAct`, `rotationPresetText`, `turnedNameWheel`, `levelPaletteChoice`, `enteredNumberCanStep`, `rotationEditor`, `installRotationEditor`), `layout.h`, `LevelCells`, `LevelCellSwatches`, `LevelPreviewBackdrop`, `RotationEditorScreen`; `ROTATION_EDITOR` in `include/kirpich/game_state.h` |
+| The rotation editor | `src/render/screens/rotation_editor/` — `RotationEditorState`, the logic (`openRotationEditor`, `rotationEditorPresetCanStep`, `rotationEditorActionCanAct`, `rotationPresetText`, `turnedNameWheel`, `levelPaletteChoice`, `enteredNumberCanStep`, `rotationEditor`, `installRotationEditor`), `layout.h`, `LevelCells`, `LevelCellSwatches`, `RotationEditorScreen`; `ROTATION_EDITOR` in `include/kirpich/game_state.h` |
 | The name screen | `src/render/components/text_entry.h` — `TextEntry` |
 | The colon and the parentheses | `src/render/glyph_extras.h` — `kColonArt`, `kColonCell`, `kOpenParenArt`, `kOpenParenCell`, `kCloseParenArt`, `kCloseParenCell`, `glyphExtraSheet`; `src/render/components/glyphs.cpp` maps `:`, `(` and `)` |
 | The rotation note | `src/render/components/rotation_note.h` — `kRotationNote`, `rotationNoteShown`, `RotationNote`; placed by `src/render/settings_overlay.h` (`settingsRotationNote`, `kSettingsRotationNoteX`, `kSettingsRotationNoteY`), appended in `src/main.cpp` beside the settings screen's page arrows |
-| The level box's cell | `src/systems/readouts.h` — `kTypeALevelRow`, `kTypeALevelCol` |
+| The held preview and its `level` item | `src/render/components/palette_preview.h` — `PalettePreview(atlas, ramp, level)`, `kPalettePreviewLevelX`, `kPalettePreviewLevelY`; the item is `LevelSelector` |
 | The way in | `src/systems/palette_settings_screen.cpp` — Up opens the rotation screen; the Palette screen's up arrow |
 | The shared components | `src/render/components/` — `ColorSwatch`, `LevelSelector`, `TextEntry`, and the held preview's `PalettePreview` and `PreviewBackdrop`, which the palette editor draws too |
 | The host | `src/main.cpp` — the load beside the custom palettes, the rotation screen's and the rotation editor's wiring and installers, the reconcile in the simulation tick, `framePaletteIndex` and both screens' cases in the render callback |
@@ -247,7 +251,7 @@ The engine-side detail is in [`../engine/settings.md`](../engine/settings.md#the
 ## Open questions / future work
 
 - The screens' words — the editor's heading and question lines, the rotation screen's words — the
-  grid's square size and row spacing, the colon's and the parentheses' art, the level box's place, the
+  grid's square size and row spacing, the colon's and the parentheses' art, the
   `level` item's place and the rotation note's place are judged by eye on a running build, each
   one constant.
 - The three presets' colors are to be judged by eye on a running build.

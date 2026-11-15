@@ -9,6 +9,7 @@
 #include "render/components/background_layer.h"
 #include "render/components/glyphs.h"
 #include "render/components/palette_preview.h"
+#include "render/components/preview_backdrop.h"
 #include "render/components/sprite_layer.h"
 #include "render/components/text_entry.h"
 #include "render/components/yes_no_question.h"
@@ -16,7 +17,6 @@
 #include "render/screens/rotation_editor/layout.h"
 #include "render/screens/rotation_editor/level_cell_swatches.h"
 #include "render/screens/rotation_editor/level_cells.h"
-#include "render/screens/rotation_editor/level_preview_backdrop.h"
 #include "render/screens/rotation_editor/rotation_editor.h"  // the logic's own answers
 
 namespace kirpich::render {
@@ -117,10 +117,13 @@ Sprites RowCursor(const kirpich::RotationEditorState& ui, bool blinkOn, const Ti
     return Glyphs("-", kCursorX, rowY(ui.row), kGlyph, atlas, ramp);
 }
 
-// The held preview: the words and the seven pieces, through the rotation set.
-retropp::DrawLayer Preview(const TileAtlas& atlas) {
+// The held preview: the heading, then the words, the seven pieces and the `level` item for the
+// selected level, through the rotation set - the rotation screen's preview, under this screen's
+// heading.
+retropp::DrawLayer Preview(std::uint8_t level, const TileAtlas& atlas) {
     return SpriteLayer("rotation-editor-preview", kContentZ, {
-        PalettePreview(atlas, kRotationRamp),
+        Glyphs(kHeading, kHeadingX, kHeadingY, kGlyph, atlas, kRotationRamp),
+        PalettePreview(atlas, kRotationRamp, level),
     });
 }
 
@@ -160,11 +163,9 @@ Layers RotationEditorScreen(const kirpich::RotationEditorState& ui, const kirpic
     const std::uint8_t ramp = kirpich::paletteIndexOf(s);
     return {
         ui.previewing
-            ? BackgroundLayer("rotation-editor-backdrop", 0,
-                              LevelPreviewBackdrop(ui.level, kPreviewLevelBoxColumn,
-                                                   kPreviewLevelBoxRow, atlas, kRotationRamp))
+            ? BackgroundLayer("rotation-editor-backdrop", 0, PreviewBackdrop(atlas, kRotationRamp))
             : BackgroundLayer("rotation-editor-backdrop", 0, Backdrop(atlas, ramp)),
-        ui.previewing ? Preview(atlas)
+        ui.previewing ? Preview(ui.level, atlas)
         : ui.naming
             ? TextEntry("rotation-editor-name", kNameTitle,
                         std::string_view(ui.typed.data(), ui.typed.size()), ui.namePlace, blinkOn,

@@ -849,8 +849,8 @@ TEST(RotationScreen, ThePreviewsParts) {
                                                       layout::kHeadingY, 8, kAtlas, kRotationRamp);
         const auto preview  = kirpich::render::PalettePreview(kAtlas, kRotationRamp);
         const auto selector = kirpich::render::LevelSelector(
-            "rotation-preview-level", level, layout::kPreviewLevelX, layout::kPreviewLevelY, kAtlas,
-            kRotationRamp);
+            "preview-level", level, kirpich::render::kPalettePreviewLevelX,
+            kirpich::render::kPalettePreviewLevelY, kAtlas, kRotationRamp);
         expectSprites(content, heading, "heading");
         expectSprites(content, preview, "palette preview");
         expectSprites(content, selector, "level item");
@@ -858,14 +858,15 @@ TEST(RotationScreen, ThePreviewsParts) {
 
         expectSprites(content,
                       kirpich::render::Glyphs(std::to_string(level),
-                                              layout::kPreviewLevelX +
+                                              kirpich::render::kPalettePreviewLevelX +
                                                   kirpich::render::kLevelSelectorNumberDx,
-                                              layout::kPreviewLevelY, 8, kAtlas, kRotationRamp),
+                                              kirpich::render::kPalettePreviewLevelY, 8, kAtlas,
+                                              kRotationRamp),
                       "the level's number");
-        EXPECT_EQ(named(content, "rotation-preview-level-left").has_value(), level > 0);
-        EXPECT_EQ(named(content, "rotation-preview-level-down").has_value(), level > 0);
-        EXPECT_EQ(named(content, "rotation-preview-level-right").has_value(), level < 9);
-        EXPECT_EQ(named(content, "rotation-preview-level-up").has_value(), level < 9);
+        EXPECT_EQ(named(content, "preview-level-left").has_value(), level > 0);
+        EXPECT_EQ(named(content, "preview-level-down").has_value(), level > 0);
+        EXPECT_EQ(named(content, "preview-level-right").has_value(), level < 9);
+        EXPECT_EQ(named(content, "preview-level-up").has_value(), level < 9);
 
         EXPECT_FALSE(named(content, "rotation-down"));
         EXPECT_FALSE(named(content, "rotation-left"));
