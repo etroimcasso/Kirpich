@@ -53,6 +53,9 @@ digit, so the cycle repeats every ten levels. This game does the same.
   four directions step the level while the button is down, and the cursor follows.
 - **Clearing the slot that holds the rotation in use** turns the rotation off, as clearing the palette
   in use puts the game back on its ramp.
+- **The settings screen says when a rotation is on.** While any rotation is on, the words
+  `(rotating)` stand dimmed on the settings screen's first page, on the line under `palette`. While the
+  rotation is off, nothing stands there.
 
 ## What is built
 
@@ -77,7 +80,8 @@ digit, so the cycle repeats every ten levels. This game does the same.
 - **The rotation screen**, described above, with its own walk over `off`, the presets and the saved
   rotations.
 - **The rotation editor**, described above, and the text input screen it raises to name a save.
-- **The font gains a colon**, in the port's own extras sheet beside the asterisk, for the cells' `0:`.
+- **The font gains a colon**, in the port's own extras sheet beside the asterisk, for the cells' `0:`,
+  and **two parentheses** after it, for the settings screen's `(rotating)`.
 
 ## Design decisions
 
@@ -175,6 +179,18 @@ editor's preview has no heading.
 **A colon in the extras sheet.** The font has none. It is drawn in the port's own sheet as the asterisk
 is, through the same font palettes, so it inks as a letter does.
 
+**The rotation note stands under the settings screen's `palette` row.** Without it the Palette screen,
+the rotation screen and a round can show three different palettes and nothing says why. The note reads
+`(rotating)` in the dim font and shows for every rotation but `off`, on the line under the `palette`
+row. The label and the row's arrow leave nine cells between them and the note is ten, so it cannot sit
+beside the word. Two places on the Palette screen were tried: between its heading and its row, which
+read too loud even dimmed, and centered between the swatch and the piece preview. Seen side by side
+with the settings screen's placement, the settings screen's was kept. A small two-arrow icon beside
+the Palette screen's heading, and a `rotate` stop on its own selector, were both considered.
+
+**Parentheses in the extras sheet.** The font has none. They are drawn as the colon is, two-pixel
+strokes over the letters' seven rows, and ink through the same font palettes.
+
 **Clearing the rotation in use turns the rotation off.** Clearing a slot that holds the rotation a round
 is wearing, with no other slot holding it, sets the rotation off, as the palette editor's clear puts the
 game back on the ramp underneath. The working rotation itself is left as it is.
@@ -208,7 +224,8 @@ judged by eye on a running build; the colors are in `src/render/rotation_presets
 | The rotation screen | `src/render/screens/palette_rotation/` — `RotationScreenState` (the cursor's row, `EDITOR` or `SELECTOR`; the held preview's flag and level), the logic (`RotationWiring`, `openRotationScreen`, `rotationCanStep`, `rotationScreen`, `installRotationScreen`), `layout.h`, `LevelGridDigits`, `LevelGridSwatches`, `PaletteRotationScreen`; `PALETTE_ROTATION` in `include/kirpich/game_state.h` |
 | The rotation editor | `src/render/screens/rotation_editor/` — `RotationEditorState`, the logic (`openRotationEditor`, `rotationEditorPresetCanStep`, `rotationEditorActionCanAct`, `rotationPresetText`, `turnedNameWheel`, `levelPaletteChoice`, `enteredNumberCanStep`, `rotationEditor`, `installRotationEditor`), `layout.h`, `LevelCells`, `LevelCellSwatches`, `LevelPreviewBackdrop`, `RotationEditorScreen`; `ROTATION_EDITOR` in `include/kirpich/game_state.h` |
 | The name screen | `src/render/components/text_entry.h` — `TextEntry` |
-| The colon | `src/render/glyph_extras.h` — `kColonArt`, `kColonCell`, `glyphExtraSheet`; `src/render/components/glyphs.cpp` maps `:` |
+| The colon and the parentheses | `src/render/glyph_extras.h` — `kColonArt`, `kColonCell`, `kOpenParenArt`, `kOpenParenCell`, `kCloseParenArt`, `kCloseParenCell`, `glyphExtraSheet`; `src/render/components/glyphs.cpp` maps `:`, `(` and `)` |
+| The rotation note | `src/render/components/rotation_note.h` — `kRotationNote`, `rotationNoteShown`, `RotationNote`; placed by `src/render/settings_overlay.h` (`settingsRotationNote`, `kSettingsRotationNoteX`, `kSettingsRotationNoteY`), appended in `src/main.cpp` beside the settings screen's page arrows |
 | The level box's cell | `src/systems/readouts.h` — `kTypeALevelRow`, `kTypeALevelCol` |
 | The way in | `src/systems/palette_settings_screen.cpp` — Up opens the rotation screen; the Palette screen's up arrow |
 | The shared components | `src/render/components/` — `ColorSwatch`, `LevelSelector`, `TextEntry`, and the held preview's `PalettePreview` and `PreviewBackdrop`, which the palette editor draws too |
@@ -225,11 +242,8 @@ The engine-side detail is in [`../engine/settings.md`](../engine/settings.md#the
 
 ## Open questions / future work
 
-- **Showing on the Palette screen that a rotation is on.** Without it the Palette screen, the rotation
-  screen and a round can show three different palettes. One shape considered is a `rotate` stop on the
-  Palette screen's own selector; whether a rotation should then reach the menus at all is open, and the
-  idea is set aside for now.
 - The screens' words — the editor's heading and question lines, the rotation screen's words — the
-  grid's square size and row spacing, the colon's art, the level box's place and the `level` item's
-  place are judged by eye on a running build, each one constant.
+  grid's square size and row spacing, the colon's and the parentheses' art, the level box's place, the
+  `level` item's place and the rotation note's place are judged by eye on a running build, each
+  one constant.
 - The three presets' colors are to be judged by eye on a running build.

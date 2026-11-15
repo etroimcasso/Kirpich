@@ -664,6 +664,19 @@ if (game.flow.gameState == kirpich::GameState::SETTINGS) {
 }
 ```
 
+`settingsRotationNote(ui, settings, ramp, atlas)` returns the settings screen's rotation note:
+`RotationNote` (`src/render/components/rotation_note.h`), the words `(rotating)` in `DimGlyphs`, from
+the label column on the empty line under the palette row (`kSettingsRotationNoteX`,
+`kSettingsRotationNoteY` in `src/render/settings_overlay.h`). The palette row's label and its arrow
+leave nine cells between them and the note takes ten, so it stands on the next line. It is drawn while
+the page shown holds the palette row and `Settings::paletteRotation` is not `OFF`, and is empty
+otherwise. Append it beside the page arrows:
+
+```cpp
+const auto note = kirpich::render::settingsRotationNote(game.screens, settings, paletteIndex, tiles);
+sprites.insert(sprites.end(), note.begin(), note.end());
+```
+
 The arrow on a row that opens a screen is the same selector tile, unturned, placed in the object
 buffer by `drawValueArrows`. An arrow is emitted only where there is somewhere to go: none above the
 first page or below the last, and on a row only when the row opens a screen.

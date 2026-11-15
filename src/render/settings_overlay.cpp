@@ -1,10 +1,21 @@
 #include "render/settings_overlay.h"
 
 #include "render/components/page_arrows.h"
+#include "render/components/rotation_note.h"
 #include "state/screen_ui_state.h"  // settingsPageOf, kSettingsPageCount
 #include "systems/list_screen.h"    // the list's window height
 
 namespace kirpich::render {
+
+std::vector<retropp::Sprite> settingsRotationNote(const kirpich::ScreenUiState& ui,
+                                                  const kirpich::Settings& s, std::uint8_t ramp,
+                                                  const TileAtlas& atlas) {
+    if (kirpich::settingsPageOf(ui.settingsRow) !=
+        kirpich::settingsPageOf(kirpich::SettingsRow::PALETTE)) {
+        return {};
+    }
+    return RotationNote(s, kSettingsRotationNoteX, kSettingsRotationNoteY, kOptionCell, atlas, ramp);
+}
 
 std::vector<retropp::Sprite> settingsPageArrows(const kirpich::ScreenUiState& ui, std::uint8_t ramp,
                                                 const TileAtlas& atlas) {

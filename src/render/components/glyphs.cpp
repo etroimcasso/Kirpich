@@ -5,7 +5,7 @@
 
 #include <kirpich/char_tile.h>
 
-#include "render/glyph_extras.h"  // kAsteriskCell, kColonCell
+#include "render/glyph_extras.h"  // kAsteriskCell, kColonCell, kOpenParenCell, kCloseParenCell
 
 namespace kirpich::render {
 
@@ -60,6 +60,12 @@ enum class Ink : std::uint8_t {
     }
     if (c == ':') {
         return ResolvedTile{.atlas = atlas.glyphExtras, .cell = kColonCell, .palette = palette};
+    }
+    if (c == '(') {
+        return ResolvedTile{.atlas = atlas.glyphExtras, .cell = kOpenParenCell, .palette = palette};
+    }
+    if (c == ')') {
+        return ResolvedTile{.atlas = atlas.glyphExtras, .cell = kCloseParenCell, .palette = palette};
     }
     const std::optional<std::uint8_t> glyph = glyphIndexFor(c);
     if (!glyph) {
