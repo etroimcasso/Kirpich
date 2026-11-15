@@ -21,10 +21,10 @@
 // the name as typed with its place blinking.
 //
 // While Select is held (RotationEditorState::previewing) the held preview takes the screen from the
-// editor, the name screen and any question: the backdrop with a brick wall down each edge and the
-// Type A panel's level box at the top, reading the selected level (LevelPreviewBackdrop), and a layer
-// keyed `rotation-editor-preview` holding the palette editor's words and pieces (PalettePreview).
-// Every part of it draws through the rotation set, kRotationRamp, which holds the working rotation's
+// editor, the name screen and any question: the backdrop with a brick wall down each edge
+// (PreviewBackdrop), and a layer keyed `rotation-editor-preview` holding the heading and the shared
+// preview with its `level` item reading the selected level (PalettePreview) - the same preview the
+// rotation screen shows. Every part of it draws through the rotation set, kRotationRamp, which holds the working rotation's
 // palette for the selected level while the preview is up (systems/frame_palette.h), whichever
 // rotation is switched on. Laid out in pixels by layout.h beside this file.
 

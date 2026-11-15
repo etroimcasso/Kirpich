@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "render/components/glyphs.h"
+#include "render/components/level_selector.h"
 #include "render/components/piece_preview.h"
 
 namespace kirpich::render {
@@ -21,13 +22,18 @@ constexpr int kGlyph = kPalettePreviewGlyph;
 
 }  // namespace
 
-Sprites PalettePreview(const TileAtlas& atlas, std::uint8_t ramp) {
+Sprites PalettePreview(const TileAtlas& atlas, std::uint8_t ramp,
+                       std::optional<std::uint8_t> level) {
     Sprites    out;
     const auto add = [&out](const Sprites& part) { out.insert(out.end(), part.begin(), part.end()); };
     add(SelectedGlyphs(kPalettePreviewWords[0], wordX(0), wordY(0), kGlyph, atlas, ramp));
     add(Glyphs(kPalettePreviewWords[1], wordX(1), wordY(1), kGlyph, atlas, ramp));
     add(DimGlyphs(kPalettePreviewWords[2], wordX(2), wordY(2), kGlyph, atlas, ramp));
     add(PiecePreview("preview-piece", atlas, ramp));
+    if (level) {
+        add(LevelSelector("preview-level", *level, kPalettePreviewLevelX, kPalettePreviewLevelY,
+                          atlas, ramp));
+    }
     return out;
 }
 

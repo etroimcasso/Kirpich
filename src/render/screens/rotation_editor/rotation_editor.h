@@ -42,8 +42,9 @@
 // stored as the slot's number.
 //
 // Holding Select shows the held preview for exactly as long as the button is down: the palette
-// editor's preview through the working rotation's palette for the selected level, with the Type A
-// level box showing which level it is. While it is up in the walk, Up and Right step the level forward
+// editor's preview through the working rotation's palette for the selected level, with the `level`
+// item under the pieces showing which level it is, as the rotation screen's does. While it is up in
+// the walk, Up and Right step the level forward
 // and Down and Left step it back, 0-9, and the cursor follows; while a number is entered, the name
 // screen is up or a question is up, no press does anything until Select is released.
 //

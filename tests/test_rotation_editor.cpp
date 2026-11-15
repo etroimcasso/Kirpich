@@ -26,10 +26,10 @@
 #include <kirpich/char_tile.h>
 #include <kirpich/game_state.h>
 
-#include "data/tilemaps.h"
 #include "render/components/arrow.h"
 #include "render/components/backdrop.h"
 #include "render/components/glyphs.h"
+#include "render/components/level_selector.h"
 #include "render/components/palette_preview.h"
 #include "render/components/preview_backdrop.h"
 #include "render/components/text_entry.h"
@@ -38,7 +38,6 @@
 #include "render/palettes.h"
 #include "render/rotation_presets.h"
 #include "render/screens/rotation_editor/layout.h"
-#include "render/screens/rotation_editor/level_preview_backdrop.h"
 #include "render/screens/rotation_editor/rotation_editor.h"
 #include "render/screens/rotation_editor/screen.h"
 #include "render/tile_atlas.h"
@@ -1366,52 +1365,56 @@ TEST(RotationEditor, WhileHeldTheDirectionsStepTheLevel) {
     EXPECT_EQ(s.ui().level, 5);
 }
 
-// (27) The preview's backdrop is PreviewBackdrop's walls through the rotation set, with the Type A
-// panel's level box at its place: the tilemap's top edge, word, number row and bottom edge, with the
-// level's digit in the number's cell.
-TEST(RotationEditor, ThePreviewsBackdropCarriesTheLevelBox) {
+// (27) The held preview is the one every screen shows: PreviewBackdrop's walls exactly, the heading,
+// and PalettePreview with its `level` item reading the selected level - the item at the shared place,
+// its arrows only where the level can still step.
+TEST(RotationEditor, ThePreviewShowsTheLevelAsEveryPreviewDoes) {
     const CustomRotations r = threeRotations();
     const CustomPalettes  p = threePalettes();
     const auto            walls = kirpich::render::PreviewBackdrop(kAtlas, kRotationRamp);
-    constexpr std::array<std::size_t, 4> kSourceRows{5, 6, 7, 11};
 
     for (const std::uint8_t level : {0, 5, 9}) {
         const auto layers = draw(RotationEditorState{.level = level, .previewing = true}, r, p);
         const auto cells  = cellsOf(layers);
         ASSERT_EQ(cells.size(), walls.size());
-        for (std::size_t row = 0; row < 18; ++row) {
-            for (std::size_t col = 0; col < 20; ++col) {
-                const retropp::TileCell& got = cells[row * 20 + col];
-                const bool inBox = row < 4 && col >= 6 && col < 13;
-                retropp::TileCell want = walls[row * 20 + col];
-                if (inBox) {
-                    const std::size_t boxCol = col - 6;
-                    const std::uint8_t source =
-                        row == 2 && boxCol == 4
-                            ? level
-                            : kirpich::kTypeAGameplayTilemap[kSourceRows[row]][13 + boxCol];
-                    const auto tile = kirpich::render::resolveTile(
-                        source, kirpich::TileSheet::GAMEPLAY, kAtlas, kRotationRamp);
-                    want = retropp::TileCell{.atlas = tile.atlas, .tile = tile.cell,
-                                             .palette = tile.palette};
-                }
-                EXPECT_EQ(got.atlas, want.atlas) << "level " << +level << " " << row << "," << col;
-                EXPECT_EQ(got.tile, want.tile) << "level " << +level << " " << row << "," << col;
-                EXPECT_EQ(got.palette, want.palette)
-                    << "level " << +level << " " << row << "," << col;
-            }
+        for (std::size_t i = 0; i < cells.size(); ++i) {
+            EXPECT_EQ(cells[i].atlas, walls[i].atlas) << "level " << +level << " cell " << i;
+            EXPECT_EQ(cells[i].tile, walls[i].tile) << "level " << +level << " cell " << i;
+            EXPECT_EQ(cells[i].palette, walls[i].palette) << "level " << +level << " cell " << i;
         }
+
+        const auto content = spritesOf(layers);
+        const auto heading = kirpich::render::Glyphs(layout::kHeading, layout::kHeadingX,
+                                                     layout::kHeadingY, 8, kAtlas, kRotationRamp);
+        const auto preview = kirpich::render::PalettePreview(kAtlas, kRotationRamp, level);
+        expectSprites(content, heading, "heading");
+        expectSprites(content, preview, "preview");
+        EXPECT_EQ(content.size(), heading.size() + preview.size());
+
+        expectSprites(content,
+                      kirpich::render::Glyphs(std::to_string(level),
+                                              kirpich::render::kPalettePreviewLevelX +
+                                                  kirpich::render::kLevelSelectorNumberDx,
+                                              kirpich::render::kPalettePreviewLevelY, 8, kAtlas,
+                                              kRotationRamp),
+                      "the level's number");
+        EXPECT_EQ(named(content, "preview-level-left").has_value(), level > 0);
+        EXPECT_EQ(named(content, "preview-level-down").has_value(), level > 0);
+        EXPECT_EQ(named(content, "preview-level-right").has_value(), level < 9);
+        EXPECT_EQ(named(content, "preview-level-up").has_value(), level < 9);
     }
-    EXPECT_EQ(kirpich::render::kLevelBoxNumberColumn, 4u);
 }
 
 // (28) The preview draws through the rotation set whatever the settings say - the rotation off, a
-// preset, CUSTOM, a ramp or the custom palette in use - and is the shared preview exactly, with no
-// heading, no cursor and no regions.
+// preset, CUSTOM, a ramp or the custom palette in use - and is the heading and the shared preview for
+// the selected level exactly, with no cursor and no regions.
 TEST(RotationEditor, ThePreviewDrawsThroughTheRotationSetWhateverTheSettings) {
     const CustomRotations r = threeRotations();
     const CustomPalettes  p = threePalettes();
-    const auto            want = kirpich::render::PalettePreview(kAtlas, kRotationRamp);
+    auto want = kirpich::render::Glyphs(layout::kHeading, layout::kHeadingX, layout::kHeadingY, 8,
+                                        kAtlas, kRotationRamp);
+    const auto preview = kirpich::render::PalettePreview(kAtlas, kRotationRamp, std::uint8_t{0});
+    want.insert(want.end(), preview.begin(), preview.end());
     for (const PaletteRotation mode :
          {PaletteRotation::OFF, PaletteRotation::HOTTER, PaletteRotation::CUSTOM}) {
         for (const bool custom : {false, true}) {

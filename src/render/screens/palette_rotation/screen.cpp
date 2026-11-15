@@ -11,7 +11,6 @@
 #include "render/components/backdrop.h"
 #include "render/components/background_layer.h"
 #include "render/components/glyphs.h"
-#include "render/components/level_selector.h"
 #include "render/components/page_arrows.h"
 #include "render/components/palette_preview.h"
 #include "render/components/preview_backdrop.h"
@@ -106,14 +105,12 @@ retropp::DrawLayer Menu(const kirpich::RotationScreenState& ui, const kirpich::S
     }, LayerOptions{.regions = LevelGridSwatches(levelColors(s, rotations, atlas))});
 }
 
-// The held preview: the heading, the words and the pieces, and the `level` item, all through the
+// The held preview: the heading, then the words, the pieces and the `level` item, all through the
 // level's palette.
 retropp::DrawLayer Preview(std::uint8_t level, const TileAtlas& atlas, std::uint8_t preview) {
     return SpriteLayer("rotation-preview", kContentZ, {
         Glyphs(kHeading, kHeadingX, kHeadingY, kGlyph, atlas, preview),
-        PalettePreview(atlas, preview),
-        LevelSelector("rotation-preview-level", level, kPreviewLevelX, kPreviewLevelY, atlas,
-                      preview),
+        PalettePreview(atlas, preview, level),
     });
 }
 

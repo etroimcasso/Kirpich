@@ -2,11 +2,10 @@
 
 // Where the rotation editor puts things, in viewport pixels.
 //
-// Every position here is a pixel. The held preview is shared components with their own geometry -
-// PalettePreview's words and pieces, and PreviewBackdrop's brick walls - and the Type A panel's level
-// box, which LevelPreviewBackdrop stamps into the backdrop; the backdrop is the one part of the screen
-// laid out by cell, so the box's place is given in cells. The checks at the bottom keep every part
-// clear of its neighbors. Shared by the screen function, its components, the logic's grid walk and
+// Every position here is a pixel. The held preview is the heading over shared components with their
+// own geometry - PalettePreview's words, pieces and `level` item, and PreviewBackdrop's brick
+// walls, the one part of the screen laid out by cell. The checks at the bottom keep every part clear
+// of its neighbors. Shared by the screen function, its components, the logic's grid walk and
 // the tests that read it back.
 //
 // The screen, top to bottom: the heading; the preset selector and its three actions; the grid of the
@@ -20,9 +19,8 @@
 #include <string_view>
 
 #include "render/components/palette_preview.h"   // kPalettePreviewWordFirstY, palettePreviewWordsInside
-#include "render/components/preview_backdrop.h"  // kPreviewWallLeftColumn, kPreviewWallRightColumn
+#include "render/components/preview_backdrop.h"  // kPreviewWallLeftX, kPreviewWallRightX
 #include "render/rotation_presets.h"             // kRotationPresetNameMaxGlyphs
-#include "render/screens/rotation_editor/level_preview_backdrop.h"  // kLevelBoxWidth, kLevelBoxHeight
 #include "state/custom_rotations.h"              // kRotationLevelCount, kRotationNameLength
 
 namespace kirpich::render::rotation_editor {
@@ -34,7 +32,8 @@ inline constexpr int kScreenHeight = 144;
 inline constexpr int kGlyph = 8;
 
 // The heading, centered as fifteen glyphs, and the asterisk in the cell after it while the working
-// rotation has unsaved changes. The heading never moves for the asterisk.
+// rotation has unsaved changes. The heading never moves for the asterisk. The held preview draws the
+// heading too, without the asterisk.
 inline constexpr std::string_view kHeading   = "custom rotation";
 inline constexpr int              kHeadingX  = 20;
 inline constexpr int              kHeadingY  = 16;
@@ -125,10 +124,6 @@ inline constexpr int kCellSquare   = 5;
     return cellY(level) + kCellSwatchDy;
 }
 
-// The level box on the held preview, in backdrop cells: its top-left column and row.
-inline constexpr std::size_t kPreviewLevelBoxColumn = 6;
-inline constexpr std::size_t kPreviewLevelBoxRow    = 0;
-
 // The content draws over the backdrop; the arrows stand above the glyphs inside it. The held preview's
 // layer stands at the same depth as the content it replaces.
 inline constexpr std::int32_t kContentZ = 10;
@@ -184,13 +179,12 @@ static_assert(cellY(kGridRows - 1) + kCellDownArrowDy + kGlyph <= kScreenHeight,
               "the last row's down arrow runs off the screen");
 
 // The held preview.
-static_assert(kPreviewLevelBoxColumn > kPreviewWallLeftColumn,
-              "the level box runs into the left wall");
-static_assert(kPreviewLevelBoxColumn + kLevelBoxWidth <= kPreviewWallRightColumn,
-              "the level box runs into the right wall");
-static_assert(static_cast<int>(kPreviewLevelBoxRow + kLevelBoxHeight) * kGlyph <=
-                  kPalettePreviewWordFirstY,
-              "the level box runs into the first preview word");
+static_assert(kHeadingX >= kPreviewWallLeftX + kPreviewBrickSide,
+              "the heading runs into the left wall");
+static_assert(kHeadingX + static_cast<int>(kHeading.size()) * kGlyph <= kPreviewWallRightX,
+              "the heading runs into the right wall");
+static_assert(kPalettePreviewWordFirstY >= kHeadingY + kGlyph,
+              "the first preview word runs into the heading");
 static_assert(palettePreviewWordsInside(kPreviewWallLeftX + kPreviewBrickSide, kPreviewWallRightX),
               "a preview word runs into a wall");
 

@@ -1,6 +1,7 @@
 #pragma once
 
-// What a palette looks like in use, as sprites: text in its three inks, then the seven pieces.
+// What a palette looks like in use, as sprites: text in its three inks, then the seven pieces, and,
+// when a level is given, the `level` item under them.
 //
 // The words `selected`, `unselected` and `dimmed`, top to bottom, are each drawn through the font
 // palette they name - SelectedGlyphs, Glyphs and DimGlyphs - so the three kinds of text the game draws
@@ -8,16 +9,25 @@
 // kPalettePreviewWordPitch below the one before. The pieces are PiecePreview at its own fixed place,
 // named `preview-piece`, the same shapes where the Palette screen draws them.
 //
-// A screen shows it while the player holds Select to judge a palette, usually over PreviewBackdrop
-// (render/components/preview_backdrop.h). Draw it through the palette being judged.
+// The level is the preview's one switch. Given a level, the `level` item (LevelSelector) stands under
+// the pieces at kPalettePreviewLevelX/Y, reading which level the palette is, with an arrow each way the
+// level can still step; given none, nothing stands there. Every screen that previews a level's
+// palette shows it this way and only this way.
+//
+// A screen shows it while the player holds Select to judge a palette, over PreviewBackdrop
+// (render/components/preview_backdrop.h) and under the screen's own heading. Draw it through the
+// palette being judged.
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
-#include "render/components/piece_preview.h"  // kPiecePreviewFirstRowY
-#include "render/sprites.h"                   // kScreenWidthPx
+#include "render/components/level_selector.h"    // kLevelSelectorWidth
+#include "render/components/piece_preview.h"     // kPiecePreviewFirstRowY, kPiecePreviewSecondRowY
+#include "render/components/preview_backdrop.h"  // kPreviewWallLeftX, kPreviewWallRightX
+#include "render/sprites.h"                      // kScreenWidthPx, kScreenHeightPx
 #include "render/tile_atlas.h"
 #include "render/types.h"
 
@@ -57,8 +67,25 @@ static_assert(palettePreviewWordY(kPalettePreviewWords.size() - 1) + kPalettePre
                   kPiecePreviewFirstRowY,
               "the last word runs into the pieces");
 
-// The words, then the pieces, through `ramp`'s palettes. The words are named by position, as Glyphs
-// names them; the pieces `preview-piece-<kind>-<part>`.
-[[nodiscard]] Sprites PalettePreview(const TileAtlas& atlas, std::uint8_t ramp);
+// The `level` item's word, its top-left in viewport pixels. The item reaches a glyph above and two
+// glyphs below its word's top (LevelSelector's arrows).
+inline constexpr int kPalettePreviewLevelX = 48;
+inline constexpr int kPalettePreviewLevelY = 128;
+
+static_assert(kPalettePreviewLevelY - kPalettePreviewGlyph >=
+                  kPiecePreviewSecondRowY + kPiecePreviewShapeSpan,
+              "the level item's up arrow runs into the pieces");
+static_assert(kPalettePreviewLevelY + 2 * kPalettePreviewGlyph <= kScreenHeightPx,
+              "the level item's down arrow runs off the screen");
+static_assert(kPalettePreviewLevelX >= kPreviewWallLeftX + kPreviewBrickSide,
+              "the level item runs into the left wall");
+static_assert(kPalettePreviewLevelX + kLevelSelectorWidth <= kPreviewWallRightX,
+              "the level item runs into the right wall");
+
+// The words, then the pieces, then - when `level` holds one, 0-9 - the `level` item, through `ramp`'s
+// palettes. The words are named by position, as Glyphs names them; the pieces
+// `preview-piece-<kind>-<part>`; the item's arrows `preview-level-left`, `-right`, `-up` and `-down`.
+[[nodiscard]] Sprites PalettePreview(const TileAtlas& atlas, std::uint8_t ramp,
+                                     std::optional<std::uint8_t> level = std::nullopt);
 
 }  // namespace kirpich::render

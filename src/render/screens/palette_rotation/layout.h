@@ -4,9 +4,9 @@
 //
 // Every position here is a pixel. The down arrow is the shared page arrow
 // (render/components/page_arrows.h) and stands where every screen in the settings family draws its
-// own. The held preview is two shared components with their own geometry - PalettePreview's words and
-// pieces, and PreviewBackdrop's brick walls, the one part of the screen laid out by cell - and the
-// checks at the bottom keep the heading and the `level` item clear of both. Shared by the screen
+// own. The held preview is two shared components with their own geometry - PalettePreview's
+// words, pieces and `level` item, and PreviewBackdrop's brick walls, the one part of the screen laid
+// out by cell - and the checks at the bottom keep the heading clear of both. Shared by the screen
 // function, its components and the tests that read it back.
 //
 // The screen, top to bottom: the heading; the grid of the ten levels, two rows of five, each cell its
@@ -17,9 +17,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "render/components/level_selector.h"    // kLevelSelectorWidth
 #include "render/components/palette_preview.h"   // palettePreviewWordsInside
-#include "render/components/piece_preview.h"     // kPiecePreviewSecondRowY, kPiecePreviewShapeSpan
 #include "render/components/preview_backdrop.h"  // kPreviewWallLeftX, kPreviewWallRightX
 #include "render/rotation_presets.h"             // kRotationPresetNameMaxGlyphs
 #include "state/custom_rotations.h"              // kRotationLevelCount, kRotationNameLength
@@ -99,10 +97,6 @@ static_assert(kSelectorValueMaxGlyphs >= kRotationPresetNameMaxGlyphs,
 static_assert(kSelectorValueMaxGlyphs >= static_cast<int>(kirpich::kRotationNameLength),
               "the selector's value has no room for a saved rotation's name");
 
-// The `level` item on the held preview: the word's top-left (render/components/level_selector.h).
-inline constexpr int kPreviewLevelX = 48;
-inline constexpr int kPreviewLevelY = 128;
-
 // The content draws over the backdrop; the arrows stand above the glyphs inside it. The held preview's
 // layer stands at the same depth as the menu it replaces.
 inline constexpr std::int32_t kContentZ = 10;
@@ -140,13 +134,5 @@ static_assert(kPalettePreviewWordFirstY >= kHeadingY + kGlyph,
               "the first preview word runs into the heading");
 static_assert(palettePreviewWordsInside(kPreviewWallLeftX + kPreviewBrickSide, kPreviewWallRightX),
               "a preview word runs into a wall");
-static_assert(kPreviewLevelY - kGlyph >= kPiecePreviewSecondRowY + kPiecePreviewShapeSpan,
-              "the level item's up arrow runs into the pieces");
-static_assert(kPreviewLevelY + 2 * kGlyph <= kScreenHeight,
-              "the level item's down arrow runs off the screen");
-static_assert(kPreviewLevelX >= kPreviewWallLeftX + kPreviewBrickSide,
-              "the level item runs into the left wall");
-static_assert(kPreviewLevelX + kLevelSelectorWidth <= kPreviewWallRightX,
-              "the level item runs into the right wall");
 
 }  // namespace kirpich::render::palette_rotation

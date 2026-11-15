@@ -93,7 +93,6 @@ add_library(kirpich-lib STATIC
     render/screens/palette_rotation/screen.cpp
     render/screens/rotation_editor/level_cells.cpp
     render/screens/rotation_editor/level_cell_swatches.cpp
-    render/screens/rotation_editor/level_preview_backdrop.cpp
     render/screens/rotation_editor/rotation_editor.cpp
     render/screens/rotation_editor/screen.cpp
     render/screens/palette_settings/ramp_swatch.cpp
