@@ -1369,12 +1369,13 @@ being the whole frame's input: a press steps at once, a hold steps again 23 fram
 after that. A ten-step clamps: it runs as far as the walk goes and stops at its end, so Up from ramp 76
 with slots 1, 4 and 7 saved lands on `C07`, and Down from ramp 4 on ramp 1. Each step copies the stop's
 colors into the level (`colorsOf`), writes the rotations document through `save`, and cues TINK; a step
-that cannot move at all is an end stop and writes and cues nothing. No arrow is drawn for the
-ten-step. **The step moves from `entered`, never from a stop read back off
-the level's colors**: a saved palette holding a ramp's colors reads as that ramp, and a walk that
-re-derived its place each step would fall back onto the ramp and never reach the slots after it. With
-no palettes the walk is the ramps alone. The step and the number's arrows
-(`rotation-editor-number-left` / `-right`) both ask `enteredNumberCanStep`. A keeps the number with a
+that cannot move at all is an end stop and writes and cues nothing. **The step moves from `entered`,
+never from a stop read back off the level's colors**: a saved palette holding a ramp's colors reads as
+that ramp, and a walk that re-derived its place each step would fall back onto the ramp and never
+reach the slots after it. With no palettes the walk is the ramps alone. The step and the number's
+arrows both ask `enteredNumberCanStep`: `rotation-editor-number-left` and `-down` stand where a step
+back exists, `-right` and `-up` where a step forward does. Because a ten-step clamps, it can move
+exactly where a single step can, so Up shows with Right and Down with Left. A keeps the number with a
 TINK; B puts `colorsOnEntry` back, writing the document only when the colors changed, with no cue.
 
 ### The held preview
@@ -1409,7 +1410,11 @@ its arrows, the three action labels, the row cursor before a label on the four u
 column `i / 5` of row `i % 5`; from its cell's left edge (`cellX(i)`, `cellY(i)`) come the cursor
 (`kCellCursorDx`), the level's digit (`kCellLevelDx`), the colon (`kCellColonDx`), the entered number's
 left arrow (`kCellLeftArrowDx`), the number (`kCellNumberDx`, at most three characters, `C04`) and its
-right arrow (`kCellRightArrowDx`); the swatch stands under the digit at `cellSwatchX(i)`,
+right arrow (`kCellRightArrowDx`). The entered number's up and down arrows stand centered on the
+number's field (`kCellVerticalArrowDx`), the up arrow at `kCellUpArrowDy` and the down arrow at
+`kCellDownArrowDy`. Those offsets are set by where each arrow inks (`kUpArrowInkTop`,
+`kDownArrowInkBottom`) rather than by a whole glyph, so each stands one pixel off the number. The
+swatch stands under the digit at `cellSwatchX(i)`,
 `cellSwatchY(i)`, four squares of `kCellSquare` pixels named `rotation-editor-level-<i>`, so a step
 recolors its cell on the same frame. The entered number draws through `SelectedGlyphs` and no cursor is
 drawn while a number is entered. The menu, the name screen and the questions draw through
